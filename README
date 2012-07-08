@@ -1,0 +1,53 @@
+Math::Prime::Util::GMP version 0.01
+
+A set of utilities related to prime numbers.  These include multiple sieving
+methods, is_prime, prime_count, nth_prime, approximations and bounds for
+the prime_count and nth prime, next_prime and prev_prime, moebius and totient
+functions, integer factoring, and more.
+
+These use GMP directly, so should be quite fast for bignums.  This module is
+mainly intended to be used within Math::Prime::Util.
+
+
+SYNOPSIS
+
+  use bigint;
+  use Math::Prime::Util::GMP qw/is_prime/;
+
+  my $bignum = 27188762623694447842124996538064039444034480940561898523069471141322552613142248049662205275973369340310432664971214620312500867999795559094898390220747143052478910604268911012707898393728029267456459638286456542290811906119936040794792836567800517712998324001798156031927248728220625109007338679765933511619979774789836912923556217410691909195918721300495567162524824116421834972571058278049256235507898646245768556946276949788343519575161621940362646866507884693948582445313246609982609803440514973664475699712739781845803535392293307648102481184237357244142946254918813030632212409545324607906367812717102049454943;
+
+  say "$bignum is ", is_prime($bignum) ? "prime" : "not prime";
+
+See the POD module documentation for examples and more information on all the
+methods included.
+
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+You will need a C compiler compatible with the compiler used to build Perl,
+and the GMP development system installed.  If you can install or have installed
+Math::BigInt::GMP or Math::GMPz then this module should have no issues.
+
+  Fedora:     sudo yum install gmp gmp-devel
+  Ubuntu:     sudo apt-get install libgmp3 libgmp3-dev
+  Cygwin:     install gmp, libgmp-devel, libgmp3
+
+
+DEPENDENCIES
+
+Perl 5.6.2 or later.  No modules outside of Core have been used.
+
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2011-2012 by Dana Jacobsen <dana@acm.org>
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
