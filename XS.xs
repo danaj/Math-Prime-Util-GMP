@@ -41,8 +41,7 @@ static const unsigned short primes_small[] =
   };
 #define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
 
-/*
- * TODO:   We have to call mpz_clear before returning from anything */
+
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
@@ -85,20 +84,23 @@ miller_rabin(IN char* strn, IN char* strbase)
     }
     mpz_init(x);
     mpz_powm(x, a, d, n);
-    mpz_clears(a, d, 0); /* done with a and d */
-    if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
-      mpz_clears(n, nminus1, x, 0);  XSRETURN_IV(1);
-    }
-    for (r = 0; r < s; r++) {
-      mpz_powm_ui(x, x, 2, n);
-      if (!mpz_cmp_ui(x, 1)) {
-        mpz_clears(n, nminus1, x, 0);  XSRETURN_IV(0);
-      }
-      if (!mpz_cmp(x, nminus1)) {
-        mpz_clears(n, nminus1, x, 0);  XSRETURN_IV(1);
-      }
-    }
+    mpz_clear(a);  mpz_clear(d); /* done with a and d */
     RETVAL = 0;
+    if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
+      RETVAL = 1;
+    } else {
+      for (r = 0; r < s; r++) {
+        mpz_powm_ui(x, x, 2, n);
+        if (!mpz_cmp_ui(x, 1)) {
+          break;
+        }
+        if (!mpz_cmp(x, nminus1)) {
+          RETVAL = 1;
+          break;
+        }
+      }
+    }
+    mpz_clear(n); mpz_clear(nminus1); mpz_clear(x);
   OUTPUT:
     RETVAL
 
@@ -164,28 +166,24 @@ is_strong_lucas_pseudoprime(IN char* strn)
     mpz_init_set_ui(U, 1);
     mpz_init_set_ui(V, P);
     {
-      mpz_t U2m, V2m, Qm, Qm2;
+      mpz_t U2m, V2m, Qm, T1, T2;
       mpz_init_set(U2m, U);
       mpz_init_set(V2m, V);
       mpz_init_set_si(Qm, Q);
-      mpz_init_set(Qm2, Qm);
-      mpz_mul_ui(Qm2, Qm2, 2);
       mpz_init_set(Qkd, Qm);
       mpz_tdiv_q_ui(d, d, 2);
+      mpz_init(T1);
+      mpz_init(T2);
       while (mpz_sgn(d) > 0) {
-        //gmp_printf("U=%Zd  V=%Zd  Qm=%Zd  Qm2=%Zd\n", U, V, Qm, Qm2);
+        //gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
         mpz_mul(U2m, U2m, V2m);
         mpz_mod(U2m, U2m, n);
         mpz_powm_ui(V2m, V2m, 2, n);
-        mpz_sub(V2m, V2m, Qm2);
+        mpz_submul_ui(V2m, Qm, 2);
         mpz_mod(V2m, V2m, n);
         //gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
         mpz_powm_ui(Qm, Qm, 2, n);
-        mpz_mul_ui(Qm2, Qm, 2);
         if (mpz_odd_p(d)) {
-          mpz_t T1, T2;
-          mpz_init(T1);
-          mpz_init(T2);
           mpz_mul(T1, U2m, V);
           mpz_mul(T2, U2m, U);
           mpz_mul_si(T2, T2, D);
@@ -208,35 +206,28 @@ is_strong_lucas_pseudoprime(IN char* strn)
         }
         mpz_tdiv_q_ui(d, d, 2);
       }
-      mpz_clears(U2m, V2m, Qm, Qm2, 0);
+      mpz_clear(U2m); mpz_clear(V2m); mpz_clear(Qm); mpz_clear(T1); mpz_clear(T2);
     }
     //gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
+    RETVAL = 0;
     if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
-      mpz_clears(n, d, U, V, Qkd, 0);
-      XSRETURN_IV(1);
+      RETVAL = 1;
+      s = 0;
     }
     /* Powers of V */
-    {
-      mpz_t Qkd2;
-      UV r;
-      mpz_init(Qkd2);
-      mpz_mul_ui(Qkd2, Qkd, 2);
-      for (r = 1; r < s; r++) {
-        //gmp_printf("l%lu U=%Zd  V=%Zd  Qkd2=%Zd\n", r, U, V, Qkd2);
-        //mpz_powm_ui(V, V, 2, n);
-        mpz_mul(V, V, V);
-        mpz_sub(V, V, Qkd2);
-        mpz_mod(V, V, n);
-        if (mpz_sgn(V) == 0)  XSRETURN_IV(1);
-        if (r < (s-1)) {
-          mpz_powm_ui(Qkd, Qkd, 2, n);
-          mpz_mul_ui(Qkd2, Qkd, 2);
-        }
+    while (s--) {
+      mpz_mul(V, V, V);
+      mpz_submul_ui(V, Qkd, 2);
+      mpz_mod(V, V, n);
+      if (mpz_sgn(V) == 0) {
+        RETVAL = 1;
+        break;
       }
-      mpz_clear(Qkd2);
+      if (s) {
+        mpz_powm_ui(Qkd, Qkd, 2, n);
+      }
     }
-    mpz_clears(n, d, U, V, Qkd, 0);
-    RETVAL = 0;
+    mpz_clear(n); mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(Qkd);
   OUTPUT:
     RETVAL
 
