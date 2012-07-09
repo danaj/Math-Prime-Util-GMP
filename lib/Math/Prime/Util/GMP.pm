@@ -13,11 +13,13 @@ BEGIN {
 use base qw( Exporter );
 our @EXPORT_OK = qw(
                      is_strong_pseudoprime
+                     is_strong_lucas_pseudoprime
+                     is_prime
+                     is_prob_prime
                    );
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
 
 BEGIN {
-
   eval {
     require XSLoader;
     XSLoader::load(__PACKAGE__, $Math::Prime::Util::GMP::VERSION);
@@ -28,12 +30,31 @@ BEGIN {
 }
 
 sub is_strong_pseudoprime {
-  my($n) = shift;
-  foreach my $base (@_) {
+  my($n, @bases) = @_;
+  croak "No bases given to is_strong_pseudoprime" unless @bases;
+  foreach my $base (@bases) {
+    croak "Base $base is invalid" if $base < 2;
     return 0 unless miller_rabin("$n", "$base");
   }
   1;
 }
+
+sub is_prime {
+  my($n) = @_;
+  return 0 unless _GMP_trial_div("$n", 400);
+  return 1 if $n <= 400*400;
+  return 0 unless miller_rabin("$n", "2");
+  return 0 unless is_strong_lucas_pseudoprime("$n");
+  1;
+}
+
+sub is_prob_prime {
+  my($n) = @_;
+  return 0 unless miller_rabin("$n", "2");
+  return 0 unless is_strong_lucas_pseudoprime("$n");
+  1;
+}
+
 1;
 
 __END__
