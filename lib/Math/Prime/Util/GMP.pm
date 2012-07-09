@@ -42,16 +42,20 @@ sub is_strong_pseudoprime {
 sub is_prime {
   my($n) = @_;
   return 0 unless _GMP_trial_div("$n", 400);
-  return 1 if $n <= 400*400;
+  return 2 if $n <= 400*400;
   return 0 unless miller_rabin("$n", "2");
   return 0 unless is_strong_lucas_pseudoprime("$n");
+  return 2 if $n <= 18446744073709551615;
   1;
 }
 
 sub is_prob_prime {
   my($n) = @_;
+  return 0 unless _GMP_trial_div("$n", 400);
+  return 2 if $n <= 400*400;
   return 0 unless miller_rabin("$n", "2");
   return 0 unless is_strong_lucas_pseudoprime("$n");
+  return 2 if $n <= 18446744073709551615;
   1;
 }
 
