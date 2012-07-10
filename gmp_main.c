@@ -9,6 +9,7 @@
 #include "XSUB.h"
 
 #include "gmp_main.h"
+#include <math.h>
 
 static const unsigned short primes_small[] =
   {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
@@ -28,6 +29,38 @@ static const unsigned char next_wheel[30] =
 static const unsigned char prev_wheel[30] =
   {29,29,1,1,1,1,1,1,7,7,7,7,11,11,13,13,13,13,17,17,19,19,19,19,23,23,23,23,23,23};
 
+
+static int _is_small_prime7(UV n)
+{
+  UV limit = sqrt(n);
+  UV i = 7;
+  while (1) {   /* trial division, skipping multiples of 2/3/5 */
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
+  }
+  return 2;
+}
+
+static UV next_small_prime(UV n)
+{
+  if (n < 7)
+    return (n < 2) ? 2 : (n < 3) ? 3 : (n < 5) ? 5 : 7;
+
+  UV d = n/30;
+  UV m = n - d*30;
+    /* Move forward one, knowing we may not be on the wheel */
+  if (m == 29) { d++; m = 1; } else  { m = next_wheel[m]; }
+  while (!_is_small_prime7(d*30+m)) {
+    m = next_wheel[m];  if (m == 1) d++;
+  }
+  return(d*30+m);
+}
 
 static int _GMP_miller_rabin_ui(mpz_t n, UV base)
 {
@@ -229,9 +262,7 @@ int _GMP_trial_div(mpz_t n, UV to_n)
     if (++primei < NPRIMES_SMALL) {
       f = primes_small[primei];
     } else {
-      do {
-        f += 2;
-      } while ( !(f % 3) || !(f % 5) || !(f % 7) );
+      f = next_small_prime(f);
     }
   }
   return 1;
@@ -345,10 +376,10 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_init(U);
   mpz_init(V);
   while (rounds-- > 0) {
-    mpz_powm_ui(U, U, 2, n);  mpz_add_ui(U, U, a);  mpz_mod(U, U, n);
-    mpz_powm_ui(V, V, 2, n);  mpz_add_ui(V, V, a);  mpz_mod(V, V, n);
-    mpz_powm_ui(V, V, 2, n);  mpz_add_ui(V, V, a);  mpz_mod(V, V, n);
-    mpz_sub(f, U, V);  mpz_abs(f, f);
+    mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_mod(U, U, n);
+    mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_mod(V, V, n);
+    mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_mod(V, V, n);
+    mpz_sub(f, U, V);
     mpz_gcd(f, f, n);
     if (!mpz_cmp(f, n)) {
       if (inloop++) break;
@@ -362,27 +393,92 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   return 0;
 }
 
-int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV rounds)
+static void lcm_to_B(UV B, mpz_t m)
 {
-  mpz_t kf;
-  UV i;
+  mpz_t t;
+  double logB = log(B);
+  UV p = 1;
 
-  mpz_init(kf);
-  for (i = 1; i <= rounds; i++) {
-    mpz_powm_ui(kf, kf, i, n);
-    if (mpz_sgn(kf) == 0)
-      mpz_set(kf, n);
-    mpz_sub_ui(f, kf, 1);
-    mpz_gcd(f, f, n);
-    if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-      mpz_clear(kf);
-      return 1;
-    }
+  mpz_init(t);
+  mpz_set_ui(m, 1);
+  while ( (p = next_small_prime(p)) <= B) {
+    /* mpz_mul_ui(m, m, (UV)pow(p, (UV)( logB / log(p) )) ); */
+    mpz_set_ui(t, p);
+    mpz_pow_ui(t, t, (UV)( logB / log(p) ));
+    mpz_mul(m, m, t);
   }
-  mpz_clear(kf);
+  mpz_clear(t);
+}
+
+int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
+{
+  mpz_t a, m, x;
+  UV i, p;
+  UV B;
+
+  mpz_init(a);
+  mpz_init(m);
+  mpz_init(x);
+
+  B = 5;
+  while (B <= smoothness_bound) {
+    /* gmp_printf("   calculating new m...\n"); */
+    lcm_to_B(B, m);
+    /* gmp_printf("trying %Zd  with B=%lu", n, B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n"); */
+    /* Use primes for a's to try.  We rarely make it past the first couple. */
+    p = 1;
+    while ( (p = next_small_prime(p)) < 200000 ) {
+      mpz_set_ui(a, p);
+      mpz_powm(x, a, m, n);
+      if (mpz_sgn(x) == 0)
+        mpz_set(x, n);
+      mpz_sub_ui(x, x, 1);
+      mpz_gcd(f, x, n);
+      if (mpz_cmp_ui(f, 1) == 0)
+        break;
+      if (mpz_cmp(f, n) != 0) {
+        mpz_clear(a); mpz_clear(m); mpz_clear(x);
+        return 1;
+      }
+    }
+    if (B == smoothness_bound) break;
+    B *= 3; if (B > smoothness_bound) B = smoothness_bound;
+  }
+  mpz_clear(a); mpz_clear(m); mpz_clear(x);
   mpz_set(f, n);
   return 0;
 }
+
+int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
+{
+  mpz_t s, m;
+  UV i;
+
+#define PREMULT 480   /* 1  2  6  12  480  151200 */
+
+  mpz_mul_ui(n, n, PREMULT);
+  mpz_init(s);
+  mpz_init(m);
+  for (i = 1; i <= rounds; i++) {
+    mpz_mul_ui(s, n, i);
+    mpz_sqrtrem(s, m, s);    /* s = sqrt(n*i), m = remainder */
+    if (mpz_sgn(m) != 0)
+      mpz_add_ui(s, s, 1);   /* s++ if s*s != n*i */
+    mpz_powm_ui(m, s, 2, n); /* m = s^2 % n */
+    if (mpz_perfect_square_p(m)) {
+      mpz_sqrt(f, m);
+      mpz_sub(s, s, f);
+      mpz_divexact_ui(n, n, PREMULT);
+      mpz_gcd(f, s, n);
+      mpz_clear(s); mpz_clear(m); return 1;
+    }
+  }
+  mpz_clear(s); mpz_clear(m);
+  mpz_divexact_ui(n, n, PREMULT);
+  mpz_set(f, n);
+  return 0;
+}
+
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {

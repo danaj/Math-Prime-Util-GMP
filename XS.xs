@@ -223,6 +223,58 @@ prho_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
     mpz_clear(n);
 
 void
+pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_string_number("pminus1_factor (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    if (_GMP_is_prime(n)) {
+      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+    } else {
+      mpz_t f;
+      int success;
+
+      mpz_init(f);
+      success = _GMP_pminus1_factor(n, f, smoothness);
+      if (!success) {
+        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+      } else {
+        mpz_divexact(n, n, f);
+        XPUSH_MPZ(n);
+        XPUSH_MPZ(f);
+      }
+      mpz_clear(f);
+    }
+    mpz_clear(n);
+
+void
+holf_factor(IN char* strn, IN UV maxrounds = 256*1024*1024)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_string_number("holf_factor (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    if (_GMP_is_prime(n)) {
+      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+    } else {
+      mpz_t f;
+      int success;
+
+      mpz_init(f);
+      success = _GMP_holf_factor(n, f, maxrounds);
+      if (!success) {
+        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+      } else {
+        mpz_divexact(n, n, f);
+        XPUSH_MPZ(n);
+        XPUSH_MPZ(f);
+      }
+      mpz_clear(f);
+    }
+    mpz_clear(n);
+
+void
 GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
@@ -237,6 +289,8 @@ GMP_factor(IN char* strn)
       if (f == 0)  break;
       XPUSHs(sv_2mortal(newSVuv( f )));
       mpz_divexact_ui(n, n, f);
+      if (mpz_cmp_ui(n,1) == 0)
+        break;
     }
     if (mpz_cmp_ui(n, TRIAL_FACTORS*TRIAL_FACTORS) > 0) {
       mpz_t f;
@@ -249,7 +303,7 @@ GMP_factor(IN char* strn)
         if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
 
-        if (!success)  success = _GMP_pminus1_factor(n, f, 64*1024);
+        if (!success)  success = _GMP_pminus1_factor(n, f, 3000);
 
         if (!success)  success = _GMP_prho_factor(n, f,17, 64*1024*1024);
 

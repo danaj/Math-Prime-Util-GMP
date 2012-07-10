@@ -19,6 +19,8 @@ our @EXPORT_OK = qw(
                      next_prime
                      prev_prime
                      prho_factor
+                     pminus1_factor
+                     holf_factor
                      factor
                    );
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
