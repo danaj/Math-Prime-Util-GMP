@@ -7,8 +7,11 @@ README
 TODO
 XS.xs
 ptypes.h
+gmp_main.h
+gmp_main.c
 t/01-load.t
 t/02-can.t
+t/12-nextprime.t
 t/17-pseudoprime.t
 t/90-release-perlcritic.t
 t/91-release-pod-syntax.t

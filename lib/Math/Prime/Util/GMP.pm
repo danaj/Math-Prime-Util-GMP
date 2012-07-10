@@ -16,6 +16,10 @@ our @EXPORT_OK = qw(
                      is_strong_lucas_pseudoprime
                      is_prime
                      is_prob_prime
+                     next_prime
+                     prev_prime
+                     prho_factor
+                     factor
                    );
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
 
@@ -34,29 +38,17 @@ sub is_strong_pseudoprime {
   croak "No bases given to is_strong_pseudoprime" unless @bases;
   foreach my $base (@bases) {
     croak "Base $base is invalid" if $base < 2;
-    return 0 unless miller_rabin("$n", "$base");
+    return 0 unless GMP_miller_rabin("$n", "$base");
   }
   1;
 }
 
-sub is_prime {
-  my($n) = @_;
-  return 0 unless _GMP_trial_div("$n", 400);
-  return 2 if $n <= 400*400;
-  return 0 unless miller_rabin("$n", "2");
-  return 0 unless is_strong_lucas_pseudoprime("$n");
-  return 2 if $n <= 18446744073709551615;
-  1;
-}
+sub factor {
+  my ($n) = @_;
+  return ($n) if $n < 4;
 
-sub is_prob_prime {
-  my($n) = @_;
-  return 0 unless _GMP_trial_div("$n", 400);
-  return 2 if $n <= 400*400;
-  return 0 unless miller_rabin("$n", "2");
-  return 0 unless is_strong_lucas_pseudoprime("$n");
-  return 2 if $n <= 18446744073709551615;
-  1;
+  my @factors = GMP_factor($n);
+  sort {$a<=>$b} @factors;
 }
 
 1;

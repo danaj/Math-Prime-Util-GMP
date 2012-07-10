@@ -7,7 +7,7 @@ WriteMakefile1(
     LICENSE      => 'perl',
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
-    OBJECT       => 'XS.o',
+    OBJECT       => 'XS.o gmp_main.o',
     LIBS         => ['-lgmp'],
 
     BUILD_REQUIRES => {
