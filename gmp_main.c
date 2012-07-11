@@ -32,9 +32,27 @@ static const unsigned char prev_wheel[30] =
 
 static int _is_small_prime7(UV n)
 {
-  UV limit = sqrt(n);
-  UV i = 7;
+  UV i, limit;
+
+  if (( 7 *  7) > n)  return 2;  if (!(n %  7)) return 0;
+  if ((11 * 11) > n)  return 2;  if (!(n % 11)) return 0;
+  if ((13 * 13) > n)  return 2;  if (!(n % 13)) return 0;
+  if ((17 * 17) > n)  return 2;  if (!(n % 17)) return 0;
+  if ((19 * 19) > n)  return 2;  if (!(n % 18)) return 0;
+  if ((23 * 23) > n)  return 2;  if (!(n % 23)) return 0;
+  if ((29 * 29) > n)  return 2;  if (!(n % 29)) return 0;
+  if ((31 * 31) > n)  return 2;  if (!(n % 31)) return 0;
+  if ((37 * 37) > n)  return 2;  if (!(n % 37)) return 0;
+  if ((41 * 41) > n)  return 2;  if (!(n % 41)) return 0;
+  if ((43 * 43) > n)  return 2;  if (!(n % 43)) return 0;
+  if ((47 * 47) > n)  return 2;  if (!(n % 47)) return 0;
+  if ((53 * 53) > n)  return 2;  if (!(n % 53)) return 0;
+  if ((59 * 59) > n)  return 2;  if (!(n % 59)) return 0;
+
+  limit = sqrt(n);
+  i = 61;
   while (1) {   /* trial division, skipping multiples of 2/3/5 */
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
@@ -42,7 +60,6 @@ static int _is_small_prime7(UV n)
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
   }
   return 2;
 }
@@ -420,19 +437,24 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 
 static void lcm_to_B(UV B, mpz_t m)
 {
-  mpz_t t;
   double logB = log(B);
   UV p = 1;
+  UV exponent;
 
-  mpz_init(t);
   mpz_set_ui(m, 1);
   while ( (p = next_small_prime(p)) <= B) {
-    /* mpz_mul_ui(m, m, (UV)pow(p, (UV)( logB / log(p) )) ); */
-    mpz_set_ui(t, p);
-    mpz_pow_ui(t, t, (UV)( logB / log(p) ));
-    mpz_mul(m, m, t);
+    exponent = logB / log(p);
+    if (exponent == 1) {
+      mpz_mul_ui(m, m, p);
+      break;
+    }
+    /* pow(p, exponent) < B, so fits in a UV */
+    mpz_mul_ui(m, m, (UV)pow(p, exponent) );
   }
-  mpz_clear(t);
+  /* All the exponent = 1 portion.  */
+  while ( (p = next_small_prime(p)) <= B) {
+    mpz_mul_ui(m, m, p);
+  }
 }
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
@@ -453,6 +475,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
     /* Use primes for a's to try.  We rarely make it past the first couple. */
     p = 1;
     while ( (p = next_small_prime(p)) < 200000 ) {
+      /* gmp_printf("trying with a=%lu\n", p); */
       mpz_set_ui(a, p);
       mpz_powm(x, a, m, n);
       if (mpz_sgn(x) == 0)
