@@ -571,9 +571,9 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     return f;
 
   if (from_n > to_n)
-    croak("GMP_trial_factor from > to");
+    croak("GMP_trial_factor from > to: %"UVuf" - %"UVuf, from_n, to_n);
   if (to_n > primes_small[NPRIMES_SMALL-1])
-    croak("GMP_trial_factor too large");
+    croak("GMP_trial_factor too large: %"UVuf" - %"UVuf, from_n, to_n);
 
   if (mpz_cmp_ui(n, to_n*to_n) < 0)
     small_n = 1;

@@ -8,6 +8,7 @@
 #include <gmp.h>
 
 #include "ptypes.h"
+#include "gmp_main.h"
 
 /* I think we're going to have to end up sucking in a lot of Math::BigInt::GMP
  * infrastructure.  For now manage everything through strings.
