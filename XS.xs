@@ -237,6 +237,7 @@ pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
 
       mpz_init(f);
       success = _GMP_pminus1_factor(n, f, smoothness);
+      //success = _GMP_pminus1_factor2(n, f, 1*1024*1024);
       if (!success) {
         XPUSHs(sv_2mortal(newSVpv(strn, 0)));
       } else {
@@ -275,6 +276,32 @@ holf_factor(IN char* strn, IN UV maxrounds = 256*1024*1024)
     mpz_clear(n);
 
 void
+squfof_factor(IN char* strn, IN UV rounds = 16*1024*1024)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_string_number("squfof_factor (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    if (_GMP_is_prime(n)) {
+      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+    } else {
+      mpz_t f;
+      int success;
+
+      mpz_init(f);
+      success = _GMP_squfof_factor(n, f, rounds);
+      if (!success) {
+        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+      } else {
+        mpz_divexact(n, n, f);
+        XPUSH_MPZ(n);
+        XPUSH_MPZ(f);
+      }
+      mpz_clear(f);
+    }
+    mpz_clear(n);
+
+void
 GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
@@ -297,17 +324,29 @@ GMP_factor(IN char* strn)
       mpz_init(f);
       while (!_GMP_is_prime(n)) {
         int success = 0;
+        int o=0;
         success =                _GMP_prho_factor(n, f, 3, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f, 5, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f, 7, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
+        if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
         if (!success)  success = _GMP_pminus1_factor(n, f, 200000);
+        if (success&&o) {gmp_printf("p-1 found factor %Zd\n", f);o=0;}
 
-        if (!success)  success = _GMP_prho_factor(n, f,17, 64*1024*1024);
+        if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
+        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
 
-        if (!success)  break;
+        if (!success)  success = _GMP_prho_factor(n, f,17, 8*1024*1024);
+        if (success&&o) {gmp_printf("prho found factor %Zd\n", f);o=0;}
+
+        if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
+        if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
+
+        if (!success)  croak("Could not factor n: %s\n", strn);
+
+        /* TODO: we have to break up f */
         XPUSH_MPZ(f);
         mpz_divexact(n, n, f);
       }

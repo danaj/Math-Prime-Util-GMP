@@ -374,8 +374,8 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_t U, V;
   int inloop = 0;
 
-  mpz_init(U);
-  mpz_init(V);
+  mpz_init_set_ui(U, 7);
+  mpz_init_set_ui(V, 7);
   while (rounds-- > 0) {
     mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_mod(U, U, n);
     mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_mod(V, V, n);
@@ -393,6 +393,30 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_set(f, n);
   return 0;
 }
+
+int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+{
+  mpz_t Xi, Xm;
+  UV i;
+
+  mpz_init_set_ui(Xi, 2);
+  mpz_init_set_ui(Xm, 2);
+  for (i = 1; i <= rounds; i++) {
+    mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_mod(Xi, Xi, n);
+    mpz_sub(f, Xi, Xm);
+    mpz_gcd(f, f, n);
+    if ( (mpz_cmp_ui(f, 1) > 0) && (mpz_cmp(f, n) != 0) ) {
+      mpz_clear(Xi); mpz_clear(Xm);
+      return 1;
+    }
+    if (i && !((i-1) & i))
+      mpz_set(Xm, Xi);
+  }
+  mpz_clear(Xi); mpz_clear(Xm);
+  mpz_set(f, n);
+  return 0;
+}
+
 
 static void lcm_to_B(UV B, mpz_t m)
 {
@@ -450,6 +474,33 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   return 0;
 }
 
+int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
+{
+  mpz_t b;
+  UV loops;
+
+  mpz_init_set_ui(b, 13);
+
+  for (loops = 1; loops <= rounds; loops++) {
+    mpz_add_ui(b, b, 1);
+    mpz_powm_ui(b, b, loops, n);
+    if (mpz_cmp_ui(b, 0) == 0) {
+      mpz_set(b, n);
+    }
+    mpz_sub_ui(b, b, 1);
+    mpz_gcd(f, b, n);
+    if (mpz_cmp(f, n) == 0)
+      break;
+    if (mpz_cmp_ui(f, 1) > 0) {
+      mpz_clear(b);
+      return 1;
+    }
+  }
+  mpz_clear(b);
+  mpz_set(f, n);
+  return 0;
+}
+
 int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
 {
   mpz_t s, m;
@@ -461,20 +512,21 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
   mpz_init(s);
   mpz_init(m);
   for (i = 1; i <= rounds; i++) {
-    mpz_mul_ui(s, n, i);
-    mpz_sqrtrem(s, m, s);    /* s = sqrt(n*i), m = remainder */
-    if (mpz_sgn(m) == 0) {
-      /* s^2 = n*i, so m = s^2 mod n = 0.  Hence f = GCD(n, s) */
+    mpz_mul_ui(f, n, i);    /* f = n*i */
+    if (mpz_perfect_square_p(f)) {
+      /* s^2 = n*i, so m = s^2 mod n = 0.  Hence f = GCD(n, s) = GCD(n, n*i) */
       mpz_divexact_ui(n, n, PREMULT);
-      mpz_gcd(f, s, n);
+      mpz_gcd(f, f, n);
       mpz_clear(s); mpz_clear(m); return 1;
     }
-    mpz_add_ui(s, s, 1);   /* s = ceil(sqrt(n*i)) */
-    mpz_mul(m, s, s); mpz_mod(m, m, n);
+    mpz_sqrt(s, f);
+    mpz_add_ui(s, s, 1);    /* s = ceil(sqrt(n*i)) */
+    mpz_mul(m, s, s);
+    mpz_sub(m, m, f);       /* m = s^2 mod n = s^2 - n*i */
     if (mpz_perfect_square_p(m)) {
+      mpz_divexact_ui(n, n, PREMULT);
       mpz_sqrt(f, m);
       mpz_sub(s, s, f);
-      mpz_divexact_ui(n, n, PREMULT);
       mpz_gcd(f, s, n);
       mpz_clear(s); mpz_clear(m); return 1;
     }
@@ -484,7 +536,6 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
   mpz_clear(s); mpz_clear(m);
   return 0;
 }
-
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
@@ -516,4 +567,191 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     f = primes_small[++primei];
   }
   return 0;
+}
+
+
+/*----------------------------------------------------------------------
+ * GMP version of Ben Buhrow's public domain 9/24/09 implementation.
+ * It uses ideas and code from Jason Papadopoulos, Scott Contini, and
+ * Tom St. Denis.  Also see the papers of Stephen McMath, Daniel Shanks,
+ * and Jason Gower.
+ *--------------------------------------------------------------------*/
+
+static int shanks_mult(mpz_t n, mpz_t f)
+{
+   // use shanks SQUFOF to factor N.
+   //
+   // return 0 if no factor found, 1 if found with factor in f1.
+   //
+   // Input should have gone through trial division to 5.
+
+   int result = 0;
+   unsigned long j=0;
+   mpz_t b0, bn, imax, tmp, Q0, Qn, P, i, t1, t2, S, Ro, So, bbn;
+
+   if (mpz_cmp_ui(n, 3) <= 0)
+     return 0;
+
+   if (mpz_perfect_square_p(n)) {
+     mpz_sqrt(f, n);
+     return 1;
+   }
+
+   mpz_init(b0);
+   mpz_init(bn);
+   mpz_init(imax);
+   mpz_init(tmp);
+   mpz_init(Q0);
+   mpz_init(Qn);
+   mpz_init(P);
+   mpz_init(i);
+   mpz_init(t1);
+   mpz_init(t2);
+   mpz_init(S);
+   mpz_init(Ro);
+   mpz_init(So);
+   mpz_init(bbn);
+
+   mpz_sqrt(b0, n);
+   mpz_sqrt(tmp, b0);
+   mpz_mul_ui(imax, tmp, 3);
+
+   //set up recurrence
+   mpz_set_ui(Q0, 1);
+   mpz_set(P, b0);
+   mpz_mul(tmp, b0, b0);
+   mpz_sub(Qn, n, tmp);
+
+   mpz_add(tmp, b0, P);
+   mpz_tdiv_q(bn, tmp, Qn);
+
+   mpz_set_ui(i, 0);
+   while (1) {
+      j=0;
+      while (1) {
+         mpz_set(t1, P);  //hold Pn for this iteration
+         mpz_mul(tmp, bn, Qn);
+         mpz_sub(P, tmp, P);
+         mpz_set(t2, Qn);  //hold Qn for this iteration
+         mpz_sub(tmp, t1, P);
+         mpz_mul(tmp, tmp, bn);
+         mpz_add(Qn, Q0, tmp);
+         mpz_set(Q0, t2);  //remember last Q
+         mpz_add(tmp, b0, P);
+         mpz_tdiv_q(bn, tmp, Qn);
+
+         if (mpz_even_p(i)) {   // i even
+           if (mpz_perfect_square_p(Qn)) {
+             mpz_add_ui(i, i, 1);
+             break;
+           }
+         }
+         mpz_add_ui(i, i, 1);
+
+         if (mpz_cmp(i, imax) >= 0) {
+           result = 0;
+           goto end;
+         }
+      }
+
+      //reduce to G0
+      mpz_sqrt(S, Qn);
+      mpz_sub(tmp, b0, P);
+      mpz_tdiv_q(tmp, tmp, S);
+      mpz_mul(tmp, S, tmp);
+      mpz_add(Ro, P, tmp);
+      //mpz_set(t1, Ro);
+      //mpz_mul(tmp, t1, t1);
+      mpz_mul(tmp, Ro, Ro);
+      mpz_sub(tmp, n, tmp);
+      mpz_tdiv_q(So, tmp, S);
+      mpz_add(tmp, b0, Ro);
+      mpz_tdiv_q(bbn, tmp, So);
+
+      //search for symmetry point
+      while (1) {
+         mpz_set(t1, Ro);  //hold Ro for this iteration
+         mpz_mul(tmp, bbn, So);
+         mpz_sub(Ro, tmp, Ro);
+         mpz_set(t2, So);  //hold So for this iteration
+         mpz_sub(tmp, t1, Ro);
+         mpz_mul(tmp, bbn, tmp);
+         mpz_add(So, S, tmp);
+         mpz_set(S, t2);   //remember last S
+         mpz_add(tmp, b0, Ro);
+         mpz_tdiv_q(bbn, tmp, So);
+
+         //check for symmetry point
+         if (mpz_cmp(Ro, t1) == 0)
+            break;
+
+         //this gets stuck very rarely, but it does happen.
+         if (++j > 1000000000)
+         {
+            result = -1;
+            goto end;
+         }
+      }
+   
+      mpz_gcd(t1, Ro, n);
+      if (mpz_cmp_ui(t1, 1) > 0) {
+         mpz_set(f, t1);
+         /* gmp_printf("GMP SQUFOF found factor after %Zd/%lu rounds: %Zd\n", i, j, f); */
+         result = 1;
+         goto end;
+      }
+   }
+
+   end:
+   mpz_clear(b0);
+   mpz_clear(bn);
+   mpz_clear(imax);
+   mpz_clear(tmp);
+   mpz_clear(Q0);
+   mpz_clear(Qn);
+   mpz_clear(P);
+   mpz_clear(i);
+   mpz_clear(t1);
+   mpz_clear(t2);
+   mpz_clear(S);
+   mpz_clear(Ro);
+   mpz_clear(So);
+   mpz_clear(bbn);
+   return result;
+}
+
+int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
+{
+   //call shanks with multiple small multipliers
+   const int multipliers[] = {3, 5, 7, 
+            11, 3*5, 3*7, 3*11, 
+            5*7, 5*11, 7*11, 
+            3*5*7, 3*5*11, 3*7*11, 
+            5*7*11, 3*5*7*11, 1};
+
+   const int sz_mul = 16;
+   int i;
+   int result;
+   mpz_t nm;
+
+   if (mpz_cmp_ui(n, 1) <= 0)
+     return 0;
+
+   mpz_init(nm);
+   mpz_set_ui(f, 1);
+
+   for (i=sz_mul-1;i>=0;i--) {
+      mpz_mul_ui(nm, n, multipliers[i]);
+      result = shanks_mult(nm, f);
+      if (result == -1)
+        break;
+      if ( (result == 1) && (mpz_cmp_ui(f, multipliers[i]) != 0) ) {
+        unsigned long gcdf = mpz_gcd_ui(NULL, f, multipliers[i]);
+        mpz_divexact_ui(f, f, gcdf);
+        if (mpz_cmp_ui(f, 1) > 0)
+          break;
+      }
+   }
+   mpz_clear(nm);
+   return (mpz_cmp_ui(f, 1) > 0);
 }

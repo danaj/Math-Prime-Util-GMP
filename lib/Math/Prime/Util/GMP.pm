@@ -21,6 +21,7 @@ our @EXPORT_OK = qw(
                      prho_factor
                      pminus1_factor
                      holf_factor
+                     squfof_factor
                      factor
                    );
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
