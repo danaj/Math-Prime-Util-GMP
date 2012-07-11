@@ -303,7 +303,7 @@ GMP_factor(IN char* strn)
         if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
 
-        if (!success)  success = _GMP_pminus1_factor(n, f, 3000);
+        if (!success)  success = _GMP_pminus1_factor(n, f, 200000);
 
         if (!success)  success = _GMP_prho_factor(n, f,17, 64*1024*1024);
 

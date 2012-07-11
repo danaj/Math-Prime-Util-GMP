@@ -182,14 +182,15 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_init(T2);
     while (mpz_sgn(d) > 0) {
       //gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
-      mpz_mul(U2m, U2m, V2m);
-      mpz_mod(U2m, U2m, n);
-      mpz_powm_ui(V2m, V2m, 2, n);
-      mpz_submul_ui(V2m, Qm, 2);
-      mpz_mod(V2m, V2m, n);
+      mpz_mul(T1, U2m, V2m);
+      mpz_mod(U2m, T1, n);
+      mpz_mul(T1, V2m, V2m);
+      mpz_submul_ui(T1, Qm, 2);
+      mpz_mod(V2m, T1, n);
       //gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
-      mpz_powm_ui(Qm, Qm, 2, n);
+      mpz_mul(T1, Qm, Qm); mpz_mod(Qm, T1, n);
       if (mpz_odd_p(d)) {
+        /* Save T1 and T2 for later operations in this block */
         mpz_mul(T1, U2m, V);
         mpz_mul(T2, U2m, U);
         mpz_mul_si(T2, T2, D);
@@ -204,11 +205,11 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
         mpz_mul(V, V, V2m);
         mpz_add(V, V, T2);
         if (mpz_odd_p(V)) mpz_add(V, V, n);
-        mpz_fdiv_q_ui(V, V, 2);
-        mpz_mod(V, V, n);
+        mpz_fdiv_q_ui(T1, V, 2);
+        mpz_mod(V, T1, n);
         /* Qkd */
-        mpz_mul(Qkd, Qkd, Qm);
-        mpz_mod(Qkd, Qkd, n);
+        mpz_mul(T1, Qkd, Qm);
+        mpz_mod(Qkd, T1, n);
       }
       mpz_tdiv_q_ui(d, d, 2);
     }
@@ -462,9 +463,14 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
   for (i = 1; i <= rounds; i++) {
     mpz_mul_ui(s, n, i);
     mpz_sqrtrem(s, m, s);    /* s = sqrt(n*i), m = remainder */
-    if (mpz_sgn(m) != 0)
-      mpz_add_ui(s, s, 1);   /* s++ if s*s != n*i */
-    mpz_powm_ui(m, s, 2, n); /* m = s^2 % n */
+    if (mpz_sgn(m) == 0) {
+      /* s^2 = n*i, so m = s^2 mod n = 0.  Hence f = GCD(n, s) */
+      mpz_divexact_ui(n, n, PREMULT);
+      mpz_gcd(f, s, n);
+      mpz_clear(s); mpz_clear(m); return 1;
+    }
+    mpz_add_ui(s, s, 1);   /* s = ceil(sqrt(n*i)) */
+    mpz_mul(m, s, s); mpz_mod(m, m, n);
     if (mpz_perfect_square_p(m)) {
       mpz_sqrt(f, m);
       mpz_sub(s, s, f);
@@ -473,9 +479,9 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
       mpz_clear(s); mpz_clear(m); return 1;
     }
   }
-  mpz_clear(s); mpz_clear(m);
   mpz_divexact_ui(n, n, PREMULT);
   mpz_set(f, n);
+  mpz_clear(s); mpz_clear(m);
   return 0;
 }
 
