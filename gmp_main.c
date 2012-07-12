@@ -41,16 +41,9 @@ static int _is_small_prime7(UV n)
   if ((19 * 19) > n)  return 2;  if (!(n % 18)) return 0;
   if ((23 * 23) > n)  return 2;  if (!(n % 23)) return 0;
   if ((29 * 29) > n)  return 2;  if (!(n % 29)) return 0;
-  if ((31 * 31) > n)  return 2;  if (!(n % 31)) return 0;
-  if ((37 * 37) > n)  return 2;  if (!(n % 37)) return 0;
-  if ((41 * 41) > n)  return 2;  if (!(n % 41)) return 0;
-  if ((43 * 43) > n)  return 2;  if (!(n % 43)) return 0;
-  if ((47 * 47) > n)  return 2;  if (!(n % 47)) return 0;
-  if ((53 * 53) > n)  return 2;  if (!(n % 53)) return 0;
-  if ((59 * 59) > n)  return 2;  if (!(n % 59)) return 0;
 
   limit = sqrt(n);
-  i = 61;
+  i = 31;
   while (1) {   /* trial division, skipping multiples of 2/3/5 */
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
     if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
@@ -78,6 +71,27 @@ static UV next_small_prime(UV n)
   }
   return(d*30+m);
 }
+
+/* Really simple little odd-only sieve. */
+static unsigned char* sieve_erat(UV end)
+{
+  unsigned char* mem;
+  UV n, s;
+  UV last = (end+1)/2;
+
+  Newz(0, mem, (last+7)/8, unsigned char);
+  if (mem == 0) return 0;
+
+  n = 3;
+  while ( (n*n) <= end ) {
+    for (s = n*n; s <= end; s += 2*n)
+      mem[s/16] |= (1 << ((s/2) % 8));
+    do { n += 2; } while (mem[n/16] & (1 << ((n/2) % 8)));
+  }
+  mem[0] |= 1;  /* 1 is composite */
+  return mem;
+}
+
 
 static int _GMP_miller_rabin_ui(mpz_t n, UV base)
 {
@@ -386,6 +400,7 @@ static UV basic_factor(mpz_t n)
   return 0;
 }
 
+#if 0
 int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 {
   mpz_t U, V;
@@ -410,31 +425,162 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_set(f, n);
   return 0;
 }
-
-int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+#else
+int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 {
-  mpz_t Xi, Xm;
-  UV i;
+  mpz_t U, V, oldU, oldV, m;
+  int i;
+  const UV inner = 256;
 
-  mpz_init_set_ui(Xi, 2);
-  mpz_init_set_ui(Xm, 2);
-  for (i = 1; i <= rounds; i++) {
-    mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_mod(Xi, Xi, n);
-    mpz_sub(f, Xi, Xm);
-    mpz_gcd(f, f, n);
-    if ( (mpz_cmp_ui(f, 1) > 0) && (mpz_cmp(f, n) != 0) ) {
-      mpz_clear(Xi); mpz_clear(Xm);
-      return 1;
+  rounds = (rounds + inner - 1) / inner;
+  mpz_init_set_ui(U, 7);
+  mpz_init_set_ui(V, 7);
+  mpz_init(m);
+  mpz_init(oldU);
+  mpz_init(oldV);
+  while (rounds-- > 0) {
+    mpz_set_ui(m, 1); mpz_set(oldU, U);  mpz_set(oldV, V);
+    for (i = 0; i < inner; i++) {
+      mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_tdiv_r(U, U, n);
+      mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
+      mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
+      mpz_sub(f, U, V);
+      if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+      mpz_mul(m, m, f);
+      mpz_tdiv_r(m, m, n);
     }
-    if (i && !((i-1) & i))
-      mpz_set(Xm, Xi);
+    mpz_gcd(f, m, n);
+    if (!mpz_cmp_ui(f, 1))
+      continue;
+    if (!mpz_cmp(f, n)) {
+      /* f == n, so we have to back up to see what factor got found */
+      mpz_set(U, oldU); mpz_set(V, oldV);
+      i = inner;
+      do {
+        mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_tdiv_r(U, U, n);
+        mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
+        mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
+        mpz_sub(f, U, V);
+        if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+        mpz_gcd(f, f, n);
+      } while (!mpz_cmp_ui(f, 1) && i-- != 0);
+      if (!mpz_cmp_ui(f, 1))
+        break;
+    }
+    mpz_clear(U); mpz_clear(V); mpz_clear(m); mpz_clear(oldU); mpz_clear(oldV);
+    return 1;
   }
-  mpz_clear(Xi); mpz_clear(Xm);
+  mpz_clear(U); mpz_clear(V); mpz_clear(m); mpz_clear(oldU); mpz_clear(oldV);
   mpz_set(f, n);
   return 0;
 }
+#endif
+
+#if 0
+int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+{
+  mpz_t Xi, Xm, saveXi, m;
+  UV i, j, r;
+
+  mpz_init_set_ui(Xi, 2);
+  mpz_init_set_ui(Xm, 2);
+  mpz_init(m);
+  mpz_init(saveXi);
+
+  r = 1;
+  while (rounds > 0) {
+    mpz_set_ui(m, 1); mpz_set(saveXi, Xi);
+    for (i = 0; i < r; i++) {
+      mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_tdiv_r(Xi, Xi, n);
+      mpz_sub(f, Xi, Xm);
+      if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+      mpz_mul(m, m, f);
+      mpz_tdiv_r(m, m, n);
+      if (i > rounds) break;
+    }
+    rounds = (rounds <= r) ? 0 : rounds-r;
+    mpz_gcd(f, m, n);
+    if (!mpz_cmp_ui(f, 1)) {
+      r *= 2;
+      mpz_set(Xm, Xi);
+      continue;
+    }
+    if (!mpz_cmp(f, n)) {
+      /* f == n, so we have to back up to see what factor got found */
+      mpz_set(Xi, saveXi);
+      do {
+        mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_tdiv_r(Xi, Xi, n);
+        mpz_sub(f, Xi, Xm);
+        if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+        mpz_gcd(f, f, n);
+      } while (!mpz_cmp_ui(f, 1) && r-- != 0);
+    }
+    mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi);
+    return (mpz_cmp_ui(f, 1) != 0);
+  }
+  mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi);
+  mpz_set(f, n);
+  return 0;
+}
+#else
+int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+{
+  mpz_t Xi, Xm, saveXi, m;
+  UV i, r;
+  const UV inner = 256;
+
+  mpz_init_set_ui(Xi, 2);
+  mpz_init_set_ui(Xm, 2);
+  mpz_init(m);
+  mpz_init(saveXi);
+
+  r = 1;
+  while (rounds > 0) {
+    UV rleft = (r > rounds) ? rounds : r;
+    while (rleft > 0) {   /* Do rleft rounds, inner at a time */
+      UV dorounds = (rleft > inner) ? inner : rleft;
+      mpz_set_ui(m, 1);
+      mpz_set(saveXi, Xi);
+      for (i = 0; i < dorounds; i++) {
+        mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_tdiv_r(Xi, Xi, n);
+        mpz_sub(f, Xi, Xm);
+        if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+        mpz_mul(m, m, f);
+        mpz_tdiv_r(m, m, n);
+      }
+      rleft -= dorounds;
+      rounds -= dorounds;
+      mpz_gcd(f, m, n);
+      if (mpz_cmp_ui(f, 1) != 0)
+        break;
+    }
+    if (!mpz_cmp_ui(f, 1)) {
+      r *= 2;
+      mpz_set(Xm, Xi);
+      continue;
+    }
+    if (!mpz_cmp(f, n)) {
+      /* f == n, so we have to back up to see what factor got found */
+      mpz_set(Xi, saveXi);
+      do {
+        mpz_mul(Xi, Xi, Xi);  mpz_add_ui(Xi, Xi, a);  mpz_tdiv_r(Xi, Xi, n);
+        mpz_sub(f, Xi, Xm);
+        if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
+        mpz_gcd(f, f, n);
+      } while (!mpz_cmp_ui(f, 1) && r-- != 0);
+      if (!mpz_cmp_ui(f, 1)) break;
+    }
+    mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi);
+    return 1;
+  }
+  mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi);
+  mpz_set(f, n);
+  return 0;
+}
+#endif
 
 
+#if 0
 static void lcm_to_B(UV B, mpz_t m)
 {
   double logB = log(B);
@@ -456,6 +602,32 @@ static void lcm_to_B(UV B, mpz_t m)
     mpz_mul_ui(m, m, p);
   }
 }
+#else
+static void lcm_to_B(UV B, mpz_t m)
+{
+  double logB = log(B);
+  UV p, exponent;
+
+  /* Simple sieve to B */
+  unsigned char* s = sieve_erat(B);
+
+  mpz_set_ui(m, 1);
+  exponent = logB / log(2);
+  if (B >= 2)  mpz_mul_ui(m, m, (UV)pow(2, exponent));
+  p = 3;
+  while ( (p <= B) && (exponent != 1) ) {
+    exponent = logB / log(p);
+    mpz_mul_ui(m, m, (UV)pow(p, exponent) );
+    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
+  }
+  /* All the exponent = 1 portion.  */
+  while ( p <= B ) {
+    mpz_mul_ui(m, m, p);
+    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
+  }
+  Safefree(s);
+}
+#endif
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
 {
@@ -471,7 +643,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   while (B <= smoothness_bound) {
     /* gmp_printf("   calculating new m...\n"); */
     lcm_to_B(B, m);
-    /* gmp_printf("trying %Zd  with B=%lu", n, B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n"); */
+    gmp_printf("trying %Zd  with B=%lu", n, B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n");
     /* Use primes for a's to try.  We rarely make it past the first couple. */
     p = 1;
     while ( (p = next_small_prime(p)) < 200000 ) {
@@ -490,13 +662,14 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
       }
     }
     if (B == smoothness_bound) break;
-    B *= 3; if (B > smoothness_bound) B = smoothness_bound;
+    B *= 10; if (B > smoothness_bound) B = smoothness_bound;
   }
   mpz_clear(a); mpz_clear(m); mpz_clear(x);
   mpz_set(f, n);
   return 0;
 }
 
+/* Alternate way.  Much less memory for really big B, but typically slower. */
 int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
 {
   mpz_t b;

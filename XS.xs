@@ -224,6 +224,32 @@ prho_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
     mpz_clear(n);
 
 void
+pbrent_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_string_number("pbrent_factor (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    if (_GMP_is_prime(n)) {
+      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+    } else {
+      mpz_t f;
+      int success;
+
+      mpz_init(f);
+      success = _GMP_pbrent_factor(n, f, 3, maxrounds);
+      if (!success) {
+        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+      } else {
+        mpz_divexact(n, n, f);
+        XPUSH_MPZ(n);
+        XPUSH_MPZ(f);
+      }
+      mpz_clear(f);
+    }
+    mpz_clear(n);
+
+void
 pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
   PREINIT:
     mpz_t n;
@@ -325,7 +351,7 @@ GMP_factor(IN char* strn)
       mpz_init(f);
       while (!_GMP_is_prime(n)) {
         int success = 0;
-        int o=0;
+        int o=1;
         success =                _GMP_prho_factor(n, f, 3, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f, 5, 64*1024);
         if (!success)  success = _GMP_prho_factor(n, f, 7, 64*1024);
@@ -339,9 +365,16 @@ GMP_factor(IN char* strn)
         if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
         if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
 
-        if (!success)  success = _GMP_prho_factor(n, f,17, 8*1024*1024);
+        if (!success)  success = _GMP_prho_factor(n, f,17, 32*1024*1024);
         if (success&&o) {gmp_printf("prho found factor %Zd\n", f);o=0;}
 
+        if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);
+        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
+
+        if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
+        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
+
+        if (!success) gmp_printf("starting squfof on %Zd\n", n);
         if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
         if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
 

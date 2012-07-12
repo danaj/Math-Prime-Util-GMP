@@ -19,6 +19,7 @@ our @EXPORT_OK = qw(
                      next_prime
                      prev_prime
                      prho_factor
+                     pbrent_factor
                      pminus1_factor
                      holf_factor
                      squfof_factor
