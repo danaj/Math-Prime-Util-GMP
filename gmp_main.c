@@ -464,7 +464,7 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
         if (mpz_sgn(f) < 0)  mpz_add(f, f, n);
         mpz_gcd(f, f, n);
       } while (!mpz_cmp_ui(f, 1) && i-- != 0);
-      if (!mpz_cmp_ui(f, 1))
+      if ( (!mpz_cmp_ui(f, 1)) || (!mpz_cmp(f, n)) )
         break;
     }
     mpz_clear(U); mpz_clear(V); mpz_clear(m); mpz_clear(oldU); mpz_clear(oldV);
@@ -643,7 +643,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   while (B <= smoothness_bound) {
     /* gmp_printf("   calculating new m...\n"); */
     lcm_to_B(B, m);
-    gmp_printf("trying %Zd  with B=%lu", n, B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n");
+    /* gmp_printf("trying %Zd  with B=%lu", n, B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n"); */
     /* Use primes for a's to try.  We rarely make it past the first couple. */
     p = 1;
     while ( (p = next_small_prime(p)) < 200000 ) {
@@ -669,7 +669,16 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   return 0;
 }
 
-/* Alternate way.  Much less memory for really big B, but typically slower. */
+/* Alternate way.  Much less memory for really big B.  On some machines this
+ * is slower.  On others the lcm process above is agonizingly slow, so large
+ * smoothness factors work far better with this.
+ *
+ * The above method does the textbook p-1, with a smoothness bound B generating
+ * a stupendously large M, then we pick an a to examine GCD(a^M - 1 mod n, n).
+ * In contrast, this function examines GCD(b^M - 1 mod n, n) where b is
+ * semi-random between 1 and n, and M is just the loop counter.  This doesn't
+ * seem like the same thing at all.
+ */
 int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
 {
   mpz_t b;
@@ -680,9 +689,7 @@ int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
   for (loops = 1; loops <= rounds; loops++) {
     mpz_add_ui(b, b, 1);
     mpz_powm_ui(b, b, loops, n);
-    if (mpz_cmp_ui(b, 0) == 0) {
-      mpz_set(b, n);
-    }
+    if (mpz_sgn(b) == 0) mpz_set(b, n);
     mpz_sub_ui(b, b, 1);
     mpz_gcd(f, b, n);
     if (mpz_cmp(f, n) == 0)
