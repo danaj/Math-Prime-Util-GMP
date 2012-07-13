@@ -42,7 +42,8 @@ static const unsigned short primes_small[] =
   };
 #define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
 
-#define TRIAL_FACTORS 400
+#define TRIAL_LIM 400
+#define MAX_FACTORS 128
 
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
@@ -263,7 +264,7 @@ pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
       int success;
 
       mpz_init(f);
-      success = _GMP_pminus1_factor(n, f, smoothness);
+      success = _GMP_pminus1_factor(n, f, smoothness, 20);
       //success = _GMP_pminus1_factor2(n, f, smoothness);
       if (!success) {
         XPUSHs(sv_2mortal(newSVpv(strn, 0)));
@@ -332,61 +333,118 @@ void
 GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
-    UV f;
   PPCODE:
     validate_string_number("prho_factor (n)", strn);
     mpz_init_set_str(n, strn, 10);
-    /* trial factor */
-    f = 2;
-    while (f < TRIAL_FACTORS) {
-      f = _GMP_trial_factor(n, f, TRIAL_FACTORS);
-      if (f == 0)  break;
-      XPUSHs(sv_2mortal(newSVuv( f )));
-      mpz_divexact_ui(n, n, f);
-      if (mpz_cmp_ui(n,1) == 0)
-        break;
-    }
-    if (mpz_cmp_ui(n, TRIAL_FACTORS*TRIAL_FACTORS) > 0) {
-      mpz_t f;
-      mpz_init(f);
-      while (!_GMP_is_prime(n)) {
-        int success = 0;
-        int o=1;
-        success =                _GMP_prho_factor(n, f, 3, 64*1024);
-        if (!success)  success = _GMP_prho_factor(n, f, 5, 64*1024);
-        if (!success)  success = _GMP_prho_factor(n, f, 7, 64*1024);
-        if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
-        if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
-        if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
-
-        if (!success)  success = _GMP_pminus1_factor(n, f, 200000);
-        if (success&&o) {gmp_printf("p-1 found factor %Zd\n", f);o=0;}
-
-        if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
-        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
-
-        if (!success)  success = _GMP_prho_factor(n, f,17, 32*1024*1024);
-        if (success&&o) {gmp_printf("prho found factor %Zd\n", f);o=0;}
-
-        if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);
-        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
-
-        if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
-        if (success&&o) {gmp_printf("pbrent found factor %Zd\n", f);o=0;}
-
-        if (!success) gmp_printf("starting squfof on %Zd\n", n);
-        if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
-        if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
-
-        if (!success)  croak("Could not factor n: %s\n", strn);
-
-        /* TODO: we have to break up f */
-        XPUSH_MPZ(f);
-        mpz_divexact(n, n, f);
-      }
-      mpz_clear(f);
-    }
-    if (mpz_cmp_ui(n, 1) > 0) {
+    if (mpz_cmp_ui(n, 4) < 0) {
       XPUSH_MPZ(n);
+    } else {
+      UV tf;
+      mpz_t f;
+      mpz_t tofac_stack[MAX_FACTORS];
+      int ntofac = 0;
+
+      { /* trial factor */
+        tf = 2;
+        while (tf < TRIAL_LIM) {
+          tf = _GMP_trial_factor(n, tf, TRIAL_LIM);
+          if (tf == 0)  break;
+          XPUSHs(sv_2mortal(newSVuv( tf )));
+          mpz_divexact_ui(n, n, tf);
+          if (mpz_cmp_ui(n, 1) == 0)
+            break;
+        }
+      }
+
+      mpz_init(f);
+      do { /* loop over each remaining factor */
+        while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prime(n) ) {
+          int success = 0;
+          int o=1;
+
+          /*
+           * This set of operations is meant to provide good performance for
+           * "random" numbers as input.  Hence we stack lots of effort up front
+           * looking for small factors: prho and pbrent are ~ O(f^1/2) where
+           * f is the smallest factor.  SQUFOF is O(N^1/4), so arguable not
+           * any better.
+           * 
+           * On my small 32-bit workstation, these will factor a 778-digit
+           * number consisting of 101 8-digit factors in under 10 seconds.
+           * A 246-digit number with 21 12-digit factors took a little under
+           * two minutes.  A 150-digit number consisting p12 * 14 p14's took
+           * 4.5 minutes.  Times for all of these would be faster if the input
+           * was a single semiprime.  For comparison, Pari took about 1 minute
+           * on the same machine to factor the 150-digit number.
+           *
+           * A half-decent ECM, MPQS, or SIQS factoring method would be a
+           * big help in factoring larger numbers.  This code will take far
+           * too long to factor numbers where the smallest factor is 17+ digits,
+           * while software like gmp-ecm, msieve, or yafu have no troubles.
+           *
+           * On the plus side, this GMP code is far, far faster than Perl
+           * bigint code, and gives an easy way for Perl programs to factor
+           * many large numbers easily and quickly.
+           */
+
+          success =                _GMP_prho_factor(n, f, 3, 64*1024);
+          if (!success)  success = _GMP_prho_factor(n, f, 5, 64*1024);
+          if (!success)  success = _GMP_prho_factor(n, f, 7, 64*1024);
+          if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
+          if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
+          if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
+
+          /* Small p-1 with no stage 2 */
+          if (!success)  success = _GMP_pminus1_factor(n, f, 20000, 1);
+          if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
+          if (success&&o) {gmp_printf("pbrent (1,32M) found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_prho_factor(n, f,17, 32*1024*1024);
+          if (success&&o) {gmp_printf("prho (17,32M) found factor %Zd\n", f);o=0;}
+
+          /* Large p-1 with stage 2: B2 = 20*B1 */
+          if (!success)  success = _GMP_pminus1_factor(n, f, 3000000, 20);
+          if (success&&o) {gmp_printf("p-1 (3M) found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);
+          if (success&&o) {gmp_printf("pbrent (3,256M) found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
+          if (success&&o) {gmp_printf("pbrent (2,512M) found factor %Zd\n", f);o=0;}
+
+          if (!success) gmp_printf("starting squfof on %Zd\n", n);
+          if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
+          if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
+
+          if (!success)  croak("Could not factor n: %s\n", strn);
+
+          if ( !mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n) ) {
+            gmp_printf("n = %Zd  f = %Zd\n", n, f);
+            croak("Incorrect factoring");
+          }
+
+          if (_GMP_is_prime(f)) {
+            XPUSH_MPZ(f);
+          } else {
+            if (ntofac == MAX_FACTORS-1)
+              croak("Too many factors\n");
+            mpz_init_set(tofac_stack[ntofac], f);
+            ntofac++;
+          }
+          mpz_divexact(n, n, f);
+        }
+        /* n is now prime or 1 */
+        if (mpz_cmp_ui(n, 1) > 0) {
+          XPUSH_MPZ(n);
+          mpz_set_ui(n, 1);
+        }
+        if (ntofac-- > 0) {
+          mpz_set(n, tofac_stack[ntofac]);
+          mpz_clear(tofac_stack[ntofac]);
+        }
+      } while (mpz_cmp_ui(n, 1) > 0);
+      mpz_clear(f);
     }
     mpz_clear(n);

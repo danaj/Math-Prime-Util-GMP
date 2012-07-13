@@ -15,7 +15,7 @@ extern void _GMP_prev_prime(mpz_t n);
 
 extern int  _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds);
 extern int  _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds);
-extern int  _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound);
+extern int  _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier);
 extern int  _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds);
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
