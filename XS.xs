@@ -264,7 +264,7 @@ pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
 
       mpz_init(f);
       success = _GMP_pminus1_factor(n, f, smoothness);
-      //success = _GMP_pminus1_factor2(n, f, 1*1024*1024);
+      //success = _GMP_pminus1_factor2(n, f, smoothness);
       if (!success) {
         XPUSHs(sv_2mortal(newSVpv(strn, 0)));
       } else {

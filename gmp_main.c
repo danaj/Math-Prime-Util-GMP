@@ -64,11 +64,25 @@ static UV next_small_prime(UV n)
 
   UV d = n/30;
   UV m = n - d*30;
-    /* Move forward one, knowing we may not be on the wheel */
+  /* Move forward one, knowing we may not be on the wheel */
   if (m == 29) { d++; m = 1; } else  { m = next_wheel[m]; }
   while (!_is_small_prime7(d*30+m)) {
     m = next_wheel[m];  if (m == 1) d++;
   }
+  return(d*30+m);
+}
+
+static UV prev_small_prime(UV n)
+{
+  if (n <= 7)
+    return (n <= 2) ? 0 : (n <= 3) ? 2 : (n <= 5) ? 3 : 5;
+
+  UV d = n/30;
+  UV m = n - d*30;
+  do {
+    m = prev_wheel[m];
+    if (m == 29) { d--; }
+  } while (!_is_small_prime7(d*30+m));
   return(d*30+m);
 }
 
@@ -79,7 +93,8 @@ static unsigned char* sieve_erat(UV end)
   UV n, s;
   UV last = (end+1)/2;
 
-  Newz(0, mem, (last+7)/8, unsigned char);
+  /* Add one so they won't walk off the end */
+  Newz(0, mem, ((last+7)/8)+1, unsigned char);
   if (mem == 0) return 0;
 
   n = 3;
@@ -634,6 +649,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   mpz_t a, m, x;
   UV i, p;
   UV B;
+  UV const B2_multiplier = 20;
 
   mpz_init(a);
   mpz_init(m);
@@ -660,6 +676,39 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
         mpz_clear(a); mpz_clear(m); mpz_clear(x);
         return 1;
       }
+    }
+    /* Second stage, use whatever a was last used */
+    /* Montgomery 1987, p249-250.  This is the simplest improvement he gives,
+     * and doesn't have all the optimizations he points out for it. */
+    if (B2_multiplier > 1) {
+      mpz_t b;
+      UV B2 = B * B2_multiplier;
+      UV q;
+
+      //gmp_printf("Starting second stage from %lu to %lu\n", B, B2);
+      p = prev_small_prime(B);
+      q = p;
+      mpz_init(b);
+      mpz_powm(b, a, m, n);
+      /* b = a^R mod n */
+      while ( (q = next_small_prime(q)) <= B2) {
+        mpz_pow_ui(x, a, q-p);   /* We should precalc these for small gaps */
+        mpz_mul(b, b, x);
+        mpz_tdiv_r(b, b, n);
+        /* b mod n = last b * b^(prime gap) */
+        mpz_set(x, b);
+        if (mpz_sgn(x) == 0)  mpz_set(x, n);
+        mpz_sub_ui(x, x, 1);
+        mpz_gcd(f, x, n);
+        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
+          gmp_printf("p-1 second stage found factor %Zd\n", f);
+          mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
+          return 1;
+        }
+        p = q;
+      }
+      mpz_clear(b);
+      //gmp_printf("End second stage\n");
     }
     if (B == smoothness_bound) break;
     B *= 10; if (B > smoothness_bound) B = smoothness_bound;
