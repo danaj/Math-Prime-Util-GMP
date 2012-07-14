@@ -12,10 +12,11 @@ BEGIN {
 # use parent qw( Exporter );
 use base qw( Exporter );
 our @EXPORT_OK = qw(
-                     is_strong_pseudoprime
-                     is_strong_lucas_pseudoprime
                      is_prime
                      is_prob_prime
+                     is_strong_pseudoprime
+                     is_strong_lucas_pseudoprime
+                     primes
                      next_prime
                      prev_prime
                      prho_factor
@@ -25,6 +26,9 @@ our @EXPORT_OK = qw(
                      squfof_factor
                      factor
                    );
+                   # Should add:
+                   # prime_count
+                   # nth_prime
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
 
 BEGIN {
@@ -36,6 +40,16 @@ BEGIN {
     die $@;
   }
 }
+
+sub _validate_positive_integer {
+  my($n, $min, $max) = @_;
+  croak "Parameter must be defined" if !defined $n;
+  croak "Parameter '$n' must be a positive integer" if $n =~ tr/0123456789//c;
+  croak "Parameter '$n' must be >= $min" if defined $min && $n < $min;
+  croak "Parameter '$n' must be <= $max" if defined $max && $n > $max;
+  1;
+}
+
 
 sub is_strong_pseudoprime {
   my($n, @bases) = @_;
@@ -51,8 +65,37 @@ sub factor {
   my ($n) = @_;
   return ($n) if $n < 4;
 
-  my @factors = GMP_factor($n);
-  sort {$a<=>$b} @factors;
+  my @factors = sort {$a<=>$b} GMP_factor($n);
+  return @factors;
+}
+
+sub primes {
+  my $optref = (ref $_[0] eq 'HASH')  ?  shift  :  {};
+  croak "no parameters to primes" unless scalar @_ > 0;
+  croak "too many parameters to primes" unless scalar @_ <= 2;
+  my $low = (@_ == 2)  ?  shift  :  2;
+  my $high = shift;
+  my $sref = [];
+
+  _validate_positive_integer($low);
+  _validate_positive_integer($high);
+
+  return $sref if ($low > $high) || ($high < 2);
+
+  # Simple trial method for now.
+  return trial_primes($low, $high);
+
+  # Trial primes without the XS code.  Works fine and is a lot easier than the
+  # XS code (duh -- it's Perl).  But 30-40% slower, mostly due to lots of
+  # string -> mpz -> string conversions and little memory allocations.
+  #
+  #my @primes;
+  #my $curprime = is_prime($low)  ?  $low  :  next_prime($low);
+  #while ($curprime <= $high) {
+  #  push @primes, $curprime;
+  #  $curprime = next_prime($curprime);
+  #}
+  #return \@primes;
 }
 
 1;
@@ -80,48 +123,296 @@ Version 0.01
 =head1 SYNOPSIS
 
   use Math::Prime::Util::GMP ':all';
-
   my $n = "115792089237316195423570985008687907853269984665640564039457584007913129639937";
-  say "$n is a prime or spsp-2" if is_strong_pseudoprime($n, 2);
 
+  # This doesn't impact the operation of the module at all, but does let you
+  # enter big number arguments directly as well as enter (e.g.): 2**2048 + 1.
+  use bigint;
+
+  # is_prob_prime returns 0 for composite, 2 for prime, and 1 for maybe prime
+  say "$n is ", qw(composite prob_prime def_prime)[is_prob_prime($n)];
+
+  # is_prime currently is the same -- a BPSW test is used.
+  say "$n is prime" if is_prime($n);
+
+  # Run a series of Miller-Rabin tests
+  say "$n is a prime or spsp-2/7/61" if is_strong_pseudoprime($n, 2, 7, 61);
+
+  # See if $n is a strong Lucas-Selfridge pseudoprime
+  say "$n is a prime or slpsp" if is_strong_lucas_pseudoprime($n);
+
+  # Return array reference to primes in a range.
+  my $aref = primes( 10 ** 200, 10 ** 200 + 10000 );
+
+  $next = next_prime($n);    # next prime > n
+
+  $prev = prev_prime($n);    # previous prime < n
+  
+  # Find prime factors of big numbers
+  @factors = factor(5465610891074107968111136514192945634873647594456118359804135903459867604844945580205745718497);
+
+  # Finer control over factoring.
+  # These stop after finding one factor or exceeding their limit.
+  @factors = prho_factor($n);
+  @factors = pbrent_factor($n);
+  @factors = pminus1_factor($n);
+  @factors = holf_factor($n);
+  @factors = squfof_factor($n);
 
 =head1 DESCRIPTION
 
-A set of utilities related to prime numbers, using GMP.
+A set of utilities related to prime numbers, using GMP.  This includes
+primality tests, getting primes in a range, and factoring.
+
+While it certainly can be used directly, the main purpose of this module is
+for L<Math::Prime::Util>.  That module will automatically load this if it is
+installed, greatly speeding up many of its operations on big numbers.
+
+Inputs and outputs for big numbers are via strings, so you do not need to
+use a bigint package in your program.  However if you do use bigint, Perl
+will automatically convert input for you, so you do not have to stringify
+your numbers.  This output however will be returned as either Perl scalars
+or strings.  L<Math::Prime::Util> tries to reconvert all strings back into
+the callers bigint type if possible.
 
 
 =head1 FUNCTIONS
+
+=head2 is_prob_prime
+
+  my $prob_prime = is_prob_prime($n);
+  # Returns 0 (composite), 2 (prime), or 1 (probably prime)
+
+Takes a positive number as input and returns back either 0 (composite),
+2 (definitely prime), or 1 (probably prime).
+
+For inputs below C<2^64> a deterministic test is performed, so the possible
+return values are 0 (composite) or 2 (definitely prime).  The current
+implementation uses a strong Baillie-PSW test, but later ones may use
+a deterministic set of Miller-Rabin tests if that is faster for some inputs.
+
+For inputs above C<2^64>, a probabilistic test is performed.  Only 0 (composite)
+and 1 (probably prime) are returned.  There is a possibility that composites
+may be returned marked prime, but since the test was published in 1980, not a
+single BPSW pseudoprime has been found, so it is extremely likely to be prime.
+While we believe (Pomerance 1984) that an infinite number of counterexamples
+exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
+
+
+=head2 is_prime
+
+  say "$n is prime!" if is_prime($n);
+
+This is a slight misnomer, as the current implementation uses C<is_prob_prime>,
+hence the values are not provably prime if the result is not 2.  Similar to
+the other routine, this takes a single positive number as input and returns
+back either 0 (composite), 2 (definitely prime), or 1 (probably prime).
+
 
 =head2 is_strong_pseudoprime
 
   my $maybe_prime = is_strong_pseudoprime($n, 2);
   my $probably_prime = is_strong_pseudoprime($n, 2, 3, 5, 7, 11, 13, 17);
 
-Takes a positive number as input and one or more bases.  The bases must be
-between C<2> and C<n - 2>.  Returns 1 is C<n> is a prime or a strong
-pseudoprime to all of the bases, and 0 if not.
+Takes a positive number as input and one or more bases.  Returns 1 if the
+input is a prime or a strong pseudoprime to all of the bases, and 0 if not.
 
 If 0 is returned, then the number really is a composite.  If 1 is returned,
 then it is either a prime or a strong pseudoprime to all the given bases.
 Given enough distinct bases, the chances become very, very strong that the
 number is actually prime.
 
+Both the input number and the bases may be big integers.  The bases must be
+greater than 1, however they may be as large as desired.
+
 This is usually used in combination with other tests to make either stronger
 tests (e.g. the strong BPSW test) or deterministic results for numbers less
-than some verified limit (e.g. it has long been known that no more than three
+than some verified limit (e.g. Jaeschke showed in 1993 that no more than three
 selected bases are required to give correct primality test results for any
 32-bit number).  Given the small chances of passing multiple bases, there
 are some math packages that just use multiple MR tests for primality testing.
 
 Even numbers other than 2 will always return 0 (composite).  While the
-algorithm does run with even input, most sources define it only on odd input.
+algorithm works with even input, most sources define it only on odd input.
 Returning composite for all non-2 even input makes the function match most
 other implementations including L<Math::Primality>'s C<is_strong_pseudoprime>
 function.
 
+
+=head2 is_strong_lucas_pseudoprime
+
+Takes a positive number as input, and returns 1 if the input is a strong
+Lucas pseudoprime using the Selfridge method of choosing D, P, and Q (some
+sources call this a strong Lucas-Selfridge pseudoprime).  This is one half
+of the BPSW primality test (the Miller-Rabin strong pseudoprime test with
+base 2 being the other half).
+
+
+=head2 primes
+
+  my $aref1 = primes( 1_000_000 );
+  my $aref2 = primes( 2 ** 448, 2 ** 448 + 10000 );
+  say join ",", @{primes( 2**2048, 2**2048 + 10000 )};
+
+Returns all the primes between the lower and upper limits (inclusive), with
+a lower limit of C<2> if none is given.
+
+An array reference is returned (with large lists this is much faster and uses
+less memory than returning an array directly).
+
+The current implementation uses repeated calls to C<next_prime>.  This is not
+as efficient as a sieve for large ranges, but also uses no additional memory
+and is fast for very small ranges.
+
+
+=head2 next_prime
+
+  $n = next_prime($n);
+
+Returns the next prime greater than the input number.
+
+
+=head2 prev_prime
+
+  $n = prev_prime($n);
+
+Returns the prime smaller than the input number.  0 is returned if the
+input is C<2> or lower.
+
+
+=head2 factor
+
+  @factors = factor(640552686568398413516426919223357728279912327120302109778516984973296910867431808451611740398561987580967216226094312377767778241368426651540749005659);
+  # Returns an array of 11 factors
+
+Returns a list of prime factors of a positive number, in numerical order.  The
+special cases of C<n = 0> and C<n = 1> will return C<n>.
+
+The current algorithm uses trial division, then while the number is composite
+it runs a sequence of small Pollard Rho with different functions, small
+Pollard P-1, longer Pollard/Brent Rho, longer Pollard Rho, Pollard P-1 with
+much larger smoothness and a second stage, much longer Pollard/Brent Rho
+trials with different functions, Shanks SQUFOF, and finally will give up.
+
+Certainly improvements could be designed for this algorithm (suggestions are
+welcome).  Most importantly, adding ECM or MPQS/SIQS would make a huge
+difference with larger numbers.  These are non-trivial methods however.
+
+In practice, this factors most 26-digit semiprimes in under a second.  Cracking
+14-digit prime factors from large numbers takes about 5 seconds each (Pari
+takes about 1 second, and yafu about 0.3 seconds).  16-digit factors are
+practical but take a long time compared to real factoring programs.  Beyond
+16-digits will take inordinately long.  Note that these are the size of the
+smallest factor, not the size of the input number.
+
+
+=head2 prho_factor
+
+  my @factors = prho_factor($n);
+  my @factors = prho_factor($n, 100_000_000);
+
+Produces at most one factor of a positive number input.  An optional number of
+rounds may be given as the second parameter.  Factoring will stop when the
+input is a prime, one factor has been found, or the number of rounds has been
+exceeded.
+
+This is the Pollard Rho method with C<f = x^2 + 3> and default rounds 64M.  It
+is very good at finding small factors.
+
+
+=head2 pbrent_factor
+
+  my @factors = pbrent_factor($n);
+  my @factors = pbrent_factor($n, 100_000_000);
+
+Produces at most one factor of a positive number input.  An optional number of
+rounds may be given as the second parameter.  Factoring will stop when the
+input is a prime, one factor has been found, or the number of rounds has been
+exceeded.
+
+This is the Pollard Rho method using Brent's modified cycle detection, with
+C<f = x^2 + 3> and default rounds 64M.  It is very good at finding small
+factors.
+
+
+=head2 pminus1_factor
+
+  my @factors = pbrent_factor($n);
+  my @factors = pbrent_factor($n, 100_000_000);
+
+Produces at most one factor of a positive number input.  An optional maximum
+smoothness factor may be given as the second parameter.  Factoring will stop
+when the input is a prime, one factor has been found, or the algorithm fails
+for a factor with the given smoothness.
+
+This is Pollard's C<p-1> method using a default smoothness of 1M and a
+second stage of C<B2 = 20 * B>.  It can quickly find a factor C<p> of the input
+C<n> if the number C<p-1> factors into small primes.  For example
+C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
+where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
+a factor in the first stage for C<B = 10^6>, or the second stage for smaller B.
+
+
+=head2 holf_factor
+
+  my @factors = holf_factor($n);
+  my @factors = holf_factor($n, 100_000_000);
+
+Produces at most one factor of a positive number input.  An optional number of
+rounds may be given as the second parameter.  Factoring will stop when the
+input is a prime, one factor has been found, or the number of rounds has been
+exceeded.
+
+This is Hart's One Line Factorization method, which is a variant of Fermat's
+algorithm.  A premultiplier of 480 is used.  It is very good at factoring
+numbers that are close to perfect squares, or small numbers.  Very naive
+methods of picking RSA parameters sometimes yield numbers in this form, so
+it can be useful to run this a few rounds to see.  For example, the number:
+
+  185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863
+
+was proposed by someone as an RSA key.  It is indeed composed of two distinct
+prime numbers of similar bit length.  Most factoring methods will take a
+B<very> long time to break this.  However one factor is almost exactly 5x
+larger than the other, allowing HOLF to factor this 222-digit semiprime in
+only a few milliseconds.
+
+
+=head2 squfof_factor
+
+  my @factors = squfof_factor($n);
+  my @factors = squfof_factor($n, 100_000_000);
+
+Produces at most one factor of a positive number input.  An optional number of
+rounds may be given as the second parameter.  Factoring will stop when the
+input is a prime, one factor has been found, or the number of rounds has been
+exceeded.
+
+This is Daniel Shanks' SQUFOF (square forms factorization) algorithm.  The
+particular implementation is a non-racing multiple multiplier version, based
+on code ideas of Ben Buhrow and Jason Papadopoulos as well as many others.
+SQUFOF is often the preferred method for small numbers, and L<Math::Prime::Util>
+as well as many other packages use it was the default method for native size
+(e.g. 32-bit or 64-bit) numbers after trial division.  The GMP version used
+in this module will work for larger values, but my testing is showing that it
+is not faster than the C<prho> and C<pbrent> methods in general.
+
+
 =head1 SEE ALSO
 
   L<Math::Prime::Util>
+
+  L<yafu|http://sourceforge.net/projects/yafu/>
+
+  L<msieve|http://sourceforge.net/projects/msieve/>
+
+  L<gmp-ecm|http://ecm.gforge.inria.fr/>
+
+=head1 REFERENCES
+
+=over 4
+
+=item Robert Baillie and Samuel S. Wagstaff, Jr., "Lucas Pseudoprimes", Mathematics of Computation, v35 n152, October 1980, pp 1391-1417.  L<http://mpqs.free.fr/LucasPseudoprimes.pdf>
 
 =head1 AUTHORS
 

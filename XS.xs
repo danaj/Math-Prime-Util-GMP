@@ -198,8 +198,57 @@ prev_prime(IN char* strn)
     XPUSH_MPZ(n);
     mpz_clear(n);
 
+
+SV*
+trial_primes(IN char* strlow, IN char* strhigh)
+  PREINIT:
+    mpz_t low, high, curprime;
+    AV* av = newAV();
+  CODE:
+    validate_string_number("trial_primes (low)", strlow);
+    validate_string_number("trial_primes (high)", strhigh);
+    mpz_init_set_str(low, strlow, 10);
+    mpz_init_set_str(high, strhigh, 10);
+
+    if (mpz_cmp(low, high) <= 0) {
+      mpz_t curprime;
+      char* str;
+      int nsize = mpz_sizeinbase(high, 10) + 2;
+
+      New(0, str, nsize, char);
+      if (str == 0)  croak("Could not allocate space for return string");
+
+      mpz_init_set(curprime, low);
+      if (mpz_cmp_ui(curprime, 2) >= 0)
+        mpz_sub_ui(curprime, curprime, 1);  /* Make sure low gets included */
+      _GMP_next_prime(curprime);
+
+      while (mpz_cmp(curprime, high) <= 0) {
+        UV v = mpz_get_ui(curprime);     /* mpz_fits_ulong_p is nice, but if */
+        if (!mpz_cmp_ui(curprime, v)) {  /* UV_MAX < ULONG_MAX then it fails */
+          av_push(av,newSVuv(v));
+        } else {
+          mpz_get_str(str, 10, curprime);
+          av_push(av,newSVpv(str, 0));
+        }
+        _GMP_next_prime(curprime);
+      }
+      Safefree(str);
+      mpz_clear(curprime);
+    }
+    mpz_clear(low);
+    mpz_clear(high);
+    RETVAL = newRV_noinc( (SV*) av );
+  OUTPUT:
+    RETVAL
+
+
+
+
+
+
 void
-prho_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
+prho_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
@@ -225,7 +274,7 @@ prho_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
     mpz_clear(n);
 
 void
-pbrent_factor(IN char* strn, IN UV maxrounds = 4*1024*1024)
+pbrent_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
@@ -372,7 +421,7 @@ GMP_factor(IN char* strn)
            * On my small 32-bit workstation, these will factor a 778-digit
            * number consisting of 101 8-digit factors in under 10 seconds.
            * A 246-digit number with 21 12-digit factors took a little under
-           * two minutes.  A 150-digit number consisting p12 * 14 p14's took
+           * two minutes.  A 150-digit number consisting p12 * 10 p14's took
            * 4.5 minutes.  Times for all of these would be faster if the input
            * was a single semiprime.  For comparison, Pari took about 1 minute
            * on the same machine to factor the 150-digit number.
@@ -395,8 +444,8 @@ GMP_factor(IN char* strn)
           if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
           /* Small p-1 with no stage 2 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 20000, 1);
-          if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_pminus1_factor(n, f, 50000, 1);
+          if (success&&o) {gmp_printf("p-1 (50k) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,32M) found factor %Zd\n", f);o=0;}
@@ -418,11 +467,13 @@ GMP_factor(IN char* strn)
           if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
           if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
 
-          if (!success)  croak("Could not factor n: %s\n", strn);
+          /* if (!success)  croak("Could not factor n: %s\n", strn); */
 
-          if ( !mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n) ) {
-            gmp_printf("n = %Zd  f = %Zd\n", n, f);
-            croak("Incorrect factoring");
+          if (success) {
+            if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
+              gmp_printf("n = %Zd  f = %Zd\n", n, f);
+              croak("Incorrect factoring");
+            }
           }
 
           if (_GMP_is_prime(f)) {

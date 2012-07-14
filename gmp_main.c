@@ -324,7 +324,7 @@ int _GMP_is_prob_prime(mpz_t n)
    *     1  No small factors found.  No answer.
    *     2  All primes to sqrt(n) tested, number is definitely prime.
    */
-  rval = _GMP_trial_div(n, 400);
+  rval = _GMP_trial_div(n, 397);
   if (rval != 1)  return rval;
 
   /* Miller Rabin with base 2 */
