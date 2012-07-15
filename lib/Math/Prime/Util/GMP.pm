@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.01';
+  $Math::Prime::Util::GMP::VERSION = '0.02';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -103,7 +103,7 @@ sub primes {
 __END__
 
 
-# ABSTRACT: Utilities related to prime numbers, using GMP
+# ABSTRACT: Utilities related to prime numbers and factoring, using GMP
 
 =pod
 
@@ -112,12 +112,12 @@ __END__
 
 =head1 NAME
 
-Math::Prime::Util::GMP - Utilities related to prime numbers, using GMP
+Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using GMP
 
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 
 =head1 SYNOPSIS
@@ -420,26 +420,30 @@ is not faster than the C<prho> and C<pbrent> methods in general.
 
 =head1 SEE ALSO
 
-  L<Math::Prime::Util>
-  Has many more functions, lots of good code for dealing with native-precision
-  arguments (including much faster primes using sieves), and will use this
-  module behind the scenes when needed for big numbers.
+=over 4
 
-  L<Math::Primality> (version 0.04)
-  A Perl module with support for the strong Miller-Rabin test, strong
-  Lucas-Selfridge test, the BPSW test, next_prime / prev_prime, and
-  prime_count.  It uses L<Math::GMPz> to do all the calculations, so is far
-  faster than pure Perl bignums, but somewhat slower than XS+GMP.  The
-  prime_count function is only usable for toy-size numbers (it is many
-  thousands of times slower than L<Math::Prime::Util>), but the other
-  functions are mostly reasonable, though a little slower than this module.
-  You'll need a version newer than 0.04 if you use large numbers.
+=item  L<Math::Prime::Util>.
+Has many more functions, lots of good code for dealing with native-precision
+arguments (including much faster primes using sieves), and will use this
+module behind the scenes when needed for big numbers.
 
-  L<yafu|http://sourceforge.net/projects/yafu/>, 
-  L<msieve|http://sourceforge.net/projects/msieve/>,
-  L<gmp-ecm|http://ecm.gforge.inria.fr/>
-  Good general purpose factoring utilities.  These will be faster than this
-  module, and B<much> faster as the factor increases in size.
+=item  L<Math::Primality> (version 0.04)
+A Perl module with support for the strong Miller-Rabin test, strong
+Lucas-Selfridge test, the BPSW test, next_prime / prev_prime, and
+prime_count.  It uses L<Math::GMPz> to do all the calculations, so is far
+faster than pure Perl bignums, but somewhat slower than XS+GMP.  The
+prime_count function is only usable for toy-size numbers (it is many
+thousands of times slower than L<Math::Prime::Util>), but the other
+functions are reasonable, though a little slower than this module.
+You'll need a version newer than 0.04 if you use 40+ digit numbers.
+
+=item L<yafu|http://sourceforge.net/projects/yafu/>, 
+L<msieve|http://sourceforge.net/projects/msieve/>,
+L<gmp-ecm|http://ecm.gforge.inria.fr/>
+Good general purpose factoring utilities.  These will be faster than this
+module, and B<much> faster as the factor increases in size.
+
+=back
 
 
 =head1 REFERENCES
@@ -486,7 +490,7 @@ source factoring tools, which are both readable and fast.  In particular I am
 leveraging their SQUFOF work in the current implementation.  They are a huge
 resource to the community.
 
-Jonathan Leto and Bob Kuo, who wrote and distributed put the L<Math::Primality>
+Jonathan Leto and Bob Kuo, who wrote and distributed the L<Math::Primality>
 module on CPAN.  Their implementation of BPSW provided the motivation I needed
 to get it done in this module and L<Math::Prime::Util>.  I also used their
 module quite a bit for testing against.

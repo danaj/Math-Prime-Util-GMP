@@ -1,4 +1,7 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.02  15 July 2012
+    - Factoring tests assumed 64-bit.  Rewrite.
+
 0.01  15 July 2012
     - Initial release
