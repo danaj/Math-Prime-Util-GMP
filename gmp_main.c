@@ -502,7 +502,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 }
 
 
-static void lcm_to_B(UV B, mpz_t m)
+void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 {
   double logB = log(B);
   UV p, exponent;
@@ -574,7 +574,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   B = 5;
   while (B <= smoothness_bound) {
     if (verbose) gmp_printf("   calculating new m for B=%lu...\n", (unsigned long)B);
-    lcm_to_B(B, m);
+    _GMP_lcm_of_consecutive_integers(B, m);
     if (verbose) gmp_printf("trying %Zd  with B=%lu", n, (unsigned long)B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n");
     /* Use primes for a's to try.  We rarely make it past the first couple. */
     p = 1;

@@ -1,6 +1,8 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
 0.03  16 July 2012
+    - XS callable: _lcm_of_consecutive_integers(B)
+      which is a better alternative for B! for many factoring algorithms.
 
 0.02  15 July 2012
     - Factoring tests assumed 64-bit.  Rewrite.

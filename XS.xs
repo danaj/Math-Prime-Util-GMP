@@ -156,8 +156,6 @@ SV *
 next_prime(IN char* strn)
   PREINIT:
     mpz_t n;
-    int nsize;
-    char* str;
   PPCODE:
     validate_string_number("next_prime (n)", strn);
     mpz_init_set_str(n, strn, 10);
@@ -171,8 +169,6 @@ SV *
 prev_prime(IN char* strn)
   PREINIT:
     mpz_t n;
-    int nsize;
-    char* str;
   PPCODE:
     validate_string_number("prev_prime (n)", strn);
     mpz_init_set_str(n, strn, 10);
@@ -182,6 +178,16 @@ prev_prime(IN char* strn)
     XPUSH_MPZ(n);
     mpz_clear(n);
 
+
+SV *
+_lcm_of_consecutive_integers(IN UV B)
+  PREINIT:
+    mpz_t m;
+  PPCODE:
+    mpz_init(m);
+    _GMP_lcm_of_consecutive_integers(B, m);
+    XPUSH_MPZ(m);
+    mpz_clear(m);
 
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
