@@ -1,4 +1,8 @@
 use ExtUtils::MakeMaker;
+use lib 'inc'; # load our bundled version of Devel::CheckLib
+use Devel::CheckLib;
+
+check_lib_or_exit(lib => 'gmp', header => 'gmp.h');
 
 WriteMakefile1(
     NAME         => 'Math::Prime::Util::GMP',
@@ -8,17 +12,17 @@ WriteMakefile1(
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
     OBJECT       => 'XS.o gmp_main.o',
-    LIBS         => ['-lgmp'],
+    LIBS         => ['-lgmp -lm'],
 
     BUILD_REQUIRES => {
-                    'Test::More'       => '0.45',
+                      'Test::More'       => '0.45',
                       },
     PREREQ_PM    => {
                       'Exporter'         => '5.562',
                       'XSLoader'         => '0.01',
                       'Carp'             => 0,
                       'base'             => 0,
-                      # I'll probably need these for testing
+                      # I may want these for testing
                       #'bignum'           => '0.23',
                       #'Math::BigInt'     => '1.88',
                       #'Math::BigFloat'   => '1.59',

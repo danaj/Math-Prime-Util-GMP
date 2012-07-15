@@ -1,3 +1,4 @@
+inc/Devel/CheckLib.pm
 Changes
 lib/Math/Prime/Util/GMP.pm
 LICENSE

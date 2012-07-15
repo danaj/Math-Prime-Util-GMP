@@ -1,10 +1,8 @@
 
-- trial division needs some help
-
-- p-1 needs better argument control
-
 - ECM
 
 - prime_count
 
 - nth_prime
+
+- primorial
