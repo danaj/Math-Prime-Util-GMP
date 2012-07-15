@@ -535,6 +535,8 @@ static void calculate_b_lcm(mpz_t b, UV B, mpz_t a, mpz_t n)
 
   /* Simple sieve to B */
   unsigned char* s = sieve_erat(B);
+  if (s == 0)
+    croak("Could not get sieve for primes up to %lu\n", (unsigned long) B);
 
   mpz_init(m);
   mpz_set(b, a);
