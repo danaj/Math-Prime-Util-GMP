@@ -11,6 +11,10 @@
 #include "gmp_main.h"
 #include <math.h>
 
+static int _verbose = 0;
+void _GMP_set_verbose(int v) { _verbose = v; }
+int _GMP_get_verbose(void) { return _verbose; }
+
 static const unsigned short primes_small[] =
   {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
    101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
@@ -86,7 +90,7 @@ static UV prev_small_prime(UV n)
   return(d*30+m);
 }
 
-/* Really simple little odd-only sieve. */
+/* Simple little odd-only sieve. */
 static unsigned char* sieve_erat(UV end)
 {
   unsigned char* mem;
@@ -124,7 +128,6 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   UV s, r;
   int rval;
 
-  /* gmp_printf("Computing MR base %Zd on %Zd\n", a, n); */
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
@@ -134,15 +137,10 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   mpz_init_set(nminus1, n);
   mpz_sub_ui(nminus1, nminus1, 1);
   mpz_init_set(d, nminus1);
-  s = 0;
-  while (mpz_even_p(d)) {
-    s++;
-    mpz_divexact_ui(d, d, 2);
-  }
-  /* faster way, verify s is identical
-   *    s = mpz_scan1(d, 0);
-   *    mpz_tdiv_q_2exp(d, d, s);
-   */
+
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+
   mpz_init(x);
   mpz_powm(x, a, d, n);
   mpz_clear(d); /* done with a and d */
@@ -205,16 +203,15 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     D = (IV)D_ui * sign;
   }
   Q = (1 - D) / 4;
-  //gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
+  if (_verbose) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
   if (D != P*P - 4*Q)  croak("incorrect DPQ\n");
   /* Now start on the lucas sequence */
   mpz_init_set(d, n);
   mpz_add_ui(d, d, 1);
-  s = 0;
-  while (mpz_even_p(d)) {
-    s++;
-    mpz_divexact_ui(d, d, 2);
-  }
+
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+
   mpz_init_set_ui(U, 1);
   mpz_init_set_ui(V, P);
   {
@@ -227,20 +224,20 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_init(T1);
     mpz_init(T2);
     while (mpz_sgn(d) > 0) {
-      //gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
+      if (_verbose) gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
       mpz_mul(T1, U2m, V2m);
       mpz_mod(U2m, T1, n);
       mpz_mul(T1, V2m, V2m);
       mpz_submul_ui(T1, Qm, 2);
       mpz_mod(V2m, T1, n);
-      //gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
+      if (_verbose) gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
       mpz_mul(T1, Qm, Qm); mpz_mod(Qm, T1, n);
       if (mpz_odd_p(d)) {
         /* Save T1 and T2 for later operations in this block */
         mpz_mul(T1, U2m, V);
         mpz_mul(T2, U2m, U);
         mpz_mul_si(T2, T2, D);
-        //gmp_printf("      T1 %Zd  T2 %Zd\n", T1, T2);
+        if (_verbose) gmp_printf("      T1 %Zd  T2 %Zd\n", T1, T2);
         /* U */
         mpz_mul(U, U, V2m);
         mpz_add(U, U, T1);
@@ -262,7 +259,7 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_clear(U2m); mpz_clear(V2m); mpz_clear(Qm); mpz_clear(T1); mpz_clear(T2);
   }
   rval = 0;
-  //gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
+  if (_verbose) gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
   if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
     s = 0;
@@ -283,49 +280,44 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   return rval;
 }
 
-int _GMP_trial_div(mpz_t n, UV to_n)
+
+UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
   int small_n = 0;
   int primei = 2;
   UV f;
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 2;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
-    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-  }
 
-  /* This is a really simple function which should be replaced with a
-   * proper version sometime.  It's not too bad up to the small primes
-   * limit, but is shockingly stupid after that.  There are also much
-   * faster ways to test the small numbers (e.g. gcd within a limb) */
+  if (mpz_cmp_ui(n, 4) < 0) {
+    return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;   /* 0,1 => 1   2,3 => 0 */
+  }
+  if ( (from_n <= 2) && mpz_even_p(n) )   return 2;
+
+  if (from_n > to_n)
+    croak("GMP_trial_factor from > to: %"UVuf" - %"UVuf, from_n, to_n);
+
   if (mpz_cmp_ui(n, to_n*to_n) < 0)
     small_n = 1;
-  f = primes_small[primei];
-  while (f <= to_n) {
-    if (small_n && mpz_cmp_ui(n, f*f) < 0) return 2;
-    //gmp_printf("  is %Zd divisible by %lu?\n", n, primes_small[primei]);
-    if (mpz_divisible_ui_p(n, primes_small[primei])) return 0;
-    if (++primei < NPRIMES_SMALL) {
-      f = primes_small[primei];
-    } else {
-      f = next_small_prime(f);
-    }
+
+  f = primes_small[primei]; /* Start at 3 */
+  while (f < from_n) {
+    f = (++primei < NPRIMES_SMALL) ? primes_small[primei] : next_small_prime(f);
   }
-  return 1;
+
+  while (f <= to_n) {
+    if (small_n && mpz_cmp_ui(n, f*f) < 0) return 0;
+    if (mpz_divisible_ui_p(n, f)) return f;
+    f = (++primei < NPRIMES_SMALL) ? primes_small[primei] : next_small_prime(f);
+  }
+  return 0;
 }
+
 
 int _GMP_is_prob_prime(mpz_t n)
 {
-  int rval;
-
-  /* Trial divide some small primes. Returns:
-   *     0  Small factor found, number is composite.
-   *     1  No small factors found.  No answer.
-   *     2  All primes to sqrt(n) tested, number is definitely prime.
-   */
-  rval = _GMP_trial_div(n, 397);
-  if (rval != 1)  return rval;
+  if (_GMP_trial_factor(n, 2, 400))
+    return 0;
+  if (mpz_cmp_ui(n, 400*400) <= 0)
+    return 2;
 
   /* Miller Rabin with base 2 */
   if (_GMP_miller_rabin_ui(n, 2) == 0)
@@ -404,15 +396,6 @@ void _GMP_prev_prime(mpz_t n)
       break;
   }
   mpz_clear(d);
-}
-
-static UV basic_factor(mpz_t n)
-{
-  if (mpz_cmp_ui(n, 4) < 0)      return mpz_get_ui(n);
-  if (mpz_even_p(n))             return 2;
-  if (mpz_divisible_ui_p(n, 3))  return 3;
-  if (mpz_divisible_ui_p(n, 5))  return 5;
-  return 0;
 }
 
 int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
@@ -653,7 +636,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier)
   mpz_t a, m, x, b;
   UV i, p, B;
   UV const B_multiplier = 10;
-  int const verbose = 1;
 
   mpz_init(a);
   mpz_init(m);
@@ -662,13 +644,13 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier)
 
   B = 5;
   while (B <= smoothness_bound) {
-    if (verbose) gmp_printf("trying %Zd  with B=%lu\n", n, (unsigned long)B);
+    if (_verbose>1) gmp_printf("trying %Zd  with B=%lu\n", n, (unsigned long)B);
     /* Use primes for a's to try.  We rarely make it past the first couple. */
     p = 1;
     while ( (p = next_small_prime(p)) < 200000 ) {
-      if (verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
+      if (_verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
       mpz_set_ui(a, p);
-      if (verbose) gmp_printf("   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B);
+      if (_verbose>1) gmp_printf("   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B);
       calculate_b_lcm(b, B, a, n);
       mpz_set(x, b);
       if (mpz_sgn(x) == 0) mpz_set(x, n);
@@ -690,7 +672,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier)
       UV q;
 
       if (B2 > (B*B_multiplier)) B2 = B*B_multiplier;
-      if (verbose) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B, (unsigned long)B2);
+      if (_verbose>1) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B, (unsigned long)B2);
       p = prev_small_prime(B);
       q = p;
       while ( (q = next_small_prime(q)) <= B2) {
@@ -700,13 +682,13 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier)
         mpz_sub_ui(x, x, 1);
         mpz_gcd(f, x, n);
         if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-          if (verbose) gmp_printf("p-1 second stage found factor %Zd\n", f);
+          if (_verbose>1) gmp_printf("p-1 second stage found factor %Zd\n", f);
           mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
           return 1;
         }
         p = q;
       }
-      if (verbose) gmp_printf("End second stage\n");
+      if (_verbose>1) gmp_printf("End second stage\n");
     }
     if (B == smoothness_bound) break;
     B *= B_multiplier; if (B > smoothness_bound) B = smoothness_bound;
@@ -798,38 +780,6 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
   mpz_divexact_ui(n, n, PREMULT);
   mpz_set(f, n);
   mpz_clear(s); mpz_clear(m);
-  return 0;
-}
-
-UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
-{
-  int small_n = 0;
-  int primei = 2;
-  UV f;
-
-  f = basic_factor(n);
-  if (f > 0)
-    return f;
-
-  if (from_n > to_n)
-    croak("GMP_trial_factor from > to: %"UVuf" - %"UVuf, from_n, to_n);
-  if (to_n > primes_small[NPRIMES_SMALL-1])
-    croak("GMP_trial_factor too large: %"UVuf" - %"UVuf, from_n, to_n);
-
-  if (mpz_cmp_ui(n, to_n*to_n) < 0)
-    small_n = 1;
-
-  f = primes_small[primei];
-  while (f < from_n) {
-    f = primes_small[++primei];
-  }
-
-  while (f <= to_n) {
-    if (small_n && mpz_cmp_ui(n, f*f) < 0) return 0;
-    if (mpz_divisible_ui_p(n, f)) return f;
-    if (primei == NPRIMES_SMALL-1)  return 0;
-    f = primes_small[++primei];
-  }
   return 0;
 }
 

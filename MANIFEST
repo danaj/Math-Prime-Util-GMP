@@ -11,8 +11,12 @@ gmp_main.h
 gmp_main.c
 t/01-load.t
 t/02-can.t
+t/10-isprime.t
+t/11-primes.t
 t/12-nextprime.t
+t/15-probprime.t
 t/17-pseudoprime.t
+t/50-factoring.t
 t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t

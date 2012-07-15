@@ -50,8 +50,11 @@ MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
 PROTOTYPES: ENABLE
 
+void
+_GMP_set_verbose(IN int v)
+
 int
-GMP_miller_rabin(IN char* strn, IN char* strbase)
+_GMP_miller_rabin(IN char* strn, IN char* strbase)
   PREINIT:
     mpz_t n, a;
   CODE:
@@ -92,33 +95,12 @@ is_strong_lucas_pseudoprime(IN char* strn)
     RETVAL
 
 int
-GMP_trial_div(IN char* strn, IN UV to_n)
-  PREINIT:
-    mpz_t n;
-  CODE:
-    /* If this function returns 0, it is a composite.
-     * If this function returns 1, it is a prime if n <= to_n*to_n.
-     */
-    validate_string_number("GMP_trial_div (n)", strn);
-    if (strn[1] == 0) {
-      int q_is_prime = 0;
-      switch (strn[0]) {
-        case '2': case '3': case '5': case '7': q_is_prime = 1; break;
-      }
-      XSRETURN_IV(q_is_prime);
-    }
-    /* n is >= 10 */
-    mpz_init_set_str(n, strn, 10);
-    RETVAL = _GMP_trial_div(n, to_n);
-    mpz_clear(n);
-  OUTPUT:
-    RETVAL
-
-int
 is_prob_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
+    if ((strn != 0) && (strn[0] == '-') )  /* Negative numbers return 0 */
+      XSRETURN_IV(0);
     validate_string_number("is_prob_prime (n)", strn);
     if (strn[1] == 0) {
       int q_is_prime = 0;
@@ -138,6 +120,8 @@ is_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
+    if ((strn != 0) && (strn[0] == '-') )  /* Negative numbers return 0 */
+      XSRETURN_IV(0);
     validate_string_number("is_prime (n)", strn);
     if (strn[1] == 0) {
       int q_is_prime = 0;
@@ -200,7 +184,7 @@ prev_prime(IN char* strn)
 
 
 SV*
-trial_primes(IN char* strlow, IN char* strhigh)
+_GMP_trial_primes(IN char* strlow, IN char* strhigh)
   PREINIT:
     mpz_t low, high, curprime;
     AV* av = newAV();
@@ -244,7 +228,35 @@ trial_primes(IN char* strlow, IN char* strhigh)
 
 
 
+#define SIMPLE_FACTOR_START(name) \
+    validate_string_number(name " (n)", strn); \
+    mpz_init_set_str(n, strn, 10); \
+    if (mpz_cmp_ui(n, 3) <= 0) { \
+      XPUSH_MPZ(n); \
+    } else { \
+      /* Skip the trivial division tests */ \
+      /* while (mpz_divisible_ui_p(n, 2)) { mpz_divexact_ui(n, n, 2); XPUSHs(sv_2mortal(newSVuv( 2 ))); } */ \
+      /* while (mpz_divisible_ui_p(n, 3)) { mpz_divexact_ui(n, n, 3); XPUSHs(sv_2mortal(newSVuv( 3 ))); } */ \
+      /* while (mpz_divisible_ui_p(n, 5)) { mpz_divexact_ui(n, n, 5); XPUSHs(sv_2mortal(newSVuv( 5 ))); } */ \
+      if (mpz_cmp_ui(n, 1) == 0) { /* done */ } \
+      else if (_GMP_is_prime(n)) { XPUSH_MPZ(n); } \
+      else { \
+        mpz_t f; \
+        int success; \
+        mpz_init(f);
 
+#define SIMPLE_FACTOR_END \
+        if (!success) { \
+          XPUSHs(sv_2mortal(newSVpv(strn, 0))); \
+        } else { \
+          mpz_divexact(n, n, f); \
+          XPUSH_MPZ(n); \
+          XPUSH_MPZ(f); \
+        } \
+        mpz_clear(f); \
+      } \
+    } \
+    mpz_clear(n);
 
 
 void
@@ -252,138 +264,53 @@ prho_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("prho_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    if (_GMP_is_prime(n)) {
-      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-    } else {
-      mpz_t f;
-      int success;
-
-      mpz_init(f);
-      success = _GMP_prho_factor(n, f, 3, maxrounds);
-      if (!success) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        mpz_divexact(n, n, f);
-        XPUSH_MPZ(n);
-        XPUSH_MPZ(f);
-      }
-      mpz_clear(f);
-    }
-    mpz_clear(n);
+    SIMPLE_FACTOR_START("prho_factor");
+    success = _GMP_prho_factor(n, f, 3, maxrounds);
+    SIMPLE_FACTOR_END;
 
 void
 pbrent_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("pbrent_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    if (_GMP_is_prime(n)) {
-      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-    } else {
-      mpz_t f;
-      int success;
-
-      mpz_init(f);
-      success = _GMP_pbrent_factor(n, f, 3, maxrounds);
-      if (!success) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        mpz_divexact(n, n, f);
-        XPUSH_MPZ(n);
-        XPUSH_MPZ(f);
-      }
-      mpz_clear(f);
-    }
-    mpz_clear(n);
+    SIMPLE_FACTOR_START("pbrent_factor");
+    success = _GMP_pbrent_factor(n, f, 3, maxrounds);
+    SIMPLE_FACTOR_END;
 
 void
 pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("pminus1_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    if (_GMP_is_prime(n)) {
-      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-    } else {
-      mpz_t f;
-      int success;
-
-      mpz_init(f);
-      success = _GMP_pminus1_factor(n, f, smoothness, 20);
-      //success = _GMP_pminus1_factor2(n, f, smoothness);
-      if (!success) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        mpz_divexact(n, n, f);
-        XPUSH_MPZ(n);
-        XPUSH_MPZ(f);
-      }
-      mpz_clear(f);
-    }
-    mpz_clear(n);
+    SIMPLE_FACTOR_START("pminus1_factor");
+    success = _GMP_pminus1_factor(n, f, smoothness, 20);
+    //success = _GMP_pminus1_factor2(n, f, smoothness);
+    SIMPLE_FACTOR_END;
 
 void
 holf_factor(IN char* strn, IN UV maxrounds = 256*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("holf_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    if (_GMP_is_prime(n)) {
-      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-    } else {
-      mpz_t f;
-      int success;
-
-      mpz_init(f);
-      success = _GMP_holf_factor(n, f, maxrounds);
-      if (!success) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        mpz_divexact(n, n, f);
-        XPUSH_MPZ(n);
-        XPUSH_MPZ(f);
-      }
-      mpz_clear(f);
-    }
-    mpz_clear(n);
+    SIMPLE_FACTOR_START("holf_factor");
+    success = _GMP_holf_factor(n, f, maxrounds);
+    SIMPLE_FACTOR_END;
 
 void
-squfof_factor(IN char* strn, IN UV rounds = 16*1024*1024)
+squfof_factor(IN char* strn, IN UV maxrounds = 16*1024*1024)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("squfof_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    if (_GMP_is_prime(n)) {
-      XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-    } else {
-      mpz_t f;
-      int success;
-
-      mpz_init(f);
-      success = _GMP_squfof_factor(n, f, rounds);
-      if (!success) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        mpz_divexact(n, n, f);
-        XPUSH_MPZ(n);
-        XPUSH_MPZ(f);
-      }
-      mpz_clear(f);
-    }
-    mpz_clear(n);
+    SIMPLE_FACTOR_START("squfof_factor");
+    success = _GMP_squfof_factor(n, f, maxrounds);
+    SIMPLE_FACTOR_END;
 
 void
-GMP_factor(IN char* strn)
+_GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("prho_factor (n)", strn);
+    validate_string_number("factor (n)", strn);
     mpz_init_set_str(n, strn, 10);
     if (mpz_cmp_ui(n, 4) < 0) {
       XPUSH_MPZ(n);
@@ -393,7 +320,7 @@ GMP_factor(IN char* strn)
       mpz_t tofac_stack[MAX_FACTORS];
       int ntofac = 0;
 
-      { /* trial factor */
+      { /* trial factor.  We could possibly use mpz_remove here. */
         tf = 2;
         while (tf < TRIAL_LIM) {
           tf = _GMP_trial_factor(n, tf, TRIAL_LIM);
@@ -409,7 +336,7 @@ GMP_factor(IN char* strn)
       do { /* loop over each remaining factor */
         while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prime(n) ) {
           int success = 0;
-          int o=1;
+          int o = _GMP_get_verbose();
 
           /*
            * This set of operations is meant to provide good performance for

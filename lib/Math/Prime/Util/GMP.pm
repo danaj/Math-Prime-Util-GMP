@@ -56,7 +56,7 @@ sub is_strong_pseudoprime {
   croak "No bases given to is_strong_pseudoprime" unless @bases;
   foreach my $base (@bases) {
     croak "Base $base is invalid" if $base < 2;
-    return 0 unless GMP_miller_rabin("$n", "$base");
+    return 0 unless _GMP_miller_rabin("$n", "$base");
   }
   1;
 }
@@ -65,7 +65,7 @@ sub factor {
   my ($n) = @_;
   return ($n) if $n < 4;
 
-  my @factors = sort {$a<=>$b} GMP_factor($n);
+  my @factors = sort {$a<=>$b} _GMP_factor($n);
   return @factors;
 }
 
@@ -83,7 +83,7 @@ sub primes {
   return $sref if ($low > $high) || ($high < 2);
 
   # Simple trial method for now.
-  return trial_primes($low, $high);
+  return _GMP_trial_primes($low, $high);
 
   # Trial primes without the XS code.  Works fine and is a lot easier than the
   # XS code (duh -- it's Perl).  But 30-40% slower, mostly due to lots of
@@ -203,7 +203,7 @@ exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
   say "$n is prime!" if is_prime($n);
 
-This is a slight misnomer, as the current implementation uses C<is_prob_prime>,
+This is a misnomer, as the current implementation uses C<is_prob_prime>,
 hence the values are not provably prime if the result is not 2.  Similar to
 the other routine, this takes a single positive number as input and returns
 back either 0 (composite), 2 (definitely prime), or 1 (probably prime).
@@ -296,14 +296,15 @@ trials with different functions, Shanks SQUFOF, and finally will give up.
 
 Certainly improvements could be designed for this algorithm (suggestions are
 welcome).  Most importantly, adding ECM or MPQS/SIQS would make a huge
-difference with larger numbers.  These are non-trivial methods however.
+difference with larger numbers.  These are non-trivial (though feasible)
+methods.
 
 In practice, this factors most 26-digit semiprimes in under a second.  Cracking
 14-digit prime factors from large numbers takes about 5 seconds each (Pari
 takes about 1 second, and yafu about 0.3 seconds).  16-digit factors are
 practical but take a long time compared to real factoring programs.  Beyond
 16-digits will take inordinately long.  Note that these are the size of the
-smallest factor, not the size of the input number.
+smallest factor, not the size of the input number, as shown by the example.
 
 
 =head2 prho_factor
@@ -330,9 +331,10 @@ rounds may be given as the second parameter.  Factoring will stop when the
 input is a prime, one factor has been found, or the number of rounds has been
 exceeded.
 
-This is the Pollard Rho method using Brent's modified cycle detection, with
-C<f = x^2 + 3> and default rounds 64M.  It is very good at finding small
-factors.
+This is the Pollard Rho method using Brent's modified cycle detection and
+backtracking.  It is essentially Algorithm P''2 from Brent (1980).  Parameters
+used are C<f = x^2 + 3> and default rounds 64M.  It is very good at finding
+small factors.
 
 
 =head2 pminus1_factor
@@ -351,6 +353,17 @@ C<n> if the number C<p-1> factors into small primes.  For example
 C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
 where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
 a factor in the first stage for C<B = 10^6>, or the second stage for smaller B.
+
+It is likely the additional optional arguments will change to allow better
+control of B1, B2, and incremental search.
+
+The implementation is written from scratch using a simple version described
+in Montgomery 1987.  It is faster than most simple implementations I have seen
+(many of which are written assuming native precision inputs), but far
+slower than Ben Buhrow's code used in earlier versions of
+L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close to the
+speed of the version included with modern GMP-ECM (as much as 1000x slower).
+
 
 
 =head2 holf_factor
@@ -401,12 +414,26 @@ is not faster than the C<prho> and C<pbrent> methods in general.
 =head1 SEE ALSO
 
   L<Math::Prime::Util>
+  Has many more functions, lots of good code for dealing with native-precision
+  arguments (including much faster primes using sieves), and will use this
+  module behind the scenes when needed for big numbers.
 
-  L<yafu|http://sourceforge.net/projects/yafu/>
+  L<Math::Primality> (version 0.04)
+  A Perl module with support for the strong Miller-Rabin test, strong
+  Lucas-Selfridge test, the BPSW test, next_prime / prev_prime, and
+  prime_count.  It uses L<Math::GMPz> to do all the calculations, so is far
+  faster than pure Perl bignums, but somewhat slower than XS+GMP.  The
+  prime_count function is only usable for toy-size numbers (it is many
+  thousands of times slower than L<Math::Prime::Util>), but the other
+  functions are mostly reasonable, though a little slower than this module.
+  You'll need a version newer than 0.04 if you use large numbers.
 
-  L<msieve|http://sourceforge.net/projects/msieve/>
-
+  L<yafu|http://sourceforge.net/projects/yafu/>, 
+  L<msieve|http://sourceforge.net/projects/msieve/>,
   L<gmp-ecm|http://ecm.gforge.inria.fr/>
+  Good general purpose factoring utilities.  These will be faster than this
+  module, and B<much> faster as the factor increases in size.
+
 
 =head1 REFERENCES
 
@@ -414,9 +441,48 @@ is not faster than the C<prho> and C<pbrent> methods in general.
 
 =item Robert Baillie and Samuel S. Wagstaff, Jr., "Lucas Pseudoprimes", Mathematics of Computation, v35 n152, October 1980, pp 1391-1417.  L<http://mpqs.free.fr/LucasPseudoprimes.pdf>
 
+=item Richard P. Brent, "An improved Monte Carlo factorization algorithm", BIT 20, 1980, pp. 176-184.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb051i.pdf>
+
+=item Richard P. Brent, "Parallel Algorithms for Integer Factorisation", in Number Theory and Cryptography, Cambridge University Press, 1990, pp 26-37.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb115.pdf>
+
+=item Richard P. Brent, "Some Parallel Algorithms for Integer Factorisation", in Proc. Third Australian Supercomputer Conference, 1999. (Note: there are multiple versions of this paper)  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb193.pdf>
+
+=item William B. Hart, "A One Line Factoring Algorithm", preprint.  L<http://wstein.org/home/wstein/www/home/wbhart/onelinefactor.pdf>
+
+=item Daniel Shanks, "SQUFOF notes", unpublished notes, transcribed by Stephen McMath.  L<http://www.usna.edu/Users/math/wdj/mcmath/shanks_squfof.pdf>
+
+=item Jason E. Gower and Samuel S. Wagstaff, Jr, "Square Form Factorization", Mathematics of Computation, v77, 2008, pages 551-588.  L<http://homes.cerias.purdue.edu/~ssw/squfof.pdf>
+
+=item Peter L. Montgomery, "Speeding the Pollard and Elliptic Curve Methods of Factorization", Mathematics of Computation, v48, n177, Jan 1987, pp 243-264.  L<http://www.ams.org/journals/mcom/1987-48-177/S0025-5718-1987-0866113-7/>
+
+=back
+
+
 =head1 AUTHORS
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
+
+
+=head1 ACKNOWLEDGEMENTS
+
+Obviously none of this would be possible without the mathematicians who
+created and published their work.  Eratosthenes, Gauss, Euler, Riemann,
+Fermat, Lucas, Baillie, Pollard, Brent, Montgomery, Shanks, Hart, Wagstaff,
+Dixon, Pomerance, A.K Lenstra, H. W. Lenstra Jr., Knuth, etc.
+
+The GNU GMP team, whose product allows me to concentrate on coding high-level
+algorithms and not worry about any of the details of how modular exponentiation
+and the like happen, and still get decent performance for my purposes.
+
+Ben Buhrows and Jason Papadopoulos deserve special mention for their open
+source factoring tools, which are both readable and fast.  In particular I am
+leveraging their SQUFOF work in the current implementation.  They are a huge
+resource to the community.
+
+Jonathan Leto and Bob Kuo, who put the L<Math::Primality> module on CPAN.
+Their implementation of BPSW provided the motivation I needed to get it done
+in this module and L<Math::Prime::Util>.  I also used their module quite a
+bit for testing against.
 
 
 =head1 COPYRIGHT

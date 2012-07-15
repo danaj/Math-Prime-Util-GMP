@@ -1,6 +1,10 @@
 
-- factor needs to be finished.
-
 - trial division needs some help
 
-- documentation for functions that exist
+- p-1 needs better argument control
+
+- ECM
+
+- prime_count
+
+- nth_prime
