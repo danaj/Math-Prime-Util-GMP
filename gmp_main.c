@@ -203,7 +203,7 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     D = (IV)D_ui * sign;
   }
   Q = (1 - D) / 4;
-  if (_verbose) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
+  if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
   if (D != P*P - 4*Q)  croak("incorrect DPQ\n");
   /* Now start on the lucas sequence */
   mpz_init_set(d, n);
@@ -224,20 +224,20 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_init(T1);
     mpz_init(T2);
     while (mpz_sgn(d) > 0) {
-      if (_verbose) gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
+      if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
       mpz_mul(T1, U2m, V2m);
       mpz_mod(U2m, T1, n);
       mpz_mul(T1, V2m, V2m);
       mpz_submul_ui(T1, Qm, 2);
       mpz_mod(V2m, T1, n);
-      if (_verbose) gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
+      if (_verbose>3) gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
       mpz_mul(T1, Qm, Qm); mpz_mod(Qm, T1, n);
       if (mpz_odd_p(d)) {
         /* Save T1 and T2 for later operations in this block */
         mpz_mul(T1, U2m, V);
         mpz_mul(T2, U2m, U);
         mpz_mul_si(T2, T2, D);
-        if (_verbose) gmp_printf("      T1 %Zd  T2 %Zd\n", T1, T2);
+        if (_verbose>3) gmp_printf("      T1 %Zd  T2 %Zd\n", T1, T2);
         /* U */
         mpz_mul(U, U, V2m);
         mpz_add(U, U, T1);
@@ -259,7 +259,7 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_clear(U2m); mpz_clear(V2m); mpz_clear(Qm); mpz_clear(T1); mpz_clear(T2);
   }
   rval = 0;
-  if (_verbose) gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
+  if (_verbose>3) gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
   if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
     s = 0;
@@ -556,6 +556,7 @@ static void calculate_b_lcm(mpz_t b, UV B, mpz_t a, mpz_t n)
 }
 
 #if 0
+/* Using lcm_to_B instead of calculating each time.  Also shows increasing */
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
 {
   mpz_t a, m, x;
@@ -630,74 +631,74 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
   mpz_set(f, n);
   return 0;
 }
-#else
-int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound, UV B2_multiplier)
+#endif
+
+int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, m, x, b;
-  UV i, p, B;
-  UV const B_multiplier = 10;
+  UV p;
+
+  if (B1 < 5) return 0;
+  if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; }
+  if (mpz_divisible_ui_p(n, 3)) { mpz_set_ui(f, 3); return 1; }
+  if (mpz_divisible_ui_p(n, 5)) { mpz_set_ui(f, 5); return 1; }
+  if (mpz_divisible_ui_p(n, 7)) { mpz_set_ui(f, 7); return 1; }
 
   mpz_init(a);
   mpz_init(m);
   mpz_init(x);
   mpz_init(b);
 
-  B = 5;
-  while (B <= smoothness_bound) {
-    if (_verbose>1) gmp_printf("trying %Zd  with B=%lu\n", n, (unsigned long)B);
-    /* Use primes for a's to try.  We rarely make it past the first couple. */
-    p = 1;
-    while ( (p = next_small_prime(p)) < 200000 ) {
-      if (_verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
-      mpz_set_ui(a, p);
-      if (_verbose>1) gmp_printf("   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B);
-      calculate_b_lcm(b, B, a, n);
-      mpz_set(x, b);
-      if (mpz_sgn(x) == 0) mpz_set(x, n);
+  if (_verbose>1) gmp_printf("trying %Zd  with B=%lu\n", n, (unsigned long)B1);
+  /* Use primes for a's to try.  We rarely make it past the first couple. */
+  p = 1;
+  while ( (p = next_small_prime(p)) < 100 ) {
+    if (_verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
+    mpz_set_ui(a, p);
+    if (_verbose>1) gmp_printf("   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B1);
+    calculate_b_lcm(b, B1, a, n);
+    mpz_set(x, b);
+    if (mpz_sgn(x) == 0) mpz_set(x, n);
+    mpz_sub_ui(x, x, 1);
+    mpz_gcd(f, x, n);
+    if (mpz_cmp_ui(f, 1) == 0)
+      break;
+    if (mpz_cmp(f, n) != 0) {
+      mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
+      return 1;
+    }
+  }
+
+  /* Second stage, use whatever a was last used (b = a^R mod n).
+   * See Montgomery 1987, p249-250.
+   * This code isn't actually using any of his improvements.
+   */
+  if (B2 > B1) {
+    UV q;
+    if (_verbose>1) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
+    p = prev_small_prime(B1);
+    q = p;
+    /* TODO: segmented sieve to get q's is probably a lot faster */
+    while ( (q = next_small_prime(q)) <= B2) {
+      /* We could speed this up using primegap q-p */
+      mpz_powm_ui(x, b, q, n);
+      if (mpz_sgn(x) == 0)  mpz_set(x, n);
       mpz_sub_ui(x, x, 1);
       mpz_gcd(f, x, n);
-      if (mpz_cmp_ui(f, 1) == 0)
-        break;
-      if (mpz_cmp(f, n) != 0) {
+      if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
+        if (_verbose>1) gmp_printf("p-1 second stage found factor %Zd\n", f);
         mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
         return 1;
       }
+      p = q;
     }
-    /* Second stage, use whatever a was last used (b = a^R mod n).
-     * See Montgomery 1987, p249-250.
-     * This code isn't actually using any of his improvements.
-     */
-    if ( B2_multiplier > 1 ) {
-      UV B2 = B * B2_multiplier;
-      UV q;
-
-      if (B2 > (B*B_multiplier)) B2 = B*B_multiplier;
-      if (_verbose>1) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B, (unsigned long)B2);
-      p = prev_small_prime(B);
-      q = p;
-      while ( (q = next_small_prime(q)) <= B2) {
-        /* We could speed this up using primegap q-p */
-        mpz_powm_ui(x, b, q, n);
-        if (mpz_sgn(x) == 0)  mpz_set(x, n);
-        mpz_sub_ui(x, x, 1);
-        mpz_gcd(f, x, n);
-        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-          if (_verbose>1) gmp_printf("p-1 second stage found factor %Zd\n", f);
-          mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
-          return 1;
-        }
-        p = q;
-      }
-      if (_verbose>1) gmp_printf("End second stage\n");
-    }
-    if (B == smoothness_bound) break;
-    B *= B_multiplier; if (B > smoothness_bound) B = smoothness_bound;
+    if (_verbose>1) gmp_printf("End second stage\n");
   }
+
   mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
   mpz_set(f, n);
   return 0;
 }
-#endif
 
 /* Alternate way.  Definitely simpler code.
  *

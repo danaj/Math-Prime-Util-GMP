@@ -278,12 +278,24 @@ pbrent_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
     SIMPLE_FACTOR_END;
 
 void
-pminus1_factor(IN char* strn, IN UV smoothness = 1000000)
+pminus1_factor(IN char* strn, IN UV smoothness = 1000000, IN UV B2 = 0)
   PREINIT:
     mpz_t n;
   PPCODE:
     SIMPLE_FACTOR_START("pminus1_factor");
-    success = _GMP_pminus1_factor(n, f, smoothness, 20);
+    if (B2 == 0) {
+      /* Without a B2, increment up */
+      UV B = 5;
+      while (!success) {
+        success = _GMP_pminus1_factor(n, f, B, 20*B);
+        if (B == smoothness) break;
+        B = 20*B;
+        if (B > smoothness) B = smoothness;
+      }
+    } else {
+      /* Given a B1 and B2, do just what they asked. */
+      success = _GMP_pminus1_factor(n, f, smoothness, B2);
+    }
     //success = _GMP_pminus1_factor2(n, f, smoothness);
     SIMPLE_FACTOR_END;
 
@@ -370,8 +382,16 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
           if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
-          /* Small p-1 with no stage 2 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 50000, 1);
+          /* Small p-1 */
+          {
+            UV B = 5;
+            while (!success) {
+              success = _GMP_pminus1_factor(n, f, B, 10*B);
+              if (B == 5000) break;
+              B = 10*B;
+              if (B > 5000) B = 5000;
+            }
+          }
           if (success&&o) {gmp_printf("p-1 (50k) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
@@ -380,8 +400,12 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_prho_factor(n, f,17, 32*1024*1024);
           if (success&&o) {gmp_printf("prho (17,32M) found factor %Zd\n", f);o=0;}
 
+          /* HOLF in case it's a near-ratio-of-perfect-square */
+          if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
+          if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
+
           /* Large p-1 with stage 2: B2 = 20*B1 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 3000000, 20);
+          if (!success)  success = _GMP_pminus1_factor(n, f, 3000000, 3000000*20);
           if (success&&o) {gmp_printf("p-1 (3M) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);

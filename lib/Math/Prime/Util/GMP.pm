@@ -339,30 +339,37 @@ small factors.
 
 =head2 pminus1_factor
 
-  my @factors = pbrent_factor($n);
-  my @factors = pbrent_factor($n, 100_000_000);
+  my @factors = pminus1_factor($n);
+
+  # Ramp to to B1=10M, with second stages automatically done
+  my @factors = pminus1_factor($n, 10_000_000);
+
+  # Run p-1 with B1 = 10M, B2 = 100M.  No ramping.
+  my @factors = pminus1_factor($n, 10_000_000, 100_000_000);
 
 Produces at most one factor of a positive number input.  An optional maximum
-smoothness factor may be given as the second parameter.  Factoring will stop
-when the input is a prime, one factor has been found, or the algorithm fails
-for a factor with the given smoothness.
+smoothness factor (B1) may be given as the second parameter in which case the
+algorithm will ramp up to that smoothness factor, also running a second stage.
+If a third parameter (B2) is given, then no ramping happens -- just a first stage
+using the given B1 smoothness followed by a second stage to the B2 smoothness.
+Factoring will stop when the input is a prime, one factor has been found, or
+the algorithm fails to find a factor with the given smoothness.
 
 This is Pollard's C<p-1> method using a default smoothness of 1M and a
-second stage of C<B2 = 20 * B>.  It can quickly find a factor C<p> of the input
+second stage of C<B2 = 20 * B1>.  It can quickly find a factor C<p> of the input
 C<n> if the number C<p-1> factors into small primes.  For example
 C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
 where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
-a factor in the first stage for C<B = 10^6>, or the second stage for smaller B.
+a factor in the first stage for if C<B1 E<gt>= 703499> or in the second stage if
+C<B2 E<gt>= 703499>.
 
-It is likely the additional optional arguments will change to allow better
-control of B1, B2, and incremental search.
-
-The implementation is written from scratch using a simple version described
-in Montgomery 1987.  It is faster than most simple implementations I have seen
-(many of which are written assuming native precision inputs), but far
-slower than Ben Buhrow's code used in earlier versions of
-L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close to the
-speed of the version included with modern GMP-ECM (as much as 1000x slower).
+The implementation is written from scratch using the basic algorithm including
+a second stage as described in Montgomery 1987.  It is faster than most simple
+implementations I have seen (many of which are written assuming native
+precision inputs), but far slower than Ben Buhrow's code used in earlier
+versions of L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close
+to the speed of the version included with modern GMP-ECM (as much as 1000x
+slower).
 
 
 
@@ -479,10 +486,10 @@ source factoring tools, which are both readable and fast.  In particular I am
 leveraging their SQUFOF work in the current implementation.  They are a huge
 resource to the community.
 
-Jonathan Leto and Bob Kuo, who put the L<Math::Primality> module on CPAN.
-Their implementation of BPSW provided the motivation I needed to get it done
-in this module and L<Math::Prime::Util>.  I also used their module quite a
-bit for testing against.
+Jonathan Leto and Bob Kuo, who wrote and distributed put the L<Math::Primality>
+module on CPAN.  Their implementation of BPSW provided the motivation I needed
+to get it done in this module and L<Math::Prime::Util>.  I also used their
+module quite a bit for testing against.
 
 
 =head1 COPYRIGHT
