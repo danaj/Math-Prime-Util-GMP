@@ -192,7 +192,7 @@ _lcm_of_consecutive_integers(IN UV B)
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
   PREINIT:
-    mpz_t low, high, curprime;
+    mpz_t low, high;
     AV* av = newAV();
   CODE:
     validate_string_number("trial_primes (low)", strlow);
@@ -302,7 +302,7 @@ pminus1_factor(IN char* strn, IN UV smoothness = 1000000, IN UV B2 = 0)
       /* Given a B1 and B2, do just what they asked. */
       success = _GMP_pminus1_factor(n, f, smoothness, B2);
     }
-    //success = _GMP_pminus1_factor2(n, f, smoothness);
+    /* success = _GMP_pminus1_factor2(n, f, smoothness); */
     SIMPLE_FACTOR_END;
 
 void
@@ -362,7 +362,7 @@ _GMP_factor(IN char* strn)
            * looking for small factors: prho and pbrent are ~ O(f^1/2) where
            * f is the smallest factor.  SQUFOF is O(N^1/4), so arguable not
            * any better.
-           * 
+           *
            * On my small 32-bit workstation, these will factor a 778-digit
            * number consisting of 101 8-digit factors in under 10 seconds.
            * A 246-digit number with 21 12-digit factors took a little under
