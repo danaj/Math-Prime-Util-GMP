@@ -420,7 +420,7 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
           if (success&&o) {gmp_printf("pbrent (2,512M) found factor %Zd\n", f);o=0;}
 
-          if (!success) gmp_printf("starting squfof on %Zd\n", n);
+          if (!success && _GMP_get_verbose()) gmp_printf("starting squfof on %Zd\n", n);
           if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
           if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
 

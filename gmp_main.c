@@ -513,6 +513,8 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 
   /* Simple sieve to B */
   unsigned char* s = sieve_erat(B);
+  if (s == 0)
+    croak("Could not get sieve for primes up to %lu\n", (unsigned long) B);
 
   mpz_set_ui(m, 1);
   exponent = logB / log(2);
@@ -655,13 +657,13 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_init(x);
   mpz_init(b);
 
-  if (_verbose>1) gmp_printf("trying %Zd  with B=%lu\n", n, (unsigned long)B1);
+  if (_verbose>1) gmp_printf("# trying %Zd  with B=%lu\n", n, (unsigned long)B1);
   /* Use primes for a's to try.  We rarely make it past the first couple. */
   p = 1;
   while ( (p = next_small_prime(p)) < 100 ) {
-    if (_verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
+    if (_verbose && p > 2) gmp_printf("#   again with a=%d\n", (int)p);
     mpz_set_ui(a, p);
-    if (_verbose>1) gmp_printf("   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B1);
+    if (_verbose>1) gmp_printf("#   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B1);
     calculate_b_lcm(b, B1, a, n);
     mpz_set(x, b);
     if (mpz_sgn(x) == 0) mpz_set(x, n);
@@ -681,7 +683,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
    */
   if (B2 > B1) {
     UV q;
-    if (_verbose>1) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
+    if (_verbose>1) gmp_printf("# Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
     p = prev_small_prime(B1);
     q = p;
     /* TODO: segmented sieve to get q's is probably a lot faster */
@@ -692,13 +694,13 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       mpz_sub_ui(x, x, 1);
       mpz_gcd(f, x, n);
       if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-        if (_verbose>1) gmp_printf("p-1 second stage found factor %Zd\n", f);
+        if (_verbose>1) gmp_printf("# p-1 second stage found factor %Zd\n", f);
         mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
         return 1;
       }
       p = q;
     }
-    if (_verbose>1) gmp_printf("End second stage\n");
+    if (_verbose>1) gmp_printf("# End second stage\n");
   }
 
   mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
