@@ -289,9 +289,9 @@ pminus1_factor(IN char* strn, IN UV smoothness = 1000000, IN UV B2 = 0)
     mpz_t n;
   PPCODE:
     SIMPLE_FACTOR_START("pminus1_factor");
-    if (B2 == 0) {
-      /* Without a B2, increment up */
+    if (B2 == 0) { /* Without a B2, increment up */
       UV B = 5;
+      success = 0;
       while (!success) {
         success = _GMP_pminus1_factor(n, f, B, 20*B);
         if (B == smoothness) break;
