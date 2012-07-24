@@ -32,6 +32,8 @@ static const unsigned char next_wheel[30] =
   {1,7,7,7,7,7,7,11,11,11,11,13,13,17,17,17,17,19,19,23,23,23,23,29,29,29,29,29,29,1};
 static const unsigned char prev_wheel[30] =
   {29,29,1,1,1,1,1,1,7,7,7,7,11,11,13,13,13,13,17,17,19,19,19,19,23,23,23,23,23,23};
+static const unsigned char wheel_advance[30] =
+  {0,6,0,0,0,0,0,4,0,0,0,2,0,4,0,0,0,2,0,4,0,0,0,6,0,0,0,0,0,2};
 
 
 static int _is_small_prime7(UV n)
@@ -350,9 +352,13 @@ void _GMP_next_prime(mpz_t n)
   UV m;
 
   /* small inputs */
-  if (mpz_cmp_ui(n, 1) <= 0) { mpz_set_ui(n, 2); return; }
-  if (mpz_cmp_ui(n, 2) <= 0) { mpz_set_ui(n, 3); return; }
-  if (mpz_cmp_ui(n, 4) <= 0) { mpz_set_ui(n, 5); return; }
+  if (mpz_cmp_ui(n, 7) < 0) {
+    if      (mpz_cmp_ui(n, 2) < 0) { mpz_set_ui(n, 2); }
+    else if (mpz_cmp_ui(n, 3) < 0) { mpz_set_ui(n, 3); }
+    else if (mpz_cmp_ui(n, 5) < 0) { mpz_set_ui(n, 5); }
+    else                           { mpz_set_ui(n, 7); }
+    return;
+  }
 
   mpz_init(d);
   m = mpz_fdiv_q_ui(d, n, 30);
@@ -363,14 +369,13 @@ void _GMP_next_prime(mpz_t n)
   } else {
     m = next_wheel[m];
   }
+  mpz_mul_ui(n, d, 30);
+  mpz_add_ui(n, n, m);
   while (1) {
-    mpz_mul_ui(n, d, 30);
-    mpz_add_ui(n, n, m);
     if (_GMP_is_prob_prime(n))
       break;
+    mpz_add_ui(n, n, wheel_advance[m]);
     m = next_wheel[m];
-    if (m == 1)
-      mpz_add_ui(d, d, 1);
   }
   mpz_clear(d);
 }

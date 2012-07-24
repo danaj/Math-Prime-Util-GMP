@@ -180,6 +180,35 @@ prev_prime(IN char* strn)
 
 
 SV *
+prime_count(IN char* strlow, IN char* strhigh)
+  PREINIT:
+    mpz_t low, high, count;
+  PPCODE:
+    validate_string_number("prime_count (low)", strlow);
+    validate_string_number("prime_count (high)", strhigh);
+    mpz_init_set_str(low, strlow, 10);
+    mpz_init_set_str(high, strhigh, 10);
+    mpz_init_set_ui(count, 0);
+
+    if (mpz_cmp(low, high) <= 0) {
+      mpz_t curprime;
+      mpz_init_set(curprime, low);
+      if (mpz_cmp_ui(curprime, 2) >= 0)
+        mpz_sub_ui(curprime, curprime, 1);  /* Make sure low gets included */
+      _GMP_next_prime(curprime);
+      while (mpz_cmp(curprime, high) <= 0) {
+        mpz_add_ui(count, count, 1);
+        _GMP_next_prime(curprime);
+      }
+      mpz_clear(curprime);
+    }
+    XPUSH_MPZ(count);
+    mpz_clear(count);
+    mpz_clear(high);
+    mpz_clear(low);
+
+
+SV *
 _lcm_of_consecutive_integers(IN UV B)
   PREINIT:
     mpz_t m;

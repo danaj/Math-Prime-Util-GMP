@@ -25,9 +25,9 @@ our @EXPORT_OK = qw(
                      holf_factor
                      squfof_factor
                      factor
+                     prime_count
                    );
                    # Should add:
-                   # prime_count
                    # nth_prime
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
 
