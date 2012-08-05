@@ -1,8 +1,10 @@
 #ifndef MPU_PTYPES_H
 #define MPU_PTYPES_H
 
+#ifndef _MSC_VER
 #define __STDC_LIMIT_MACROS
 #include <stdint.h>
+#endif
 
 #include "EXTERN.h"
 #include "perl.h"

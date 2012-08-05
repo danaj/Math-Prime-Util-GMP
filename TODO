@@ -3,7 +3,7 @@
   See "An Implementation of the Elliptic Curve Integer Factorization Method"
   by Bosma and AK Lenstra
 
-- prime_count
+- prime_count - needs the pc(#) option as well as pc(#,#)
 
 - nth_prime
 
