@@ -209,7 +209,7 @@ prime_count(IN char* strlow, IN char* strhigh)
 
 
 SV *
-_lcm_of_consecutive_integers(IN UV B)
+consecutive_integer_lcm(IN UV B)
   PREINIT:
     mpz_t m;
   PPCODE:
@@ -217,6 +217,16 @@ _lcm_of_consecutive_integers(IN UV B)
     _GMP_lcm_of_consecutive_integers(B, m);
     XPUSH_MPZ(m);
     mpz_clear(m);
+
+SV *
+primorial(IN UV n)
+  PREINIT:
+    mpz_t prim;
+  PPCODE:
+    mpz_init(prim);
+    _GMP_primorial(prim, n);
+    XPUSH_MPZ(prim);
+    mpz_clear(prim);
 
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)

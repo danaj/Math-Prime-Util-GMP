@@ -407,6 +407,20 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
+void _GMP_primorial(mpz_t prim, UV n)
+{
+  UV p = 1;
+
+  mpz_set_ui(prim, 1);
+  while (n--) {
+    p = next_small_prime(p);
+    mpz_mul_ui(prim, prim, p);
+  }
+}
+
+
+
+
 int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 {
   mpz_t U, V, oldU, oldV, m;

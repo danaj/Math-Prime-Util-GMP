@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.03';
+  $Math::Prime::Util::GMP::VERSION = '0.04';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -26,6 +26,8 @@ our @EXPORT_OK = qw(
                      squfof_factor
                      factor
                      prime_count
+                     primorial
+                     consecutive_integer_lcm
                    );
                    # Should add:
                    # nth_prime
@@ -117,7 +119,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 
 =head1 SYNOPSIS
@@ -278,6 +280,24 @@ Returns the next prime greater than the input number.
 
 Returns the prime smaller than the input number.  0 is returned if the
 input is C<2> or lower.
+
+
+=head2 primorial
+
+  $p = primorial($n);
+
+Given an unsigned integer argument, returns the primorial.  This is defined
+as the product of the first C<n> primes.
+
+
+=head2 consecutive_integer_lcm
+
+  $lcm = consecutive_integer_lcm($n);
+
+Given an unsigned integer argument, returns the least common multiple of all
+integers from 1 to C<n>.  This can be done by manipulation of the primes up
+to C<n>, resulting in much faster and memory-friendly results than using
+n factorial.
 
 
 =head2 factor
