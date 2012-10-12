@@ -14,18 +14,14 @@ WriteMakefile1(
     OBJECT       => 'XS.o gmp_main.o',
     LIBS         => ['-lgmp -lm'],
 
-    BUILD_REQUIRES => {
+    BUILD_REQUIRES=>{
                       'Test::More'       => '0.45',
-                      },
+                    },
     PREREQ_PM    => {
                       'Exporter'         => '5.562',
                       'XSLoader'         => '0.01',
                       'Carp'             => 0,
                       'base'             => 0,
-                      # I may want these for testing
-                      #'bignum'           => '0.23',
-                      #'Math::BigInt'     => '1.88',
-                      #'Math::BigFloat'   => '1.59',
                     },
 
     MIN_PERL_VERSION => 5.006002,
