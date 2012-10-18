@@ -407,7 +407,7 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
-void _GMP_primorial(mpz_t prim, UV n)
+void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV p = 1;
 
@@ -415,6 +415,16 @@ void _GMP_primorial(mpz_t prim, UV n)
   while (n--) {
     p = next_small_prime(p);
     mpz_mul_ui(prim, prim, p);
+  }
+}
+void _GMP_primorial(mpz_t prim, mpz_t n)
+{
+  mpz_t p;
+  mpz_init_set_ui(p, 2);
+  mpz_set_ui(prim, 1);
+  while (mpz_cmp(p, n) <= 0) {
+    mpz_mul(prim, prim, p);
+    _GMP_next_prime(p);
   }
 }
 

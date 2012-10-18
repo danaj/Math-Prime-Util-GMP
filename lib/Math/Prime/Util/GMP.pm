@@ -27,6 +27,7 @@ our @EXPORT_OK = qw(
                      factor
                      prime_count
                      primorial
+                     pn_primorial
                      consecutive_integer_lcm
                    );
                    # Should add:
@@ -286,9 +287,22 @@ input is C<2> or lower.
 
   $p = primorial($n);
 
-Given an unsigned integer argument, returns the primorial.  This is defined
-as the product of the first C<n> primes.
+Given an unsigned integer argument, returns the product of the prime numbers
+less than or equal to C<n>.  This is the
+L<OEIS series A034386|http://oeis.org/A034386> definition of C<p#>.
 
+=head2 pn_primorial
+
+  $p = pn_primorial($n)
+
+Given an unsigned integer argument, returns the product of the first C<n>
+prime numbers.  This is the L<OEIS series A002110|http://oeis.org/A002110>
+definition for C<p_n#>.
+
+The two are related with the relationships:
+
+  pn_primorial($n)  ==   primorial( nth_prime($n) )
+  primorial($n)     ==   pn_primorial( prime_count($n) )
 
 =head2 consecutive_integer_lcm
 

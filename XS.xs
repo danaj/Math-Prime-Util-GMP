@@ -219,12 +219,25 @@ consecutive_integer_lcm(IN UV B)
     mpz_clear(m);
 
 SV *
-primorial(IN UV n)
+primorial(IN char* strn)
+  PREINIT:
+    mpz_t prim, n;
+  PPCODE:
+    validate_string_number("primorial (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    mpz_init(prim);
+    _GMP_primorial(prim, n);
+    XPUSH_MPZ(prim);
+    mpz_clear(n);
+    mpz_clear(prim);
+
+SV *
+pn_primorial(IN UV n)
   PREINIT:
     mpz_t prim;
   PPCODE:
     mpz_init(prim);
-    _GMP_primorial(prim, n);
+    _GMP_pn_primorial(prim, n);
     XPUSH_MPZ(prim);
     mpz_clear(prim);
 
