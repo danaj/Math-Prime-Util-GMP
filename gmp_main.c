@@ -44,7 +44,7 @@ static int _is_small_prime7(UV n)
   if ((11 * 11) > n)  return 2;  if (!(n % 11)) return 0;
   if ((13 * 13) > n)  return 2;  if (!(n % 13)) return 0;
   if ((17 * 17) > n)  return 2;  if (!(n % 17)) return 0;
-  if ((19 * 19) > n)  return 2;  if (!(n % 18)) return 0;
+  if ((19 * 19) > n)  return 2;  if (!(n % 19)) return 0;
   if ((23 * 23) > n)  return 2;  if (!(n % 23)) return 0;
   if ((29 * 29) > n)  return 2;  if (!(n % 29)) return 0;
 
