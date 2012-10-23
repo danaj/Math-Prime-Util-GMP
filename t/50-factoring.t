@@ -10,6 +10,7 @@ my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
 plan tests => 0 + 56
                 + 22
                 + 2
+                + 2
                 + 6*5
                 + 0;
 
@@ -23,7 +24,7 @@ plan tests => 0 + 56
 # The obvious point here is that we shouldn't generate tests using our own code,
 # unless we want to hand verify each case (admittedly not that hard).
 # 
-diag "factoring 32-bit numbers";
+#diag "factoring 32-bit numbers";
 is_deeply( [ factor(0) ], [0], "factor(0)" );
 is_deeply( [ factor(1) ], [1], "factor(1)" );
 is_deeply( [ factor(2) ], [2], "factor(2)" );
@@ -81,7 +82,7 @@ is_deeply( [ factor(999999929) ], [999999929], "factor(999999929)" );
 is_deeply( [ factor(2147483647) ], [2147483647], "factor(2147483647)" );
 is_deeply( [ factor(4118054813) ], [19,216739727], "factor(4118054813)" );
 
-diag "factoring 64-bit numbers";
+#diag "factoring 64-bit numbers";
 is_deeply( [ factor('6469693230') ], [2,3,5,7,11,13,17,19,23,29], "factor(6469693230)" );
 is_deeply( [ factor('37607912018') ], [2,'18803956009'], "factor(37607912018)" );
 is_deeply( [ factor('200560490130') ], [2,3,5,7,11,13,17,19,23,29,31], "factor(200560490130)" );
@@ -105,18 +106,23 @@ is_deeply( [ factor('999999866000004473') ], [999999929,999999937], "factor(9999
 is_deeply( [ factor('3369738766071892021') ], [204518747,'16476429743'], "factor(3369738766071892021)" );
 is_deeply( [ factor('10023859281455311421') ], ['1308520867','7660450463'], "factor(10023859281455311421)" );
 
+# Check perfect squares that make it past early testing
+is_deeply( [ factor('1524157875323973084894790521049') ], ['1234567890123493','1234567890123493'], "factor(1234567890123493^2)" );
+is_deeply( [ factor('823543') ], [qw/7 7 7 7 7 7 7/], "factor 7^7" );
+# A good test, but it's slow:
+# is_deeply( [ factor('148675665359980297048795508874724049089546782584077934753925649') ], ['1234567890123493', '1234567890123493', '9876543210987701', '9876543210987701'], "factor(1234567890123493^2 * 9876543210987701^2)" );
 
 
-diag "factor 105-bit number with p-1";
+#diag "factor 105-bit number with p-1";
 Math::Prime::Util::GMP::_GMP_set_verbose(4);
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "p-1 factors 22095311209999409685885162322219" );
 Math::Prime::Util::GMP::_GMP_set_verbose(0);
 
-diag "factor 736-bit number with HOLF";
+#diag "factor 736-bit number with HOLF";
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::holf_factor('185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863') ], ['192606732705880508138303165129171270891951231683030125996296974238495711578947569589234612013165893468683239489', '963033663529402540691515825645856354459756158415150629981484871192478557894737847946173060065829467343416197967'], "HOLF factors poorly formed 222-digit semiprime" );
 
 
-diag "extra tests for each method";
+#diag "extra tests for each method";
 extra_factor_test("prho_factor",   sub {Math::Prime::Util::GMP::prho_factor(shift)});
 extra_factor_test("pbrent_factor", sub {Math::Prime::Util::GMP::pbrent_factor(shift)});
 extra_factor_test("pminus1_factor",sub {Math::Prime::Util::GMP::pminus1_factor(shift)});

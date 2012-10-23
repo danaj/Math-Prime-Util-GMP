@@ -5,6 +5,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
       for big ranges.  It's a lot faster than the PP code when given a large
       base and small range e.g. (10**96, 10**96 + 2**18).
     - Add primorial, pn_primorial, and consecutive_integer_lcm functions.
+    - Add a perfect power test for factoring.
 
 0.03  16 July 2012
     - XS callable: _lcm_of_consecutive_integers(B)

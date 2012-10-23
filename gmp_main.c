@@ -792,6 +792,11 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
 
 #define PREMULT 480   /* 1  2  6  12  480  151200 */
 
+  if (mpz_perfect_square_p(n)) {
+    mpz_sqrt(f, n);
+    return 1;
+  }
+
   mpz_mul_ui(n, n, PREMULT);
   mpz_init(s);
   mpz_init(m);
@@ -801,7 +806,9 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
       /* s^2 = n*i, so m = s^2 mod n = 0.  Hence f = GCD(n, s) = GCD(n, n*i) */
       mpz_divexact_ui(n, n, PREMULT);
       mpz_gcd(f, f, n);
-      mpz_clear(s); mpz_clear(m); return 1;
+      mpz_clear(s); mpz_clear(m);
+      if (mpz_cmp(f, n) == 0)  return 0;
+      return 1;
     }
     mpz_sqrt(s, f);
     mpz_add_ui(s, s, 1);    /* s = ceil(sqrt(n*i)) */
@@ -1006,4 +1013,20 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
    }
    mpz_clear(nm);
    return (mpz_cmp_ui(f, 1) > 0);
+}
+
+/* See if n is a perfect power */
+int _GMP_power_factor(mpz_t n, mpz_t f)
+{
+  if (mpz_perfect_power_p(n)) {
+    unsigned long k;
+
+    mpz_set_ui(f, 1);
+    for (k = 2; mpz_sgn(f); k++) {
+      if (mpz_root(f, n, k))
+        return 1;
+    }
+    /* GMP says it's a perfect power, but we couldn't find an integer root? */
+  }
+  return 0;
 }

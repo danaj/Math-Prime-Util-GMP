@@ -440,6 +440,9 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
           if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
+          if (!success)  success = _GMP_power_factor(n, f);
+          if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
+
           /* Small p-1 */
           {
             UV B = 5;
