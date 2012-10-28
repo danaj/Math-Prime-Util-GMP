@@ -428,6 +428,14 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
   }
 }
 
+#define TEST_FOR_2357(n, f) \
+  { \
+    if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; } \
+    if (mpz_divisible_ui_p(n, 3)) { mpz_set_ui(f, 3); return 1; } \
+    if (mpz_divisible_ui_p(n, 5)) { mpz_set_ui(f, 5); return 1; } \
+    if (mpz_divisible_ui_p(n, 7)) { mpz_set_ui(f, 7); return 1; } \
+    if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
+  }
 
 
 
@@ -437,6 +445,7 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   int i;
   const UV inner = 256;
 
+  TEST_FOR_2357(n, f);
   rounds = (rounds + inner - 1) / inner;
   mpz_init_set_ui(U, 7);
   mpz_init_set_ui(V, 7);
@@ -485,6 +494,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   UV i, r;
   const UV inner = 256;
 
+  TEST_FOR_2357(n, f);
   mpz_init_set_ui(Xi, 2);
   mpz_init_set_ui(Xm, 2);
   mpz_init(m);
@@ -675,11 +685,8 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_t a, m, x, b;
   UV p;
 
+  TEST_FOR_2357(n, f);
   if (B1 < 5) return 0;
-  if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; }
-  if (mpz_divisible_ui_p(n, 3)) { mpz_set_ui(f, 3); return 1; }
-  if (mpz_divisible_ui_p(n, 5)) { mpz_set_ui(f, 5); return 1; }
-  if (mpz_divisible_ui_p(n, 7)) { mpz_set_ui(f, 7); return 1; }
 
   mpz_init(a);
   mpz_init(m);
@@ -765,6 +772,7 @@ int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
   mpz_t b;
   UV loops;
 
+  TEST_FOR_2357(n, f);
   mpz_init_set_ui(b, 13);
 
   for (loops = 1; loops <= rounds; loops++) {
@@ -792,6 +800,7 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
 
 #define PREMULT 480   /* 1  2  6  12  480  151200 */
 
+  TEST_FOR_2357(n, f);
   if (mpz_perfect_square_p(n)) {
     mpz_sqrt(f, n);
     return 1;
@@ -993,9 +1002,7 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
    int result;
    mpz_t nm;
 
-   if (mpz_cmp_ui(n, 1) <= 0)
-     return 0;
-
+   TEST_FOR_2357(n, f);
    mpz_init(nm);
    mpz_set_ui(f, 1);
 
