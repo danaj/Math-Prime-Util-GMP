@@ -19,6 +19,7 @@ our @EXPORT_OK = qw(
                      primes
                      next_prime
                      prev_prime
+                     trial_factor
                      prho_factor
                      pbrent_factor
                      pminus1_factor
@@ -156,11 +157,13 @@ Version 0.04
 
   # Finer control over factoring.
   # These stop after finding one factor or exceeding their limit.
-  @factors = prho_factor($n);
-  @factors = pbrent_factor($n);
-  @factors = pminus1_factor($n);
-  @factors = holf_factor($n);
-  @factors = squfof_factor($n);
+  #                               # optional arguments o1, o2, ...
+  @factors = trial_factor($n);    # test up to o1
+  @factors = prho_factor($n);     # no more than o1 rounds
+  @factors = pbrent_factor($n);   # no more than o1 rounds
+  @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
+  @factors = holf_factor($n);     # no more than o1 rounds
+  @factors = squfof_factor($n);   # no more than o1 rounds
 
 =head1 DESCRIPTION
 
@@ -341,15 +344,35 @@ practical but take a long time compared to real factoring programs.  Beyond
 smallest factor, not the size of the input number, as shown by the example.
 
 
+=head2 trial_factor
+
+  my @factors = trial_factor($n);
+  my @factors = trial_factor($n, 1000);
+
+Given a positive number input, tries to discover a factor using trial division.
+The resulting array will contain either two factors (it succeeded) or the
+original number (no factor was found).  In either case, multiplying @factors
+yields the original input.  An optional divisor limit may be given as the
+second parameter.  Factoring will stop when the input is a prime, one factor
+is found, or the input has been tested for divisibility with all primes less
+than or equal to the limit.  If no limit is given, then C<2**31-1> will be used.
+
+This is a good and fast initial test, and will be very fast for small numbers
+(e.g. under 1 million).  It becomes unreasonably slow in the general case as
+the input size increases.
+
+
 =head2 prho_factor
 
   my @factors = prho_factor($n);
   my @factors = prho_factor($n, 100_000_000);
 
-Produces at most one factor of a positive number input.  An optional number of
-rounds may be given as the second parameter.  Factoring will stop when the
-input is a prime, one factor has been found, or the number of rounds has been
-exceeded.
+Given a positive number input, tries to discover a factor using Pollard's Rho
+method.  The resulting array will contain either two factors (it succeeded)
+or the original number (no factor was found).  In either case, multiplying
+@factors yields the original input.  An optional number of rounds may be
+given as the second parameter.  Factoring will stop when the input is a prime,
+one factor has been found, or the number of rounds has been exceeded.
 
 This is the Pollard Rho method with C<f = x^2 + 3> and default rounds 64M.  It
 is very good at finding small factors.
@@ -360,10 +383,13 @@ is very good at finding small factors.
   my @factors = pbrent_factor($n);
   my @factors = pbrent_factor($n, 100_000_000);
 
-Produces at most one factor of a positive number input.  An optional number of
-rounds may be given as the second parameter.  Factoring will stop when the
-input is a prime, one factor has been found, or the number of rounds has been
-exceeded.
+Given a positive number input, tries to discover a factor using Pollard's Rho
+method with Brent's algorithm.  The resulting array will contain either two
+factors (it succeeded) or the original number (no factor was found).  In
+either case, multiplying @factors yields the original input.  An optional
+number of rounds may be given as the second parameter.  Factoring will stop
+when the input is a prime, one factor has been found, or the number of
+rounds has been exceeded.
 
 This is the Pollard Rho method using Brent's modified cycle detection and
 backtracking.  It is essentially Algorithm P''2 from Brent (1980).  Parameters
@@ -381,20 +407,23 @@ small factors.
   # Run p-1 with B1 = 10M, B2 = 100M.  No ramping.
   my @factors = pminus1_factor($n, 10_000_000, 100_000_000);
 
-Produces at most one factor of a positive number input.  An optional maximum
+Given a positive number input, tries to discover a factor using Pollard's
+C<p-1> method.  The resulting array will contain either two factors (it
+succeeded) or the original number (no factor was found).  In either case,
+multiplying @factors yields the original input.  An optional maximum
 smoothness factor (B1) may be given as the second parameter in which case the
 algorithm will ramp up to that smoothness factor, also running a second stage.
-If a third parameter (B2) is given, then no ramping happens -- just a first stage
-using the given B1 smoothness followed by a second stage to the B2 smoothness.
-Factoring will stop when the input is a prime, one factor has been found, or
-the algorithm fails to find a factor with the given smoothness.
+If a third parameter (B2) is given, then no ramping happens -- just a first
+stage using the given B1 smoothness followed by a second stage to the B2
+smoothness.  Factoring will stop when the input is a prime, one factor has
+been found, or the algorithm fails to find a factor with the given smoothness.
 
 This is Pollard's C<p-1> method using a default smoothness of 1M and a
 second stage of C<B2 = 20 * B1>.  It can quickly find a factor C<p> of the input
 C<n> if the number C<p-1> factors into small primes.  For example
 C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
 where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
-a factor in the first stage for if C<B1 E<gt>= 703499> or in the second stage if
+a factor in the first stage if C<B1 E<gt>= 703499> or in the second stage if
 C<B2 E<gt>= 703499>.
 
 The implementation is written from scratch using the basic algorithm including
@@ -412,10 +441,12 @@ slower).
   my @factors = holf_factor($n);
   my @factors = holf_factor($n, 100_000_000);
 
-Produces at most one factor of a positive number input.  An optional number of
-rounds may be given as the second parameter.  Factoring will stop when the
-input is a prime, one factor has been found, or the number of rounds has been
-exceeded.
+Given a positive number input, tries to discover a factor using Hart's OLF
+method.  The resulting array will contain either two factors (it succeeded)
+or the original number (no factor was found).  In either case, multiplying
+@factors yields the original input.  An optional number of rounds may be
+given as the second parameter.  Factoring will stop when the input is a
+prime, one factor has been found, or the number of rounds has been exceeded.
 
 This is Hart's One Line Factorization method, which is a variant of Fermat's
 algorithm.  A premultiplier of 480 is used.  It is very good at factoring
@@ -423,7 +454,10 @@ numbers that are close to perfect squares, or small numbers.  Very naive
 methods of picking RSA parameters sometimes yield numbers in this form, so
 it can be useful to run this a few rounds to see.  For example, the number:
 
-  185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863
+  18548676741817250104151622545580576823736636896432849057 \
+  10984160646722888555430591384041316374473729421512365598 \
+  29709849969346650897776687202384767704706338162219624578 \
+  777915220190863619885201763980069247978050169295918863
 
 was proposed by someone as an RSA key.  It is indeed composed of two distinct
 prime numbers of similar bit length.  Most factoring methods will take a
@@ -437,10 +471,13 @@ only a few milliseconds.
   my @factors = squfof_factor($n);
   my @factors = squfof_factor($n, 100_000_000);
 
-Produces at most one factor of a positive number input.  An optional number of
-rounds may be given as the second parameter.  Factoring will stop when the
-input is a prime, one factor has been found, or the number of rounds has been
-exceeded.
+Given a positive number input, tries to discover a factor using Shanks'
+square forms factorization method (usually known as SQUFOF).  The resulting
+array will contain either two factors (it succeeded) or the original number
+(no factor was found).  In either case, multiplying @factors yields the
+original input.  An optional number of rounds may be given as the second
+parameter.  Factoring will stop when the input is a prime, one factor has
+been found, or the number of rounds has been exceeded.
 
 This is Daniel Shanks' SQUFOF (square forms factorization) algorithm.  The
 particular implementation is a non-racing multiple multiplier version, based
@@ -461,15 +498,15 @@ Has many more functions, lots of good code for dealing with native-precision
 arguments (including much faster primes using sieves), and will use this
 module behind the scenes when needed for big numbers.
 
-=item  L<Math::Primality> (version 0.04)
+=item  L<Math::Primality> (version 0.07)
 A Perl module with support for the strong Miller-Rabin test, strong
 Lucas-Selfridge test, the BPSW test, next_prime / prev_prime, and
-prime_count.  It uses L<Math::GMPz> to do all the calculations, so is far
-faster than pure Perl bignums, but somewhat slower than XS+GMP.  The
-prime_count function is only usable for toy-size numbers (it is many
+prime_count.  It uses L<Math::GMPz> to do all the calculations, so is
+faster than pure Perl bignums, but a little slower than XS+GMP.  The
+prime_count function is only usable for very small inputs (it is many
 thousands of times slower than L<Math::Prime::Util>), but the other
 functions are reasonable, though a little slower than this module.
-You'll need a version newer than 0.04 if you use 40+ digit numbers.
+If you use large numbers, make sure to use version 0.05 or newer.
 
 =item L<yafu|http://sourceforge.net/projects/yafu/>, 
 L<msieve|http://sourceforge.net/projects/msieve/>,

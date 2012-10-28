@@ -318,6 +318,18 @@ _GMP_trial_primes(IN char* strlow, IN char* strhigh)
 
 
 void
+trial_factor(IN char* strn, IN UV maxn = 0)
+  PREINIT:
+    mpz_t n;
+    UV factor;
+  PPCODE:
+    SIMPLE_FACTOR_START("trial_factor");
+    factor = _GMP_trial_factor(n, 2, (maxn == 0) ? 2147483647 : maxn);
+    mpz_set_ui(f, factor);
+    success = (factor != 0);
+    SIMPLE_FACTOR_END;
+
+void
 prho_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
   PREINIT:
     mpz_t n;
