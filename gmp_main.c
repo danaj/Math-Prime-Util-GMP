@@ -154,7 +154,7 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
     rval = 1;
   } else {
-    for (r = 0; r < s; r++) {
+    for (r = 1; r < s; r++) {
       mpz_powm_ui(x, x, 2, n);
       if (!mpz_cmp_ui(x, 1)) {
         break;
@@ -342,8 +342,182 @@ int _GMP_is_prob_prime(mpz_t n)
 
 int _GMP_is_prime(mpz_t n)
 {
-  return _GMP_is_prob_prime(n);
+  int prob_prime;
+
+  prob_prime = _GMP_is_prob_prime(n);
+  if (prob_prime != 1)
+    return prob_prime;
+  /*
+   * BPSW indicated this is a prime, so we're pretty darn sure it is.  For
+   * smaller numbers, try a quick proof using the Pocklington test.  We only
+   * do this for reasonably small numbers, and we're rather half-hearted about
+   * the test, as it requires factoring n-1, which may be easy or may be very
+   * hard.  They might not care at all about this, so don't spend too much time.
+   *
+   * The idea is that they can call:
+   *    is_prob_prime      BPSW
+   *    is_prime           is_prob_prime + a little extra
+   *    is_provable_prime  really prove it, which could take hours or days
+   *
+   * If we had better large-number factoring, we could extend the reasonable
+   * range for this test.  In the long run, ECPP is the better method.  What
+   * Pocklington gives us is a quite fast and very easy (in code) way to
+   * prove primality for a lot of numbers in the 2^64 - 2^180 bit range (up
+   * to about 50 digits).
+   */
+  if ( (mpz_sizeinbase(n, 2) <= 160) &&
+       _GMP_quick_pocklington_primality_test(n) )
+    return 2;
+
+  return 1;
 }
+
+#define POCK_STACK_SIZE 128
+int _GMP_quick_pocklington_primality_test(mpz_t n)
+{
+  mpz_t nm1, A, B, sqrtn, t, m, f;
+  mpz_t mstack[POCK_STACK_SIZE];
+  mpz_t fstack[POCK_STACK_SIZE];
+  int msp = 0;
+  int fsp = 0;
+  int success = 1;
+  int f_prob_prime;
+
+  mpz_init(nm1);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_init_set_ui(A, 1);
+  mpz_init_set(B, nm1);
+  mpz_init(sqrtn);
+  mpz_sqrt(sqrtn, n);
+  mpz_init(m);
+  mpz_init(f);
+  mpz_init(t);
+
+  { /* Pull small factors out */
+    int tf;
+    while (tf = _GMP_trial_factor(B, 2, 400)) {
+      /* Add to factor stack if not already there */
+      if ( (fsp == 0) || (mpz_cmp_ui(fstack[fsp-1], tf) != 0) )
+        mpz_init_set_ui(fstack[fsp++], tf);
+      mpz_mul_ui(A, A, tf);
+      mpz_divexact_ui(B, B, tf);
+      if (fsp >= POCK_STACK_SIZE) { success = 0; break; }
+    }
+  }
+
+  if (success) {
+    mpz_set(f, B);
+    f_prob_prime = _GMP_is_prob_prime(f);
+    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
+      f_prob_prime = 2;
+    if (f_prob_prime == 2) {
+      mpz_init_set(fstack[fsp++], f);
+      mpz_mul(A, A, f);
+      mpz_divexact(B, B, f);
+    } else {
+      mpz_init_set(mstack[msp++], f);
+    }
+  }
+
+  while (success) {
+    mpz_gcd(t, A, B);
+    if ( (mpz_cmp(A, sqrtn) > 0) && (mpz_cmp_ui(t, 1) == 0) )
+      break;
+    success = 0;
+    /* If the stack is empty, we have failed. */
+    if (msp == 0)
+      break;
+    /* pop a component off the stack */
+    mpz_set(m, mstack[--msp]); mpz_clear(mstack[msp]);
+
+    /* Try to factor it */
+#if 0
+    if (!success)  success = _GMP_prho_factor(m, f, 1, 10000);
+    if (!success)  success = _GMP_prho_factor(m, f, 2, 10000);
+    if (!success)  success = _GMP_prho_factor(m, f, 5, 10000);
+    if (!success)  success = _GMP_prho_factor(m, f, 7, 10000);
+#endif
+    if (!success)  success = _GMP_power_factor(m, f);
+    if (!success)  success = _GMP_pbrent_factor(m, f, 3, 150000);
+    /* if (!success)  success = _GMP_pminus1_factor(m, f, 20000, 60000); */
+    /* If we couldn't factor m and the stack is empty, we've failed. */
+    if ( (!success) && (msp == 0) )
+      break;
+    /* Factor 1:  f */
+    f_prob_prime = _GMP_is_prob_prime(f);
+    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
+      f_prob_prime = 2;
+    if (f_prob_prime == 0) {
+      if (msp >= POCK_STACK_SIZE) { success = 0; }
+      else                        { mpz_init_set(mstack[msp++], f); }
+    } else if (f_prob_prime == 2) {
+      if (fsp >= POCK_STACK_SIZE) { success = 0; }
+      else                        { mpz_init_set(fstack[fsp++], f); }
+      mpz_mul(A, A, f);
+      mpz_divexact(B, B, f);
+    }
+    /* Factor 2:  m/f */
+    mpz_divexact(f, m, f);
+    f_prob_prime = _GMP_is_prob_prime(f);
+    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
+      f_prob_prime = 2;
+    if (f_prob_prime == 0) {
+      if (msp >= POCK_STACK_SIZE) { success = 0; }
+      else                        { mpz_init_set(mstack[msp++], f); }
+    } else if (f_prob_prime == 2) {
+      if (fsp >= POCK_STACK_SIZE) { success = 0; }
+      else                        { mpz_init_set(fstack[fsp++], f); }
+      mpz_mul(A, A, f);
+      mpz_divexact(B, B, f);
+    }
+  }
+  /* TODO: remove duplicates from fstack */
+  if (success) {
+    success = 0;
+    int pcount, a;
+    mpz_t p, ap;
+
+    mpz_init(p);
+    mpz_init(ap);
+
+    for (pcount = 0; pcount < fsp; pcount++) {
+      mpz_set(p, fstack[pcount]);
+      for (a = 2; a <= 1000; a++) {
+        mpz_set_ui(ap, a);
+        mpz_powm(t, ap, nm1, n);
+        if (mpz_cmp_ui(t, 1) != 0)
+          continue;
+        mpz_divexact(B, nm1, p);
+        mpz_powm(t, ap, B, n);
+        mpz_sub_ui(t, t, 1);
+        mpz_gcd(t, t, n);
+        if (mpz_cmp_ui(t, 1) != 0)
+          continue;
+        success = 1;   /* We found an a for this p */
+        break;
+      }
+      if (success == 0)
+        break;
+    }
+    mpz_clear(p);
+    mpz_clear(ap);
+  }
+  while (msp-- > 0) {
+    mpz_clear(mstack[msp]);
+  }
+  while (fsp-- > 0) {
+    mpz_clear(fstack[fsp]);
+  }
+  mpz_clear(nm1);
+  mpz_clear(A);
+  mpz_clear(B);
+  mpz_clear(sqrtn);
+  mpz_clear(m);
+  mpz_clear(f);
+  mpz_clear(t);
+  return success;
+}
+
 
 /* Modifies argument */
 void _GMP_next_prime(mpz_t n)

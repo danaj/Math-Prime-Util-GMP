@@ -6,6 +6,9 @@ Revision history for Perl extension Math::Prime::Util::GMP
       base and small range e.g. (10**96, 10**96 + 2**18).
     - Add primorial, pn_primorial, and consecutive_integer_lcm functions.
     - Add a perfect power test for factoring.
+    - Add a quick and dirty Pocklington primality test, so is_prime will
+      return 2 (definitely prime) for many numbers in the 2^64 to 2^160 range.
+      It will never mark a probable prime as a composite.
 
 0.03  16 July 2012
     - XS callable: _lcm_of_consecutive_integers(B)

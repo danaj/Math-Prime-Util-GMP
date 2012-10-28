@@ -209,10 +209,15 @@ exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
   say "$n is prime!" if is_prime($n);
 
-This is a misnomer, as the current implementation uses C<is_prob_prime>,
-hence the values are not provably prime if the result is not 2.  Similar to
-the other routine, this takes a single positive number as input and returns
-back either 0 (composite), 2 (definitely prime), or 1 (probably prime).
+Takes a positive number as input and returns back either 0 (composite),
+2 (definitely prime), or 1 (probably prime).  Composites will act exactly
+like C<is_prob_prime>, as will numbers less than C<2^64>.  For numbers
+larger than C<2^64>, some additional tests are performed on probable primes
+to see if they can be proven by another means.
+
+Currently a quick Pocklington test is applied to reasonable small (less
+than 50 digit) numbers, which works surprisingly well without taking up
+too much computational time.
 
 
 =head2 is_strong_pseudoprime
