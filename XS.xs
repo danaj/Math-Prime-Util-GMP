@@ -474,9 +474,9 @@ _GMP_factor(IN char* strn)
             UV B = 5;
             while (!success) {
               success = _GMP_pminus1_factor(n, f, B, 10*B);
-              if (B == 5000) break;
+              if (B == 50000) break;
               B = 10*B;
-              if (B > 5000) B = 5000;
+              if (B > 50000) B = 50000;
             }
           }
           if (success&&o) {gmp_printf("p-1 (50k) found factor %Zd\n", f);o=0;}
