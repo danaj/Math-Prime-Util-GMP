@@ -297,7 +297,7 @@ _GMP_trial_primes(IN char* strlow, IN char* strhigh)
       /* while (mpz_divisible_ui_p(n, 3)) { mpz_divexact_ui(n, n, 3); XPUSHs(sv_2mortal(newSVuv( 3 ))); } */ \
       /* while (mpz_divisible_ui_p(n, 5)) { mpz_divexact_ui(n, n, 5); XPUSHs(sv_2mortal(newSVuv( 5 ))); } */ \
       if (mpz_cmp_ui(n, 1) == 0) { /* done */ } \
-      else if (_GMP_is_prime(n)) { XPUSH_MPZ(n); } \
+      else if (_GMP_is_prob_prime(n)) { XPUSH_MPZ(n); } \
       else { \
         mpz_t f; \
         int success; \
@@ -388,6 +388,15 @@ squfof_factor(IN char* strn, IN UV maxrounds = 16*1024*1024)
     SIMPLE_FACTOR_END;
 
 void
+ecm_factor(IN char* strn, IN UV bmax = 15625000, IN UV ncurves = 100)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    SIMPLE_FACTOR_START("ecm_factor");
+    success = _GMP_ecm_factor(n, f, bmax, ncurves);
+    SIMPLE_FACTOR_END;
+
+void
 _GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
@@ -416,7 +425,7 @@ _GMP_factor(IN char* strn)
 
       mpz_init(f);
       do { /* loop over each remaining factor */
-        while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prime(n) ) {
+        while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
           int success = 0;
           int o = _GMP_get_verbose();
 
@@ -435,10 +444,12 @@ _GMP_factor(IN char* strn)
            * was a single semiprime.  For comparison, Pari took about 1 minute
            * on the same machine to factor the 150-digit number.
            *
-           * A half-decent ECM, MPQS, or SIQS factoring method would be a
-           * big help in factoring larger numbers.  This code will take far
-           * too long to factor numbers where the smallest factor is 17+ digits,
-           * while software like gmp-ecm, msieve, or yafu have no troubles.
+           * After adding simple ECM, the examples above are a little faster.
+           * Previously we were very slow for 17+ digit factors, where it
+           * will now often pull out 21 digit factors in a reasonable time.
+           * A decent little MPQS or SIQS method would help extend this.
+           * Software like gmp-ecm, msieve, or yafu will be much faster for
+           * large numbers.
            *
            * On the plus side, this GMP code is far, far faster than Perl
            * bigint code, and gives an easy way for Perl programs to factor
@@ -455,6 +466,9 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
+          if (!success)  success = _GMP_ecm_factor(n, f, 12500, 4);
+          if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
+
           /* Small p-1 */
           {
             UV B = 5;
@@ -467,10 +481,17 @@ _GMP_factor(IN char* strn)
           }
           if (success&&o) {gmp_printf("p-1 (50k) found factor %Zd\n", f);o=0;}
 
-          if (!success)  success = _GMP_pbrent_factor(n, f, 1, 32*1024*1024);
-          if (success&&o) {gmp_printf("pbrent (1,32M) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
+          if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}
 
-          if (!success)  success = _GMP_prho_factor(n, f,17, 32*1024*1024);
+          /* ECM with high bmax but only 2 curves. */
+          if (!success)  success = _GMP_ecm_factor(n, f, 625000, 2);
+          if (success&&o) {gmp_printf("ecm (625k,2) ecm found factor %Zd\n", f);o=0;}
+          /* Getting serious with ECM */
+          if (!success)  success = _GMP_ecm_factor(n, f, 3125000, 40);
+          if (success&&o) {gmp_printf("ecm (3M,40) found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_prho_factor(n, f, 17, 32*1024*1024);
           if (success&&o) {gmp_printf("prho (17,32M) found factor %Zd\n", f);o=0;}
 
           /* HOLF in case it's a near-ratio-of-perfect-square */
@@ -484,14 +505,18 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);
           if (success&&o) {gmp_printf("pbrent (3,256M) found factor %Zd\n", f);o=0;}
 
+          /*
           if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
           if (success&&o) {gmp_printf("pbrent (2,512M) found factor %Zd\n", f);o=0;}
 
-          if (!success && _GMP_get_verbose()) gmp_printf("starting squfof on %Zd\n", n);
           if (!success)  success = _GMP_squfof_factor(n, f, 256*1024*1024);
           if (success&&o) {gmp_printf("squfof found factor %Zd\n", f);o=0;}
+          */
 
-          /* if (!success)  croak("Could not factor n: %s\n", strn); */
+          /* Our method of last resort: ECM with high bmax and many curves*/
+          if (!success && _GMP_get_verbose()) gmp_printf("starting large ECM on %Zd\n", n);
+          if (!success)  success = _GMP_ecm_factor(n, f, 400000000, 200);
+          if (success&&o) {gmp_printf("ecm (400M,200) found factor %Zd\n", f);o=0;}
 
           if (success) {
             if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
@@ -500,7 +525,14 @@ _GMP_factor(IN char* strn)
             }
           }
 
-          if (_GMP_is_prime(f)) {
+          if (!success) {
+            /* TODO: What to do with composites we can't factor?
+             *       Push them as "C#####" ?
+             *       For now, just push them as if we factored.
+             */
+            mpz_set(f, n);
+            XPUSH_MPZ(f);
+          } else if (_GMP_is_prob_prime(f)) {
             XPUSH_MPZ(f);
           } else {
             if (ntofac == MAX_FACTORS-1)

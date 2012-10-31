@@ -11,7 +11,7 @@ plan tests => 0 + 56
                 + 22
                 + 2
                 + 2
-                + 6*5
+                + 6*6
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -128,6 +128,7 @@ extra_factor_test("pbrent_factor", sub {Math::Prime::Util::GMP::pbrent_factor(sh
 extra_factor_test("pminus1_factor",sub {Math::Prime::Util::GMP::pminus1_factor(shift)});
 extra_factor_test("holf_factor",   sub {Math::Prime::Util::GMP::holf_factor(shift)});
 extra_factor_test("squfof_factor", sub {Math::Prime::Util::GMP::squfof_factor(shift)});
+extra_factor_test("ecm_factor",    sub {Math::Prime::Util::GMP::ecm_factor(shift)});
 
 sub extra_factor_test {
   my $fname = shift;

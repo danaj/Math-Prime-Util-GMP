@@ -15,6 +15,16 @@ static int _verbose = 0;
 void _GMP_set_verbose(int v) { _verbose = v; }
 int _GMP_get_verbose(void) { return _verbose; }
 
+static gmp_randstate_t _randstate;
+void _GMP_init_rand(void) {
+  static int _randstate_initialized = 0;
+  if (!_randstate_initialized) {
+    gmp_randinit_mt(_randstate);
+    _randstate_initialized = 1;
+  }
+}
+/* Nobody calling gmp_randclear(_randstate) */
+
 static const unsigned short primes_small[] =
   {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
    101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
@@ -1209,5 +1219,197 @@ int _GMP_power_factor(mpz_t n, mpz_t f)
     }
     /* GMP says it's a perfect power, but we couldn't find an integer root? */
   }
+  return 0;
+}
+
+struct _ec_point { mpz_t x, y; };
+
+/* P3 = P1 + P2 */
+static void _ec_add_AB(mpz_t n,
+                    struct _ec_point P1,
+                    struct _ec_point P2,
+                    struct _ec_point *P3,
+                    mpz_t m,
+                    mpz_t t1,
+                    mpz_t t2,
+                    mpz_t delta_x,
+                    mpz_t delta_y)
+{
+  mpz_sub(t1, P2.x, P1.x);
+  mpz_tdiv_r(delta_x, t1, n);
+  mpz_sub(t1, P2.y, P1.y);
+  mpz_tdiv_r(delta_y, t1, n);
+
+  mpz_add(t1, P1.y, P2.y);
+  mpz_tdiv_r(t2, t1, n);
+
+  if ( !mpz_cmp(P1.x, P2.x) && !mpz_cmp_ui(t2, 0) ) {
+    mpz_set_ui(P3->x, 0);
+    mpz_set_ui(P3->y, 1);
+    return;
+  }
+  /* m = (y2 - y1) * (x2 - x1)^-1 mod n */
+  if (!mpz_invert(t1, delta_x, n)) {
+    /* There are ways we should use to handle this, but for now just bail. */
+    mpz_set_ui(P3->x, 0);
+    mpz_set_ui(P3->y, 1);
+    return;
+  }
+
+  mpz_mul(t2, t1, delta_y);
+  mpz_tdiv_r(m, t2, n);
+  /* x3 = m^2 - x1 - x2 mod n */
+  mpz_mul(t1, m, m);
+  mpz_sub(t2, t1, P1.x);
+  mpz_sub(t1, t2, P2.x);
+  mpz_tdiv_r(P3->x, t1, n);
+  /* y3 = m(x1 - x3) - y1 mod n */
+  mpz_sub(t1, P1.x, P3->x);
+  mpz_mul(t2, m, t1);
+  mpz_sub(t1, t2, P1.y);
+  mpz_tdiv_r(P3->y, t1, n);
+}
+
+/* P3 = 2*P1 */
+static void _ec_add_2A(mpz_t a,
+                    mpz_t n,
+                    struct _ec_point P1,
+                    struct _ec_point *P3,
+                    mpz_t m,
+                    mpz_t t1,
+                    mpz_t t2)
+{
+  /* m = (3x1^2 + a) * (2y1)^-1 mod n */
+  mpz_mul_ui(t1, P1.y, 2);
+  if (!mpz_invert(m, t1, n)) {
+    mpz_set_ui(P3->x, 0);
+    mpz_set_ui(P3->y, 1);
+    return;
+  }
+  mpz_mul_ui(t1, P1.x, 3);
+  mpz_mul(t2, t1, P1.x);
+  mpz_add(t1, t2, a);
+  mpz_mul(t2, m, t1);
+  mpz_tdiv_r(m, t2, n);
+
+  /* x3 = m^2 - 2x1 mod n */
+  mpz_mul(t1, m, m);
+  mpz_mul_ui(t2, P1.x, 2);
+  mpz_sub(t1, t1, t2);
+  mpz_tdiv_r(P3->x, t1, n);
+
+  /* y3 = m(x1 - x3) - y1 mod n */
+  mpz_sub(t1, P1.x, P3->x);
+  mpz_mul(t2, t1, m);
+  mpz_sub(t1, t2, P1.y);
+  mpz_tdiv_r(P3->y, t1, n);
+}
+
+static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_point *R, mpz_t d)
+{
+  int found = 0;
+  struct _ec_point A, B, C;
+  mpz_t t, t2, t3, t4, t5;
+
+  mpz_init(A.x); mpz_init(A.y);
+  mpz_init(B.x); mpz_init(B.y);
+  mpz_init(C.x); mpz_init(C.y);
+  mpz_init(t);
+  mpz_init(t2);
+  mpz_init(t3);
+  mpz_init(t4);
+  mpz_init(t5);
+
+  mpz_set(A.x, P.x);  mpz_set(A.y, P.y);
+  mpz_set_ui(B.x, 0); mpz_set_ui(B.y, 1);
+
+  /* Binary ladder multiply.  Should investigate Lucas chains. */
+  while (k > 0) {
+    if ( k & 1 ) {
+      mpz_sub(t, B.x, A.x);
+      mpz_tdiv_r(t2, t, n);
+      mpz_gcd(d, t2, n);
+      found = (mpz_cmp_ui(d, 1) && mpz_cmp(d, n));
+      if (found)
+        break;
+
+      if ( !mpz_cmp_ui(A.x, 0) && !mpz_cmp_ui(A.y, 1) ) {
+        /* nothing */
+      } else if ( !mpz_cmp_ui(B.x, 0) && !mpz_cmp_ui(B.y, 1) ) {
+        mpz_set(B.x, A.x);  mpz_set(B.y, A.y);
+      } else {
+        _ec_add_AB(n, A, B, &C, t, t2, t3, t4, t5);
+        mpz_set(B.x, C.x);  mpz_set(B.y, C.y);
+      }
+      k--;
+    } else {
+      mpz_mul_ui(t, A.y, 2);
+      mpz_tdiv_r(t2, t, n);
+      mpz_gcd(d, t2, n);
+      found = (mpz_cmp_ui(d, 1) && mpz_cmp(d, n));
+      if (found)
+        break;
+
+      _ec_add_2A(a, n, A, &C, t, t2, t3);
+      mpz_set(A.x, C.x);  mpz_set(A.y, C.y);
+      k >>= 1;
+    }
+  }
+
+  mpz_tdiv_r(R->x, B.x, n);
+  mpz_tdiv_r(R->y, B.y, n);
+
+  mpz_clear(t);
+  mpz_clear(t2);
+  mpz_clear(t3);
+  mpz_clear(t4);
+  mpz_clear(t5);
+  mpz_clear(A.x); mpz_clear(A.y);
+  mpz_clear(B.x); mpz_clear(B.y);
+  mpz_clear(C.x); mpz_clear(C.y);
+
+  return found;
+}
+
+int _GMP_ecm_factor(mpz_t n, mpz_t f, UV BMax, UV ncurves)
+{
+  mpz_t a;
+  struct _ec_point X, Y;
+  UV B, curve, q;
+
+  _GMP_init_rand();
+  mpz_init(a);
+  mpz_init(X.x); mpz_init(X.y);
+  mpz_init(Y.x); mpz_init(Y.y);
+
+  for (B = 1000; B < BMax; B *= 5) {
+    for (curve = 0; curve < ncurves; curve++) {
+      mpz_urandomm(a, _randstate, n);
+      mpz_set_ui(X.x, 0); mpz_set_ui(X.y, 1);
+      for (q = 2; q < B; q = next_small_prime(q)) {
+        UV k = q;
+        UV kmin = B / q;
+
+        while (k <= kmin)
+          k *= q;
+
+        if (_ec_multiply(a, k, n, X, &Y, f)) {
+          mpz_clear(a);
+          mpz_clear(X.x); mpz_clear(X.y);
+          mpz_clear(Y.x); mpz_clear(Y.y);
+          return 1;
+        }
+        mpz_set(X.x, Y.x);  mpz_set(X.y, Y.y);
+        /* Check that we're not starting over */
+        if ( !mpz_cmp_ui(X.x, 0) && !mpz_cmp_ui(X.y, 1) )
+          break;
+      }
+    }
+  }
+
+  mpz_clear(a);
+  mpz_clear(X.x); mpz_clear(X.y);
+  mpz_clear(Y.x); mpz_clear(Y.y);
+
   return 0;
 }

@@ -25,6 +25,7 @@ our @EXPORT_OK = qw(
                      pminus1_factor
                      holf_factor
                      squfof_factor
+                     ecm_factor
                      factor
                      prime_count
                      primorial
@@ -331,21 +332,20 @@ Returns a list of prime factors of a positive number, in numerical order.  The
 special cases of C<n = 0> and C<n = 1> will return C<n>.
 
 The current algorithm uses trial division, then while the number is composite
-it runs a sequence of small Pollard Rho with different functions, small
-Pollard P-1, longer Pollard/Brent Rho, longer Pollard Rho, Pollard P-1 with
-much larger smoothness and a second stage, much longer Pollard/Brent Rho
-trials with different functions, Shanks SQUFOF, and finally will give up.
+it runs a sequence of factoring tests, including small runs of Pollard's Rho,
+perfect power detection, small ECM runs, Pollard's P-1 with various smoothness
+and stage settings, longer runs of Pollard's Rho using Brent's algorithm,
+a quick check with Hart's OLF, a long run with ECM, and will finally give up.
 
 Certainly improvements could be designed for this algorithm (suggestions are
-welcome).  Most importantly, adding ECM or MPQS/SIQS would make a huge
-difference with larger numbers.  These are non-trivial (though feasible)
-methods.
+welcome).  Most importantly, adding MPQS/SIQS would make a huge difference
+with larger numbers.  These are non-trivial (though feasible) methods.
 
 In practice, this factors most 26-digit semiprimes in under a second.  Cracking
 14-digit prime factors from large numbers takes about 5 seconds each (Pari
-takes about 1 second, and yafu about 0.3 seconds).  16-digit factors are
+takes about 1 second, and yafu about 0.3 seconds).  20-digit factors are
 practical but take a long time compared to real factoring programs.  Beyond
-16-digits will take inordinately long.  Note that these are the size of the
+20-digits will take inordinately long.  Note that these are the size of the
 smallest factor, not the size of the input number, as shown by the example.
 
 
@@ -492,6 +492,29 @@ as well as many other packages use it was the default method for native size
 (e.g. 32-bit or 64-bit) numbers after trial division.  The GMP version used
 in this module will work for larger values, but my testing is showing that it
 is not faster than the C<prho> and C<pbrent> methods in general.
+
+
+=head2 ecm_factor
+
+  my @factors = ecm_factor($n);
+  my @factors = ecm_factor($n, 12500);
+  my @factors = ecm_factor($n, 12500, 10);
+
+Given a positive number input, tries to discover a factor using ECM.  The
+resulting array will contain either two factors (it succeeded) or the original
+number (no factor was found).  In either case, multiplying @factors yields the
+original input.  An optional maximum smoothness may be given as the second
+parameter, which relates to the size of factor to search for.  An optional
+third parameter indicates the number of random curves to use at each
+smoothness value being searched.
+
+This is a straightforward implementation of Hendrik Lenstra's elliptic curve
+factoring method, usually referred to as ECM.  Its implementation is textbook,
+with no substantial optimizations done.  It uses a single stage, affine
+coordinates, binary ladder multiplication, and simple initialization.  The
+list of enhancements that can be made is numerous, and it will be much, much
+slower than GMP-ECM.  However, it uses simple GMP and extends the useful
+factoring range of this module.
 
 
 =head1 SEE ALSO
