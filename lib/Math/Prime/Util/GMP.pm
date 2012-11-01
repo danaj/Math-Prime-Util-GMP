@@ -14,6 +14,7 @@ use base qw( Exporter );
 our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
+                     is_provable_prime
                      is_strong_pseudoprime
                      is_strong_lucas_pseudoprime
                      primes
@@ -216,9 +217,27 @@ like C<is_prob_prime>, as will numbers less than C<2^64>.  For numbers
 larger than C<2^64>, some additional tests are performed on probable primes
 to see if they can be proven by another means.
 
-Currently a quick Pocklington test is applied to reasonable small (less
-than 50 digit) numbers, which works surprisingly well without taking up
-too much computational time.
+Currently the the method used once numbers have been marked probably
+prime by BPSW is the BLS75 method: Brillhart, Lehmer, and Selfridge's
+improvement to the Pocklington-Lehmer primality test.  The test requires
+factoring C<n-1> to C<(n/2)^(1/3)>, compared to C<n^(1/2)> of the standard
+Pocklington-Lehmer or PPBLS test, or a complete factoring for the Lucas
+test.  The main problem is still finding factors, which is done using
+a small number of rounds of Pollard's Rho.  This works quite well and is
+very fast when the factors are small.
+
+
+=head2 is_provable_prime
+
+  say "$n is definitely prime!" if is_provable_prime($n) == 2;
+
+Takes a positive number as input and returns back either 0 (composite),
+2 (definitely prime), or 1 (probably prime).  A great deal of effort is
+taken to return either 0 or 2 for all numbers.
+
+The current method is the BLS75 algorithm as described in C<is_prime>,
+but using much more aggressive factoring.  Future enhancements include
+using ECPP for much faster results, and the ability to return a certificate.
 
 
 =head2 is_strong_pseudoprime
@@ -550,6 +569,8 @@ module, and B<much> faster as the factor increases in size.
 =over 4
 
 =item Robert Baillie and Samuel S. Wagstaff, Jr., "Lucas Pseudoprimes", Mathematics of Computation, v35 n152, October 1980, pp 1391-1417.  L<http://mpqs.free.fr/LucasPseudoprimes.pdf>
+
+=item John Brillhart, D. H. Lehmer, and J. L. Selfridge, "New Primality Criteria and Factorizations of 2^m +/- 1", Mathematics of Computation, v29, n130, Apr 1975, pp 620-647.  L<http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf>
 
 =item Richard P. Brent, "An improved Monte Carlo factorization algorithm", BIT 20, 1980, pp. 176-184.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb051i.pdf>
 

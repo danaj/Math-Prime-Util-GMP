@@ -12,8 +12,9 @@ extern int  _GMP_is_strong_lucas_pseudoprime(mpz_t n);
 
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 
-extern int  _GMP_is_prob_prime(mpz_t n);
 extern int  _GMP_is_prime(mpz_t n);
+extern int  _GMP_is_prob_prime(mpz_t n);
+extern int  _GMP_is_provable_prime(mpz_t n);
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
 

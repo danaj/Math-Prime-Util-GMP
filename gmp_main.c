@@ -359,10 +359,11 @@ int _GMP_is_prime(mpz_t n)
     return prob_prime;
   /*
    * BPSW indicated this is a prime, so we're pretty darn sure it is.  For
-   * smaller numbers, try a quick proof using the Pocklington test.  We only
-   * do this for reasonably small numbers, and we're rather half-hearted about
-   * the test, as it requires factoring n-1, which may be easy or may be very
-   * hard.  They might not care at all about this, so don't spend too much time.
+   * smaller numbers, try a quick proof using the Pocklington or BLS test.
+   * We only do this for reasonably small numbers, and we're rather
+   * half-hearted about the test, as it requires partially factoring n-1,
+   * which may be easy or may be very hard.  They might not care at all
+   * about this, so don't spend too much time.
    *
    * The idea is that they can call:
    *    is_prob_prime      BPSW
@@ -371,23 +372,133 @@ int _GMP_is_prime(mpz_t n)
    *
    * If we had better large-number factoring, we could extend the reasonable
    * range for this test.  In the long run, ECPP is the better method.  What
-   * Pocklington gives us is a quite fast and very easy (in code) way to
-   * prove primality for a lot of numbers in the 2^64 - 2^180 bit range (up
+   * Pocklington/BLS gives us is a quite fast and very easy (in code) way to
+   * prove primality for a lot of numbers in the 2^64 - 2^200 bit range (up
    * to about 50 digits).
    */
-  if ( (mpz_sizeinbase(n, 2) <= 160) &&
-       _GMP_quick_pocklington_primality_test(n) )
-    return 2;
-
+  if (mpz_sizeinbase(n, 2) <= 200) {
+    prob_prime = _GMP_primality_bls(n, 1);
+    if (prob_prime < 0)
+      return 0;
+    if (prob_prime > 0)
+      return 2;
+  }
   return 1;
 }
 
-#define POCK_STACK_SIZE 128
-int _GMP_quick_pocklington_primality_test(mpz_t n)
+int _GMP_is_provable_prime(mpz_t n)
+{
+  int prob_prime;
+
+  prob_prime = _GMP_is_prob_prime(n);
+  if (prob_prime != 1)
+    return prob_prime;
+
+  /* Try some more bases since these tests are fast */
+  if (    (_GMP_miller_rabin_ui(n, 325) == 0)
+       || (_GMP_miller_rabin_ui(n, 131) == 0)
+       || (_GMP_miller_rabin_ui(n, 223) == 0)
+       || (_GMP_miller_rabin_ui(n, 887) == 0)
+     )
+    return 0;
+
+  prob_prime = _GMP_primality_bls(n, 0);
+  if (prob_prime < 0)
+    return 0;
+  if (prob_prime > 0)
+    return 2;
+  return 1;
+}
+
+/*
+ * Lucas (1876): Given a completely factored n-1, if there exists an a s.t.
+ *     a^(n-1) % n = 1 
+ *     a^((n-1/f) % n != 1 for ALL factors f of n-1
+ * then n is prime.
+ *
+ * PPBLS:, given n-1 = A*B, A > sqrt(n), if we can find an a s.t.
+ *     a^A % n = 1 
+ *     gcd(a^(A/f)-1,n) = 1 for ALL factors f of A
+ * then n is prime.
+ *
+ * Generalized Pocklington: given n-1 = A*B, gcd(A,B)=1, A > sqrt(n), then if
+ *     for each each factor f of A, there exists an a (1 < a < n-1) s.t.
+ *         a^(n-1) % n = 1
+ *         gcd(a^((n-1)/f)-1,n) = 1
+ * then n is prime.
+ *
+ * The last is also known as the Pocklington-Lehmer test, and looks to be
+ * the best of these, since we don't have to factor all of n-1 and we can
+ * look for a different a value for each factor.  This is corollary 1 from
+ * BLS75.
+ *
+ * One problem with all of these is that once we've found factors of n-1
+ * (something that becomes less practical as n gets large), it is quite
+ * fast to verify a prime (a=2 works for most primes, few seem to require
+ * more than ~log2(n).  However it is quite difficult to answer in the
+ * negative, since we'd seemingly have to test n-3 values of a.
+ *
+ * BLS75's Theory 5 is an improvement and also gives a possible negative
+ * result without having to test too many a values.
+ *
+ * BLS: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
+ *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
+ *   - (A+1) * (2*A*A + (r-1) * A + 1) > n
+ *   - a^(n-1) % n = 1
+ *   - gcd(a^((n-1)/f)-1,n) = 1  for ALL factors f of A
+ * then:
+ *     if s = 0 or r*r - 8*s is not a perfect square
+ *         n is prime
+ *     else
+ *         n is composite
+ *
+ *
+ * AKS is not too hard to implement, but it's impractically slow.
+ *
+ * ECPP is very fast and definitely the best method for most numbers.
+ *
+ * BLS75:  http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf
+ *
+ */
+
+/* For these primality functions:
+ *   -1   n is definitely composite
+ *    1   n is definitely prime
+ *    0   we can't decide
+ *
+ * You really should run is_prob_prime on n first, so we only have to run
+ * these tests on numbers that are very probably prime.
+ */
+
+/* FIXME:
+ *   (1) too much repetitious overhead code in these
+ *   (2) way too much copy/paste between Pocklington and BLS
+ */
+#define PRIM_STACK_SIZE 128
+
+#define primality_handle_factor(f, primality_func, factor_prob) \
+  { \
+    int f_prob_prime = _GMP_is_prob_prime(f); \
+    if ( (f_prob_prime == 1) && (primality_func(f, do_quick)) ) \
+      f_prob_prime = 2; \
+    if (f_prob_prime == 2) { \
+      if (fsp >= PRIM_STACK_SIZE) { success = 0; } \
+      else                        { mpz_init_set(fstack[fsp++], f); } \
+      while (mpz_divisible_p(B, f)) { \
+        mpz_mul(A, A, f); \
+        mpz_divexact(B, B, f); \
+      } \
+    } else if ( (f_prob_prime == 0) || (factor_prob) ) { \
+      if (msp >= PRIM_STACK_SIZE) { success = 0; } \
+      else                        { mpz_init_set(mstack[msp++], f); } \
+    } \
+  }
+
+int _GMP_primality_pocklington(mpz_t n, int do_quick)
 {
   mpz_t nm1, A, B, sqrtn, t, m, f;
-  mpz_t mstack[POCK_STACK_SIZE];
-  mpz_t fstack[POCK_STACK_SIZE];
+  mpz_t mstack[PRIM_STACK_SIZE];
+  mpz_t fstack[PRIM_STACK_SIZE];
   int msp = 0;
   int fsp = 0;
   int success = 1;
@@ -404,29 +515,21 @@ int _GMP_quick_pocklington_primality_test(mpz_t n)
   mpz_init(t);
 
   { /* Pull small factors out */
-    int tf;
-    while (tf = _GMP_trial_factor(B, 2, 400)) {
-      /* Add to factor stack if not already there */
-      if ( (fsp == 0) || (mpz_cmp_ui(fstack[fsp-1], tf) != 0) )
-        mpz_init_set_ui(fstack[fsp++], tf);
-      mpz_mul_ui(A, A, tf);
-      mpz_divexact_ui(B, B, tf);
-      if (fsp >= POCK_STACK_SIZE) { success = 0; break; }
+    UV tf = 2;
+    while (tf = _GMP_trial_factor(B, tf, 1000)) {
+      if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
+      mpz_init_set_ui(fstack[fsp++], tf);
+      while (mpz_divisible_ui_p(B, tf)) {
+        mpz_mul_ui(A, A, tf);
+        mpz_divexact_ui(B, B, tf);
+      }
+      tf++;
     }
   }
 
   if (success) {
     mpz_set(f, B);
-    f_prob_prime = _GMP_is_prob_prime(f);
-    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
-      f_prob_prime = 2;
-    if (f_prob_prime == 2) {
-      mpz_init_set(fstack[fsp++], f);
-      mpz_mul(A, A, f);
-      mpz_divexact(B, B, f);
-    } else {
-      mpz_init_set(mstack[msp++], f);
-    }
+    primality_handle_factor(f, _GMP_primality_pocklington, 1);
   }
 
   while (success) {
@@ -440,63 +543,50 @@ int _GMP_quick_pocklington_primality_test(mpz_t n)
     /* pop a component off the stack */
     mpz_set(m, mstack[--msp]); mpz_clear(mstack[msp]);
 
-    /* Try to factor it */
-#if 0
-    if (!success)  success = _GMP_prho_factor(m, f, 1, 10000);
-    if (!success)  success = _GMP_prho_factor(m, f, 2, 10000);
-    if (!success)  success = _GMP_prho_factor(m, f, 5, 10000);
-    if (!success)  success = _GMP_prho_factor(m, f, 7, 10000);
-#endif
+    /* Try to factor it without trying too hard */
     if (!success)  success = _GMP_power_factor(m, f);
-    if (!success)  success = _GMP_pbrent_factor(m, f, 3, 150000);
-    /* if (!success)  success = _GMP_pminus1_factor(m, f, 20000, 60000); */
+    if (do_quick) {
+      UV log2m = mpz_sizeinbase(m, 2);
+      UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, rounds);
+    } else {
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 5, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 7, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f,11, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f,13, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 1, 16*1024*1024);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 12500, 4);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 3125000, 10);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 256*1024*1024);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 400000000, 200);
+    }
     /* If we couldn't factor m and the stack is empty, we've failed. */
     if ( (!success) && (msp == 0) )
       break;
-    /* Factor 1:  f */
-    f_prob_prime = _GMP_is_prob_prime(f);
-    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
-      f_prob_prime = 2;
-    if (f_prob_prime == 0) {
-      if (msp >= POCK_STACK_SIZE) { success = 0; }
-      else                        { mpz_init_set(mstack[msp++], f); }
-    } else if (f_prob_prime == 2) {
-      if (fsp >= POCK_STACK_SIZE) { success = 0; }
-      else                        { mpz_init_set(fstack[fsp++], f); }
-      mpz_mul(A, A, f);
-      mpz_divexact(B, B, f);
-    }
-    /* Factor 2:  m/f */
+    /* Put the two factors f and m/f into the stacks */
+    primality_handle_factor(f, _GMP_primality_pocklington, 0);
     mpz_divexact(f, m, f);
-    f_prob_prime = _GMP_is_prob_prime(f);
-    if ( (f_prob_prime == 1) && (_GMP_quick_pocklington_primality_test(f)) )
-      f_prob_prime = 2;
-    if (f_prob_prime == 0) {
-      if (msp >= POCK_STACK_SIZE) { success = 0; }
-      else                        { mpz_init_set(mstack[msp++], f); }
-    } else if (f_prob_prime == 2) {
-      if (fsp >= POCK_STACK_SIZE) { success = 0; }
-      else                        { mpz_init_set(fstack[fsp++], f); }
-      mpz_mul(A, A, f);
-      mpz_divexact(B, B, f);
-    }
+    primality_handle_factor(f, _GMP_primality_pocklington, 0);
   }
-  /* TODO: remove duplicates from fstack */
   if (success) {
-    success = 0;
     int pcount, a;
+    int const alimit = do_quick ? 200 : 10000;
     mpz_t p, ap;
 
     mpz_init(p);
     mpz_init(ap);
 
-    for (pcount = 0; pcount < fsp; pcount++) {
+    for (pcount = 0; success && pcount < fsp; pcount++) {
       mpz_set(p, fstack[pcount]);
-      for (a = 2; a <= 1000; a++) {
+      success = 0;
+      for (a = 2; !success && a <= alimit; a = next_small_prime(a)) {
         mpz_set_ui(ap, a);
+        /* Does a^(n-1) % n = 1 ? */
         mpz_powm(t, ap, nm1, n);
         if (mpz_cmp_ui(t, 1) != 0)
           continue;
+        /* Does gcd(a^((n-1)/f)-1,n) = 1 ? */
         mpz_divexact(B, nm1, p);
         mpz_powm(t, ap, B, n);
         mpz_sub_ui(t, t, 1);
@@ -504,10 +594,7 @@ int _GMP_quick_pocklington_primality_test(mpz_t n)
         if (mpz_cmp_ui(t, 1) != 0)
           continue;
         success = 1;   /* We found an a for this p */
-        break;
       }
-      if (success == 0)
-        break;
     }
     mpz_clear(p);
     mpz_clear(ap);
@@ -525,6 +612,157 @@ int _GMP_quick_pocklington_primality_test(mpz_t n)
   mpz_clear(m);
   mpz_clear(f);
   mpz_clear(t);
+  return success;
+}
+
+int _GMP_primality_bls(mpz_t n, int do_quick)
+{
+  mpz_t nm1, A, B, t, m, f, r, s;
+  mpz_t mstack[PRIM_STACK_SIZE];
+  mpz_t fstack[PRIM_STACK_SIZE];
+  int msp = 0;
+  int fsp = 0;
+  int success = 1;
+  int f_prob_prime;
+
+  /* We need to do this for BLS */
+  if (mpz_even_p(n)) return -1;
+
+  mpz_init(nm1);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_init_set_ui(A, 1);
+  mpz_init_set(B, nm1);
+  mpz_init(m);
+  mpz_init(f);
+  mpz_init(t);
+  mpz_init(r);
+  mpz_init(s);
+
+  { /* Pull small factors out */
+    UV tf = 2;
+    while (tf = _GMP_trial_factor(B, tf, 1000)) {
+      if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
+      mpz_init_set_ui(fstack[fsp++], tf);
+      while (mpz_divisible_ui_p(B, tf)) {
+        mpz_mul_ui(A, A, tf);
+        mpz_divexact_ui(B, B, tf);
+      }
+      tf++;
+    }
+  }
+
+  if (success) {
+    mpz_set(f, B);
+    primality_handle_factor(f, _GMP_primality_bls, 1);
+  }
+
+  while (success) {
+    mpz_mul_ui(t, A, 2);
+    mpz_tdiv_q(s, B, t);
+    mpz_mod(r, B, t);
+
+    mpz_mul(m, t, A);    // m = 2*A*A
+    mpz_sub_ui(t, r, 1); // t = r-1
+    mpz_mul(t, t, A);    // t = A*(r-1)
+    mpz_add(m, m, t);    // m = 2A^2 + A(r-1)
+    mpz_add_ui(m, m, 1); // m = 2A^2 + A(r-1) + 1
+    mpz_add_ui(t, A, 1);
+    mpz_mul(m, m, t);
+
+    if (mpz_cmp(m, n) > 0)
+      break;
+    success = 0;
+    /* If the stack is empty, we have failed. */
+    if (msp == 0)
+      break;
+    /* pop a component off the stack */
+    mpz_set(m, mstack[--msp]); mpz_clear(mstack[msp]);
+
+    /* Try to factor it without trying too hard */
+    if (!success)  success = _GMP_power_factor(m, f);
+    if (do_quick) {
+      UV log2m = mpz_sizeinbase(m, 2);
+      UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, rounds);
+    } else {
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 5, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 7, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f,11, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f,13, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 1, 16*1024*1024);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 12500, 4);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 3125000, 10);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 256*1024*1024);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 400000000, 200);
+    }
+    /* If we couldn't factor m and the stack is empty, we've failed. */
+    if ( (!success) && (msp == 0) )
+      break;
+    /* Put the two factors f and m/f into the stacks */
+    primality_handle_factor(f, _GMP_primality_bls, 0);
+    mpz_divexact(f, m, f);
+    primality_handle_factor(f, _GMP_primality_bls, 0);
+  }
+
+  if (success) {
+    int pcount, a, proper_r;
+    int const alimit = do_quick ? 200 : 10000;
+    mpz_t p, ap;
+
+    mpz_init(p);
+    mpz_init(ap);
+
+    proper_r = 0;
+    if (!mpz_sgn(s)) {
+      proper_r = 1;
+    } else {
+      mpz_mul(t, r, r);
+      mpz_submul_ui(t, s, 8);   // t = r^2 - 8s
+      if ( ! mpz_perfect_square_p(t) )
+        proper_r = 1;
+    }
+
+    for (pcount = 0; success && pcount < fsp; pcount++) {
+      mpz_set(p, fstack[pcount]);
+      success = 0;
+      for (a = 2; !success && a <= alimit; a = next_small_prime(a)) {
+        mpz_set_ui(ap, a);
+        /* Does a^(n-1) % n = 1 ? */
+        mpz_powm(t, ap, nm1, n);
+        if (mpz_cmp_ui(t, 1) != 0)
+          continue;
+        /* Does gcd(a^((n-1)/f)-1,n) = 1 ? */
+        mpz_divexact(B, nm1, p);
+        mpz_powm(t, ap, B, n);
+        mpz_sub_ui(t, t, 1);
+        mpz_gcd(t, t, n);
+        if (mpz_cmp_ui(t, 1) != 0)
+          continue;
+        success = 1;   /* We found an a for this p */
+      }
+    }
+
+    /* If all cases hold then n is prime if and only if proper_r */
+    if ( success && !proper_r )
+      success = -1;
+    mpz_clear(p);
+    mpz_clear(ap);
+  }
+  while (msp-- > 0) {
+    mpz_clear(mstack[msp]);
+  }
+  while (fsp-- > 0) {
+    mpz_clear(fstack[fsp]);
+  }
+  mpz_clear(nm1);
+  mpz_clear(A);
+  mpz_clear(B);
+  mpz_clear(m);
+  mpz_clear(f);
+  mpz_clear(t);
+  mpz_clear(r);
+  mpz_clear(s);
   return success;
 }
 
@@ -610,6 +848,7 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
     mpz_mul(prim, prim, p);
     _GMP_next_prime(p);
   }
+  mpz_clear(p);
 }
 
 #define TEST_FOR_2357(n, f) \
@@ -1026,7 +1265,8 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
  * GMP version of Ben Buhrow's public domain 9/24/09 implementation.
  * It uses ideas and code from Jason Papadopoulos, Scott Contini, and
  * Tom St. Denis.  Also see the papers of Stephen McMath, Daniel Shanks,
- * and Jason Gower.
+ * and Jason Gower.  Gower and Wagstaff is particularly useful:
+ *    http://homes.cerias.purdue.edu/~ssw/squfof.pdf
  *--------------------------------------------------------------------*/
 
 static int shanks_mult(mpz_t n, mpz_t f)
@@ -1065,6 +1305,10 @@ static int shanks_mult(mpz_t n, mpz_t f)
    mpz_init(Ro);
    mpz_init(So);
    mpz_init(bbn);
+
+   mpz_mod_ui(t1, n, 4);
+   if (mpz_cmp_ui(t1, 3))
+     croak("Incorrect call to shanks\n");
 
    mpz_sqrt(b0, n);
    mpz_sqrt(tmp, b0);
@@ -1174,34 +1418,46 @@ static int shanks_mult(mpz_t n, mpz_t f)
 
 int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 {
-   /* call shanks with multiple small multipliers */
-   const int multipliers[] = {3, 5, 7,
-            11, 3*5, 3*7, 3*11,
-            5*7, 5*11, 7*11,
-            3*5*7, 3*5*11, 3*7*11,
-            5*7*11, 3*5*7*11, 1};
-
-   const int sz_mul = 16;
-   int i;
+   /* Multiplier ordering from Granlund and Möller */
+   const UV multipliers[] = {
+      3*5*7*11, 3*5*7, 3*5*11, 3*5, 3*7*11, 3*7, 5*7*11, 5*7,
+      3*11,     3,     5*11,   5,   7*11,   7,   11,     1   };
+   const size_t sz_mul = sizeof(multipliers)/sizeof(multipliers[0]);
+   size_t i;
    int result;
-   mpz_t nm;
+   UV nmod4;
+   mpz_t nm, t;
 
    TEST_FOR_2357(n, f);
    mpz_init(nm);
+   mpz_init(t);
    mpz_set_ui(f, 1);
+   nmod4 = mpz_tdiv_r_ui(nm, n, 4);
 
-   for (i=sz_mul-1;i>=0;i--) {
-      mpz_mul_ui(nm, n, multipliers[i]);
+   for (i = 0; i < sz_mul; i++) {
+      UV mult = multipliers[i];
+      /* Only use multipliers where n*m = 3 mod 4 */
+      if (nmod4 == (mult % 4))
+        continue;
+      /* Only run when 64*m^3 < n */
+      mpz_set_ui(t, mult);
+      mpz_pow_ui(t, t, 3);
+      mpz_mul_ui(t, t, 64);
+      if (mpz_cmp(t, n) >= 0)
+        continue;
+      /* Run with this multiplier */
+      mpz_mul_ui(nm, n, mult);
       result = shanks_mult(nm, f);
       if (result == -1)
         break;
-      if ( (result == 1) && (mpz_cmp_ui(f, multipliers[i]) != 0) ) {
-        unsigned long gcdf = mpz_gcd_ui(NULL, f, multipliers[i]);
+      if ( (result == 1) && (mpz_cmp_ui(f, mult) != 0) ) {
+        unsigned long gcdf = mpz_gcd_ui(NULL, f, mult);
         mpz_divexact_ui(f, f, gcdf);
         if (mpz_cmp_ui(f, 1) > 0)
           break;
       }
    }
+   mpz_clear(t);
    mpz_clear(nm);
    return (mpz_cmp_ui(f, 1) > 0);
 }
@@ -1376,6 +1632,8 @@ int _GMP_ecm_factor(mpz_t n, mpz_t f, UV BMax, UV ncurves)
   mpz_t a;
   struct _ec_point X, Y;
   UV B, curve, q;
+
+  TEST_FOR_2357(n, f);
 
   _GMP_init_rand();
   mpz_init(a);

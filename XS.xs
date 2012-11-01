@@ -74,21 +74,27 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
   OUTPUT:
     RETVAL
 
+#define PRIMALITY_START(name, small_retval) \
+    /* Negative numbers return 0 */ \
+    if ((strn != 0) && (strn[0] == '-') ) \
+      XSRETURN_IV(0); \
+    validate_string_number(name " (n)", strn); \
+    if (strn[1] == 0) { \
+      int q_is_prime = 0; \
+      switch (strn[0]) { \
+        case '2': case '3': case '5': case '7': q_is_prime = small_retval; \
+                                                break; \
+      } \
+      XSRETURN_IV(q_is_prime); \
+    } \
+    mpz_init_set_str(n, strn, 10);
 
 int
 is_strong_lucas_pseudoprime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_string_number("is_strong_lucas_pseudoprime (n)", strn);
-    if (strn[1] == 0) {
-      int q_is_prime = 0;
-      switch (strn[0]) {
-        case '2': case '3': case '5': case '7': q_is_prime = 1; break;
-      }
-      XSRETURN_IV(q_is_prime);
-    }
-    mpz_init_set_str(n, strn, 10);
+    PRIMALITY_START("is_strong_lucas_pseudoprime", 1);
     RETVAL = _GMP_is_strong_lucas_pseudoprime(n);
     mpz_clear(n);
   OUTPUT:
@@ -99,17 +105,7 @@ is_prob_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    if ((strn != 0) && (strn[0] == '-') )  /* Negative numbers return 0 */
-      XSRETURN_IV(0);
-    validate_string_number("is_prob_prime (n)", strn);
-    if (strn[1] == 0) {
-      int q_is_prime = 0;
-      switch (strn[0]) {
-        case '2': case '3': case '5': case '7': q_is_prime = 2; break;
-      }
-      XSRETURN_IV(q_is_prime);
-    }
-    mpz_init_set_str(n, strn, 10);
+    PRIMALITY_START("is_prob_prime", 2);
     RETVAL = _GMP_is_prob_prime(n);
     mpz_clear(n);
   OUTPUT:
@@ -120,18 +116,19 @@ is_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    if ((strn != 0) && (strn[0] == '-') )  /* Negative numbers return 0 */
-      XSRETURN_IV(0);
-    validate_string_number("is_prime (n)", strn);
-    if (strn[1] == 0) {
-      int q_is_prime = 0;
-      switch (strn[0]) {
-        case '2': case '3': case '5': case '7': q_is_prime = 2; break;
-      }
-      XSRETURN_IV(q_is_prime);
-    }
-    mpz_init_set_str(n, strn, 10);
+    PRIMALITY_START("is_prime", 2);
     RETVAL = _GMP_is_prime(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
+is_provable_prime(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_prime", 2);
+    RETVAL = _GMP_is_provable_prime(n);
     mpz_clear(n);
   OUTPUT:
     RETVAL
@@ -456,11 +453,11 @@ _GMP_factor(IN char* strn)
            * many large numbers easily and quickly.
            */
 
-          success =                _GMP_prho_factor(n, f, 3, 64*1024);
-          if (!success)  success = _GMP_prho_factor(n, f, 5, 64*1024);
-          if (!success)  success = _GMP_prho_factor(n, f, 7, 64*1024);
-          if (!success)  success = _GMP_prho_factor(n, f,11, 64*1024);
-          if (!success)  success = _GMP_prho_factor(n, f,13, 64*1024);
+          success =                _GMP_pbrent_factor(n, f, 3, 64*1024);
+          if (!success)  success = _GMP_pbrent_factor(n, f, 5, 64*1024);
+          if (!success)  success = _GMP_pbrent_factor(n, f, 7, 64*1024);
+          if (!success)  success = _GMP_pbrent_factor(n, f,11, 64*1024);
+          if (!success)  success = _GMP_pbrent_factor(n, f,13, 64*1024);
           if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_power_factor(n, f);
@@ -474,12 +471,12 @@ _GMP_factor(IN char* strn)
             UV B = 5;
             while (!success) {
               success = _GMP_pminus1_factor(n, f, B, 10*B);
-              if (B == 50000) break;
+              if (B == 20000) break;
               B = 10*B;
-              if (B > 50000) B = 50000;
+              if (B > 20000) B = 20000;
             }
           }
-          if (success&&o) {gmp_printf("p-1 (50k) found factor %Zd\n", f);o=0;}
+          if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}

@@ -1,15 +1,29 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
 0.04  30 October 2012
+
     - Add simple prime_count function.  It uses next_prime so is terribly slow
-      for big ranges.  It's a lot faster than the PP code when given a large
-      base and small range e.g. (10**96, 10**96 + 2**18).
+      for big ranges.  However it's a lot faster than the PP code when given
+      a large base and small range e.g. (10**96, 10**96 + 2**18).
+
     - Add primorial, pn_primorial, and consecutive_integer_lcm functions.
-    - Add a perfect power test for factoring.
-    - Add a quick and dirty Pocklington primality test, so is_prime will
-      return 2 (definitely prime) for many numbers in the 2^64 to 2^160 range.
-      It will never mark a probable prime as a composite.
-    - Add simple ECM factoring, adjust general factor() mix.
+
+    - Factoring:
+         Add a perfect power test.
+         Add a simple ECM factoring method.
+         Speed up SQUFOF a bit.
+         Adjust general factor() mix.
+
+    - Add Pocklington-Lehmer and BLS primality tests.  is_prime() uses the
+      BLS test with a quick factoring attempt for numbers less than 2^200,
+      though the chances of success drop off as the size increases.
+      The point is not to cull mismarked probable primes (we use BPSW so this
+      is highly unlikely for these small sizes), but to quickly mark more
+      numbers as definitely prime.  Remember to use is_prob_prime if you do
+      not care about this distinction and want the result slightly faster.
+
+    - add is_provable_prime function that calls BLS with much more aggressive
+      factoring.
 
 0.03  16 July 2012
     - XS callable: _lcm_of_consecutive_integers(B)
