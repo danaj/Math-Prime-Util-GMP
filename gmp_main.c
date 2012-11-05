@@ -502,7 +502,6 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
   int msp = 0;
   int fsp = 0;
   int success = 1;
-  int f_prob_prime;
 
   mpz_init(nm1);
   mpz_sub_ui(nm1, n, 1);
@@ -516,7 +515,7 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
 
   { /* Pull small factors out */
     UV tf = 2;
-    while (tf = _GMP_trial_factor(B, tf, 1000)) {
+    while ( (tf = _GMP_trial_factor(B, tf, 1000)) != 0 ) {
       if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
       mpz_init_set_ui(fstack[fsp++], tf);
       while (mpz_divisible_ui_p(B, tf)) {
@@ -623,7 +622,6 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
   int msp = 0;
   int fsp = 0;
   int success = 1;
-  int f_prob_prime;
 
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return -1;
@@ -640,7 +638,7 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
 
   { /* Pull small factors out */
     UV tf = 2;
-    while (tf = _GMP_trial_factor(B, tf, 1000)) {
+    while ( (tf = _GMP_trial_factor(B, tf, 1000)) != 0 ) {
       if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
       mpz_init_set_ui(fstack[fsp++], tf);
       while (mpz_divisible_ui_p(B, tf)) {
