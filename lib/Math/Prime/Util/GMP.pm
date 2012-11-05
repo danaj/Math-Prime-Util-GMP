@@ -425,38 +425,35 @@ small factors.
 
   my @factors = pminus1_factor($n);
 
-  # Ramp to to B1=10M, with second stages automatically done
+  # Set B1 smoothness to 10M, second stage automatically set.
   my @factors = pminus1_factor($n, 10_000_000);
 
-  # Run p-1 with B1 = 10M, B2 = 100M.  No ramping.
+  # Run p-1 with B1 = 10M, B2 = 100M.
   my @factors = pminus1_factor($n, 10_000_000, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Pollard's
 C<p-1> method.  The resulting array will contain either two factors (it
 succeeded) or the original number (no factor was found).  In either case,
-multiplying @factors yields the original input.  An optional maximum
+multiplying @factors yields the original input.  An optional first stage
 smoothness factor (B1) may be given as the second parameter in which case the
 algorithm will ramp up to that smoothness factor, also running a second stage.
-If a third parameter (B2) is given, then no ramping happens -- just a first
-stage using the given B1 smoothness followed by a second stage to the B2
-smoothness.  Factoring will stop when the input is a prime, one factor has
-been found, or the algorithm fails to find a factor with the given smoothness.
+Factoring will stop when the input is a prime, one factor has been found, or
+the algorithm fails to find a factor with the given smoothness.
 
-This is Pollard's C<p-1> method using a default smoothness of 1M and a
-second stage of C<B2 = 20 * B1>.  It can quickly find a factor C<p> of the input
+This is Pollard's C<p-1> method using a default smoothness of 5M and a
+second stage of C<B2 = 10 * B1>.  It can quickly find a factor C<p> of the input
 C<n> if the number C<p-1> factors into small primes.  For example
 C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
 where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
 a factor in the first stage if C<B1 E<gt>= 703499> or in the second stage if
-C<B2 E<gt>= 703499>.
+C<B1 E<gt>= 3137> and C<B2 E<gt>= 703499>.
 
 The implementation is written from scratch using the basic algorithm including
 a second stage as described in Montgomery 1987.  It is faster than most simple
 implementations I have seen (many of which are written assuming native
-precision inputs), but far slower than Ben Buhrow's code used in earlier
+precision inputs), but slower than Ben Buhrow's code used in earlier
 versions of L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close
-to the speed of the version included with modern GMP-ECM (as much as 1000x
-slower).
+to the speed of the version included with modern GMP-ECM.
 
 
 

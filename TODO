@@ -15,3 +15,7 @@
 - GMP SQUFOF could use a better implementation, though low priority since it
   just isn't going to be the right algorithm for numbers > 2^64.  Mainly what
   it needs is to pay attention to the rounds argument.  Perhaps race.
+
+- We need init and destroy routines.  Then we can sieve for next_small_prime.
+
+- ECM should add a stage 2

@@ -345,25 +345,12 @@ pbrent_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
     SIMPLE_FACTOR_END;
 
 void
-pminus1_factor(IN char* strn, IN UV smoothness = 1000000, IN UV B2 = 0)
+pminus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
   PREINIT:
     mpz_t n;
   PPCODE:
     SIMPLE_FACTOR_START("pminus1_factor");
-    if (B2 == 0) { /* Without a B2, increment up */
-      UV B = 5;
-      success = 0;
-      while (!success) {
-        success = _GMP_pminus1_factor(n, f, B, 20*B);
-        if (B == smoothness) break;
-        B = 20*B;
-        if (B > smoothness) B = smoothness;
-      }
-    } else {
-      /* Given a B1 and B2, do just what they asked. */
-      success = _GMP_pminus1_factor(n, f, smoothness, B2);
-    }
-    /* success = _GMP_pminus1_factor2(n, f, smoothness); */
+    success = _GMP_pminus1_factor(n, f, B1, (B2 == 0) ? B1*10 : B2);
     SIMPLE_FACTOR_END;
 
 void
@@ -467,16 +454,8 @@ _GMP_factor(IN char* strn)
           if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
 
           /* Small p-1 */
-          {
-            UV B = 5;
-            while (!success) {
-              success = _GMP_pminus1_factor(n, f, B, 10*B);
-              if (B == 20000) break;
-              B = 10*B;
-              if (B > 20000) B = 20000;
-            }
-          }
-          if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_pminus1_factor(n, f, 40000, 40000*8);
+          if (success&&o) {gmp_printf("p-1 (40k) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}

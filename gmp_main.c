@@ -394,7 +394,7 @@ int _GMP_is_provable_prime(mpz_t n)
   if (prob_prime != 1)
     return prob_prime;
 
-  /* Try some more bases since these tests are fast */
+  /* Try some more bases since these tests are fast.  These aren't special. */
   if (    (_GMP_miller_rabin_ui(n, 325) == 0)
        || (_GMP_miller_rabin_ui(n, 131) == 0)
        || (_GMP_miller_rabin_ui(n, 223) == 0)
@@ -438,7 +438,7 @@ int _GMP_is_provable_prime(mpz_t n)
  * more than ~log2(n).  However it is quite difficult to answer in the
  * negative, since we'd seemingly have to test n-3 values of a.
  *
- * BLS75's Theory 5 is an improvement and also gives a possible negative
+ * BLS75's Theorem 5 is an improvement and also gives a possible negative
  * result without having to test too many a values.
  *
  * BLS: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
@@ -995,6 +995,8 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
   Safefree(s);
 }
 
+#if 0
+   /* This is the old pminus1 implementation */
 static void calculate_b_lcm(mpz_t b, UV B, mpz_t a, mpz_t n)
 {
   double logB = log(B);
@@ -1024,84 +1026,6 @@ static void calculate_b_lcm(mpz_t b, UV B, mpz_t a, mpz_t n)
   Safefree(s);
   mpz_clear(m);
 }
-
-#if 0
-/* Using lcm_to_B instead of calculating each time.  Also shows increasing */
-int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV smoothness_bound)
-{
-  mpz_t a, m, x;
-  UV i, p;
-  UV B;
-  UV const B2_multiplier = 20;
-  int const verbose = 1;
-
-  mpz_init(a);
-  mpz_init(m);
-  mpz_init(x);
-
-  B = 5;
-  while (B <= smoothness_bound) {
-    if (verbose) gmp_printf("   calculating new m for B=%lu...\n", (unsigned long)B);
-    _GMP_lcm_of_consecutive_integers(B, m);
-    if (verbose) gmp_printf("trying %Zd  with B=%lu", n, (unsigned long)B); if (B<100) gmp_printf(" m=%Zd", m); gmp_printf("\n");
-    /* Use primes for a's to try.  We rarely make it past the first couple. */
-    p = 1;
-    while ( (p = next_small_prime(p)) < 200000 ) {
-      if (verbose && p > 2) gmp_printf("trying with a=%d\n", (int)p);
-      mpz_set_ui(a, p);
-      mpz_powm(x, a, m, n);
-      if (mpz_sgn(x) == 0)
-        mpz_set(x, n);
-      mpz_sub_ui(x, x, 1);
-      mpz_gcd(f, x, n);
-      if (mpz_cmp_ui(f, 1) == 0)
-        break;
-      if (mpz_cmp(f, n) != 0) {
-        mpz_clear(a); mpz_clear(m); mpz_clear(x);
-        return 1;
-      }
-    }
-    /* Second stage, use whatever a was last used */
-    /* Montgomery 1987, p249-250.  This is the simplest improvement he gives,
-     * and doesn't have all the optimizations he points out for it. */
-    if (B2_multiplier > 1) {
-      mpz_t b;
-      UV B2 = B * B2_multiplier;
-      UV q;
-
-      if (verbose) gmp_printf("Starting second stage from %lu to %lu\n", (unsigned long)B, (unsigned long)B2);
-      p = prev_small_prime(B);
-      q = p;
-      mpz_init(b);
-      mpz_powm(b, a, m, n);
-      /* b = a^R mod n */
-      while ( (q = next_small_prime(q)) <= B2) {
-        mpz_pow_ui(x, a, q-p);   /* We should precalc these for small gaps */
-        mpz_mul(b, b, x);
-        mpz_tdiv_r(b, b, n);
-        /* b mod n = last b * b^(prime gap) */
-        mpz_set(x, b);
-        if (mpz_sgn(x) == 0)  mpz_set(x, n);
-        mpz_sub_ui(x, x, 1);
-        mpz_gcd(f, x, n);
-        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-          if (verbose) gmp_printf("p-1 second stage found factor %Zd\n", f);
-          mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
-          return 1;
-        }
-        p = q;
-      }
-      mpz_clear(b);
-      if (verbose) gmp_printf("End second stage\n");
-    }
-    if (B == smoothness_bound) break;
-    B *= 10; if (B > smoothness_bound) B = smoothness_bound;
-  }
-  mpz_clear(a); mpz_clear(m); mpz_clear(x);
-  mpz_set(f, n);
-  return 0;
-}
-#endif
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
@@ -1166,54 +1090,196 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_set(f, n);
   return 0;
 }
+#endif
 
-/* Alternate way.  Definitely simpler code.
- *
- * The above method does the textbook p-1, with a smoothness bound B generating
- * a stupendously large M, then we pick an a to examine GCD(a^M - 1 mod n, n).
- *
- * Some machines were sluggish doing multiplications on very large numbers, so
- * I've switched from:
- *    M = calc_lcm(B), b = a^M mod n
- * to
- *    b = calculate_b_for_B(B, a, n)
- * which is a trade of multiply huge numbers to powmod on much smaller ones.
- * It also turns out to follow the method indicated in Brent 1990, pg 5.
- *
- *
- * In contrast, the function below examines GCD(b^M - 1 mod n, n) where b is
- * semi-random between 1 and n, and M is just the loop counter.  This doesn't
- * seem like the same thing at all.  I think this method works better for very
- * small n, where small exponents plus a limited n range combine to give a good
- * chance of stumbling upon an exponent congruent to one that matches a large
- * lcm.  That is, if b = a^M mod n for some giant lcm-multiple M happens to
- * be < loops, then we end up finding a p-1 factor.  This works surprisingly
- * well if n is small, but seems unlikely to succeed with a big n.
- */
-int _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds)
+int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
-  mpz_t b;
-  UV loops;
+  mpz_t a, savea, b, t;
+  UV q, saveq, j;
+  unsigned char* s = 0;
 
   TEST_FOR_2357(n, f);
-  mpz_init_set_ui(b, 13);
+  if (B1 < 7) return 0;
 
-  for (loops = 1; loops <= rounds; loops++) {
-    mpz_add_ui(b, b, 1);
-    mpz_powm_ui(b, b, loops, n);
-    if (mpz_sgn(b) == 0) mpz_set(b, n);
-    mpz_sub_ui(b, b, 1);
-    mpz_gcd(f, b, n);
-    if (mpz_cmp(f, n) == 0)
-      break;
-    if (mpz_cmp_ui(f, 1) > 0) {
-      mpz_clear(b);
-      return 1;
+  mpz_init(a);
+  mpz_init(savea);
+  mpz_init(b);
+  mpz_init(t);
+
+  if (_verbose>2) gmp_printf("# trying %Zd  with B=%lu\n", n, (unsigned long)B1);
+
+  /* STAGE 1
+   * Montgomery 1987 p249-250 and Brent 1990 p5 both indicate we can calculate
+   * a^m mod n where m is the lcm of the integers to B1.  This can be done
+   * using either
+   *    m = calc_lcm(B), b = a^m mod n
+   * or
+   *    calculate_b_lcm(b, B1, a, n);
+   *
+   * The first means raising a to a huge power then doing the mod, which is
+   * inefficient and can be _very_ slow on some machines.  The latter does
+   * one powmod for each prime power, which works pretty well.  Yet another
+   * way to handle this is to loop over each prime p below B1, calculating
+   * a = a^(p^e) mod n, where e is the largest e such that p^e <= B1.
+   * My experience with GMP is that this last method is faster with large B1,
+   * sometimes a lot faster.
+   *
+   * One thing that can speed things up quite a bit is not running the GCD
+   * on every step.  However with small factors this means we can easily end
+   * up with multiple factors between GCDs, so we allow backtracking.  This
+   * could also be added to stage 2, but it's far less likely to happen there.
+   */
+  j = 1;
+  mpz_set_ui(a, 2);
+  mpz_set_ui(savea, 2);
+  saveq = 2;
+  /* We could wrap this in a loop trying a few different a values, in case
+   * the current one ended up going to 0. */
+  q = 2;
+  while (q <= B1) {
+    UV k, kmin;
+    k = q;
+    kmin = B1/q;
+    while (k <= kmin)
+      k *= q;
+    mpz_powm_ui(a, a, k, n );
+    if ( (j++ % 64) == 0) {     /* GCD every so often */
+      if ( !mpz_sgn(a) )
+        goto end_fail;
+      mpz_sub_ui(t, a, 1);
+      mpz_gcd(f, t, n);
+      if (mpz_cmp(f, n) == 0)
+        break;
+      if (mpz_cmp_ui(f, 1) != 0)
+        goto end_success;
+      saveq = q;
+      mpz_set(savea, a);
+    }
+    if (s) { 
+      do { q += 2; } while (s[q/16] & (1UL << ((q/2) % 8)));
+    } else {
+      q = next_small_prime(q);
+      if (q > 10000) {
+        s = sieve_erat(B1);
+        if (!s) goto end_fail;
+      }
     }
   }
-  mpz_clear(b);
-  mpz_set(f, n);
-  return 0;
+  if ( !mpz_sgn(a) )
+    goto end_fail;
+  mpz_sub_ui(t, a, 1);
+  mpz_gcd(f, t, n);
+  if (mpz_cmp(f, n) == 0) {
+    /* We found multiple factors.  Loop one at a time. */
+    mpz_set(a, savea);
+    for (q = saveq; q <= B1; q = next_small_prime(q)) {
+      UV k = q;
+      UV kmin = B1/q;
+      while (k <= kmin)
+        k *= q;
+      mpz_powm_ui(a, a, k, n );
+      mpz_sub_ui(t, a, 1);
+      mpz_gcd(f, t, n);
+      if (mpz_cmp(f, n) == 0)
+        goto end_fail;
+      if (mpz_cmp_ui(f, 1) != 0)
+        goto end_success;
+    }
+  }
+  if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+    goto end_success;
+
+  /* STAGE 2
+   * See Montgomery 1987, p249-250 for what one _should_ do.
+   * This is the standard continuation.  Enough space is reserved for a gap
+   * of 222, which is good for a B2 of 189 million.  For any very large gaps
+   * we just calculate the value directly.  We lazily cache the power chain.
+   */
+  if (B2 > B1) {
+    mpz_t b, bm, bmdiff;
+    mpz_t precomp_bm[111];
+    int   is_precomp[111] = {0};
+
+    if (_verbose>2) gmp_printf("# Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
+    /* We are walking primes up to B2.  Using a sieve is far, far more efficient
+     * than calling next_small_prime() or gmp_nextprime().  It would be helpful
+     * if this could be built-in like it is in Math::Prime::Util.
+     */
+    if (s) Safefree(s);
+    s = sieve_erat(B2);
+    if (!s) goto end_fail;
+    mpz_init(bmdiff);
+    mpz_init_set(bm, a);
+    mpz_init_set_ui(b, 1);
+    
+    mpz_powm_ui(bmdiff, bm, 2, n);
+    mpz_init_set(precomp_bm[0], bmdiff);
+    is_precomp[0] = 1;
+
+    mpz_powm_ui(a, a, q, n );
+
+    j = 1;
+    while (q <= B2) {
+      UV lastq = q;
+      UV qdiff;
+
+      do { q += 2; } while (s[q/16] & (1UL << ((q/2) % 8)));
+      qdiff = (q - lastq) / 2 - 1;
+      if (qdiff >= 111) {
+        mpz_powm_ui(bmdiff, bm, q-lastq, n);  /* Big gap */
+      } else if (is_precomp[qdiff]) {
+        mpz_set(bmdiff, precomp_bm[qdiff]);
+      } else {
+        if (is_precomp[qdiff-1]) {
+          mpz_mul(bmdiff, precomp_bm[qdiff-1], bm);
+          mpz_mul(bmdiff, bmdiff, bm);
+          mpz_tdiv_r(bmdiff, bmdiff, n);
+        } else {
+          mpz_powm_ui(bmdiff, bm, q-lastq, n);
+        }
+        mpz_init_set(precomp_bm[qdiff], bmdiff);
+        is_precomp[qdiff] = 1;
+      }
+      mpz_mul(a, a, bmdiff);
+      mpz_tdiv_r(a, a, n);
+      if ( !mpz_sgn(a) )
+        break;
+      mpz_sub_ui(t, a, 1);
+      mpz_mul(b, b, t);
+      mpz_tdiv_r(b, b, n);
+      if ( (j++ % 64) == 0) {     /* GCD every so often */
+        mpz_gcd(f, b, n);
+        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+          break;
+      }
+    }
+    if ( !mpz_sgn(a) )
+      goto end_fail;
+    mpz_gcd(f, b, n);
+    mpz_clear(b);
+    mpz_clear(bm);
+    mpz_clear(bmdiff);
+    for (j = 0; j < 111; j++) {
+      if (is_precomp[j])
+        mpz_clear(precomp_bm[j]);
+    }
+    if (_verbose>2) gmp_printf("# End second stage\n");
+    if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+      goto end_success;
+  }
+
+  end_fail:
+    mpz_set(f,n);
+  end_success:
+    if (s) Safefree(s);
+    mpz_clear(a);
+    mpz_clear(savea);
+    mpz_clear(b);
+    mpz_clear(t);
+    if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+      return 1;
+    mpz_set(f, n);
+    return 0;
 }
 
 int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
@@ -1418,7 +1484,6 @@ static int shanks_mult(mpz_t n, mpz_t f)
 
 int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 {
-   /* Multiplier ordering from Granlund and Möller */
    const UV multipliers[] = {
       3*5*7*11, 3*5*7, 3*5*11, 3*5, 3*7*11, 3*7, 5*7*11, 5*7,
       3*11,     3,     5*11,   5,   7*11,   7,   11,     1   };

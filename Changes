@@ -12,6 +12,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
          Add a perfect power test.
          Add a simple ECM factoring method.
          Speed up SQUFOF a bit.
+         Complete p-1 rewrite.  Much faster and finds more factors.
          Adjust general factor() mix.
 
     - Add Pocklington-Lehmer and BLS primality tests.  is_prime() uses the
