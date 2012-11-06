@@ -450,12 +450,12 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
+          /* Small p-1 */
+          if (!success)  success = _GMP_pminus1_factor(n, f, 100000, 1000000);
+          if (success&&o) {gmp_printf("p-1 (100k) found factor %Zd\n", f);o=0;}
+
           if (!success)  success = _GMP_ecm_factor(n, f, 12500, 4);
           if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
-
-          /* Small p-1 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 40000, 40000*8);
-          if (success&&o) {gmp_printf("p-1 (40k) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}
@@ -475,7 +475,7 @@ _GMP_factor(IN char* strn)
           if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
 
           /* Large p-1 with stage 2: B2 = 20*B1 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 3000000, 3000000*20);
+          if (!success)  success = _GMP_pminus1_factor(n, f, 5000000, 5000000*20);
           if (success&&o) {gmp_printf("p-1 (3M) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024*1024);

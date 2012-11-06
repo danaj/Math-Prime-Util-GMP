@@ -1134,14 +1134,16 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   /* We could wrap this in a loop trying a few different a values, in case
    * the current one ended up going to 0. */
   q = 2;
+  mpz_set_ui(t, 1);
   while (q <= B1) {
     UV k, kmin;
     k = q;
     kmin = B1/q;
     while (k <= kmin)
       k *= q;
-    mpz_powm_ui(a, a, k, n );
-    if ( (j++ % 64) == 0) {     /* GCD every so often */
+    mpz_mul_ui(t, t, k);
+    if ( (j++ % 32) == 0) {     /* GCD every so often */
+      mpz_powm(a, a, t, n);
       if ( !mpz_sgn(a) )
         goto end_fail;
       mpz_sub_ui(t, a, 1);
@@ -1163,6 +1165,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       }
     }
   }
+  mpz_powm(a, a, t, n);
   if ( !mpz_sgn(a) )
     goto end_fail;
   mpz_sub_ui(t, a, 1);
