@@ -1192,9 +1192,12 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 
   /* STAGE 2
    * See Montgomery 1987, p249-250 for what one _should_ do.
-   * This is the standard continuation.  Enough space is reserved for a gap
-   * of 222, which is good for a B2 of 189 million.  For any very large gaps
-   * we just calculate the value directly.  We lazily cache the power chain.
+   * This is the standard continuation which replaces the powmods in stage 1
+   * with two mulmods, with a GCD every 64 primess (no backtracking
+   * implemented).  This is quite a bit faster than stage 1.
+   * We quickly precalculate a few of the prime gaps, and lazily cache others
+   * up to a gap of 222.  That's enough for a B2 value of 189 million.  We
+   * still work above that, we just won't cache the value.
    */
   if (B2 > B1) {
     mpz_t b, bm, bmdiff;
@@ -1213,9 +1216,17 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_init_set(bm, a);
     mpz_init_set_ui(b, 1);
     
+    /* Set the first 20 differences */
     mpz_powm_ui(bmdiff, bm, 2, n);
     mpz_init_set(precomp_bm[0], bmdiff);
     is_precomp[0] = 1;
+    for (j = 1; j < 20; j++) {
+      mpz_mul(bmdiff, bmdiff, bm);
+      mpz_mul(bmdiff, bmdiff, bm);
+      mpz_tdiv_r(bmdiff, bmdiff, n);
+      mpz_init_set(precomp_bm[j], bmdiff);
+      is_precomp[j] = 1;
+    }
 
     mpz_powm_ui(a, a, q, n );
 
@@ -1231,13 +1242,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       } else if (is_precomp[qdiff]) {
         mpz_set(bmdiff, precomp_bm[qdiff]);
       } else {
-        if (is_precomp[qdiff-1]) {
-          mpz_mul(bmdiff, precomp_bm[qdiff-1], bm);
-          mpz_mul(bmdiff, bmdiff, bm);
-          mpz_tdiv_r(bmdiff, bmdiff, n);
-        } else {
-          mpz_powm_ui(bmdiff, bm, q-lastq, n);
-        }
+        mpz_powm_ui(bmdiff, bm, q-lastq, n);
         mpz_init_set(precomp_bm[qdiff], bmdiff);
         is_precomp[qdiff] = 1;
       }
