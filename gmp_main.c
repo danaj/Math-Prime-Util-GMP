@@ -1141,13 +1141,14 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     kmin = B1/q;
     while (k <= kmin)
       k *= q;
-    mpz_mul_ui(t, t, k);
-    if ( (j++ % 32) == 0) {     /* GCD every so often */
-      mpz_powm(a, a, t, n);
+    mpz_mul_ui(t, t, k);        /* Accumulate powers for a */
+    if ( (j++ % 32) == 0) {
+      mpz_powm(a, a, t, n);     /* a=a^(k1*k2*k3*...) mod n */
       if ( !mpz_sgn(a) )
         goto end_fail;
       mpz_sub_ui(t, a, 1);
-      mpz_gcd(f, t, n);
+      mpz_gcd(f, t, n);         /* f = gcd(a-1, n) */
+      mpz_set_ui(t, 1);
       if (mpz_cmp(f, n) == 0)
         break;
       if (mpz_cmp_ui(f, 1) != 0)
@@ -1259,8 +1260,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
           break;
       }
     }
-    if ( !mpz_sgn(a) )
-      goto end_fail;
     mpz_gcd(f, b, n);
     mpz_clear(b);
     mpz_clear(bm);
