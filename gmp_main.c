@@ -968,30 +968,41 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 
 void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 {
-  double logB = log(B);
-  UV p, exponent;
+  UV p, p_power, pmin;
 
   /* Simple sieve to B */
   unsigned char* s = sieve_erat(B);
   if (s == 0)
     croak("Could not get sieve for primes up to %lu\n", (unsigned long) B);
 
+  /* For each prime, multiply m by p^floor(log B / log p), which means
+   * raise p to the largest power e such that p^e <= B.
+   */
   mpz_set_ui(m, 1);
-  exponent = logB / log(2);
-  if (B >= 2)  mpz_mul_ui(m, m, (UV)pow(2, exponent));
+  if (B >= 2) {
+    p_power = 2;
+    while (p_power <= B/2)
+      p_power *= 2;
+    mpz_mul_ui(m, m, p_power);
+  }
   p = 3;
-  while ( (p <= B) && (exponent != 1) ) {
-    exponent = logB / log(p);
-    mpz_mul_ui(m, m, (UV)pow(p, exponent) );
+  while (p <= B) {
+    pmin = B/p;
+    if (p > pmin)
+      break;
+    p_power = p*p;
+    while (p_power <= pmin)
+      p_power *= p;
+    mpz_mul_ui(m, m, p_power);
     do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
   }
-  /* All the exponent = 1 portion.  */
-  while ( p <= B ) {
+  while (p <= B) {
     mpz_mul_ui(m, m, p);
     do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
   }
   Safefree(s);
 }
+
 
 #if 0
    /* This is the old pminus1 implementation */
