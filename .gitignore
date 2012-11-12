@@ -2,6 +2,8 @@ Math-Prime-Util-*.tar.gz
 Makefile
 Makefile.old
 MYMETA.*
+GMP.bs
 XS.[co]
 gmp_main.o
 blib*
+pm_to_blib
