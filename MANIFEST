@@ -15,7 +15,9 @@ t/02-can.t
 t/10-isprime.t
 t/11-primes.t
 t/12-nextprime.t
+t/13-primecount.t
 t/15-probprime.t
+t/16-provableprime.t
 t/17-pseudoprime.t
 t/20-primorial.t
 t/21-conseq-lcm.t

@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_prime is_provable_prime/;
+use Math::Prime::Util::GMP qw/is_prime/;
 
 my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
 
@@ -21,7 +21,7 @@ plan tests => 0 + 6
                 + 8
                 + 6
                 + 10
-                + 2
+                + 1
                 + 0;
 
 # Some of these tests were inspired by Math::Primality's tests
@@ -144,4 +144,3 @@ map { ok(!is_prime($_), "Large composite $_ is not prime" ) }
     /;
 
 is(is_prime('340282366920938463463374607431768211507'), 2, "is_prime(2**128+51) = 2");
-is(is_provable_prime('340282366920938463463374607431768211621'), 2, "is_provable_prime(2**128+165) == 2");

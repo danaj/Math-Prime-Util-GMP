@@ -394,7 +394,10 @@ int _GMP_is_provable_prime(mpz_t n)
   if (prob_prime != 1)
     return prob_prime;
 
-  /* Try some more bases since these tests are fast.  These aren't special. */
+  /* Miller-Rabin tests are fast, and the primality proving methods are
+   * really, really, really slow for composites.  So run a few more MR tests
+   * just in case.  These bases aren't special.
+   */
   if (    (_GMP_miller_rabin_ui(n, 325) == 0)
        || (_GMP_miller_rabin_ui(n, 131) == 0)
        || (_GMP_miller_rabin_ui(n, 223) == 0)
@@ -427,20 +430,6 @@ int _GMP_is_provable_prime(mpz_t n)
  *         gcd(a^((n-1)/f)-1,n) = 1
  * then n is prime.
  *
- * The last is also known as the Pocklington-Lehmer test, and looks to be
- * the best of these, since we don't have to factor all of n-1 and we can
- * look for a different a value for each factor.  This is corollary 1 from
- * BLS75.
- *
- * One problem with all of these is that once we've found factors of n-1
- * (something that becomes less practical as n gets large), it is quite
- * fast to verify a prime (a=2 works for most primes, few seem to require
- * more than ~log2(n).  However it is quite difficult to answer in the
- * negative, since we'd seemingly have to test n-3 values of a.
- *
- * BLS75's Theorem 5 is an improvement and also gives a possible negative
- * result without having to test too many a values.
- *
  * BLS: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
  *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
  *   - (A+1) * (2*A*A + (r-1) * A + 1) > n
@@ -451,6 +440,20 @@ int _GMP_is_provable_prime(mpz_t n)
  *         n is prime
  *     else
  *         n is composite
+ *
+ * The generalized Pocklington test is also sometimes known as the
+ * Pocklington-Lehmer test.  It's definitely an improvement over Lucas
+ * since we only have to find factors up to sqrt(n), _and_ we can choose
+ * a different 'a' value for each factor.  This is corollary 1 from BLS75.
+ *
+ * BLS is the Brillhart-Lehmer-Selfridge 1975 theorem 5 (see link below).
+ * We can factor even less of n, and the test lets us kick out some
+ * composites early, without having to test n-3 different 'a' values.
+ *
+ * Once we've found the factors of n-1 (or enough of them), verification
+ * usually happens really fast.  a=2 works for most, and few seem to require
+ * more than ~ log2(n).  However all but BLS75 require testing all integers
+ * 1 < a < n-1 before answering in the negative, which is impractical.
  *
  *
  * AKS is not too hard to implement, but it's impractically slow.
@@ -494,6 +497,7 @@ int _GMP_is_provable_prime(mpz_t n)
     } \
   }
 
+#if 0
 int _GMP_primality_pocklington(mpz_t n, int do_quick)
 {
   mpz_t nm1, A, B, sqrtn, t, m, f;
@@ -613,6 +617,7 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
   mpz_clear(t);
   return success;
 }
+#endif
 
 int _GMP_primality_bls(mpz_t n, int do_quick)
 {
@@ -688,8 +693,9 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       if (!success)  success = _GMP_pbrent_factor(m, f, 7, 64*1024);
       if (!success)  success = _GMP_pbrent_factor(m, f,11, 64*1024);
       if (!success)  success = _GMP_pbrent_factor(m, f,13, 64*1024);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 1, 16*1024*1024);
-      if (!success)  success = _GMP_ecm_factor   (m, f, 12500, 4);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 100000, 1000000);
+      if (!success)  success = _GMP_ecm_factor   (m, f, 125000, 5);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 1, 8*1024*1024);
       if (!success)  success = _GMP_ecm_factor   (m, f, 3125000, 10);
       if (!success)  success = _GMP_pbrent_factor(m, f, 3, 256*1024*1024);
       if (!success)  success = _GMP_ecm_factor   (m, f, 400000000, 200);

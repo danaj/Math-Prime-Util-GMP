@@ -10,8 +10,8 @@ my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
 plan tests => 0 + 56
                 + 22
                 + 2
-                + 2
-                + 6*6
+                + 3
+                + 6*7
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -121,6 +121,8 @@ Math::Prime::Util::GMP::_GMP_set_verbose(0);
 #diag "factor 736-bit number with HOLF";
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::holf_factor('185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863') ], ['192606732705880508138303165129171270891951231683030125996296974238495711578947569589234612013165893468683239489', '963033663529402540691515825645856354459756158415150629981484871192478557894737847946173060065829467343416197967'], "HOLF factors poorly formed 222-digit semiprime" );
 
+# Test stage 2 of pminus1
+is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('23113042053749572861737011', 100, 100000) ], ['694059980329', '33301217054459'], "p-1 factors 23113042053749572861737011 in stage 2");
 
 #diag "extra tests for each method";
 extra_factor_test("prho_factor",   sub {Math::Prime::Util::GMP::prho_factor(shift)});
@@ -137,6 +139,7 @@ sub extra_factor_test {
   is_deeply( [ sort {$a<=>$b} $fsub->(0)   ], [0],       "$fname(0)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(1)   ], [1],       "$fname(1)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(2)   ], [2],       "$fname(2)" );
+  is_deeply( [ sort {$a<=>$b} $fsub->(13)  ], [13],      "$fname(13)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(403) ], [13, 31],  "$fname(403)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(53936983) ], [7013, 7691],  "$fname(53936983)" );
   is_deeply( [ sort {$a<=>$b} $fsub->('1754012594703269855671') ], ['41110234981', '42666080491'],  "$fname(1754012594703269855671)" );

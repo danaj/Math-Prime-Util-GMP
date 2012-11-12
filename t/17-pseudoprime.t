@@ -60,23 +60,48 @@ foreach my $psrp (keys %large_pseudoprimes) {
 }
 
 
-plan tests => 0 + 3
-                + 4
+plan tests => 0 + 9
+                + 3
+                + 6
                 + $num_pseudoprimes
                 + 1  # mr base 2    2-4k
                 + scalar @small_lucas_trials
                # + $num_large_pseudoprime_tests
                 + 0;
 
-ok(!eval { is_strong_pseudoprime(2047); }, "MR with no base fails");
-ok(!eval { is_strong_pseudoprime(2047,0); }, "MR base 0 fails");
-ok(!eval { is_strong_pseudoprime(2047,1); }, "MR base 1 fails");
+eval { is_strong_pseudoprime(2047); };
+like($@, qr/no base/i, "is_strong_pseudoprime with no base fails");
+eval { is_strong_pseudoprime(2047, undef); };
+like($@, qr/defined/i, "is_strong_pseudoprime with base undef fails");
+eval { is_strong_pseudoprime(2047, ''); };
+like($@, qr/positive/i, "is_strong_pseudoprime with base '' fails");
+eval { is_strong_pseudoprime(2047,0); };
+like($@, qr/>= 2/i, "is_strong_pseudoprime with base 0 fails");
+eval { is_strong_pseudoprime(2047,1); };
+like($@, qr/>= 2/i, "is_strong_pseudoprime with base 1 fails");
+eval { is_strong_pseudoprime(2047,-7); };
+like($@, qr/positive/i, "is_strong_pseudoprime with base -7 fails");
+eval { is_strong_pseudoprime(undef, 2); };
+like($@, qr/defined/i, "is_strong_pseudoprime(undef,2) is invalid");
+eval { is_strong_pseudoprime('', 2); };
+like($@, qr/empty string/i, "is_strong_pseudoprime('',2) is invalid");
+eval { is_strong_pseudoprime(-7, 2); };
+like($@, qr/integer/i, "is_strong_pseudoprime(-7,2) is invalid");
 
-is( is_strong_pseudoprime(0, 2), 0, "MR with 0 shortcut composite");
-is( is_strong_pseudoprime(1, 2), 0, "MR with 0 shortcut composite");
-is( is_strong_pseudoprime(2, 2), 1, "MR with 2 shortcut prime");
-is( is_strong_pseudoprime(3, 2), 1, "MR with 3 shortcut prime");
+eval { no warnings; is_strong_lucas_pseudoprime(undef); };
+like($@, qr/empty string/i, "is_strong_lucas_pseudoprime(undef) is invalid");
+eval { is_strong_lucas_pseudoprime(''); };
+like($@, qr/empty string/i, "is_strong_lucas_pseudoprime('') is invalid");
+eval { is_strong_lucas_pseudoprime(-7); };
+like($@, qr/integer/i, "is_strong_lucas_pseudoprime(-7) is invalid");
 
+
+is( is_strong_pseudoprime(0, 2), 0, "spsp(0, 2) shortcut composite");
+is( is_strong_pseudoprime(1, 2), 0, "spsp(1, 2) shortcut composite");
+is( is_strong_pseudoprime(2, 2), 1, "spsp(2, 2) shortcut prime");
+is( is_strong_pseudoprime(3, 2), 1, "spsp(2, 2) shortcut prime");
+is( is_strong_lucas_pseudoprime(1), 0, "slpsp(1) shortcut composite");
+is( is_strong_lucas_pseudoprime(3), 1, "slpsp(3) shortcut prime");
 
 # Check that each strong pseudoprime base b makes it through MR with that base
 while (my($base, $ppref) = each (%pseudoprimes)) {

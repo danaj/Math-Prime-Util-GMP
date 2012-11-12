@@ -24,3 +24,5 @@
   using trial division is super slow, but the non-segmented sieve is too much
   memory once past 100M or so.  Running p-1 with a B2 of 100B will wipe out
   many workstations.
+
+- Add AKS, just to have a working example.

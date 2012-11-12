@@ -50,7 +50,8 @@ BEGIN {
 sub _validate_positive_integer {
   my($n, $min, $max) = @_;
   croak "Parameter must be defined" if !defined $n;
-  croak "Parameter '$n' must be a positive integer" if $n =~ tr/0123456789//c;
+  croak "Parameter '$n' must be a positive integer"
+        if $n eq '' || $n =~ tr/0123456789//c;
   croak "Parameter '$n' must be >= $min" if defined $min && $n < $min;
   croak "Parameter '$n' must be <= $max" if defined $max && $n > $max;
   1;
@@ -59,9 +60,10 @@ sub _validate_positive_integer {
 
 sub is_strong_pseudoprime {
   my($n, @bases) = @_;
+  croak "Parameter must be defined" if !defined $n;
   croak "No bases given to is_strong_pseudoprime" unless @bases;
   foreach my $base (@bases) {
-    croak "Base $base is invalid" if $base < 2;
+    _validate_positive_integer($base, 2);
     return 0 unless _GMP_miller_rabin("$n", "$base");
   }
   1;
@@ -135,25 +137,32 @@ Version 0.04
   # enter big number arguments directly as well as enter (e.g.): 2**2048 + 1.
   use bigint;
 
-  # is_prob_prime returns 0 for composite, 2 for prime, and 1 for maybe prime
-  say "$n is ", qw(composite prob_prime def_prime)[is_prob_prime($n)];
+  # These return 0 for composite, 2 for prime, and 1 for probably prime
+  # Numbers under 2^64 will return 0 or 2.
+  # is_prob_prime does a BPSW primality test for numbers > 2^64
+  # is_prime adds a quick test to try to prove the result
+  # is_provable_prime will spend a lot of effort on proving primality
 
-  # is_prime currently is the same -- a BPSW test is used.
-  say "$n is prime" if is_prime($n);
+  say "$n is probably prime"    if is_prob_prime($n);
+  say "$n is ", qw(composite prob_prime def_prime)[is_prime($n)];
+  say "$n is definitely prime"  if is_provable_prime($n) == 2;
 
-  # Run a series of Miller-Rabin tests
+  # Miller-Rabin and strong Lucas-Selfridge pseudoprime tests
   say "$n is a prime or spsp-2/7/61" if is_strong_pseudoprime($n, 2, 7, 61);
-
-  # See if $n is a strong Lucas-Selfridge pseudoprime
-  say "$n is a prime or slpsp" if is_strong_lucas_pseudoprime($n);
+  say "$n is a prime or slpsp"       if is_strong_lucas_pseudoprime($n);
 
   # Return array reference to primes in a range.
   my $aref = primes( 10 ** 200, 10 ** 200 + 10000 );
 
   $next = next_prime($n);    # next prime > n
-
   $prev = prev_prime($n);    # previous prime < n
+
+  # Primorials and lcm
+  say "23# is ", primorial(23);
+  say "The product of the first 47 primes is ", pn_primorial(47);
+  say "lcm(1..1000) is ", consecutive_integer_lcm(1000);
   
+
   # Find prime factors of big numbers
   @factors = factor(5465610891074107968111136514192945634873647594456118359804135903459867604844945580205745718497);
 
@@ -163,9 +172,10 @@ Version 0.04
   @factors = trial_factor($n);    # test up to o1
   @factors = prho_factor($n);     # no more than o1 rounds
   @factors = pbrent_factor($n);   # no more than o1 rounds
-  @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
   @factors = holf_factor($n);     # no more than o1 rounds
   @factors = squfof_factor($n);   # no more than o1 rounds
+  @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
+  @factors = ecm_factor($n);      # o1 = B1, o2 = # of curves
 
 =head1 DESCRIPTION
 
@@ -177,11 +187,12 @@ for L<Math::Prime::Util>.  That module will automatically load this if it is
 installed, greatly speeding up many of its operations on big numbers.
 
 Inputs and outputs for big numbers are via strings, so you do not need to
-use a bigint package in your program.  However if you do use bigint, Perl
-will automatically convert input for you, so you do not have to stringify
-your numbers.  This output however will be returned as either Perl scalars
-or strings.  L<Math::Prime::Util> tries to reconvert all strings back into
-the callers bigint type if possible.
+use a bigint package in your program.  However if you do use bigints, inputs
+will be converted internally so there is no need to convert before a call.
+Output results are returned as either Perl scalars (for native-size) or
+strings (for bigints).  L<Math::Prime::Util> tries to reconvert
+all strings back into the callers bigint type if possible, which makes it more
+convenient for calculations.
 
 
 =head1 FUNCTIONS
@@ -195,14 +206,13 @@ Takes a positive number as input and returns back either 0 (composite),
 2 (definitely prime), or 1 (probably prime).
 
 For inputs below C<2^64> a deterministic test is performed, so the possible
-return values are 0 (composite) or 2 (definitely prime).  The current
-implementation uses a strong Baillie-PSW test, but later ones may use
-a deterministic set of Miller-Rabin tests if that is faster for some inputs.
+return values are 0 (composite) or 2 (definitely prime).
 
 For inputs above C<2^64>, a probabilistic test is performed.  Only 0 (composite)
-and 1 (probably prime) are returned.  There is a possibility that composites
-may be returned marked prime, but since the test was published in 1980, not a
-single BPSW pseudoprime has been found, so it is extremely likely to be prime.
+and 1 (probably prime) are returned.  The current implementation uses a strong
+Baillie-PSW test.  There is a possibility that composites may be returned
+marked prime, but since the test was published in 1980, not a single BPSW
+pseudoprime has been found, so it is extremely likely to be prime.
 While we believe (Pomerance 1984) that an infinite number of counterexamples
 exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
@@ -236,8 +246,9 @@ Takes a positive number as input and returns back either 0 (composite),
 taken to return either 0 or 2 for all numbers.
 
 The current method is the BLS75 algorithm as described in C<is_prime>,
-but using much more aggressive factoring.  Future enhancements include
-using ECPP for much faster results, and the ability to return a certificate.
+but using much more aggressive factoring.  Planned enhancements for a later
+release include using a faster method (e.g. APRCL or ECPP), and the ability
+to return a certificate.
 
 
 =head2 is_strong_pseudoprime
@@ -250,7 +261,7 @@ input is a prime or a strong pseudoprime to all of the bases, and 0 if not.
 
 If 0 is returned, then the number really is a composite.  If 1 is returned,
 then it is either a prime or a strong pseudoprime to all the given bases.
-Given enough distinct bases, the chances become very, very strong that the
+Given enough distinct bases, the chances become very strong that the number
 number is actually prime.
 
 Both the input number and the bases may be big integers.  The bases must be
@@ -291,9 +302,9 @@ a lower limit of C<2> if none is given.
 An array reference is returned (with large lists this is much faster and uses
 less memory than returning an array directly).
 
-The current implementation uses repeated calls to C<next_prime>.  This is not
-as efficient as a sieve for large ranges, but also uses no additional memory
-and is fast for very small ranges.
+The current implementation uses repeated calls to C<next_prime>, which is
+good for very small ranges, but not good for large ranges.  A future release
+may use a multi-segmented sieve when appropriate.
 
 
 =head2 next_prime
@@ -316,21 +327,24 @@ input is C<2> or lower.
   $p = primorial($n);
 
 Given an unsigned integer argument, returns the product of the prime numbers
-less than or equal to C<n>.  This is the
-L<OEIS series A034386|http://oeis.org/A034386> definition of C<p#>.
+which are less than or equal to C<n>.  This definition of C<n#> follows
+L<OEIS series A034386|http://oeis.org/A034386> and
+L<Wikipedia: Primorial definition for natural numbers|http://en.wikipedia.org/wiki/Primorial#Definition_for_natural_numbers>.
 
 =head2 pn_primorial
 
   $p = pn_primorial($n)
 
 Given an unsigned integer argument, returns the product of the first C<n>
-prime numbers.  This is the L<OEIS series A002110|http://oeis.org/A002110>
-definition for C<p_n#>.
+prime numbers.  This definition of C<p_n#> follows
+L<OEIS series A002110|http://oeis.org/A002110> and
+L<Wikipedia: Primorial definition for prime numbers|http://en.wikipedia.org/wiki/Primorial#Definition_for_prime_numbers>.
 
 The two are related with the relationships:
 
   pn_primorial($n)  ==   primorial( nth_prime($n) )
   primorial($n)     ==   pn_primorial( prime_count($n) )
+
 
 =head2 consecutive_integer_lcm
 
@@ -350,22 +364,23 @@ n factorial.
 Returns a list of prime factors of a positive number, in numerical order.  The
 special cases of C<n = 0> and C<n = 1> will return C<n>.
 
-The current algorithm uses trial division, then while the number is composite
-it runs a sequence of factoring tests, including small runs of Pollard's Rho,
-perfect power detection, small ECM runs, Pollard's P-1 with various smoothness
-and stage settings, longer runs of Pollard's Rho using Brent's algorithm,
-a quick check with Hart's OLF, a long run with ECM, and will finally give up.
+Like most advanced factoring programs, a mix of methods is used.  This
+includes trial division for small factors, perfect power detection,
+Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
+Hart's OLF, and ECM (elliptic curve method).
 
 Certainly improvements could be designed for this algorithm (suggestions are
-welcome).  Most importantly, adding MPQS/SIQS would make a huge difference
-with larger numbers.  These are non-trivial (though feasible) methods.
+welcome).  Most importantly, improving ECM and adding MPQS/SIQS would be a
+big help with larger numbers.  These are non-trivial (though feasible) methods.
 
-In practice, this factors most 26-digit semiprimes in under a second.  Cracking
-14-digit prime factors from large numbers takes about 5 seconds each (Pari
-takes about 1 second, and yafu about 0.3 seconds).  20-digit factors are
-practical but take a long time compared to real factoring programs.  Beyond
-20-digits will take inordinately long.  Note that these are the size of the
-smallest factor, not the size of the input number, as shown by the example.
+In practice, this factors most 26-digit semiprimes in under a second.  It is
+many orders of magnitude faster than any other factoring module on CPAN circa
+2012.  Pari's factorint is faster (and can be accessed from Perl via
+L<Math::Pari>), as are the standalone programs
+L<yafu|http://sourceforge.net/projects/yafu/>,
+L<msieve|http://sourceforge.net/projects/msieve/>,
+L<gmp-ecm|http://ecm.gforge.inria.fr/>,
+L<GGNFS|http://sourceforge.net/projects/ggnfs/>.
 
 
 =head2 trial_factor
@@ -435,8 +450,10 @@ Given a positive number input, tries to discover a factor using Pollard's
 C<p-1> method.  The resulting array will contain either two factors (it
 succeeded) or the original number (no factor was found).  In either case,
 multiplying @factors yields the original input.  An optional first stage
-smoothness factor (B1) may be given as the second parameter in which case the
-algorithm will ramp up to that smoothness factor, also running a second stage.
+smoothness factor (B1) may be given as the second parameter.  This will be
+the smoothness limit B1 for for the first stage, and will use C<10*B1> for
+the second stage limit B2.  If a third parameter is given, it will be used
+as the second stage limit B2.
 Factoring will stop when the input is a prime, one factor has been found, or
 the algorithm fails to find a factor with the given smoothness.
 
@@ -473,7 +490,7 @@ This is Hart's One Line Factorization method, which is a variant of Fermat's
 algorithm.  A premultiplier of 480 is used.  It is very good at factoring
 numbers that are close to perfect squares, or small numbers.  Very naive
 methods of picking RSA parameters sometimes yield numbers in this form, so
-it can be useful to run this a few rounds to see.  For example, the number:
+it can be useful to run this a few rounds to check.  For example, the number:
 
   18548676741817250104151622545580576823736636896432849057 \
   10984160646722888555430591384041316374473729421512365598 \
@@ -501,7 +518,7 @@ parameter.  Factoring will stop when the input is a prime, one factor has
 been found, or the number of rounds has been exceeded.
 
 This is Daniel Shanks' SQUFOF (square forms factorization) algorithm.  The
-particular implementation is a non-racing multiple multiplier version, based
+particular implementation is a non-racing multiple-multiplier version, based
 on code ideas of Ben Buhrow and Jason Papadopoulos as well as many others.
 SQUFOF is often the preferred method for small numbers, and L<Math::Prime::Util>
 as well as many other packages use it was the default method for native size
@@ -549,12 +566,13 @@ prime_count.  It uses L<Math::GMPz> to do all the calculations, so is
 faster than pure Perl bignums, but a little slower than XS+GMP.  The
 prime_count function is only usable for very small inputs (it is many
 thousands of times slower than L<Math::Prime::Util>), but the other
-functions are reasonable, though a little slower than this module.
+functions are quite reasonable.
 If you use large numbers, make sure to use version 0.05 or newer.
 
 =item L<yafu|http://sourceforge.net/projects/yafu/>, 
 L<msieve|http://sourceforge.net/projects/msieve/>,
-L<gmp-ecm|http://ecm.gforge.inria.fr/>
+L<gmp-ecm|http://ecm.gforge.inria.fr/>,
+L<GGNFS|http://sourceforge.net/projects/ggnfs/>
 Good general purpose factoring utilities.  These will be faster than this
 module, and B<much> faster as the factor increases in size.
 
@@ -571,6 +589,8 @@ module, and B<much> faster as the factor increases in size.
 
 =item Richard P. Brent, "An improved Monte Carlo factorization algorithm", BIT 20, 1980, pp. 176-184.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb051i.pdf>
 
+=item Peter L. Montgomery, "Speeding the Pollard and Elliptic Curve Methods of Factorization", Mathematics of Computation, v48, n177, Jan 1987, pp 243-264.  L<http://www.ams.org/journals/mcom/1987-48-177/S0025-5718-1987-0866113-7/>
+
 =item Richard P. Brent, "Parallel Algorithms for Integer Factorisation", in Number Theory and Cryptography, Cambridge University Press, 1990, pp 26-37.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb115.pdf>
 
 =item Richard P. Brent, "Some Parallel Algorithms for Integer Factorisation", in Proc. Third Australian Supercomputer Conference, 1999. (Note: there are multiple versions of this paper)  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb193.pdf>
@@ -580,8 +600,6 @@ module, and B<much> faster as the factor increases in size.
 =item Daniel Shanks, "SQUFOF notes", unpublished notes, transcribed by Stephen McMath.  L<http://www.usna.edu/Users/math/wdj/mcmath/shanks_squfof.pdf>
 
 =item Jason E. Gower and Samuel S. Wagstaff, Jr, "Square Form Factorization", Mathematics of Computation, v77, 2008, pages 551-588.  L<http://homes.cerias.purdue.edu/~ssw/squfof.pdf>
-
-=item Peter L. Montgomery, "Speeding the Pollard and Elliptic Curve Methods of Factorization", Mathematics of Computation, v48, n177, Jan 1987, pp 243-264.  L<http://www.ams.org/journals/mcom/1987-48-177/S0025-5718-1987-0866113-7/>
 
 =back
 

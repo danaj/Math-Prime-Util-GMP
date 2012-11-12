@@ -94,6 +94,8 @@ is_strong_lucas_pseudoprime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
+    if ((strn != 0) && (strn[0] == '-') )
+      croak("Parameter '%s' must be a positive integer\n", strn);
     PRIMALITY_START("is_strong_lucas_pseudoprime", 1);
     RETVAL = _GMP_is_strong_lucas_pseudoprime(n);
     mpz_clear(n);
@@ -127,7 +129,7 @@ is_provable_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    PRIMALITY_START("is_prime", 2);
+    PRIMALITY_START("is_provable_prime", 2);
     RETVAL = _GMP_is_provable_prime(n);
     mpz_clear(n);
   OUTPUT:

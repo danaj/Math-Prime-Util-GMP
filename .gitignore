@@ -1,0 +1,7 @@
+Math-Prime-Util-*.tar.gz
+Makefile
+Makefile.old
+MYMETA.*
+XS.[co]
+gmp_main.o
+blib*

@@ -18,7 +18,7 @@ extern int  _GMP_is_provable_prime(mpz_t n);
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
 
-extern int _GMP_primality_pocklington(mpz_t n, int do_quick);
+/* extern int _GMP_primality_pocklington(mpz_t n, int do_quick); */
 extern int _GMP_primality_bls(mpz_t n, int do_quick);
 
 extern int  _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds);
