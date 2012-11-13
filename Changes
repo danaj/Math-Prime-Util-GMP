@@ -1,5 +1,10 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.05  ?? November 2012
+
+    - Add AKS primality test.  Super slow, but nice to have around.
+
+
 0.04  11 November 2012
 
     - Add simple prime_count function.  It uses next_prime so is terribly slow

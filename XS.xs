@@ -135,6 +135,18 @@ is_provable_prime(IN char* strn)
   OUTPUT:
     RETVAL
 
+int
+is_aks_prime(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_aks_prime", 2);
+    RETVAL = _GMP_is_aks_prime(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+
 #define XPUSH_MPZ(n) \
   { \
     /* Push as a scalar if <= min(ULONG_MAX,UV_MAX), string otherwise */ \

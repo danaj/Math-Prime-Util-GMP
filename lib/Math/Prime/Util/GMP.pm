@@ -15,6 +15,7 @@ our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
                      is_provable_prime
+                     is_aks_prime
                      is_strong_pseudoprime
                      is_strong_lucas_pseudoprime
                      primes

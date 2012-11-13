@@ -413,6 +413,203 @@ int _GMP_is_provable_prime(mpz_t n)
   return 1;
 }
 
+/*****************************************************************************/
+/*          AKS.    This implementation is quite slow, but useful to have.   */
+
+static UV order(UV r, mpz_t n, UV limit) {
+  UV j;
+  mpz_t t;
+
+  mpz_init_set_ui(t, 1);
+  for (j = 1; j <= limit; j++) {
+    mpz_mul(t, t, n);
+    mpz_mod_ui(t, t, r);
+    if (!mpz_cmp_ui(t, 1))
+      break;
+  }
+  mpz_clear(t);
+  return j;
+}
+
+static void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
+{
+  int i, j;
+  UV rindex;
+
+  for (i = 0; i < r; i++)
+    mpz_set_ui(ptmp[i], 0);
+  for (i = 0; i < r; i++) {
+    if (!mpz_sgn(px[i])) continue;
+    for (j = 0; j < r; j++) {
+      if (!mpz_sgn(py[j])) continue;
+      rindex = (i+j) % r;
+      mpz_addmul( ptmp[rindex], px[i], py[j] );
+    }
+  }
+  /* Put ptmp into px and mod n */
+  for (i = 0; i < r; i++)
+    mpz_mod(px[i], ptmp[i], mod);
+}
+static void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
+{
+  int i, d, s;
+  UV degree = r-1;
+
+  for (i = 0; i < r; i++)
+    mpz_set_ui(ptmp[i], 0);
+  for (d = 0; d <= 2*degree; d++) {
+    UV rindex = d % r;
+    for (s = (d <= degree) ? 0 : d-degree; s <= (d/2); s++) {
+      if (s*2 == d) {
+        mpz_addmul( ptmp[rindex], px[s], px[s] );
+      } else {
+        mpz_addmul( ptmp[rindex], px[s], px[d-s] );
+        mpz_addmul( ptmp[rindex], px[s], px[d-s] );
+      }
+    }
+  }
+  /* Put ptmp into px and mod n */
+  for (i = 0; i < r; i++)
+    mpz_mod(px[i], ptmp[i], mod);
+}
+
+static void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod)
+{
+  int i;
+  mpz_t pow;
+
+  for (i = 0; i < r; i++)
+    mpz_set_ui(pres[i], 0);
+  mpz_set_ui(pres[0], 1);
+
+  mpz_init_set(pow, power);
+
+  while (mpz_cmp_ui(pow, 0) > 0) {
+    if (mpz_odd_p(pow))            poly_mod_mul(pres, pn, ptmp, r, mod);
+    mpz_tdiv_q_2exp(pow, pow, 1);
+    if (mpz_cmp_ui(pow, 0) > 0)    poly_mod_sqr(pn, ptmp, r, mod);
+  }
+  mpz_clear(pow);
+}
+
+static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
+{
+  int i;
+  int retval = 1;
+  UV n_mod_r;
+  mpz_t t;
+
+  for (i = 0; i < r; i++)
+    mpz_set_ui(px[i], 0);
+
+  a %= r;
+  mpz_set_ui(px[0], a);
+  mpz_set_ui(px[1], 1);
+
+  poly_mod_pow(py, px, ptmp, n, r, n);
+
+  mpz_init(t);
+  n_mod_r = mpz_mod_ui(t, n, r);
+  if (n_mod_r >= r)  croak("n % r >= r ?!");
+  mpz_sub_ui(t, py[n_mod_r], 1);
+  mpz_mod(py[n_mod_r], t, n);
+  mpz_sub_ui(t, py[0], a);
+  mpz_mod(py[0], t, n);
+  mpz_clear(t);
+
+  for (i = 0; i < r; i++)
+    if (mpz_sgn(py[i]))
+      retval = 0;
+  return retval;
+}
+
+int _GMP_is_aks_prime(mpz_t n)
+{
+  mpz_t sqrtn;
+  mpz_t *px, *py, *pt;
+  int i, retval;
+  UV log2n, limit, rlimit, r, a;
+
+  if (mpz_cmp_ui(n, 4) < 0) {
+    return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
+  }
+
+  if (mpz_perfect_power_p(n)) {
+    return 0;
+  }
+
+  mpz_init(sqrtn);
+  mpz_sqrt(sqrtn, n);
+  /* limit should be floor(log2(n) * log2(n)).  This overcalculates it. */
+  log2n = mpz_sizeinbase(n, 2);  /* ceil log2(n) */
+  limit = log2n * log2n;
+
+  if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %lu\n", n, (unsigned long) limit);
+
+  /* Using a native r limits us to ~2000 digits in the worst case (r ~ log^5n)
+   * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
+   * far too slow to matter either way. */
+
+  for (r = 2; mpz_cmp_ui(n, r) >= 0; r = next_small_prime(r)) {
+    if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
+      mpz_clear(sqrtn);
+      return 0;
+    }
+    if (mpz_cmp_ui(sqrtn, r) < 0) {  /* no r <= sqrtn divides n.  prime. */
+      mpz_clear(sqrtn);
+      return 1;
+    }
+    if (order(r, n, limit) > limit)
+      break;
+  }
+  mpz_clear(sqrtn);
+
+  if (mpz_cmp_ui(n, r) <= 0) {
+    return 1;
+  }
+
+  rlimit = (UV) floor( sqrt(r-1) * log2n );
+
+  if (_verbose) gmp_printf("# AKS %Zd.  r = %lu rlimit = %lu\n", n, (unsigned long) r, (unsigned long) rlimit);
+
+  /* Create the three polynomials we will use */
+  New(0, px, r, mpz_t);
+  New(0, py, r, mpz_t);
+  New(0, pt, r, mpz_t);
+  if ( !px || !py || !pt )
+    croak("allocation failure\n");
+  for (i = 0; i < r; i++) {
+    mpz_init(px[i]);
+    mpz_init(py[i]);
+    mpz_init(pt[i]);
+  }
+
+  retval = 1;
+  for (a = 1; a <= rlimit; a++) {
+    if (! test_anr(a, n, r, px, py, pt) ) {
+      retval = 0;
+      break;
+    }
+    if (_verbose>1) { printf("."); fflush(stdout); }
+  }
+  if (_verbose>1) { printf("\n"); fflush(stdout); };
+
+  /* Free the polynomials */
+  for (i = 0; i < r; i++) {
+    mpz_clear(px[i]);
+    mpz_clear(py[i]);
+    mpz_clear(pt[i]);
+  }
+  Safefree(px);
+  Safefree(py);
+  Safefree(pt);
+
+  return retval;
+}
+
+/*****************************************************************************/
+
+
 /*
  * Lucas (1876): Given a completely factored n-1, if there exists an a s.t.
  *     a^(n-1) % n = 1 
