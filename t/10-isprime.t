@@ -9,7 +9,7 @@ my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
 
 plan tests => 0 + 6
                 + 19
-                + 3573
+                + 1
                 + 10
                 + 29
                 + 22
@@ -69,12 +69,10 @@ my @small_primes = qw/
 my %small_primes;
 map { $small_primes{$_} = 1; } @small_primes;
 
-foreach my $n (0 .. 3572) {
-  if (defined $small_primes{$n}) {
-    ok(is_prime($n), "$n is prime");
-  } else {
-    ok(!is_prime($n), "$n is not prime");
-  }
+{
+  my @isprime = map { !!is_prime($_) } (0..3572);
+  my @exprime = map { !!defined $small_primes{$_} } (0..3572);
+  is_deeply( \@isprime, \@exprime, "is_prime 0..3572" );
 }
 
 map { ok(!is_prime($_), "A006945 number $_ is not prime") }
