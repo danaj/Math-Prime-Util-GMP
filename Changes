@@ -4,6 +4,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Add AKS primality test.  Super slow, but nice to have around.
 
+    - Updates to ECM.
 
 0.04  11 November 2012
 
