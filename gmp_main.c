@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <gmp.h>
 
 #include "EXTERN.h"
@@ -9,34 +10,26 @@
 #include "XSUB.h"
 
 #include "gmp_main.h"
-#include <math.h>
+#include "prime_iterator.h"
 
 static int _verbose = 0;
 void _GMP_set_verbose(int v) { _verbose = v; }
 int _GMP_get_verbose(void) { return _verbose; }
 
 static gmp_randstate_t _randstate;
-void _GMP_init_rand(void) {
-  static int _randstate_initialized = 0;
-  if (!_randstate_initialized) {
-    gmp_randinit_mt(_randstate);
-    _randstate_initialized = 1;
-  }
-}
-/* Nobody calling gmp_randclear(_randstate) */
 
-static const unsigned short primes_small[] =
-  {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
-   101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
-   193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
-   293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,
-   409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,
-   521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,
-   641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,
-   757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,
-   881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009
-  };
-#define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
+void _GMP_init(void)
+{
+  gmp_randinit_mt(_randstate);
+  prime_iterator_global_startup();
+}
+
+void _GMP_destroy(void)
+{
+  prime_iterator_global_shutdown();
+  gmp_randclear(_randstate);
+}
+
 
 static const unsigned char next_wheel[30] =
   {1,7,7,7,7,7,7,11,11,11,11,13,13,17,17,17,17,19,19,23,23,23,23,29,29,29,29,29,29,1};
@@ -44,88 +37,6 @@ static const unsigned char prev_wheel[30] =
   {29,29,1,1,1,1,1,1,7,7,7,7,11,11,13,13,13,13,17,17,19,19,19,19,23,23,23,23,23,23};
 static const unsigned char wheel_advance[30] =
   {0,6,0,0,0,0,0,4,0,0,0,2,0,4,0,0,0,2,0,4,0,0,0,6,0,0,0,0,0,2};
-
-
-static int _is_small_prime7(UV n)
-{
-  UV i, limit;
-
-  if (( 7 *  7) > n)  return 2;  if (!(n %  7)) return 0;
-  if ((11 * 11) > n)  return 2;  if (!(n % 11)) return 0;
-  if ((13 * 13) > n)  return 2;  if (!(n % 13)) return 0;
-  if ((17 * 17) > n)  return 2;  if (!(n % 17)) return 0;
-  if ((19 * 19) > n)  return 2;  if (!(n % 19)) return 0;
-  if ((23 * 23) > n)  return 2;  if (!(n % 23)) return 0;
-  if ((29 * 29) > n)  return 2;  if (!(n % 29)) return 0;
-
-  limit = sqrt(n);
-  i = 31;
-  while (1) {   /* trial division, skipping multiples of 2/3/5 */
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
-    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
-  }
-  return 2;
-}
-
-static UV next_small_prime(UV n)
-{
-  UV d, m;
-
-  if (n < 7)
-    return (n < 2) ? 2 : (n < 3) ? 3 : (n < 5) ? 5 : 7;
-
-  d = n/30;
-  m = n - d*30;
-  /* Move forward one, knowing we may not be on the wheel */
-  if (m == 29) { d++; m = 1; } else  { m = next_wheel[m]; }
-  while (!_is_small_prime7(d*30+m)) {
-    m = next_wheel[m];  if (m == 1) d++;
-  }
-  return(d*30+m);
-}
-
-static UV prev_small_prime(UV n)
-{
-  UV d, m;
-
-  if (n <= 7)
-    return (n <= 2) ? 0 : (n <= 3) ? 2 : (n <= 5) ? 3 : 5;
-
-  d = n/30;
-  m = n - d*30;
-  do {
-    m = prev_wheel[m];
-    if (m == 29) { d--; }
-  } while (!_is_small_prime7(d*30+m));
-  return(d*30+m);
-}
-
-/* Simple little odd-only sieve. */
-static unsigned char* sieve_erat(UV end)
-{
-  unsigned char* mem;
-  UV n, s;
-  UV last = (end+1)/2;
-
-  /* Add one so they won't walk off the end */
-  Newz(0, mem, ((last+7)/8)+1, unsigned char);
-  if (mem == 0) return 0;
-
-  n = 3;
-  while ( (n*n) <= end ) {
-    for (s = n*n; s <= end; s += 2*n)
-      mem[s/16] |= (1 << ((s/2) % 8));
-    do { n += 2; } while (mem[n/16] & (1 << ((n/2) % 8)));
-  }
-  mem[0] |= 1;  /* 1 is composite */
-  return mem;
-}
 
 
 static int _GMP_miller_rabin_ui(mpz_t n, UV base)
@@ -300,8 +211,8 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
   int small_n = 0;
-  int primei = 2;
   UV f;
+  PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
     return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;   /* 0,1 => 1   2,3 => 0 */
@@ -314,16 +225,11 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   if (mpz_cmp_ui(n, to_n*to_n) < 0)
     small_n = 1;
 
-  f = primes_small[primei]; /* Start at 3 */
-  while (f < from_n) {
-    f = (++primei < NPRIMES_SMALL) ? primes_small[primei] : next_small_prime(f);
+  for (f = 2; f <= to_n; f = prime_iterator_next(&iter)) {
+    if (small_n && mpz_cmp_ui(n, f*f) < 0) break;
+    if (mpz_divisible_ui_p(n, f)) { prime_iterator_destroy(&iter); return f; }
   }
-
-  while (f <= to_n) {
-    if (small_n && mpz_cmp_ui(n, f*f) < 0) return 0;
-    if (mpz_divisible_ui_p(n, f)) return f;
-    f = (++primei < NPRIMES_SMALL) ? primes_small[primei] : next_small_prime(f);
-  }
+  prime_iterator_destroy(&iter);
   return 0;
 }
 
@@ -529,6 +435,7 @@ int _GMP_is_aks_prime(mpz_t n)
   mpz_t *px, *py, *pt;
   int i, retval;
   UV log2n, limit, rlimit, r, a;
+  PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
@@ -550,18 +457,21 @@ int _GMP_is_aks_prime(mpz_t n)
    * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
    * far too slow to matter either way. */
 
-  for (r = 2; mpz_cmp_ui(n, r) >= 0; r = next_small_prime(r)) {
+  for (r = 2; mpz_cmp_ui(n, r) >= 0; r = prime_iterator_next(&iter)) {
     if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
+      prime_iterator_destroy(&iter);
       mpz_clear(sqrtn);
       return 0;
     }
     if (mpz_cmp_ui(sqrtn, r) < 0) {  /* no r <= sqrtn divides n.  prime. */
+      prime_iterator_destroy(&iter);
       mpz_clear(sqrtn);
       return 1;
     }
     if (order(r, n, limit) > limit)
       break;
   }
+  prime_iterator_destroy(&iter);
   mpz_clear(sqrtn);
 
   if (mpz_cmp_ui(n, r) <= 0) {
@@ -925,9 +835,10 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
     }
 
     for (pcount = 0; success && pcount < fsp; pcount++) {
+      PRIME_ITERATOR(iter);
       mpz_set(p, fstack[pcount]);
       success = 0;
-      for (a = 2; !success && a <= alimit; a = next_small_prime(a)) {
+      for (a = 2; !success && a <= alimit; a = prime_iterator_next(&iter)) {
         mpz_set_ui(ap, a);
         /* Does a^(n-1) % n = 1 ? */
         mpz_powm(t, ap, nm1, n);
@@ -942,6 +853,7 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
           continue;
         success = 1;   /* We found an a for this p */
       }
+      prime_iterator_destroy(&iter);
     }
 
     /* If all cases hold then n is prime if and only if proper_r */
@@ -1032,24 +944,27 @@ void _GMP_prev_prime(mpz_t n)
 
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
-  UV p = 1;
+  UV p = 2;
+  PRIME_ITERATOR(iter);
 
   mpz_set_ui(prim, 1);
   while (n--) {
-    p = next_small_prime(p);
     mpz_mul_ui(prim, prim, p);
+    p = prime_iterator_next(&iter);
   }
+  prime_iterator_destroy(&iter);
 }
 void _GMP_primorial(mpz_t prim, mpz_t n)
 {
-  mpz_t p;
-  mpz_init_set_ui(p, 2);
+  UV p = 2;
+  PRIME_ITERATOR(iter);
+
   mpz_set_ui(prim, 1);
-  while (mpz_cmp(p, n) <= 0) {
-    mpz_mul(prim, prim, p);
-    _GMP_next_prime(p);
+  while (mpz_cmp_ui(n, p) >= 0) {
+    mpz_mul_ui(prim, prim, p);
+    p = prime_iterator_next(&iter);
   }
-  mpz_clear(p);
+  prime_iterator_destroy(&iter);
 }
 
 #define TEST_FOR_2357(n, f) \
@@ -1172,11 +1087,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 {
   UV p, p_power, pmin;
-
-  /* Simple sieve to B */
-  unsigned char* s = sieve_erat(B);
-  if (s == 0)
-    croak("Could not get sieve for primes up to %lu\n", (unsigned long) B);
+  PRIME_ITERATOR(iter);
 
   /* For each prime, multiply m by p^floor(log B / log p), which means
    * raise p to the largest power e such that p^e <= B.
@@ -1188,7 +1099,7 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
       p_power *= 2;
     mpz_mul_ui(m, m, p_power);
   }
-  p = 3;
+  p = prime_iterator_next(&iter);
   while (p <= B) {
     pmin = B/p;
     if (p > pmin)
@@ -1197,118 +1108,21 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
     while (p_power <= pmin)
       p_power *= p;
     mpz_mul_ui(m, m, p_power);
-    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
+    p = prime_iterator_next(&iter);
   }
   while (p <= B) {
     mpz_mul_ui(m, m, p);
-    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
+    p = prime_iterator_next(&iter);
   }
-  Safefree(s);
+  prime_iterator_destroy(&iter);
 }
 
-
-#if 0
-   /* This is the old pminus1 implementation */
-static void calculate_b_lcm(mpz_t b, UV B, mpz_t a, mpz_t n)
-{
-  double logB = log(B);
-  UV p, exponent;
-  mpz_t m;
-
-  /* Simple sieve to B */
-  unsigned char* s = sieve_erat(B);
-  if (s == 0)
-    croak("Could not get sieve for primes up to %lu\n", (unsigned long) B);
-
-  mpz_init(m);
-  mpz_set(b, a);
-  exponent = logB / log(2);
-  if (B >= 2)  mpz_powm_ui(b, b, (UV)pow(2, exponent), n);
-  p = 3;
-  while ( (p <= B) && (exponent != 1) ) {
-    exponent = logB / log(p);
-    mpz_powm_ui(b, b, (UV)pow(p, exponent), n );
-    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
-  }
-  /* All the exponent = 1 portion.  */
-  while ( p <= B ) {
-    mpz_powm_ui(b, b, p, n);
-    do { p += 2; } while (s[p/16] & (1UL << ((p/2) % 8)));
-  }
-  Safefree(s);
-  mpz_clear(m);
-}
-
-int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
-{
-  mpz_t a, m, x, b;
-  UV p;
-
-  TEST_FOR_2357(n, f);
-  if (B1 < 5) return 0;
-
-  mpz_init(a);
-  mpz_init(m);
-  mpz_init(x);
-  mpz_init(b);
-
-  if (_verbose>1) gmp_printf("# trying %Zd  with B=%lu\n", n, (unsigned long)B1);
-  /* Use primes for a's to try.  We rarely make it past the first couple. */
-  p = 1;
-  while ( (p = next_small_prime(p)) < 100 ) {
-    if (_verbose && p > 2) gmp_printf("#   again with a=%d\n", (int)p);
-    mpz_set_ui(a, p);
-    if (_verbose>1) gmp_printf("#   calculating new b(%Zd) for B=%lu...\n", a, (unsigned long)B1);
-    calculate_b_lcm(b, B1, a, n);
-    mpz_set(x, b);
-    if (mpz_sgn(x) == 0) mpz_set(x, n);
-    mpz_sub_ui(x, x, 1);
-    mpz_gcd(f, x, n);
-    if (mpz_cmp_ui(f, 1) == 0)
-      break;
-    if (mpz_cmp(f, n) != 0) {
-      mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
-      return 1;
-    }
-  }
-
-  /* Second stage, use whatever a was last used (b = a^R mod n).
-   * See Montgomery 1987, p249-250.
-   * This code isn't actually using any of his improvements.
-   */
-  if (B2 > B1) {
-    UV q;
-    if (_verbose>1) gmp_printf("# Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
-    p = prev_small_prime(B1);
-    q = p;
-    /* TODO: segmented sieve to get q's is probably a lot faster */
-    while ( (q = next_small_prime(q)) <= B2) {
-      /* We could speed this up using primegap q-p */
-      mpz_powm_ui(x, b, q, n);
-      if (mpz_sgn(x) == 0)  mpz_set(x, n);
-      mpz_sub_ui(x, x, 1);
-      mpz_gcd(f, x, n);
-      if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
-        if (_verbose>1) gmp_printf("# p-1 second stage found factor %Zd\n", f);
-        mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
-        return 1;
-      }
-      p = q;
-    }
-    if (_verbose>1) gmp_printf("# End second stage\n");
-  }
-
-  mpz_clear(a); mpz_clear(m); mpz_clear(x); mpz_clear(b);
-  mpz_set(f, n);
-  return 0;
-}
-#endif
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, savea, b, t;
   UV q, saveq, j;
-  unsigned char* s = 0;
+  PRIME_ITERATOR(iter);
 
   TEST_FOR_2357(n, f);
   if (B1 < 7) return 0;
@@ -1370,15 +1184,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       saveq = q;
       mpz_set(savea, a);
     }
-    if (s) { 
-      do { q += 2; } while (s[q/16] & (1UL << ((q/2) % 8)));
-    } else {
-      q = next_small_prime(q);
-      if (q > 10000) {
-        s = sieve_erat(B1);
-        if (!s) goto end_fail;
-      }
-    }
+    q = prime_iterator_next(&iter);
   }
   mpz_powm(a, a, t, n);
   if ( !mpz_sgn(a) )
@@ -1387,8 +1193,9 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_gcd(f, t, n);
   if (mpz_cmp(f, n) == 0) {
     /* We found multiple factors.  Loop one at a time. */
+    prime_iterator_setprime(&iter, saveq);
     mpz_set(a, savea);
-    for (q = saveq; q <= B1; q = next_small_prime(q)) {
+    for (q = saveq; q <= B1; q = prime_iterator_next(&iter)) {
       UV k = q;
       UV kmin = B1/q;
       while (k <= kmin)
@@ -1420,13 +1227,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     int   is_precomp[111] = {0};
 
     if (_verbose>2) gmp_printf("# Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
-    /* We are walking primes up to B2.  Using a sieve is far, far more efficient
-     * than calling next_small_prime() or gmp_nextprime().  It would be helpful
-     * if this could be built-in like it is in Math::Prime::Util.
-     */
-    if (s) Safefree(s);
-    s = sieve_erat(B2);
-    if (!s) goto end_fail;
     mpz_init(bmdiff);
     mpz_init_set(bm, a);
     mpz_init_set_ui(b, 1);
@@ -1450,7 +1250,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       UV lastq = q;
       UV qdiff;
 
-      do { q += 2; } while (s[q/16] & (1UL << ((q/2) % 8)));
+      q = prime_iterator_next(&iter);
       qdiff = (q - lastq) / 2 - 1;
       if (qdiff >= 111) {
         mpz_powm_ui(bmdiff, bm, q-lastq, n);  /* Big gap */
@@ -1490,7 +1290,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   end_fail:
     mpz_set(f,n);
   end_success:
-    if (s) Safefree(s);
+    prime_iterator_destroy(&iter);
     mpz_clear(a);
     mpz_clear(savea);
     mpz_clear(b);
@@ -1910,7 +1710,6 @@ int _GMP_ecm_factor(mpz_t n, mpz_t f, UV B1, UV ncurves)
 
   TEST_FOR_2357(n, f);
 
-  _GMP_init_rand();
   mpz_init(a);
   mpz_init(X.x); mpz_init(X.y);
   mpz_init(Y.x); mpz_init(Y.y);
@@ -1918,9 +1717,10 @@ int _GMP_ecm_factor(mpz_t n, mpz_t f, UV B1, UV ncurves)
   for (B = 100; B < B1*5; B *= 5) {
     if (B*5 > 2*B1) B = B1;
     for (curve = 0; curve < ncurves; curve++) {
+      PRIME_ITERATOR(iter);
       mpz_urandomm(a, _randstate, n);
       mpz_set_ui(X.x, 0); mpz_set_ui(X.y, 1);
-      for (q = 2; q < B; q = next_small_prime(q)) {
+      for (q = 2; q < B; q = prime_iterator_next(&iter)) {
         UV k = q;
         UV kmin = B / q;
 
@@ -1928,6 +1728,7 @@ int _GMP_ecm_factor(mpz_t n, mpz_t f, UV B1, UV ncurves)
           k *= q;
 
         if (_ec_multiply(a, k, n, X, &Y, f)) {
+          prime_iterator_destroy(&iter);
           mpz_clear(a);
           mpz_clear(X.x); mpz_clear(X.y);
           mpz_clear(Y.x); mpz_clear(Y.y);
@@ -1938,6 +1739,7 @@ int _GMP_ecm_factor(mpz_t n, mpz_t f, UV B1, UV ncurves)
         if ( !mpz_cmp_ui(X.x, 0) && !mpz_cmp_ui(X.y, 1) )
           break;
       }
+      prime_iterator_destroy(&iter);
     }
   }
 

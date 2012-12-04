@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.04';
+  $Math::Prime::Util::GMP::VERSION = '0.05';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -42,10 +42,14 @@ BEGIN {
   eval {
     require XSLoader;
     XSLoader::load(__PACKAGE__, $Math::Prime::Util::GMP::VERSION);
+    _GMP_init();
     1;
   } or do {
     die $@;
   }
+}
+END {
+  _GMP_destroy();
 }
 
 sub _validate_positive_integer {
@@ -126,7 +130,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 
 =head1 SYNOPSIS
@@ -289,6 +293,16 @@ Lucas pseudoprime using the Selfridge method of choosing D, P, and Q (some
 sources call this a strong Lucas-Selfridge pseudoprime).  This is one half
 of the BPSW primality test (the Miller-Rabin strong pseudoprime test with
 base 2 being the other half).
+
+
+=head2 is_aks_prime
+
+  say "$n is definitely prime" if is_aks_prime($n);
+
+Takes a positive number as input, and returns 1 if the input passes the
+Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
+unconditional primality test which runs in polynomial time for general input.
+In practice, the BLS75 method used by is_provable_prime is much faster.
 
 
 =head2 primes

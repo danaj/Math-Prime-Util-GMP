@@ -11,7 +11,7 @@ WriteMakefile1(
     LICENSE      => 'perl',
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
-    OBJECT       => 'XS.o gmp_main.o',
+    OBJECT       => 'XS.o gmp_main.o prime_iterator.o',
     LIBS         => ['-lgmp -lm'],
 
     BUILD_REQUIRES=>{

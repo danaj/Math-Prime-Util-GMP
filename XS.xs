@@ -53,6 +53,13 @@ PROTOTYPES: ENABLE
 void
 _GMP_set_verbose(IN int v)
 
+void
+_GMP_init()
+
+void
+_GMP_destroy()
+
+
 int
 _GMP_miller_rabin(IN char* strn, IN char* strbase)
   PREINIT:

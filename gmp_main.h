@@ -7,6 +7,9 @@
 extern void _GMP_set_verbose(int v);
 extern int  _GMP_get_verbose(void);
 
+extern void _GMP_init(void);
+extern void _GMP_destroy(void);
+
 extern int  _GMP_miller_rabin(mpz_t n, mpz_t a);
 extern int  _GMP_is_strong_lucas_pseudoprime(mpz_t n);
 
