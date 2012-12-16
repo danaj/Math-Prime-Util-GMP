@@ -4,7 +4,14 @@
   by Bosma and AK Lenstra
   Also http://www.ne.lpfritz.org/ftp/Prime/
 
+- ECM should add a stage 2.
+
 - prime_count - needs the pc(#) option as well as pc(#,#)
+
+- Consider adding Lehmer's method for prime count.  The only use I can really
+  think of would be 32-bit machines.  I worry that the overhead of GMP would
+  kill us, and some method using __uint64s, or even Math::Int64 would be
+  faster.
 
 - nth_prime
 
@@ -16,4 +23,4 @@
   just isn't going to be the right algorithm for numbers > 2^64.  Mainly what
   it needs is to pay attention to the rounds argument.  Perhaps race.
 
-- ECM should add a stage 2.
+- Add Riemann R function

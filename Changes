@@ -1,12 +1,12 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.05  ?? December 2012
+0.05  15 December 2012
 
     - Add AKS primality test.  Super slow, but nice to have around.
 
-    - Updates to ECM.
+    - ECM is faster.
 
-    - Add a small prime iterator, which means much less memory and faster
+    - Add a small prime iterator, which means _much_ less memory and faster
       operation for big smoothness factors in pminus1 and ecm factoring.
 
 0.04  11 November 2012
