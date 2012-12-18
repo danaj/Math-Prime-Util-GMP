@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.05';
+  $Math::Prime::Util::GMP::VERSION = '0.06';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -130,7 +130,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 
 =head1 SYNOPSIS
@@ -576,13 +576,12 @@ module behind the scenes when needed for big numbers.
 
 =item  L<Math::Primality> (version 0.07)
 A Perl module with support for the strong Miller-Rabin test, strong
-Lucas-Selfridge test, the BPSW test, next_prime / prev_prime, and
-prime_count.  It uses L<Math::GMPz> to do all the calculations, so is
-faster than pure Perl bignums, but a little slower than XS+GMP.  The
-prime_count function is only usable for very small inputs (it is many
-thousands of times slower than L<Math::Prime::Util>), but the other
-functions are quite reasonable.
-If you use large numbers, make sure to use version 0.05 or newer.
+Lucas-Selfridge test, the BPSW probable prime test, next_prime / prev_prime,
+the AKS primality test, and prime_count.  It uses L<Math::GMPz> to do all
+the calculations, so is faster than pure Perl bignums, but a little slower
+than XS+GMP.  The prime_count function is only usable for very small inputs,
+but the other functions are quite good for big numbers.  Make sure to use
+version 0.05 or newer.
 
 =item L<yafu|http://sourceforge.net/projects/yafu/>, 
 L<msieve|http://sourceforge.net/projects/msieve/>,

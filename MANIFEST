@@ -12,6 +12,8 @@ gmp_main.h
 gmp_main.c
 prime_iterator.h
 prime_iterator.c
+small_factor.h
+small_factor.c
 t/01-load.t
 t/02-can.t
 t/10-isprime.t

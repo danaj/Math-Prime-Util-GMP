@@ -9,9 +9,11 @@
 
 #include "ptypes.h"
 #include "gmp_main.h"
+#include "small_factor.h"
 
-/* I think we're going to have to end up sucking in a lot of Math::BigInt::GMP
- * infrastructure.  For now manage everything through strings.
+/* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
+ * clever (and brittle), just do all C<->Perl bigints via strings.  It's
+ * crude but seems to work pretty well.
  */
 
 static void validate_string_number(const char* f, const char* s)
@@ -170,7 +172,7 @@ is_aks_prime(IN char* strn)
     } \
   }
 
-SV *
+void
 next_prime(IN char* strn)
   PREINIT:
     mpz_t n;
@@ -183,7 +185,7 @@ next_prime(IN char* strn)
     XPUSH_MPZ(n);
     mpz_clear(n);
 
-SV *
+void
 prev_prime(IN char* strn)
   PREINIT:
     mpz_t n;
@@ -197,7 +199,7 @@ prev_prime(IN char* strn)
     mpz_clear(n);
 
 
-SV *
+void
 prime_count(IN char* strlow, IN char* strhigh)
   PREINIT:
     mpz_t low, high, count;
@@ -226,7 +228,7 @@ prime_count(IN char* strlow, IN char* strhigh)
     mpz_clear(low);
 
 
-SV *
+void
 consecutive_integer_lcm(IN UV B)
   PREINIT:
     mpz_t m;
@@ -236,7 +238,7 @@ consecutive_integer_lcm(IN UV B)
     XPUSH_MPZ(m);
     mpz_clear(m);
 
-SV *
+void
 primorial(IN char* strn)
   PREINIT:
     mpz_t prim, n;
@@ -249,7 +251,7 @@ primorial(IN char* strn)
     mpz_clear(n);
     mpz_clear(prim);
 
-SV *
+void
 pn_primorial(IN UV n)
   PREINIT:
     mpz_t prim;
@@ -461,7 +463,21 @@ _GMP_factor(IN char* strn)
            * many large numbers easily and quickly.
            */
 
-          success =                _GMP_pbrent_factor(n, f, 3, 64*1024);
+          if (mpz_cmp_ui(n, UV_MAX>>2) < 0) {
+            UV ui_n = mpz_get_ui(n);
+            UV ui_factors[2];
+            if (!mpz_cmp_ui(n, ui_n)) {
+              success = racing_squfof_factor(ui_n, ui_factors, 200000)-1;
+              if (success) {
+                mpz_set_ui(f, ui_factors[0]);
+              } else {
+                if (o > 2) {gmp_printf("UV SQUFOF failed %Zd\n", n);}
+              }
+            }
+            if (success&&o) {gmp_printf("UV SQUFOF found factor %Zd\n", f);o=0;}
+          }
+
+          if (!success)  success = _GMP_pbrent_factor(n, f, 3, 64*1024);
           if (!success)  success = _GMP_pbrent_factor(n, f, 5, 64*1024);
           if (!success)  success = _GMP_pbrent_factor(n, f, 7, 64*1024);
           if (!success)  success = _GMP_pbrent_factor(n, f,11, 64*1024);

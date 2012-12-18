@@ -522,12 +522,12 @@ int _GMP_is_aks_prime(mpz_t n)
 
 /*
  * Lucas (1876): Given a completely factored n-1, if there exists an a s.t.
- *     a^(n-1) % n = 1 
+ *     a^(n-1) % n = 1
  *     a^((n-1/f) % n != 1 for ALL factors f of n-1
  * then n is prime.
  *
  * PPBLS:, given n-1 = A*B, A > sqrt(n), if we can find an a s.t.
- *     a^A % n = 1 
+ *     a^A % n = 1
  *     gcd(a^(A/f)-1,n) = 1 for ALL factors f of A
  * then n is prime.
  *
@@ -1230,7 +1230,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_init(bmdiff);
     mpz_init_set(bm, a);
     mpz_init_set_ui(b, 1);
-    
+
     /* Set the first 20 differences */
     mpz_powm_ui(bmdiff, bm, 2, n);
     mpz_init_set(precomp_bm[0], bmdiff);

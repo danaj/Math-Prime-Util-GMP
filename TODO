@@ -15,10 +15,6 @@
 
 - nth_prime
 
-- We should have a native-int factoring module that works on any native-size
-  composites.  Given that we'll already have done trial division, I'm thinking
-  perhaps a good SQUFOF.
-
 - GMP SQUFOF could use a better implementation, though low priority since it
   just isn't going to be the right algorithm for numbers > 2^64.  Mainly what
   it needs is to pay attention to the rounds argument.  Perhaps race.

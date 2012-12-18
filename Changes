@@ -1,5 +1,12 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.06  17 December 2012
+
+    - Fix 1-byte memory overrun (thanks to CPAN Testers, Solaris, Valgrind).
+
+    - Add factoring of small numbers.  Helps a little when the input gets
+      reduced enough to fit into a UV.
+
 0.05  15 December 2012
 
     - Add AKS primality test.  Super slow, but nice to have around.
