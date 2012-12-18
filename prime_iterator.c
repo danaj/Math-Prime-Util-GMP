@@ -379,7 +379,7 @@ UV prime_iterator_next(prime_iterator *iter)
   const unsigned char* sieve = iter->segment_mem;
   UV seg_beg = iter->segment_start;
   UV seg_end = iter->segment_start + 30*iter->segment_bytes - 1;
-  
+
   /* Primary sieve */
   if (primary_sieve != 0) {
     n = next_prime_in_segment(primary_sieve, 0, PRIMARY_SIZE, iter->p);
@@ -403,12 +403,12 @@ UV prime_iterator_next(prime_iterator *iter)
     New(0, sieve, SEGMENT_SIZE, unsigned char );
   }
 
-  hid = lod + SEGMENT_SIZE;
+  hid = lod + SEGMENT_SIZE - 1;
   iter->segment_start = lod * 30;
   iter->segment_bytes = SEGMENT_SIZE;
   seg_beg = iter->segment_start;
   seg_end = iter->segment_start + 30*iter->segment_bytes - 1;
-  
+
   if (!sieve_segment((unsigned char*)sieve, lod, hid, primary_sieve, primary_limit))
     croak("Could not segment sieve from %"UVuf" to %"UVuf, seg_beg, seg_end);
   iter->segment_mem = sieve;
