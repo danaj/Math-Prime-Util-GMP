@@ -84,9 +84,9 @@ like($@, qr/positive/i, "is_strong_pseudoprime with base -7 fails");
 eval { is_strong_pseudoprime(undef, 2); };
 like($@, qr/defined/i, "is_strong_pseudoprime(undef,2) is invalid");
 eval { is_strong_pseudoprime('', 2); };
-like($@, qr/empty string/i, "is_strong_pseudoprime('',2) is invalid");
+like($@, qr/positive/i, "is_strong_pseudoprime('',2) is invalid");
 eval { is_strong_pseudoprime(-7, 2); };
-like($@, qr/integer/i, "is_strong_pseudoprime(-7,2) is invalid");
+like($@, qr/positive/i, "is_strong_pseudoprime(-7,2) is invalid");
 
 eval { no warnings; is_strong_lucas_pseudoprime(undef); };
 like($@, qr/empty string/i, "is_strong_lucas_pseudoprime(undef) is invalid");

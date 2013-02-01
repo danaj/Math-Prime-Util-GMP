@@ -55,8 +55,12 @@ END {
 sub _validate_positive_integer {
   my($n, $min, $max) = @_;
   croak "Parameter must be defined" if !defined $n;
-  croak "Parameter '$n' must be a positive integer"
-        if $n eq '' || $n =~ tr/0123456789//c;
+  if (ref($n) eq 'Math::BigInt') {
+    croak "Parameter '$n' must be a positive integer" unless $n->sign() eq '+';
+  } else {
+    croak "Parameter '$n' must be a positive integer"
+          if $n eq '' || $n =~ tr/0123456789//c;
+  }
   croak "Parameter '$n' must be >= $min" if defined $min && $n < $min;
   croak "Parameter '$n' must be <= $max" if defined $max && $n > $max;
   1;
@@ -65,7 +69,7 @@ sub _validate_positive_integer {
 
 sub is_strong_pseudoprime {
   my($n, @bases) = @_;
-  croak "Parameter must be defined" if !defined $n;
+  _validate_positive_integer($n);
   croak "No bases given to is_strong_pseudoprime" unless @bases;
   foreach my $base (@bases) {
     _validate_positive_integer($base, 2);

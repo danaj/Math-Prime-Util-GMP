@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.07  ?? February 2013
+
+    - Tiny speedup when passing in bigints.
+
 0.06  17 December 2012
 
     - Fix 1-byte memory overrun (thanks to CPAN Testers, Solaris, Valgrind).
