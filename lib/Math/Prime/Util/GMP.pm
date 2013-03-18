@@ -236,7 +236,7 @@ like C<is_prob_prime>, as will numbers less than C<2^64>.  For numbers
 larger than C<2^64>, some additional tests are performed on probable primes
 to see if they can be proven by another means.
 
-Currently the the method used once numbers have been marked probably
+Currently the method used once numbers have been marked probably
 prime by BPSW is the BLS75 method: Brillhart, Lehmer, and Selfridge's
 improvement to the Pocklington-Lehmer primality test.  The test requires
 factoring C<n-1> to C<(n/2)^(1/3)>, compared to C<n^(1/2)> of the standard
@@ -574,11 +574,12 @@ factoring range of this module.
 =over 4
 
 =item  L<Math::Prime::Util>.
-Has many more functions, lots of good code for dealing with native-precision
+Has many more functions, lots of fast code for dealing with native-precision
 arguments (including much faster primes using sieves), and will use this
-module behind the scenes when needed for big numbers.
+module when needed for big numbers.  Using L<Math::Prime::Util> rather than
+this module directly is recommended.
 
-=item  L<Math::Primality> (version 0.07)
+=item  L<Math::Primality> (version 0.08)
 A Perl module with support for the strong Miller-Rabin test, strong
 Lucas-Selfridge test, the BPSW probable prime test, next_prime / prev_prime,
 the AKS primality test, and prime_count.  It uses L<Math::GMPz> to do all
@@ -586,6 +587,12 @@ the calculations, so is faster than pure Perl bignums, but a little slower
 than XS+GMP.  The prime_count function is only usable for very small inputs,
 but the other functions are quite good for big numbers.  Make sure to use
 version 0.05 or newer.
+
+=item L<Math::Pari>
+Supports quite a bit of the same functionality (and much more).  See
+L<Math::Prime::Util/"SEE ALSO"> for more detailed information on how the
+modules compare.  For factoring, L<Math::Pari> will typically be faster
+with 25+ digit numbers and much faster as the size increases.
 
 =item L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
