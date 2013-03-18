@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.06';
+  $Math::Prime::Util::GMP::VERSION = '0.07';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -134,7 +134,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 
 =head1 SYNOPSIS
@@ -170,7 +170,7 @@ Version 0.06
   say "23# is ", primorial(23);
   say "The product of the first 47 primes is ", pn_primorial(47);
   say "lcm(1..1000) is ", consecutive_integer_lcm(1000);
-  
+
 
   # Find prime factors of big numbers
   @factors = factor(5465610891074107968111136514192945634873647594456118359804135903459867604844945580205745718497);
@@ -587,7 +587,7 @@ than XS+GMP.  The prime_count function is only usable for very small inputs,
 but the other functions are quite good for big numbers.  Make sure to use
 version 0.05 or newer.
 
-=item L<yafu|http://sourceforge.net/projects/yafu/>, 
+=item L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
 L<gmp-ecm|http://ecm.gforge.inria.fr/>,
 L<GGNFS|http://sourceforge.net/projects/ggnfs/>

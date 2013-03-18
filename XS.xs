@@ -477,11 +477,7 @@ _GMP_factor(IN char* strn)
             if (success&&o) {gmp_printf("UV SQUFOF found factor %Zd\n", f);o=0;}
           }
 
-          if (!success)  success = _GMP_pbrent_factor(n, f, 3, 64*1024);
-          if (!success)  success = _GMP_pbrent_factor(n, f, 5, 64*1024);
-          if (!success)  success = _GMP_pbrent_factor(n, f, 7, 64*1024);
-          if (!success)  success = _GMP_pbrent_factor(n, f,11, 64*1024);
-          if (!success)  success = _GMP_pbrent_factor(n, f,13, 64*1024);
+          if (!success)  success = _GMP_pbrent_factor(n, f, 3, 256*1024);
           if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_power_factor(n, f);

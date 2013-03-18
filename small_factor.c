@@ -14,8 +14,10 @@ static int is_perfect_square(UV n, UV* sqrtn)
   UV m;  /* lm */
   m = n & 127;
   if ((m*0x8bc40d7d) & (m*0xa1e2f5d1) & 0x14020a)  return 0;
+  /*  Faster with just the first test on x86
   m = n % 63;
   if ((m*0x3d491df7) & (m*0xc824a9f9) & 0x10f14008) return 0;
+  */
   m = sqrt(n);
   if (n != (m*m))
     return 0;

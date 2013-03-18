@@ -24,19 +24,19 @@ static const unsigned char prevwheel30[30] = {
 static UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
 {
   UV d, m;
-  if (p < 7)
-    return (p < 2) ? 2 : (p < 3) ? 3 : (p < 5) ? 5 : 7;
   if (p < segment_start) return 0;
   d = (p-segment_start)/30;
+  if (d >= segment_bytes) return 0;
   m = (p-segment_start) - d*30;
-  while (1) {
-    if (m==29) { d++; m = 1; while (d<segment_bytes && sieve[d] == 0xFF) d++; }
-    else       { m = nextwheel30[m]; }
-    if (d >= segment_bytes)
-      return 0;
-    if ((sieve[d] & masktab30[m]) == 0)
-      return (segment_start + d*30 + m);
-  }
+  do {
+    if (m==29) {
+      d++; m = 1;
+      if (d >= segment_bytes) return 0;
+    } else {
+      m = nextwheel30[m];
+    }
+  } while (sieve[d] & masktab30[m]);
+  return (segment_start + d*30 + m);
 }
 
 #define next_prime_in_sieve(sieve, p) next_prime_in_segment(sieve, 0, UV_MAX, p)
@@ -127,6 +127,30 @@ static const unsigned char presieve13[PRESIEVE_SIZE] =
   0x18,0x89,0x08,0x25,0x44,0x22,0x30,0x14,0xc3,0x88,0x86,0x40,0x1a,
   0x28,0x30,0x85,0x09,0x54,0x60,0x43,0x24,0x92,0x81,0x08,0x04,0x70};
 
+#define FIND_COMPOSITE_POS(i,j) \
+  { \
+    UV dlast = d; \
+    do { \
+      d += dinc; \
+      m += minc; \
+      if (m >= 30) { d++; m -= 30; } \
+    } while ( masktab30[m] == 0 ); \
+    wdinc[i] = d - dlast; \
+    wmask[j] = masktab30[m]; \
+  }
+#define FIND_COMPOSITE_POSITIONS(p) \
+  do { \
+    FIND_COMPOSITE_POS(0,1) \
+    FIND_COMPOSITE_POS(1,2) \
+    FIND_COMPOSITE_POS(2,3) \
+    FIND_COMPOSITE_POS(3,4) \
+    FIND_COMPOSITE_POS(4,5) \
+    FIND_COMPOSITE_POS(5,6) \
+    FIND_COMPOSITE_POS(6,7) \
+    FIND_COMPOSITE_POS(7,0) \
+    d -= p; \
+  } while (0)
+
 static void sieve_prefill(unsigned char* mem, UV startd, UV endd)
 {
   UV nbytes = endd - startd + 1;
@@ -178,31 +202,21 @@ static unsigned char* sieve_erat30(UV end)
     UV minc = (2*prime) - dinc*30;
     UV wdinc[8];
     unsigned char wmask[8];
-    int i;
 
     /* Find the positions of the next composites we will mark */
-    for (i = 1; i <= 8; i++) {
-      UV dlast = d;
-      do {
-        d += dinc;
-        m += minc;
-        if (m >= 30) { d++; m -= 30; }
-      } while ( masktab30[m] == 0 );
-      wdinc[i-1] = d - dlast;
-      wmask[i%8] = masktab30[m];
+    FIND_COMPOSITE_POSITIONS(prime);
+
+    /* Mark the composites (unrolled) */
+    while (1) {
+      mem[d] |= wmask[0];  d += wdinc[0];  if (d >= max_buf) break;
+      mem[d] |= wmask[1];  d += wdinc[1];  if (d >= max_buf) break;
+      mem[d] |= wmask[2];  d += wdinc[2];  if (d >= max_buf) break;
+      mem[d] |= wmask[3];  d += wdinc[3];  if (d >= max_buf) break;
+      mem[d] |= wmask[4];  d += wdinc[4];  if (d >= max_buf) break;
+      mem[d] |= wmask[5];  d += wdinc[5];  if (d >= max_buf) break;
+      mem[d] |= wmask[6];  d += wdinc[6];  if (d >= max_buf) break;
+      mem[d] |= wmask[7];  d += wdinc[7];  if (d >= max_buf) break;
     }
-    d -= prime;
-#if 0
-    assert(d == ((prime*prime)/30));
-    assert(d < max_buf);
-    assert(prime = (wdinc[0]+wdinc[1]+wdinc[2]+wdinc[3]+wdinc[4]+wdinc[5]+wdinc[6]+wdinc[7]));
-#endif
-    i = 0;        /* Mark the composites */
-    do {
-      mem[d] |= wmask[i];
-      d += wdinc[i];
-      i = (i+1) & 7;
-    } while (d < max_buf);
   }
 
   return mem;
@@ -224,7 +238,8 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
   /* Fill buffer with marked 7, 11, and 13 */
   sieve_prefill(mem, startd, endd);
 
-  limit = sqrt( (double) endp ) + 1;
+  limit = sqrt((double) endp);
+  if (limit*limit < endp) limit++;  /* ceil(sqrt(endp)) */
   /* printf("segment sieve from %"UVuf" to %"UVuf" (aux sieve to %"UVuf")\n", startp, endp, limit); */
   if ( (prim_sieve != 0) && (prim_limit <= limit) ) {
     sieve = prim_sieve;
@@ -248,40 +263,38 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
     /* It is possible we've overflowed p2, so check for that */
     if ( (p2 <= endp) && (p2 >= startp) ) {
       /* Sieve from startd to endd starting at p2, stepping p */
-#if 0
-      /* Basic sieve */
-      do {
-        mem[(p2 - startp)/30] |= masktab30[p2%30];
-        do { p2 += 2*p; } while (masktab30[p2%30] == 0);
-      } while ( (p2 <= endp) && (p2 >= startp) );
-#else
       UV d = (p2)/30;
       UV m = (p2) - d*30;
       UV dinc = (2*p)/30;
       UV minc = (2*p) - dinc*30;
       UV wdinc[8];
       unsigned char wmask[8];
-      int i;
+      UV offset_endd = endd - startd;
 
       /* Find the positions of the next composites we will mark */
-      for (i = 1; i <= 8; i++) {
-        UV dlast = d;
-        do {
-          d += dinc;
-          m += minc;
-          if (m >= 30) { d++; m -= 30; }
-        } while ( masktab30[m] == 0 );
-        wdinc[i-1] = d - dlast;
-        wmask[i%8] = masktab30[m];
+      FIND_COMPOSITE_POSITIONS(p);
+      d -= startd;
+      /* Mark composites (unrolled) */
+      while ( (d+p) <= offset_endd ) {
+        mem[d] |= wmask[0];  d += wdinc[0];
+        mem[d] |= wmask[1];  d += wdinc[1];
+        mem[d] |= wmask[2];  d += wdinc[2];
+        mem[d] |= wmask[3];  d += wdinc[3];
+        mem[d] |= wmask[4];  d += wdinc[4];
+        mem[d] |= wmask[5];  d += wdinc[5];
+        mem[d] |= wmask[6];  d += wdinc[6];
+        mem[d] |= wmask[7];  d += wdinc[7];
       }
-      d -= p;
-      i = 0;        /* Mark the composites */
-      do {
-        mem[d-startd] |= wmask[i];
-        d += wdinc[i];
-        i = (i+1) & 7;
-      } while (d <= endd);
-#endif
+      while (1) {
+        mem[d] |= wmask[0];  d += wdinc[0];  if (d > offset_endd) break;
+        mem[d] |= wmask[1];  d += wdinc[1];  if (d > offset_endd) break;
+        mem[d] |= wmask[2];  d += wdinc[2];  if (d > offset_endd) break;
+        mem[d] |= wmask[3];  d += wdinc[3];  if (d > offset_endd) break;
+        mem[d] |= wmask[4];  d += wdinc[4];  if (d > offset_endd) break;
+        mem[d] |= wmask[5];  d += wdinc[5];  if (d > offset_endd) break;
+        mem[d] |= wmask[6];  d += wdinc[6];  if (d > offset_endd) break;
+        mem[d] |= wmask[7];  d += wdinc[7];  if (d > offset_endd) break;
+      }
     }
   }
 
@@ -375,13 +388,25 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
 
 UV prime_iterator_next(prime_iterator *iter)
 {
-  UV n, lod, hid;
+  UV lod, hid;
   const unsigned char* sieve = iter->segment_mem;
   UV seg_beg = iter->segment_start;
   UV seg_end = iter->segment_start + 30*iter->segment_bytes - 1;
+  UV n = iter->p;
+
+  if (n < 11) {
+    switch (n) {
+      case 0: case 1:  iter->p =  2; break;
+      case 2:          iter->p =  3; break;
+      case 3: case 4:  iter->p =  5; break;
+      case 5: case 6:  iter->p =  7; break;
+      default:         iter->p = 11; break;
+    }
+    return iter->p;
+  }
 
   /* Primary sieve */
-  if (primary_sieve != 0) {
+  if (primary_sieve != 0 && n < 30*PRIMARY_SIZE) {
     n = next_prime_in_segment(primary_sieve, 0, PRIMARY_SIZE, iter->p);
     if (n > 0) {
       iter->p = n;
