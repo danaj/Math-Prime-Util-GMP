@@ -20,3 +20,5 @@
   it needs is to pay attention to the rounds argument.  Perhaps race.
 
 - Add Riemann R function
+
+- M-R with large bases, don't modify the input a.

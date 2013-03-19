@@ -72,7 +72,7 @@ sub is_strong_pseudoprime {
   _validate_positive_integer($n);
   croak "No bases given to is_strong_pseudoprime" unless @bases;
   foreach my $base (@bases) {
-    _validate_positive_integer($base, 2);
+    _validate_positive_integer($base);
     return 0 unless _GMP_miller_rabin("$n", "$base");
   }
   1;
@@ -267,14 +267,22 @@ to return a certificate.
 
 Takes a positive number as input and one or more bases.  Returns 1 if the
 input is a prime or a strong pseudoprime to all of the bases, and 0 if not.
+The base must be a positive integer.
 
 If 0 is returned, then the number really is a composite.  If 1 is returned,
 then it is either a prime or a strong pseudoprime to all the given bases.
 Given enough distinct bases, the chances become very strong that the number
 number is actually prime.
 
-Both the input number and the bases may be big integers.  The bases must be
-greater than 1, however they may be as large as desired.
+Both the input number and the bases may be big integers.  If base modulo n
+E<lt>= 1 or base modulo n = n-1, then the result will be 1.  This allows the
+bases to be larger than n if desired, while still returning meaningful results.
+For example,
+
+  is_strong_pseudoprime(367, 1101)
+
+would incorrectly return 0 if this was not done properly.  A 0 result should
+be returned only if n is composite, regardless of the base.
 
 This is usually used in combination with other tests to make either stronger
 tests (e.g. the strong BPSW test) or deterministic results for numbers less

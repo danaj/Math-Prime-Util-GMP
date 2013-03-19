@@ -60,11 +60,12 @@ foreach my $psrp (keys %large_pseudoprimes) {
 }
 
 
-plan tests => 0 + 9
+plan tests => 0 + 7
                 + 3
                 + 6
                 + $num_pseudoprimes
                 + 1  # mr base 2    2-4k
+                + 9  # mr with large bases
                 + scalar @small_lucas_trials
                # + $num_large_pseudoprime_tests
                 + 0;
@@ -75,10 +76,11 @@ eval { is_strong_pseudoprime(2047, undef); };
 like($@, qr/defined/i, "is_strong_pseudoprime with base undef fails");
 eval { is_strong_pseudoprime(2047, ''); };
 like($@, qr/positive/i, "is_strong_pseudoprime with base '' fails");
-eval { is_strong_pseudoprime(2047,0); };
-like($@, qr/>= 2/i, "is_strong_pseudoprime with base 0 fails");
-eval { is_strong_pseudoprime(2047,1); };
-like($@, qr/>= 2/i, "is_strong_pseudoprime with base 1 fails");
+# We return 1 for bases 0 and 1 now
+#eval { is_strong_pseudoprime(2047,0); };
+#like($@, qr/>= 2/i, "is_strong_pseudoprime with base 0 fails");
+#eval { is_strong_pseudoprime(2047,1); };
+#like($@, qr/>= 2/i, "is_strong_pseudoprime with base 1 fails");
 eval { is_strong_pseudoprime(2047,-7); };
 like($@, qr/positive/i, "is_strong_pseudoprime with base -7 fails");
 eval { is_strong_pseudoprime(undef, 2); };
@@ -127,6 +129,17 @@ while (my($base, $ppref) = each (%pseudoprimes)) {
   }
   is($mr2fail, 0, "MR base 2 matches is_prime for 2-4032 (excl 2047,3277)");
 }
+
+# Verify MR for bases >= n
+is( is_strong_pseudoprime(  3,    3), 1, "spsp(  3,    3)");
+is( is_strong_pseudoprime( 11,   11), 1, "spsp( 11,   11)");
+is( is_strong_pseudoprime( 89, 5785), 1, "spsp( 89, 5785)");
+is( is_strong_pseudoprime(257, 6168), 1, "spsp(257, 6168)");
+is( is_strong_pseudoprime(367,  367), 1, "spsp(367,  367)");
+is( is_strong_pseudoprime(367, 1101), 1, "spsp(367, 1101)");
+is( is_strong_pseudoprime(49001, 921211727), 0, "spsp(49001, 921211727)");
+is( is_strong_pseudoprime(  331, 921211727), 1, "spsp(  331, 921211727)");
+is( is_strong_pseudoprime(49117, 921211727), 1, "spsp(49117, 921211727)");
 
 # Verify Lucas for some small numbers
 for my $n (@small_lucas_trials) {

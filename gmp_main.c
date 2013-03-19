@@ -68,6 +68,15 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   s = mpz_scan1(d, 0);
   mpz_tdiv_q_2exp(d, d, s);
 
+  /* Handle large and small bases.  TODO: don't modify their input a */
+  if (mpz_cmp(a, n) >= 0)
+    mpz_mod(a, a, n);
+  if ( (mpz_cmp_ui(a, 1) <= 0) || (mpz_cmp(a, nminus1) >= 0) ) {
+    mpz_clear(nminus1);
+    mpz_clear(d);
+    return 1;
+  }
+
   mpz_init(x);
   mpz_powm(x, a, d, n);
   mpz_clear(d); /* done with a and d */
