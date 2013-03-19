@@ -24,6 +24,16 @@ WriteMakefile1(
                       'base'             => 0,
                     },
 
+    META_MERGE   => {
+               resources => {
+                  homepage   => 'https://github.com/danaj/Math-Prime-Util-GMP',
+                  repository => 'https://github.com/danaj/Math-Prime-Util-GMP',
+               },
+               recommends => {
+                  'Math::Prime::Util' => 0.024,
+               },
+             },
+
     MIN_PERL_VERSION => 5.006002,
 );
 

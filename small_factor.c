@@ -159,7 +159,7 @@ int racing_squfof_factor(UV n, UV *factors, UV rounds)
     factors[0] = n;  return 1;
   }
 
-  for (i = 0; i < NSQUFOF_MULT; i++) {
+  for (i = 0; i < (int)NSQUFOF_MULT; i++) {
     mult = multipliers[i];
     nn64 = n * mult;
     mult_save[i].mult = mult;
@@ -190,7 +190,7 @@ int racing_squfof_factor(UV n, UV *factors, UV rounds)
   /* Process the multipliers a little at a time: 0.33*(n*mult)^1/4: 20-20k */
   do {
     still_racing = 0;
-    for (i = 0; i < NSQUFOF_MULT; i++) {
+    for (i = 0; i < (int)NSQUFOF_MULT; i++) {
       if (!mult_save[i].valid)
         continue;
       nn64 = n * (UV)multipliers[i];
