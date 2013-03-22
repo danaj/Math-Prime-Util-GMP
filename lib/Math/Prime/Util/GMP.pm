@@ -55,7 +55,7 @@ END {
 sub _validate_positive_integer {
   my($n, $min, $max) = @_;
   croak "Parameter must be defined" if !defined $n;
-  if (ref($n) eq 'Math::BigInt') {
+  if (ref($n) eq 'Math::BigInt' && $n->can("sign")) {
     croak "Parameter '$n' must be a positive integer" unless $n->sign() eq '+';
   } else {
     croak "Parameter '$n' must be a positive integer"
@@ -394,7 +394,7 @@ special cases of C<n = 0> and C<n = 1> will return C<n>.
 Like most advanced factoring programs, a mix of methods is used.  This
 includes trial division for small factors, perfect power detection,
 Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
-Hart's OLF, and ECM (elliptic curve method).
+Hart's OLF, ECM (elliptic curve method), and QS (quadratic sieve)..
 
 Certainly improvements could be designed for this algorithm (suggestions are
 welcome).  Most importantly, improving ECM and adding MPQS/SIQS would be a
@@ -641,6 +641,8 @@ module, and B<much> faster as the factor increases in size.
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
+William Hart wrote the SIMPQS code currently used for QS factoring.
+
 
 =head1 ACKNOWLEDGEMENTS
 
@@ -669,5 +671,7 @@ module quite a bit for testing against.
 Copyright 2011-2012 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+
+SIMPQS Copyright 2006, William Hart.  SIMPQS is distributed under GPL v2+.
 
 =cut

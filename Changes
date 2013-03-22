@@ -1,5 +1,12 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.08  22 March 2013
+
+    - Add William Hart's SIMPQS (a simple QS that is a predecessor to what
+      went into FLINT).  Not the fastest by a long shot (yafu and msieve take
+      that prize), but it's quite small and works pretty well.  Eventually I
+      would like to replace this with a QS of my own.
+
 0.07  19 March 2013
 
     - Tiny speedup when passing in bigints.

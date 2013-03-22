@@ -22,3 +22,10 @@
 - Add Riemann R function
 
 - M-R with large bases, don't modify the input a.
+
+- Tune and improve SIMPQS for our uses.
+
+- Check FLINT 2.3 for QS improvements.  Example: The Knuth-Schroeppel
+  multiplier code has been tweaked.  See what impact the new method has.
+
+- Write a QS.

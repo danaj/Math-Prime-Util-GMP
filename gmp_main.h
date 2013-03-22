@@ -6,6 +6,7 @@
 
 extern void _GMP_set_verbose(int v);
 extern int  _GMP_get_verbose(void);
+extern gmp_randstate_t*  _GMP_get_randstate(void);
 
 extern void _GMP_init(void);
 extern void _GMP_destroy(void);
@@ -32,7 +33,6 @@ extern int  _GMP_pminus1_factor2(mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_power_factor(mpz_t n, mpz_t f);
-extern int  _GMP_ecm_factor(mpz_t n, mpz_t f, UV BMax, UV ncurves);
 
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, mpz_t n);

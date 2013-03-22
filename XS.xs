@@ -10,6 +10,9 @@
 #include "ptypes.h"
 #include "gmp_main.h"
 #include "small_factor.h"
+#include "ecm.h"
+#include "simpqs.h"
+#define _GMP_ECM_FACTOR _GMP_ecm_factor_affine
 
 /* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
  * clever (and brittle), just do all C<->Perl bigints via strings.  It's
@@ -400,7 +403,16 @@ ecm_factor(IN char* strn, IN UV bmax = 15625000, IN UV ncurves = 100)
     mpz_t n;
   PPCODE:
     SIMPLE_FACTOR_START("ecm_factor");
-    success = _GMP_ecm_factor(n, f, bmax, ncurves);
+    success = _GMP_ECM_FACTOR(n, f, bmax, ncurves);
+    SIMPLE_FACTOR_END;
+
+void
+qs_factor(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    SIMPLE_FACTOR_START("qs_factor");
+    success = _GMP_simpqs(n, f);
     SIMPLE_FACTOR_END;
 
 void
@@ -487,17 +499,22 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_pminus1_factor(n, f, 100000, 1000000);
           if (success&&o) {gmp_printf("p-1 (100k) found factor %Zd\n", f);o=0;}
 
-          if (!success)  success = _GMP_ecm_factor(n, f, 12500, 4);
+          /* Small ecm */
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 12500, 4);
           if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
+
+          /* QS (30+ digits) */
+          if (!success)  success = _GMP_simpqs(n, f);
+          if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}
 
           /* ECM with high bmax but only 2 curves. */
-          if (!success)  success = _GMP_ecm_factor(n, f, 625000, 2);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 625000, 2);
           if (success&&o) {gmp_printf("ecm (625k,2) ecm found factor %Zd\n", f);o=0;}
           /* Getting serious with ECM */
-          if (!success)  success = _GMP_ecm_factor(n, f, 3125000, 40);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 3125000, 40);
           if (success&&o) {gmp_printf("ecm (3M,40) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_prho_factor(n, f, 17, 32*1024*1024);
@@ -524,7 +541,7 @@ _GMP_factor(IN char* strn)
 
           /* Our method of last resort: ECM with high bmax and many curves*/
           if (!success && _GMP_get_verbose()) gmp_printf("starting large ECM on %Zd\n", n);
-          if (!success)  success = _GMP_ecm_factor(n, f, 400000000, 200);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 400000000, 200);
           if (success&&o) {gmp_printf("ecm (400M,200) found factor %Zd\n", f);o=0;}
 
           if (success) {

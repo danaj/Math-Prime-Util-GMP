@@ -7,5 +7,7 @@ XS.[co]
 gmp_main.o
 prime_iterator.o
 small_factor.o
+ecm.o
+simpqs.o
 blib*
 pm_to_blib
