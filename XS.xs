@@ -503,16 +503,18 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_ECM_FACTOR(n, f, 12500, 4);
           if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
 
-          /* QS (30+ digits) */
+          if (!success)  success = _GMP_pbrent_factor(n, f, 1, 4*1024*1024);
+          if (success&&o) {gmp_printf("pbrent (1,4M) found factor %Zd\n", f);o=0;}
+
+          /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
+           * slow and a memory hog if not (compared to ECM) */
           if (!success)  success = _GMP_simpqs(n, f);
           if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
-
-          if (!success)  success = _GMP_pbrent_factor(n, f, 1, 16*1024*1024);
-          if (success&&o) {gmp_printf("pbrent (1,16M) found factor %Zd\n", f);o=0;}
 
           /* ECM with high bmax but only 2 curves. */
           if (!success)  success = _GMP_ECM_FACTOR(n, f, 625000, 2);
           if (success&&o) {gmp_printf("ecm (625k,2) ecm found factor %Zd\n", f);o=0;}
+
           /* Getting serious with ECM */
           if (!success)  success = _GMP_ECM_FACTOR(n, f, 3125000, 40);
           if (success&&o) {gmp_printf("ecm (3M,40) found factor %Zd\n", f);o=0;}

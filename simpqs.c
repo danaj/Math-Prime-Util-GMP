@@ -40,10 +40,6 @@
 #include <math.h>
 #include <gmp.h>
 
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
 #include "simpqs.h"
 
 #ifdef STANDALONE_SIMPQS
@@ -52,7 +48,12 @@
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
+#else
+  #include "EXTERN.h"
+  #include "perl.h"
+  #include "XSUB.h"
 #endif
+
 
 static void modmul(mpz_t ab, mpz_t a, mpz_t b, mpz_t p)
 {
@@ -358,7 +359,7 @@ static const unsigned long multipliers[] = {1, 2, 3, 5, 7, 11, 13, 17, 19,
 
 static unsigned long largeprimes[] =
 {
-     250000, 250000, 250000, 250000, 250000, 250000, 250000, 250000, 250000, 250000, //30-49
+     100000, 100000, 125000, 125000, 150000, 150000, 175000, 175000, 200000, 200000, //30-39
      250000, 300000, 370000, 440000, 510000, 580000, 650000, 720000, 790000, 8600000, //40-49
      930000, 1000000, 1700000, 2400000, 3100000, 3800000, 4500000, 5200000, 5900000, 6600000, //50-59
      7300000, 8000000, 8900000, 10000000, 11300000, 12800000, 14500000, 16300000, 18100000, 20000000, //60-69
@@ -373,7 +374,7 @@ static unsigned long largeprimes[] =
 // Number of primes to use in factor base, given the number of decimal digits specified
 static unsigned long primesNo[] =
 {
-     1000, 1000, 1000, 1000, 1000, 1200, 1200, 1200, 1200, 1200, //30-49
+     1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, //30-39
      1500, 1500, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, //40-49
      2150, 2200, 2250, 2300, 2400, 2500, 2600, 2700, 2800, 2900, //50-59
      3000, 3150, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, //60-69
@@ -388,7 +389,7 @@ static unsigned long primesNo[] =
 // First prime actually sieved for
 static unsigned long firstPrimes[] =
 {
-     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, //30-49
+     5, 5, 5, 6, 6, 6, 6, 7, 7, 7, //30-39
      8, 8, 8, 8, 8, 8, 8, 8, 8, 8, //40-49
      9, 8, 9, 9, 9, 9, 10, 10, 10, 10, //50-59
      10, 10, 11, 11, 12, 12, 13, 14, 15, 17, //60-69  //10
@@ -403,7 +404,7 @@ static unsigned long firstPrimes[] =
 // Logs of primes are rounded and errors accumulate; this specifies how great an error to allow
 static unsigned long errorAmounts[] =
 {
-     15, 15, 15, 15, 15, 15, 15, 15, 25, 15, //30-49
+     10, 10, 10, 11, 13, 14, 14, 15, 15, 16, //30-39
      16, 17, 17, 18, 18, 19, 19, 19, 20, 20, //40-49
      21, 21, 21, 22, 22, 22, 23, 23, 23, 24, //50-59
      24, 24, 25, 25, 25, 25, 26, 26, 26, 26, //60-69 //24
@@ -418,7 +419,7 @@ static unsigned long errorAmounts[] =
 // This is the threshold the sieve value must exceed in order to be considered for smoothness
 static unsigned long thresholds[] =
 {
-     65, 65, 65, 65, 65, 65, 65, 65, 65, 65, //30-49
+     63, 63, 63, 64, 64, 64, 65, 65, 65, 66, //30-39
      66, 67, 67, 68, 68, 68, 69, 69, 69, 69, //40-49
      70, 70, 70, 71, 71, 71, 72, 72, 73, 73, //50-59
      74, 74, 75, 75, 76, 76, 77, 77, 78, 79, //60-69 //74
@@ -434,7 +435,7 @@ static unsigned long thresholds[] =
 //N.B: probably optimal if chosen to be a multiple of 32000, though other sizes are supported
 static unsigned long sieveSize[] =
 {
-     32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //30-49
+     64000, 64000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //30-39
      32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //40-49
      32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //50-59
      32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //60-69
@@ -635,7 +636,13 @@ static void clearSieve(void)
     if (offsets) { free(offsets);  offsets = 0; }
     if (offsets2) { free(offsets2);  offsets2 = 0; }
     if (flags) { free(flags);  flags = 0; }
-    if (sqrts) { free(sqrts);  sqrts = 0; }
+    if (sqrts) {
+      int i;
+      for (i = 0; i < numPrimes; i++) {
+        mpz_clear(sqrts[i]);
+      }
+      free(sqrts);  sqrts = 0;
+    }
 }
 
 /*========================================================================
@@ -651,6 +658,7 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
      mpz_t currentPrime;
      unsigned long primesinbase = 0;
 
+     if (factorBase) { free(factorBase);  factorBase = 0; }
      factorBase = (unsigned long *) calloc(sizeof(unsigned long),B);
 
      factorBase[primesinbase] = multiplier;
@@ -1233,7 +1241,7 @@ static unsigned long silly_random(unsigned long upto)
              small blocks for the small primes.
 
 ============================================================================*/
-static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long multiplier)
+static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long multiplier)
 {
     mpz_t A; mpz_init(A);
     mpz_t B; mpz_init(B);
@@ -1243,6 +1251,8 @@ static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mul
     mpz_t q; mpz_init(q);
     mpz_t r; mpz_init(r);
     mpz_t temp, temp2, temp3;
+
+    int result = 0;
 
     /* gmp_randstate_t state;
     gmp_randinit_default(state); */
@@ -1557,7 +1567,7 @@ static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mul
     {
         mpz_set_ui(temp,1);
         mpz_set_ui(temp2,1);
-        mat2off = (numPrimes)/32;
+        mat2off = numPrimes/32;
         if (numPrimes%32) mat2off++;
         mat2off*=32;
         memset(primecount,0,numPrimes*sizeof(int));
@@ -1583,16 +1593,15 @@ static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mul
         mpz_sub(temp,temp2,temp);
         mpz_gcd(temp,temp,n);
         /* Only non-trivial factors */
-        if ((mpz_cmp(temp,n)!=0)&&(mpz_cmp_ui(temp,1)!=0))
-        {
+        if (mpz_cmp_ui(temp,1) && mpz_cmp(temp,n) && mpz_divisible_p(n,temp) ) {
+          result = 1;
+          mpz_set(f, temp);
 #ifdef STANDALONE_SIMPQS
-           gmp_printf("%Zd\n",temp);
-           mpz_set(f, temp);
+          gmp_printf("%Zd\n",temp);
 #else
-           mpz_set(f, temp);
-           break;
+          break;
 #endif
-        }
+          }
     }
 
     destroyMat(m, numPrimes, relSought);
@@ -1618,11 +1627,6 @@ static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mul
     free(flags);    flags = 0;
     free(offsets);  offsets = 0;
     free(offsets2); offsets2 = 0;
-    for (i = 0; i < numPrimes; i++) {
-      mpz_clear(sqrts[i]);
-    }
-    free(sqrts);  sqrts = 0;
-
     for (i = 0; i < relSought; i++) {
       mpz_clear(XArr[i]);
     }
@@ -1632,14 +1636,16 @@ static void mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mul
     mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);
     mpz_clear(Bdivp2);
 
+    return result;
 }
 
 int _GMP_simpqs(mpz_t n, mpz_t f)
 {
   unsigned long multiplier;
+  int result;
 
   initSieve();
-  decdigits = mpz_sizeinbase(n,10);
+  decdigits = mpz_sizeinbase(n,10); /* often 1 too big */
   if (decdigits < MINDIG) {
     mpz_set(f, n);
     return 0;
@@ -1674,6 +1680,7 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
   }
 
 #ifdef REPORT
+  gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
   printf("Using multiplier: %ld\n",(long)multiplier);
   printf("%ld primes in factor base.\n",(long)numPrimes);
   printf("Sieving interval M = %ld\n",(long)Mdiv2*2);
@@ -1690,10 +1697,12 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
   tonelliShanks(numPrimes,n);
   TonelliDestroy();
 
-  mainRoutine(Mdiv2, n, f, multiplier);
+  result = mainRoutine(Mdiv2, n, f, multiplier);
+  if (!result)
+    mpz_set(f, n);
 
   clearSieve();
-  return (mpz_cmp_ui(f,1) && mpz_cmp(f,n)) ? 1 : 0;
+  return result;
 }
 
 #ifdef STANDALONE_SIMPQS
