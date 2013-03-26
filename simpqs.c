@@ -20,13 +20,14 @@
 ============================================================================*/
 
 /*============================================================================
-   Some small modifications made in 2013 by Dana Jacobsen:
+   Some modifications made in 2013 by Dana Jacobsen:
      - put it in one file
      - merge some of the 1.0 and 2.0 changes
      - make it work with smaller values
      - fix some memory errors
      - free memory all over
      - fewer globals
+     - mpz_nextprime is slow, slow, slow.  Use prime_iterator.
    This does not use jasonp's block Lanczos code that v2.0 uses.  That code
    litters temporary files everywhere, but that's a solvable problem.
    TODO: Tune 25-40 digit parameters
@@ -40,7 +41,9 @@
 #include <math.h>
 #include <gmp.h>
 
+#include "ptypes.h"
 #include "simpqs.h"
+#include "prime_iterator.h"
 
 #ifdef STANDALONE_SIMPQS
   typedef unsigned long UV;
@@ -551,10 +554,11 @@ static unsigned long knuthSchroeppel(mpz_t n)
     unsigned long multindex;
     float factors[NUMMULTS];
     float logpdivp;
-    mpz_t prime, r, mult;
+    mpz_t r, mult;
     long kron;
+    UV p;
+    PRIME_ITERATOR(iter);
 
-    mpz_init(prime);
     mpz_init(r);
     mpz_init(mult);
 
@@ -569,15 +573,14 @@ static unsigned long knuthSchroeppel(mpz_t n)
        factors[multindex] -= (log((float) multipliers[multindex]) / 2.0);
     }
 
-    mpz_set_ui(prime,3);
-    while (mpz_cmp_ui(prime,10000)<0)
-    {
-          logpdivp = log((float)mpz_get_ui(prime)) / mpz_get_ui(prime);
-          kron = mpz_kronecker(n,prime);
+    prime_iterator_setprime(&iter, 3);
+    for (p = 3; p < 10000; p = prime_iterator_next(&iter)) {
+          logpdivp = log((float)p) / p;
+          kron = mpz_kronecker_ui(n,p);
           for (multindex = 0; multindex < NUMMULTS; multindex++)
           {
               mpz_set_ui(mult,multipliers[multindex]);
-              switch (kron*mpz_kronecker(mult,prime))
+              switch (kron*mpz_kronecker_ui(mult,p))
               {
                  case 0:
                  {
@@ -590,9 +593,8 @@ static unsigned long knuthSchroeppel(mpz_t n)
                  default: break;
               }
           }
-
-          mpz_nextprime(prime,prime);
     }
+    prime_iterator_destroy(&iter);
 
     for (multindex=0; multindex<NUMMULTS; multindex++)
     {
@@ -603,7 +605,6 @@ static unsigned long knuthSchroeppel(mpz_t n)
       }
     }
 
-    mpz_clear(prime);
     mpz_clear(r);
     mpz_clear(mult);
 
@@ -655,35 +656,25 @@ static void clearSieve(void)
 ========================================================================*/
 static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
 {
-     mpz_t currentPrime;
-     unsigned long primesinbase = 0;
+  UV p;
+  UV primesinbase = 0;
+  PRIME_ITERATOR(iter);
 
-     if (factorBase) { free(factorBase);  factorBase = 0; }
-     factorBase = (unsigned long *) calloc(sizeof(unsigned long),B);
+  if (factorBase) { free(factorBase);  factorBase = 0; }
+  factorBase = (unsigned long *) malloc( B * sizeof(unsigned long));
 
-     factorBase[primesinbase] = multiplier;
-     primesinbase++;
-     if (multiplier!=2)
-     {
-        factorBase[primesinbase] = 2;
-        primesinbase++;
-     }
-     mpz_init_set_ui(currentPrime,3);
-     while (primesinbase < B)
-     {
-          if (mpz_kronecker(n,currentPrime)==1)
-          {
-              factorBase[primesinbase] = mpz_get_ui(currentPrime);
-              primesinbase++;
-          }
-          mpz_nextprime(currentPrime,currentPrime);
-     }
+  factorBase[primesinbase++] = multiplier;
+  if (multiplier != 2)
+    factorBase[primesinbase++] = 2;
+  prime_iterator_setprime(&iter, 3);
+  for (p = 3; primesinbase < B; p = prime_iterator_next(&iter)) {
+    if (mpz_kronecker_ui(n, p) == 1)
+      factorBase[primesinbase++] = p;
+  }
+  prime_iterator_destroy(&iter);
 #ifdef LARGESTP
-     gmp_printf("Largest prime less than %Zd\n",currentPrime);
+  gmp_printf("Largest prime less than %Zd\n",p);
 #endif
-
-     mpz_clear(currentPrime);
-     return;
 }
 
 /*===========================================================================
