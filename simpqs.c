@@ -293,14 +293,6 @@ static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int r
 #define MINDIG 30 //Will not factor numbers with less than this number of decimal digits
 
 //===========================================================================
-//Knuth-Schroeppel multipliers and a macro to count them
-
-static const unsigned long multipliers[] = {1, 2, 3, 5, 7, 11, 13, 17, 19,
-                                                23, 29, 31, 37, 41, 43};
-
-#define NUMMULTS (sizeof(multipliers)/sizeof(unsigned long))
-
-//===========================================================================
 // Large prime cutoffs
 
 static unsigned long largeprimes[] =
@@ -491,70 +483,77 @@ static unsigned long modinverse(unsigned long a, unsigned long p)
              relations will accumulate, since they hit the sieving interval
              more often.
 
+   TODO: Silverman's modified KS, or better? jasonp's mpqs.c algorithm.
+
 ==========================================================================*/
-static unsigned long knuthSchroeppel(mpz_t n)
+static const unsigned long multipliers[] = {
+//  1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31, 
+//  33, 34, 35, 37, 38, 41, 42, 43, 47};
+  1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31,
+  33, 34, 35, 37, 38, 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59, 61,
+  62, 65, 66, 67, 69, 70, 71, 73};
+#define NUMMULTS (sizeof(multipliers)/sizeof(unsigned long))
+
+static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
 {
-    float bestFactor = -10.0f;
-    unsigned long multiplier = 1;
-    unsigned long nmod8;
-    unsigned long multindex;
-    float factors[NUMMULTS];
-    float logpdivp;
-    mpz_t r, mult;
-    long kron;
-    UV p;
+  float bestFactor = -10.0f;
+  unsigned long multiplier, nmod8, mod8, multindex;
+  float factors[NUMMULTS];
+  float logpdivp;
+  mpz_t mult;
+  long kron;
+  UV p, numprimes, maxprimes;
+
+  if (mpz_even_p(n)) return 2;
+
+  mpz_init(mult);
+  nmod8 = mpz_fdiv_r_ui(mult,n,8);
+  maxprimes = (NUMMULTS <= numPrimes-2) ? NUMMULTS : numPrimes-2;
+
+  for (multindex = 0; multindex < NUMMULTS; multindex++) {
+    mod8 = (nmod8 * multipliers[multindex]) % 8;
+    factors[multindex] = 0.34657359; /* ln2/2 */
+    if (mod8 == 1) factors[multindex] *= 4.0;
+    if (mod8 == 5) factors[multindex] *= 2.0;
+    factors[multindex] -= log((float) multipliers[multindex]) / 2.0;
+  }
+
+  {
     PRIME_ITERATOR(iter);
-
-    mpz_init(r);
-    mpz_init(mult);
-
-    nmod8 = mpz_fdiv_r_ui(r,n,8);
-
-    for (multindex = 0; multindex < NUMMULTS; multindex++)
-    {
-       long mod = nmod8*multipliers[multindex]%8;
-       factors[multindex] = 0.34657359; // ln2/2
-       if (mod == 1) factors[multindex] *= 4.0;
-       if (mod == 5) factors[multindex] *= 2.0;
-       factors[multindex] -= (log((float) multipliers[multindex]) / 2.0);
-    }
-
-    prime_iterator_setprime(&iter, 3);
-    for (p = 3; p < 10000; p = prime_iterator_next(&iter)) {
-          logpdivp = log((float)p) / p;
-          kron = mpz_kronecker_ui(n,p);
-          for (multindex = 0; multindex < NUMMULTS; multindex++)
-          {
-              mpz_set_ui(mult,multipliers[multindex]);
-              switch (kron*mpz_kronecker_ui(mult,p))
-              {
-                 case 0:
-                 {
-                      factors[multindex] += logpdivp;
-                 } break;
-                 case 1:
-                 {
-                      factors[multindex] += 2.0*logpdivp;
-                 } break;
-                 default: break;
-              }
-          }
-    }
-    prime_iterator_destroy(&iter);
-
-    for (multindex=0; multindex<NUMMULTS; multindex++)
-    {
-      if (factors[multindex] > bestFactor)
-      {
-        bestFactor = factors[multindex];
-        multiplier = multipliers[multindex];
+    for (numprimes = 0; numprimes < maxprimes; numprimes++) {
+      p = prime_iterator_next(&iter);
+      if (mpz_divisible_ui_p(n, p))  break;   /* Found small factor */
+      logpdivp = log((float)p) / p;
+      kron = mpz_kronecker_ui(n,p);
+      for (multindex = 0; multindex < NUMMULTS; multindex++) {
+        unsigned long m = multipliers[multindex];
+        if (m >= p)  m %= p;
+        if (m == 0) {
+          factors[multindex] += logpdivp;
+        } else {
+          mpz_set_ui(mult, m);
+          if (kron * mpz_kronecker_ui(mult,p) == 1)
+            factors[multindex] += 2.0 * logpdivp;
+        }
       }
     }
+    prime_iterator_destroy(&iter);
+  }
 
-    mpz_clear(r);
-    mpz_clear(mult);
+  mpz_clear(mult);
+  if (numprimes < maxprimes)  return p;
 
-    return multiplier;
+  multiplier = 1;
+  for (multindex=0; multindex<NUMMULTS; multindex++) {
+    if (factors[multindex] > bestFactor) {
+      bestFactor = factors[multindex];
+      multiplier = multipliers[multindex];
+    }
+  }
+
+  /* gmp_printf("%Zd mult %lu\n", n, multiplier); */
+
+  return multiplier;
 }
 
 
@@ -1558,9 +1557,6 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     return 0;
   }
 
-  multiplier = knuthSchroeppel(n);
-  mpz_mul_ui(n, n, multiplier);
-
   if (decdigits<=91) {
     numPrimes=primesNo[decdigits-MINDIG];
 
@@ -1585,6 +1581,13 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     errorbits = decdigits/4 + 2;
     threshold = 43+(7*decdigits)/10;
   }
+
+  multiplier = knuthSchroeppel(n, numPrimes);
+  if (multiplier > 1 && mpz_divisible_ui_p(n, multiplier)) {
+    mpz_set_ui(f, multiplier);
+    return 1;
+  }
+  mpz_mul_ui(n, n, multiplier);
 
 #ifdef REPORT
   gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
