@@ -28,6 +28,7 @@
      - free memory all over
      - fewer globals
      - mpz_nextprime is slow, slow, slow.  Use prime_iterator.
+     - Alternate multiplier selection routine.
    This does not use jasonp's block Lanczos code that v2.0 uses.  That code
    litters temporary files everywhere, but that's a solvable problem.
    TODO: Tune 25-40 digit parameters
@@ -285,7 +286,6 @@ static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int r
 
 #define CACHEBLOCKSIZE 64000 //Should be a little less than the L1/L2 cache size
                              //and a multiple of 64000
-#define LARGEPRIME 6000000
 #define MEDIUMPRIME    900
 #define SECONDPRIME    6000 //This should be lower for slower machines
 #define FUDGE          0.15 //Every program needs a mysterious fudge factor
@@ -312,8 +312,8 @@ static unsigned long largeprimes[] =
 // Number of primes to use in factor base, given the number of decimal digits specified
 static unsigned long primesNo[] =
 {
-     1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, //30-39
-     1500, 1500, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, //40-49
+     1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, //30-39
+     1600, 1600, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, //40-49
      2150, 2200, 2250, 2300, 2400, 2500, 2600, 2700, 2800, 2900, //50-59
      3000, 3150, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, //60-69
      9500, 10000, 11500, 13000, 15000, //70-74
@@ -373,11 +373,11 @@ static unsigned long thresholds[] =
 //N.B: probably optimal if chosen to be a multiple of 32000, though other sizes are supported
 static unsigned long sieveSize[] =
 {
-     64000, 64000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //30-39
-     32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //40-49
-     32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //50-59
-     32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, //60-69
-     32000, 32000, 64000, 64000, 64000, //70-74
+     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //30-39
+     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //40-49
+     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //50-59
+     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //60-69
+     64000, 64000, 64000, 64000, 64000, //70-74
      96000, 96000, 96000, 128000, 128000, //75-79
      160000, 160000, 160000, 160000, 160000, //80-84
      192000, 192000, 192000, 192000, 192000, //85-89
@@ -405,10 +405,11 @@ static unsigned int Mdiv2; //size of sieving interval divide 2
 
 static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
 
-#define RELATIONS_PER_PRIME 50
+#define RELATIONS_PER_PRIME 100
 static void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
 {
-  rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
+  if (nrel < RELATIONS_PER_PRIME)
+    rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
 }
 static unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
 {
@@ -475,87 +476,82 @@ static unsigned long modinverse(unsigned long a, unsigned long p)
 /*=========================================================================
    Knuth_Schroeppel Multiplier:
 
-   Function: Find the best multiplier to use (allows 2 as a multiplier).
-             The general idea is to find a multiplier k such that kn will
-             be faster to factor. This is achieved by making kn a square
-             modulo lots of small primes. These primes will then be factor
-             base primes, and the more small factor base primes, the faster
-             relations will accumulate, since they hit the sieving interval
-             more often.
-
-   TODO: Silverman's modified KS, or better? jasonp's mpqs.c algorithm.
+   This is derived from Jason Papadopoulos's mpqs K-S method.  I believe it
+   does a slightly better job than the K-S in FLINT 2.3, but that's debatable.
+   An alternative would be to implement the method from Silverman 1987.
 
 ==========================================================================*/
+/* small square-free numbers:  do { say $_ if moebius($_) != 0 } for 1..101 */
 static const unsigned long multipliers[] = {
-//  1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31, 
-//  33, 34, 35, 37, 38, 41, 42, 43, 47};
   1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31,
   33, 34, 35, 37, 38, 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59, 61,
-  62, 65, 66, 67, 69, 70, 71, 73};
+  62, 65, 66, 67, 69, 70, 71, 73, 74, 77, 78, 79, 82, 83, 85, 86, 87, 89,
+  91, 93, 94, 95, 97, 101};
 #define NUMMULTS (sizeof(multipliers)/sizeof(unsigned long))
+#ifndef M_LN2
+#define M_LN2 0.69314718055994530942
+#endif
 
 static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
 {
-  float bestFactor = -10.0f;
-  unsigned long multiplier, nmod8, mod8, multindex;
-  float factors[NUMMULTS];
-  float logpdivp;
-  mpz_t mult;
-  long kron;
-  UV p, numprimes, maxprimes;
+  unsigned int i, j, best_mult, num_mults, knmod8;
+  unsigned int maxprimes = (2*numPrimes <= 300) ? 2*numPrimes : 300;
+  float best_score;
+  float scores[NUMMULTS];
+  mpz_t temp;
 
-  if (mpz_even_p(n)) return 2;
+  mpz_init(temp);
 
-  mpz_init(mult);
-  nmod8 = mpz_fdiv_r_ui(mult,n,8);
-  maxprimes = (NUMMULTS <= numPrimes-2) ? NUMMULTS : numPrimes-2;
-
-  for (multindex = 0; multindex < NUMMULTS; multindex++) {
-    mod8 = (nmod8 * multipliers[multindex]) % 8;
-    factors[multindex] = 0.34657359; /* ln2/2 */
-    if (mod8 == 1) factors[multindex] *= 4.0;
-    if (mod8 == 5) factors[multindex] *= 2.0;
-    factors[multindex] -= log((float) multipliers[multindex]) / 2.0;
+  for (i = 0; i < NUMMULTS; i++) {
+    unsigned int curr_mult = multipliers[i];
+    scores[i] = 0.5 * logf((float)curr_mult);
+    mpz_mul_ui(temp, n, curr_mult);
+    knmod8 = mpz_mod_ui(temp, temp, 8);
+    switch (knmod8) {
+      case 1:  scores[i] -= 2 * M_LN2;  break;
+      case 5:  scores[i] -= M_LN2;      break;
+      case 3:
+      case 7:  scores[i] -= 0.5 * M_LN2; break;
+      default: break;
+    }
   }
+  num_mults = i;
 
   {
     PRIME_ITERATOR(iter);
-    for (numprimes = 0; numprimes < maxprimes; numprimes++) {
-      p = prime_iterator_next(&iter);
-      if (mpz_divisible_ui_p(n, p))  break;   /* Found small factor */
-      logpdivp = log((float)p) / p;
-      kron = mpz_kronecker_ui(n,p);
-      for (multindex = 0; multindex < NUMMULTS; multindex++) {
-        unsigned long m = multipliers[multindex];
-        if (m >= p)  m %= p;
-        if (m == 0) {
-          factors[multindex] += logpdivp;
-        } else {
-          mpz_set_ui(mult, m);
-          if (kron * mpz_kronecker_ui(mult,p) == 1)
-            factors[multindex] += 2.0 * logpdivp;
+    for (i = 1; i < maxprimes; i++) {
+      unsigned int prime = prime_iterator_next(&iter);
+      float contrib = logf((float)prime) / (float)(prime-1);
+      unsigned int modp = mpz_mod_ui(temp, n, prime);
+
+      for (j = 0; j < num_mults; j++) {
+        unsigned int curr_mult = multipliers[j];
+        mpz_set_ui(temp, modp);
+        mpz_mul_ui(temp, temp, curr_mult);
+        mpz_mod_ui(temp, temp, prime);
+        if (mpz_sgn(temp) == 0) {
+          scores[j] -= contrib;
+        } else if (mpz_kronecker_ui(temp, prime) == 1) {
+          scores[j] -= 2*contrib;
         }
       }
     }
     prime_iterator_destroy(&iter);
   }
+  mpz_clear(temp);
 
-  mpz_clear(mult);
-  if (numprimes < maxprimes)  return p;
-
-  multiplier = 1;
-  for (multindex=0; multindex<NUMMULTS; multindex++) {
-    if (factors[multindex] > bestFactor) {
-      bestFactor = factors[multindex];
-      multiplier = multipliers[multindex];
+  best_score = 1000.0;
+  best_mult = 1;
+  for (i = 0; i < num_mults; i++) {
+    float score = scores[i];
+    if (score < best_score) {
+      best_score = score;
+      best_mult = multipliers[i];
     }
   }
-
-  /* gmp_printf("%Zd mult %lu\n", n, multiplier); */
-
-  return multiplier;
+  /* gmp_printf("%Zd mult %lu\n", n, best_mult); */
+  return best_mult;
 }
-
 
 
 /*========================================================================
@@ -876,7 +872,7 @@ static void evaluateSieve(
 
               if (mpz_cmp_ui(res,1000)>0)
               {
-                 if (mpz_cmp_ui(res,LARGEPRIME)<0)
+                 if (mpz_cmp_ui(res,largeprime)<0)
                  {
                     partials++;
                  }
@@ -889,7 +885,7 @@ static void evaluateSieve(
                  mpz_neg(res,res);
                  if (mpz_cmp_ui(res,1000)>0)
                  {
-                    if (mpz_cmp_ui(res,LARGEPRIME)<0)
+                    if (mpz_cmp_ui(res,largeprime)<0)
                     {
                        partials++;
                     }
@@ -1211,7 +1207,7 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     unsigned char** offsets = (unsigned char **) malloc(midprime * sizeof(unsigned char *));
     unsigned char** offsets2 = (unsigned char **)malloc(midprime * sizeof(unsigned char *));
 
-    relations = (unsigned long *) calloc(numPrimes * RELATIONS_PER_PRIME, sizeof(unsigned long));
+    relations = (unsigned long *) calloc(relSought * RELATIONS_PER_PRIME, sizeof(unsigned long));
 
     primecount = (unsigned short *) malloc(numPrimes * sizeof(unsigned short));
 
@@ -1224,6 +1220,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
     span = numPrimes/s/s/2;
     min=fact-span/2;
+    while ((fact*fact)/min - min < span)
+      min--;
 
 #ifdef ADETAILS
     printf("s = %d, fact = %d, min = %d, span = %d\n",s,fact,min,span);
@@ -1235,22 +1233,6 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     {
         int polyindex;
         mpz_set_ui(A,1);
-#if 0
-        for (i=0; i<s-1; )
-        {
-           int j,ran;
-           mpz_set_ui(temp,span);
-           mpz_urandomm(temp,state,temp);
-           ran = mpz_get_ui(temp);
-           for (j=0;((j<i)&&(aind[j]!=ran));j++);
-           if (j==i)
-           {
-              aind[i] = ran;
-              mpz_mul_ui(A,A,factorBase[ran+min]);
-              i++;
-           }
-        }
-#else
         for (i = 0; i < s-1; )
         {
            unsigned long ran = span/2+silly_random(span/2);
@@ -1277,9 +1259,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
               i++;
            }
         }
-#endif
         mpz_div(temp,nsqrtdiv,A);
-        for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
+        for (fact = 1; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
         fact-=min;
         do
         {
@@ -1294,11 +1275,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
         {
            p = factorBase[aind[i]+min];
            mpz_div_ui(temp,A,p);
-           //mpz_fdiv_r_ui(temp,temp,p*p);
            amodp[i] = mpz_fdiv_r_ui(temp,temp,p);
 
-           //mpz_set_ui(temp3,p);
-           //mpz_invert(temp,temp,temp3);
            mpz_set_ui(temp,modinverse(mpz_get_ui(temp),p));
            mpz_mul(temp,temp,sqrts[aind[i]+min]);
            mpz_fdiv_r_ui(temp,temp,p);
@@ -1320,30 +1298,21 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
         for (i=0; i<numPrimes; i++)
         {
            p = factorBase[i];
-           //mpz_set_ui(temp3,p);
-           //mpz_fdiv_r_ui(temp,A,(unsigned long64_t)p*(unsigned long64_t)p);
-           //mpz_fdiv_r_ui(temp,temp,p);
-           //mpz_fdiv_r(temp,A,temp3);
-           //mpz_invert(temp3,temp,temp3);
-           //Ainv[i] = mpz_get_ui(temp3);
            Ainv[i] = modinverse(mpz_fdiv_r_ui(temp,A,p),p);
 
            for (j=0; j<s; j++)
            {
               mpz_fdiv_r_ui(temp,Bterms[j],p);
-              //mpz_fdiv_r_ui(temp,temp,p);
               mpz_mul_ui(temp,temp,2*Ainv[i]);
               Ainv2B[j][i] = mpz_fdiv_r_ui(temp,temp,p);
            }
 
            mpz_fdiv_r_ui(temp,B,p);
-           //mpz_fdiv_r_ui(temp,temp,p);
            mpz_sub(temp,sqrts[i],temp);
            mpz_add_ui(temp,temp,p);
            mpz_mul_ui(temp,temp,Ainv[i]);
            mpz_add_ui(temp,temp,Mdiv2);
            soln1[i] = mpz_fdiv_r_ui(temp,temp,p);
-           //mpz_set(temp,sqrts[i]);
            mpz_sub_ui(temp,sqrts[i],p);
            mpz_neg(temp,temp);
            mpz_mul_ui(temp,temp,2*Ainv[i]);
@@ -1374,17 +1343,10 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
            {
               index = aind[j]+min;
               p = factorBase[index];
-              //mpz_set_ui(temp,p*p);
-              //mpz_mul(temp,temp,temp);
               mpz_fdiv_r_ui(D,n,p*p);
               mpz_fdiv_r_ui(Bdivp2,B,p*p);
               mpz_mul_ui(temp,Bdivp2,amodp[j]);
-              //mpz_realloc2(temp3,64);
-              //mpz_set_ui(temp3,p);
-              //mpz_fdiv_r_ui(temp,temp,p*p);
               mpz_fdiv_r_ui(temp,temp,p);
-              //mpz_invert(temp3,temp,temp3);
-              //u1=mpz_get_ui(temp3);
               u1 = modinverse(mpz_fdiv_r_ui(temp,temp,p),p);
               mpz_mul(temp,Bdivp2,Bdivp2);
               mpz_sub(temp,temp,D);
@@ -1393,9 +1355,7 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
               mpz_mul_ui(temp,temp,u1);
               mpz_add_ui(temp,temp,Mdiv2);
               mpz_add_ui(temp,temp,p);
-              //mpz_fdiv_r_ui(temp,temp,p*p);
               soln1[index]=mpz_fdiv_r_ui(temp,temp,p);
-              //soln1[index] = mpz_get_ui(temp);
               soln2[index] = (unsigned long) -1;
            }
 
@@ -1557,6 +1517,16 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     return 0;
   }
 
+#ifdef REPORT
+  gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
+#endif
+
+  /* Get a preliminary number of primes, pick a multiplier, apply it */
+  numPrimes = (decdigits <= 91) ? primesNo[decdigits-MINDIG] : 64000;
+  multiplier = knuthSchroeppel(n, numPrimes);
+  mpz_mul_ui(n, n, multiplier);
+  decdigits = mpz_sizeinbase(n, 10);
+
   if (decdigits<=91) {
     numPrimes=primesNo[decdigits-MINDIG];
 
@@ -1582,15 +1552,7 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     threshold = 43+(7*decdigits)/10;
   }
 
-  multiplier = knuthSchroeppel(n, numPrimes);
-  if (multiplier > 1 && mpz_divisible_ui_p(n, multiplier)) {
-    mpz_set_ui(f, multiplier);
-    return 1;
-  }
-  mpz_mul_ui(n, n, multiplier);
-
 #ifdef REPORT
-  gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
   printf("Using multiplier: %ld\n",(long)multiplier);
   printf("%ld primes in factor base.\n",(long)numPrimes);
   printf("Sieving interval M = %ld\n",(long)Mdiv2*2);
@@ -1612,6 +1574,7 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     mpz_set(f, n);
 
   clearSieve();
+  /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
   return result;
 }
 
