@@ -146,127 +146,65 @@ static int sqrtmod(mpz_t asqrt, mpz_t a, mpz_t p)
      return 1;
 }
 
+/* DANAJ: Modify matrix code to do 64-bit-padded character arrays */
+typedef unsigned char* row;  /* row of an F2 matrix */
+typedef row* matrix;        /* matrix as a list of pointers to rows */
 
-/* DANAJ: TODO: for this matrix code I'm doing a naughty thing:
- * assuming sizeof(int)==4.  The original code from Hart uses unsigned long,
- * which is a BSDism.  uint should be reasonably portable, though
- * some testers still have old non-C99 compilers.
- */
-typedef unsigned int * row;  /* row of an F2 matrix */
-typedef row * matrix;        /* matrix as a list of pointers to rows */
+#define insertEntry(m, i, j)   m[i][(j)/8] |= (1U << ((j)%8))
+#define xorEntry(m, i, j)      m[i][(j)/8] ^= (1U << ((j)%8))
+#define getEntry(m, i, j)     (m[i][(j)/8] &  (1U << ((j)%8)))
+#define swapRows(m, x, y) \
+  do { row temp = m[x];   m[x] = m[y];  m[y] = temp; } while (0)
 
+#define matBytes(numcols) (((numcols+63)/64) * 8)
+#define rightMatrixOffset(numcols)  (8 * matBytes(numcols))
 
-static unsigned int bitPattern[]  =
-{
-  0x80000000, 0x40000000, 0x20000000, 0x10000000,
-  0x08000000, 0x04000000, 0x02000000, 0x01000000,
-  0x00800000, 0x00400000, 0x00200000, 0x00100000,
-  0x00080000, 0x00040000, 0x00020000, 0x00010000,
-  0x00008000, 0x00004000, 0x00002000, 0x00001000,
-  0x00000800, 0x00000400, 0x00000200, 0x00000100,
-  0x00000080, 0x00000040, 0x00000020, 0x00000010,
-  0x00000008, 0x00000004, 0x00000002, 0x00000001
-};
-
-static void insertEntry(matrix m, unsigned int i, unsigned int j)
-{
-     m[i][j / 32] |= bitPattern[j % 32];
-}
-
-static void xorEntry(matrix m, unsigned int i, unsigned int j)
-{
-     m[i][j / 32] ^= bitPattern[j % 32];
-}
-
-static unsigned int getEntry(matrix m, unsigned int i, unsigned int j)
-{
-     return m[i][j / 32] & bitPattern[j % 32];
-}
-
-static void swapRows(matrix m, unsigned int x, unsigned int y)
-{
-     row temp = m[x];   m[x] = m[y];  m[y] = temp;
-}
-
-
+/* Clear just the left side */
 static void clearRow(matrix m, unsigned int numcols, unsigned int row)
 {
-    int dwords = numcols/32;
-
-    if (numcols%32) dwords++;
-    memset( m[row], 0, dwords*4);
+  memset( m[row], 0, matBytes(numcols) );
 }
 
-#if 0
-static void displayRow(matrix m, unsigned int row, unsigned int numPrimes)
+/* bitwise xor of two rows, both left and right matrices */
+static void xorRows(matrix m, unsigned int numcols, unsigned int source, unsigned int dest)
 {
-     int j;
-     int length = numPrimes/32;
-     if (numPrimes%32) length++;
-     length*=64;
+  unsigned int i, q;
+  UV* x = (UV*) m[dest];
+  UV* y = (UV*) m[source];
+  size_t nwords = (2 * matBytes(numcols)) / sizeof(UV);
 
-     printf("[");
-     for (j = 0; j < length/2; j++)
-       printf("%c", getEntry(m,row,j) ? '1' : '0');
-     printf("  ");
-     for (j = length/2; j < length; j++)
-       printf("%c", getEntry(m,row,j) ? '1' : '0');
-     printf("]\n");
-}
-#endif
-
-static void xorRows(matrix m, unsigned int source, unsigned int dest, unsigned int length)
-{
-  unsigned int i, q, r;
-  row x = m[dest];
-  row y = m[source];
-
-  r = length % 8; q = length - r;
-  for (i=0; i < q; i += 8)
-  {
-    x[i] ^= y[i]; x[1+i] ^= y[1+i]; x[2+i] ^= y[2+i]; x[3+i] ^= y[3+i];
-    x[4+i] ^= y[4+i]; x[5+i] ^= y[5+i]; x[6+i] ^= y[6+i]; x[7+i] ^= y[7+i];
+  q = 8 * (nwords / 8);
+  for (i = 0; i < q; i += 8) {
+    x[i+0] ^= y[i+0];  x[i+1] ^= y[i+1];  x[i+2] ^= y[i+2];  x[i+3] ^= y[i+3];
+    x[i+4] ^= y[i+4];  x[i+5] ^= y[i+5];  x[i+6] ^= y[i+6];  x[i+7] ^= y[i+7];
   }
-  switch (r)
-  {
-    case 7: x[i] ^= y[i]; i++;
-    case 6: x[i] ^= y[i]; i++;
-    case 5: x[i] ^= y[i]; i++;
-    case 4: x[i] ^= y[i]; i++;
-    case 3: x[i] ^= y[i]; i++;
-    case 2: x[i] ^= y[i]; i++;
-    case 1: x[i] ^= y[i]; i++;
-  }
+  for ( ; i < nwords; i++)
+    x[i] ^= y[i];
 }
 
 static matrix constructMat(unsigned int cols, unsigned int rows)
 {
-     unsigned int i;
-     matrix m;
-     unsigned int dwords = cols/32 + ((cols%32) ? 1 : 0);
+  unsigned int i;
+  matrix m;
+  size_t nbytes = matBytes(cols);
+  unsigned int mat2offset = rightMatrixOffset(cols);
 
-     /* printf("construct mat %u %u with %u words\n", cols, rows, dwords); */
-     /* If cols > rows, we write off the array */
-     if (cols < rows) croak("SIMPQS:  cols %u > rows %u\n", cols, rows);
-     m = (row *) calloc(sizeof(row),rows);
-     if (m==NULL)
-       croak("SIMPQS: Unable to allocate memory for matrix!\n");
+  /* printf("construct mat %u %u (%lu bytes)\n", cols, rows, rows*sizeof(row) + rows*(2*nbytes)); */
+  /* If cols > rows, we write off the array */
+  if (cols < rows) croak("SIMPQS:  cols %u > rows %u\n", cols, rows);
+  m = (row *) malloc( rows * sizeof(row) );
+  if (m == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
 
-     for (i = 0; i < rows; i++)
-     {
-         /* two matrices, side by side */
-         m[i] = (row) calloc(2*dwords,sizeof(unsigned int));
-     }
-     if (m[rows-1]==NULL)
-       croak("SIMPQS: Unable to allocate memory for matrix!\n");
+  for (i = 0; i < rows; i++) { /* two matrices, side by side */
+    m[i] = (row) calloc( 2*nbytes, sizeof(unsigned char) );
+    if (m[i] == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
+  }
 
-     /* make second matrix identity, i.e. 1's along diagonal */
-     for (i = 0; i < rows; i++)
-     {
-        insertEntry(m,i,i+32*dwords);
-     }
+  /* make second matrix identity, i.e. 1's along diagonal */
+  for (i = 0; i < rows; i++)
+    insertEntry(m, i, mat2offset + i);
 
-     return m;
+  return m;
 }
 
 static void destroyMat(matrix m, unsigned int cols, unsigned int rows)
@@ -277,47 +215,52 @@ static void destroyMat(matrix m, unsigned int cols, unsigned int rows)
   free(m);
 }
 
-/* gaussReduce:  Apply Gaussian elimination to a matrix. */
-static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int relSought, int extras)
+#if 0
+static void displayRow(matrix m, unsigned int row, unsigned int numcols)
 {
-     unsigned int rowUpto = 0;
-     unsigned int irow;
-     unsigned int length = (numPrimes+extras)/32;
-     int icol;
-     unsigned int checkRow;
+  int j;
+  unsigned int mat2offset = rightMatrixOffset(numcols);
 
-     if (numPrimes%32) length++;
-     length*=2;
+  printf("[");
+  for (j = 0; j < numcols; j++)
+    printf("%c", getEntry(m,row,j) ? '1' : '0');
+  printf("  ");
+  for (j = 0; j < numcols; j++)
+    printf("%c", getEntry(m,row,mat2offset+j) ? '1' : '0');
+  printf("]\n");
+}
+#endif
 
-     for (icol = numPrimes-1; icol >= 0; icol--)
-     {
-         irow = rowUpto;
-         while ((irow < relSought)&&(getEntry(m,irow,icol)==0UL)) irow++;
-         if (irow < relSought)
-         {
+/* gaussReduce:  Apply Gaussian elimination to a matrix. */
+static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int relSought)
+{
+  unsigned int rowUpto = 0;
+  unsigned int irow, checkRow;
+  int icol;
 
-             swapRows(m,rowUpto,irow);
+  for (icol = numPrimes-1; icol >= 0; icol--) {
+    irow = rowUpto;
 
-             for (checkRow = rowUpto+1; checkRow<relSought; checkRow++)
-             {
-                 if (getEntry(m,checkRow,icol)!=0UL)
-                 {
-                    xorRows(m,rowUpto,checkRow,length);
-                 }
-             }
+    while ( (irow < relSought) && (getEntry(m,irow,icol) == 0) )
+      irow++;
 
-             rowUpto++;
-         }
-     }
-
-     return rowUpto;
+    if (irow < relSought) {
+      swapRows(m,rowUpto,irow);
+      for (checkRow = rowUpto+1; checkRow < relSought; checkRow++) {
+        if (getEntry(m,checkRow,icol) != 0)
+          xorRows(m, numPrimes, rowUpto, checkRow);
+      }
+      rowUpto++;
+    }
+  }
+  return rowUpto;
 }
 
 //===========================================================================
 //Uncomment these for various pieces of debugging information
 
 //#define COUNT    // Shows the number of relations generated and curves used during sieving
-//#define RELPRINT     // Shows the actual factorizations of the relations
+//#define RELPRINT // Shows the actual factorizations of the relations
 //#define ERRORS   // Error if relation should be divisible by a prime but isn't
 //#define POLS     // Shows the polynomials being used by the sieve
 //#define ADETAILS // Prints some details about the factors of the A coefficients of the polys
@@ -328,12 +271,12 @@ static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int r
 //===========================================================================
 //Architecture dependent fudge factors
 
-#if ULONG_MAX == 4294967295U
-#define SIEVEMASK 0xC0C0C0C0U
+#if ULONG_MAX == 4294967295UL
+#define SIEVEMASK 0xC0C0C0C0UL
 #define MIDPRIME 1500
 #define SIEVEDIV 1
-#elif ULONG_MAX == 18446744073709551615U
-#define SIEVEMASK 0xC0C0C0C0C0C0C0C0U
+#elif ULONG_MAX == 18446744073709551615UL
+#define SIEVEMASK 0xC0C0C0C0C0C0C0C0UL
 #define MIDPRIME       1500
 #define SIEVEDIV 1
 #else
@@ -450,32 +393,35 @@ static unsigned long sieveSize[] =
 };
 
 //============================================================================
-static long decdigits; //number of decimal digits of n
-static unsigned long secondprime; //min(numprimes, SECONDPRIME) = cutoff for using flags when sieving
-static unsigned long firstprime;  //first prime actually sieved with
+static unsigned int decdigits;   //number of decimal digits of n
+static unsigned int secondprime; //min(numprimes, SECONDPRIME) = cutoff for using flags when sieving
+static unsigned int firstprime;  //first prime actually sieved with
 static unsigned char errorbits;  //first prime actually sieved with
 static unsigned char threshold;  //sieve threshold cutoff for smooth relations
-static unsigned long midprime;
-unsigned long largeprime;
+static unsigned int midprime;
+static unsigned int largeprime;
 
-static unsigned long * factorBase; //array of factor base primes
-static unsigned long numPrimes; //number of primes in factor base
-static unsigned long relSought; //number of relations sought, i.e. a "few" more than numPrimes
+static unsigned int *factorBase; //array of factor base primes
+static unsigned int numPrimes; //number of primes in factor base
+static unsigned int relSought; //number of relations sought, i.e. a "few" more than numPrimes
 static unsigned char * primeSizes; //array of sizes in bits, of the factor base primes
 static unsigned char * sieve; //actual array where sieving takes place
-static unsigned char * * offsets; //offsets for each prime to use in sieve
-static unsigned char * * offsets2; //offsets for each prime to use in sieve (we switch between these)
-static unsigned long relsFound =0; //number of relations found so far
-static unsigned long potrels = 0; //potential relations (including duplicates)
+static unsigned int relsFound =0; //number of relations found so far
 static unsigned char * flags; //flags used for speeding up sieving for large primes
-static unsigned long partials = 0; //number of partial relations
-static unsigned long Mdiv2; //size of sieving interval divide 2
-static unsigned long mat2off; //offset of second square block in matrix
+static unsigned int partials = 0; //number of partial relations
+static unsigned int Mdiv2; //size of sieving interval divide 2
 
 static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
 
-//static mpz_t n; //number to be factored
-
+#define RELATIONS_PER_PRIME 50
+static void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
+{
+  rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
+}
+static unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
+{
+  return rel[ prime*RELATIONS_PER_PRIME + nrel ];
+}
 
 
 /*========================================================================
@@ -624,8 +570,6 @@ static void initSieve(void)
     factorBase = 0;
     primeSizes = 0;
     sieve = 0;
-    offsets = 0;
-    offsets2 = 0;
     flags = 0;
     sqrts = 0;
 }
@@ -634,11 +578,9 @@ static void clearSieve(void)
     if (factorBase) { free(factorBase);  factorBase = 0; }
     if (primeSizes) { free(primeSizes);  primeSizes = 0; }
     if (sieve) { free(sieve);  sieve = 0; }
-    if (offsets) { free(offsets);  offsets = 0; }
-    if (offsets2) { free(offsets2);  offsets2 = 0; }
     if (flags) { free(flags);  flags = 0; }
     if (sqrts) {
-      int i;
+      unsigned int i;
       for (i = 0; i < numPrimes; i++) {
         mpz_clear(sqrts[i]);
       }
@@ -661,7 +603,7 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
   PRIME_ITERATOR(iter);
 
   if (factorBase) { free(factorBase);  factorBase = 0; }
-  factorBase = (unsigned long *) malloc( B * sizeof(unsigned long));
+  factorBase = (unsigned int *) malloc( B * sizeof(unsigned int));
 
   factorBase[primesinbase++] = multiplier;
   if (multiplier != 2)
@@ -688,7 +630,7 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
 static void computeSizes(unsigned long numPrimes)
 {
   unsigned long i;
-  primeSizes = (unsigned char *) calloc(sizeof(unsigned char),numPrimes);
+  primeSizes = (unsigned char *) malloc( numPrimes * sizeof(unsigned char));
   for (i = 0; i < numPrimes; i++)
     primeSizes[i]=(unsigned char)floor(log(factorBase[i])/log(2.0)-FUDGE+0.5);
 }
@@ -700,7 +642,7 @@ static void computeSizes(unsigned long numPrimes)
       allocates memory for the results to be stored in the array sqrts
 
 ===========================================================================*/
-static void tonelliShanks(unsigned long numPrimes,mpz_t n)
+static void tonelliShanks(unsigned long numPrimes, mpz_t n)
 {
   unsigned long i;
   mpz_t temp;
@@ -724,7 +666,7 @@ static void tonelliShanks(unsigned long numPrimes,mpz_t n)
 
 ===========================================================================*/
 static void evaluateSieve(
-    unsigned long ** relations,
+    unsigned long * relations,
     unsigned long ctimesreps,
     unsigned long M,
     unsigned char * sieve,
@@ -733,15 +675,16 @@ static void evaluateSieve(
     mpz_t C,
     unsigned long * soln1,
     unsigned long * soln2,
-    int polyadd,
-    unsigned long * polycorr,
     matrix m,
     mpz_t * XArr,
     unsigned long * aind,
     int min,
     int s,
-    unsigned long multiplier,
-    int * exponents)
+    int * exponents,
+    mpz_t temp,
+    mpz_t temp2,
+    mpz_t temp3,
+    mpz_t res)
 {
      long i,j,ii;
      unsigned int k;
@@ -751,9 +694,11 @@ static void evaluateSieve(
      unsigned long * sieve2;
      unsigned char bits;
      int numfactors;
-     mpz_t temp, temp2, temp3, res;
 
-     mpz_init(temp);  mpz_init(temp2);  mpz_init(temp3);  mpz_init(res);
+     mpz_set_ui(temp, 0);
+     mpz_set_ui(temp2, 0);
+     mpz_set_ui(temp3, 0);
+     mpz_set_ui(res, 0);
      i = 0;
      j=0;
      sieve2 = (unsigned long *) sieve;
@@ -796,9 +741,10 @@ static void evaluateSieve(
               {
                  extra+=primeSizes[0];
                  for (ii = 0; ii<exponent; ii++)
-                   relations[relsFound][++numfactors] = 0;
+                   set_relation(relations, relsFound, ++numfactors, 0);
               }
-              if (exponent & 1) insertEntry(m,relsFound,0);
+              if (exponent & 1)
+                insertEntry(m,relsFound,0);
            }
 
            mpz_set_ui(temp,factorBase[1]);
@@ -807,15 +753,16 @@ static void evaluateSieve(
            {
               extra+=primeSizes[1];
               for (ii = 0; ii<exponent; ii++)
-                relations[relsFound][++numfactors] = 1;
+                set_relation(relations, relsFound, ++numfactors, 1);
            }
-           if (exponent & 1) insertEntry(m,relsFound,1);
+           if (exponent & 1)
+             insertEntry(m,relsFound,1);
 
            for (k = 2; k<firstprime; k++)
            {
               modp=(i+ctimesreps)%factorBase[k];
 
-              if (soln2[k]!=0xFFFFFFFFl)
+              if (soln2[k] != (unsigned long)-1 )
               {
                  if ((modp==soln1[k]) || (modp==soln2[k]))
                  {
@@ -831,7 +778,8 @@ static void evaluateSieve(
                     if (exponent > 1) printf("^%d",exponent);
 #endif
                     exponents[k] = exponent;
-                    if (exponent&1) insertEntry(m,relsFound,k);
+                    if (exponent & 1)
+                      insertEntry(m,relsFound,k);
                  } else exponents[k] = 0;
               } else
               {
@@ -839,11 +787,12 @@ static void evaluateSieve(
                  exponent = mpz_remove(res,res,temp);
                  if (exponent) extra+=primeSizes[k];
 #ifdef RELS
-                 if (exponent > 0) gmp_printf(" %Zd",factorBase[k]);
+                 if (exponent > 0) printf(" %ld",(long)factorBase[k]);
                  if (exponent > 1) printf("^%d",exponent);
 #endif
                  exponents[k] = exponent;
-                 if (exponent &1) insertEntry(m,relsFound,k);
+                 if (exponent & 1)
+                   insertEntry(m,relsFound,k);
               }
            }
            sieve[i]+=extra;
@@ -853,7 +802,7 @@ static void evaluateSieve(
               for (k = firstprime; (k<secondprime)&&(extra<sieve[i]); k++)
               {
                  modp=(i+ctimesreps)%factorBase[k];
-                 if (soln2[k]!=0xFFFFFFFFl)
+                 if (soln2[k] != (unsigned long)-1)
                  {
                     if ((modp==soln1[k]) || (modp==soln2[k]))
                     {
@@ -870,11 +819,10 @@ static void evaluateSieve(
                        if (exponent > 1) printf("^%d",exponent);
 #endif
                        if (exponent)
-                       {
-                          for (ii = 0; ii<exponent; ii++)
-                            relations[relsFound][++numfactors] = k;
-                       }
-                       if (exponent&1) insertEntry(m,relsFound,k);
+                         for (ii = 0; ii < exponent; ii++)
+                           set_relation(relations, relsFound, ++numfactors, k);
+                       if (exponent & 1)
+                         insertEntry(m,relsFound,k);
                     }
                  } else
                  {
@@ -887,11 +835,10 @@ static void evaluateSieve(
                     if (exponent > 1) printf("^%d",exponent);
 #endif
                     if (exponent)
-                    {
-                       for (ii = 0; ii<exponent; ii++)
-                         relations[relsFound][++numfactors] = k;
-                    }
-                    if (exponent &1) insertEntry(m,relsFound,k);
+                      for (ii = 0; ii < exponent; ii++)
+                        set_relation(relations, relsFound, ++numfactors, k);
+                    if (exponent & 1)
+                      insertEntry(m,relsFound,k);
                  }
               }
 
@@ -914,11 +861,10 @@ static void evaluateSieve(
                        if (exponent > 1) printf("^%d",exponent);
 #endif
                        if (exponent)
-                       {
-                          for (ii = 0; ii<exponent; ii++)
-                            relations[relsFound][++numfactors] = k;
-                       }
-                       if (exponent&1) insertEntry(m,relsFound,k);
+                         for (ii = 0; ii < exponent; ii++)
+                           set_relation(relations, relsFound, ++numfactors, k);
+                       if (exponent & 1)
+                         insertEntry(m,relsFound,k);
                     }
                  }
               }
@@ -926,7 +872,7 @@ static void evaluateSieve(
               for (ii =0; ii<s; ii++)
               {
                  xorEntry(m,relsFound,aind[ii]+min);
-                 relations[relsFound][++numfactors] = aind[ii]+min;
+                 set_relation(relations, relsFound, ++numfactors, aind[ii]+min);
               }
 
               if (mpz_cmp_ui(res,1000)>0)
@@ -961,9 +907,9 @@ static void evaluateSieve(
                     {
                        int jj;
                        for (jj = 0; jj < exponents[ii]; jj++)
-                         relations[relsFound][++numfactors] = ii;
+                         set_relation(relations, relsFound, ++numfactors, ii);
                     }
-                    relations[relsFound][0] = numfactors;
+                    set_relation(relations, relsFound, 0, numfactors);
 
                     mpz_init_set(XArr[relsFound], temp3);  /* (AX+B) */
 
@@ -981,13 +927,42 @@ static void evaluateSieve(
 #endif
 
            }
-              i++;
+           i++;
 
         } else if (relsFound >= relSought) i++;
      }
-     mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(res);
 }
 
+
+static void update_solns(unsigned long first, unsigned long limit, unsigned long * soln1, unsigned long * soln2, int polyadd, const unsigned long * polycorr)
+{
+  unsigned int prime;
+  long p, correction;
+
+  for (prime = first; prime < limit; prime++) {
+    if (soln2[prime] == (unsigned long) -1) continue;
+    p = factorBase[prime];
+    correction = (polyadd) ? p - polycorr[prime] : polycorr[prime];
+    soln1[prime] += correction;
+    while (soln1[prime] >= p)  soln1[prime] -= p;
+    soln2[prime] += correction;
+    while (soln2[prime] >= p)  soln2[prime] -= p;
+  }
+}
+
+static void set_offsets(unsigned char * const sieve, const unsigned long * const soln1, const unsigned long * const soln2, unsigned char * * offsets1, unsigned char * * offsets2)
+{
+  unsigned int prime;
+  for (prime = firstprime; prime < midprime; prime++) {
+    if (soln2[prime] == (unsigned long) -1) {
+      offsets1[prime] = 0;
+      offsets2[prime] = 0;
+    } else {
+      offsets1[prime] = sieve+soln1[prime];
+      offsets2[prime] = sieve+soln2[prime];
+    }
+  }
+}
 
 /*=============================================================================
    Sieve:
@@ -996,65 +971,37 @@ static void evaluateSieve(
              starting at start
 
 =============================================================================*/
-static void sieveInterval(unsigned long M, unsigned long numPrimes, unsigned char * sieve, long last, long first, long polyadd, unsigned long * soln1, unsigned long * soln2, unsigned long * polycorr, unsigned char * * offsets, unsigned char * * offsets2)
+static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsigned char * * offsets, unsigned char * * offsets2)
 {
      unsigned char currentprimesize;
-     unsigned long currentprime;
-     unsigned long prime;
+     unsigned int currentprime;
+     unsigned int prime;
      unsigned char * position2;
      unsigned char * position;
-     long diff;
+     ptrdiff_t diff;
      unsigned char * end;
      unsigned long ptimes4;
-     long correction;
 
      end = sieve+M;
 
-     if (first)
-     {
-        for (prime=1; prime<firstprime; prime++)
-        {
-            if (soln2[prime] == 0xFFFFFFFF) continue;
-            currentprime = factorBase[prime];
-            correction = polyadd ? -polycorr[prime]+currentprime : polycorr[prime];
-            soln1[prime]+=correction;
-            while (soln1[prime]>=currentprime) soln1[prime]-=currentprime;
-            soln2[prime]+=correction;
-            while (soln2[prime]>=currentprime) soln2[prime]-=currentprime;
-        }
-     }
-
      for (prime=firstprime; prime<MEDIUMPRIME; prime++)
      {
-        if (soln2[prime] == 0xFFFFFFFF) continue;
+        if (offsets[prime] == 0) continue;
         currentprime = factorBase[prime];
         currentprimesize = primeSizes[prime];
 
-        if (first)
-        {
-           correction = polyadd ? -polycorr[prime]+currentprime : polycorr[prime];
-           soln1[prime]+=correction;
-           while (soln1[prime]>=currentprime) soln1[prime]-=currentprime;
-           soln2[prime]+=correction;
-           while (soln2[prime]>=currentprime) soln2[prime]-=currentprime;
-
-           position = sieve+soln1[prime];
-           position2 = sieve+soln2[prime];
-        } else
-        {
-           position = offsets[prime];
-           position2 = offsets2[prime];
-        }
+        position = offsets[prime];
+        position2 = offsets2[prime];
         diff=position2-position;
 
         ptimes4 = currentprime*4;
         unsigned char * bound=end-ptimes4;
         while (bound - position > 0)
         {
-	      (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-	      (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-	      (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-	      (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
+              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
+              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
+              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
+              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
         }
         while ((end - position > 0)&&(end - position - diff > 0))
         {
@@ -1071,8 +1018,7 @@ static void sieveInterval(unsigned long M, unsigned long numPrimes, unsigned cha
               (* position)+=currentprimesize, position+=currentprime;
         }
 
-        if (!last)
-        {
+        if (more) {
            offsets[prime] = position;
            offsets2[prime] = position2;
         }
@@ -1083,21 +1029,8 @@ static void sieveInterval(unsigned long M, unsigned long numPrimes, unsigned cha
         currentprime = factorBase[prime];
         currentprimesize = primeSizes[prime];
 
-        if (first)
-        {
-           correction = polyadd ? -polycorr[prime]+currentprime : polycorr[prime];
-           soln1[prime]+=correction;
-           while (soln1[prime]>=currentprime) soln1[prime]-=currentprime;
-           soln2[prime]+=correction;
-           while (soln2[prime]>=currentprime) soln2[prime]-=currentprime;
-
-           position = sieve+soln1[prime];
-           position2 = sieve+soln2[prime];
-        } else
-        {
-           position = offsets[prime];
-           position2 = offsets2[prime];
-        }
+        position = offsets[prime];
+        position2 = offsets2[prime];
         diff=position2-position;
 
         ptimes4 = 2*currentprime;
@@ -1122,14 +1055,11 @@ static void sieveInterval(unsigned long M, unsigned long numPrimes, unsigned cha
         {
               (* position)+=currentprimesize, position+=currentprime;
         }
-        if (!last)
-        {
+        if (more) {
            offsets[prime] = position;
            offsets2[prime] = position2;
         }
      }
-
-     return;
 }
 
 /*===========================================================================
@@ -1138,75 +1068,55 @@ static void sieveInterval(unsigned long M, unsigned long numPrimes, unsigned cha
    Function: Second sieve for larger primes
 
 =========================================================================== */
-static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sieve, long last, long first, long polyadd, unsigned long * soln1, unsigned long * soln2, unsigned long * polycorr, unsigned char * * offsets, unsigned char * * offsets2)
+static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sieve, const unsigned long * soln1, const unsigned long * soln2)
 {
-     unsigned char currentprimesize;
-     unsigned long currentprime, prime;
-     unsigned char * position2;
-     unsigned char * position;
-     unsigned char * end;
-     long correction;
+     unsigned int prime;
+     unsigned char *end = sieve + M;
 
-     memset(sieve,0,M*sizeof(unsigned char));
-     memset(flags,0,numPrimes*sizeof(unsigned char));
-     end = sieve+M;
+     memset(sieve, 0, M*sizeof(unsigned char));
+     memset(flags, 0, numPrimes*sizeof(unsigned char));
      *end = 255; //sentinel to speed up sieve evaluators inner loop
 
-     for (prime=midprime; prime<secondprime; prime++)
+     for (prime = midprime; prime < secondprime; prime++)
      {
-        currentprime = factorBase[prime];
-        currentprimesize = primeSizes[prime];
+        unsigned int  p    = factorBase[prime];
+        unsigned char size = primeSizes[prime];
+        unsigned char* pos1 = sieve + soln1[prime];
+        unsigned char* pos2 = sieve + soln2[prime];
+        ptrdiff_t diff = pos2 - pos1;
+        unsigned char* fin = (diff >= 0) ? end-diff : end;
 
-        correction = polyadd ? -polycorr[prime]+currentprime : polycorr[prime];
-        soln1[prime]+=correction;
-        while (soln1[prime]>=currentprime) soln1[prime]-=currentprime;
-        soln2[prime]+=correction;
-        while (soln2[prime]>=currentprime) soln2[prime]-=currentprime;
-
-        position = sieve+soln1[prime];
-        position2 = sieve+soln2[prime];
-
-        while ((end - position > 0)&&(end - position2 > 0))
+        while ( pos1 < fin )
         {
-             (* position)+=currentprimesize, position+=currentprime, (* position2)+=currentprimesize, position2+=currentprime;
+             pos1[   0] += size;
+             pos1[diff] += size;
+             pos1 += p;
         }
+        pos2 = pos1 + diff;
 
-        if (end - position2 > 0)
-        {
-              (* position2)+=currentprimesize;
-        }
-        if (end - position > 0)
-        {
-              (* position)+=currentprimesize;
-        }
+        if ( pos1       < end)  pos1[   0] += size;
+        if ((pos1+diff) < end)  pos1[diff] += size;
      }
 
-     for (prime=secondprime; prime<numPrimes; prime++)
+     for (prime = secondprime; prime < numPrimes; prime++)
      {
-        currentprime = factorBase[prime];
-        currentprimesize = primeSizes[prime];
+        unsigned int  p    = factorBase[prime];
+        unsigned char size = primeSizes[prime];
+        unsigned char* pos1 = sieve + soln1[prime];
+        unsigned char* pos2 = sieve + soln2[prime];
 
-        correction = polyadd ? -polycorr[prime]+currentprime : polycorr[prime];
-        soln1[prime]+=correction;
-        while (soln1[prime]>=currentprime) soln1[prime]-=currentprime;
-        soln2[prime]+=correction;
-        while (soln2[prime]>=currentprime) soln2[prime]-=currentprime;
-
-        position = sieve+soln1[prime];
-        position2 = sieve+soln2[prime];
-
-        while (end - position > 0)
+        while (end - pos1 > 0)
         {
-              flags[prime]|=((unsigned char)1<<((position-sieve)&7)), (* position)+=currentprimesize, position+=currentprime;
+              flags[prime] |= ((unsigned char)1<<((pos1-sieve)&7));
+              *pos1 += size;  pos1 += p;
         }
 
-        while (end - position2 > 0)
+        while (end - pos2 > 0)
         {
-              flags[prime]|=((unsigned char)1<<((position2-sieve)&7)), (* position2)+=currentprimesize, position2+=currentprime;
+              flags[prime] |= ((unsigned char)1<<((pos2-sieve)&7));
+              *pos2 += size;  pos2 += p;
         }
      }
-
-     return;
 }
 
 /*============================================================================
@@ -1241,7 +1151,11 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     mpz_t Bdivp2; mpz_init(Bdivp2);
     mpz_t q; mpz_init(q);
     mpz_t r; mpz_init(r);
-    mpz_t temp, temp2, temp3;
+    mpz_t nsqrtdiv; mpz_init(nsqrtdiv);
+    mpz_t temp; mpz_init(temp);
+    mpz_t temp2; mpz_init(temp2);
+    mpz_t temp3; mpz_init(temp3);
+    mpz_t temp4; mpz_init(temp4);
 
     int result = 0;
 
@@ -1251,13 +1165,12 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     unsigned long u1;
 
     int i, j, l, s, fact, span, min;
-    unsigned long p;
-    unsigned long reps;
+    unsigned long p, reps, numRelations, M;
 
     unsigned long curves = 0;
 
-    unsigned long ** relations;
-    int * primecount;
+    unsigned long * relations;
+    unsigned short * primecount;
 
     int * exponents = (int *) calloc(firstprime,sizeof(int));
     if (exponents==NULL)
@@ -1294,27 +1207,21 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     if (sieve==NULL)
       croak("SIMPQS: Unable to allocate memory for sieve!\n");
 
-    flags = (unsigned char*) calloc(sizeof(unsigned char),numPrimes);
+    flags = (unsigned char*) malloc(numPrimes * sizeof(unsigned char));
 
-    offsets = (unsigned char * *)calloc(numPrimes,sizeof(unsigned char *));
-    offsets2 = (unsigned char * *)calloc(numPrimes,sizeof(unsigned char *));
+    unsigned char** offsets = (unsigned char **) malloc(midprime * sizeof(unsigned char *));
+    unsigned char** offsets2 = (unsigned char **)malloc(midprime * sizeof(unsigned char *));
 
-    relations = (unsigned long * *) calloc(numPrimes,sizeof(unsigned long *));
-    for (i = 0; i < numPrimes; i++)
-    {
-       relations[i] = (unsigned long *) calloc(50, sizeof(unsigned long));
-    }
+    relations = (unsigned long *) calloc(numPrimes * RELATIONS_PER_PRIME, sizeof(unsigned long));
 
-    primecount = (int *) calloc(numPrimes, sizeof(int));
-
-    mpz_init(temp);  mpz_init(temp2);  mpz_init(temp3);
+    primecount = (unsigned short *) malloc(numPrimes * sizeof(unsigned short));
 
 //Compute min A_prime and A_span
 
     mpz_mul_ui(temp,n,2);
     mpz_sqrt(temp,temp);
-    mpz_div_ui(temp2,temp,Mdiv2);
-    mpz_root(temp,temp2,s);
+    mpz_div_ui(nsqrtdiv,temp,Mdiv2);
+    mpz_root(temp,nsqrtdiv,s);
     for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
     span = numPrimes/s/s/2;
     min=fact-span/2;
@@ -1372,7 +1279,7 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
            }
         }
 #endif
-        mpz_div(temp,temp2,A);
+        mpz_div(temp,nsqrtdiv,A);
         for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
         fact-=min;
         do
@@ -1389,11 +1296,11 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
            p = factorBase[aind[i]+min];
            mpz_div_ui(temp,A,p);
            //mpz_fdiv_r_ui(temp,temp,p*p);
-	   amodp[i] = mpz_fdiv_r_ui(temp,temp,p);
+           amodp[i] = mpz_fdiv_r_ui(temp,temp,p);
 
            //mpz_set_ui(temp3,p);
-	   //mpz_invert(temp,temp,temp3);
-	   mpz_set_ui(temp,modinverse(mpz_get_ui(temp),p));
+           //mpz_invert(temp,temp,temp3);
+           mpz_set_ui(temp,modinverse(mpz_get_ui(temp),p));
            mpz_mul(temp,temp,sqrts[aind[i]+min]);
            mpz_fdiv_r_ui(temp,temp,p);
            if (mpz_cmp_ui(temp,p/2)>0)
@@ -1415,23 +1322,23 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
         {
            p = factorBase[i];
            //mpz_set_ui(temp3,p);
-	   //mpz_fdiv_r_ui(temp,A,(unsigned long64_t)p*(unsigned long64_t)p);
-	   //mpz_fdiv_r_ui(temp,temp,p);
-	   //mpz_fdiv_r(temp,A,temp3);
-	   //mpz_invert(temp3,temp,temp3);
-	   //Ainv[i] = mpz_get_ui(temp3);
-	   Ainv[i] = modinverse(mpz_fdiv_r_ui(temp,A,p),p);
+           //mpz_fdiv_r_ui(temp,A,(unsigned long64_t)p*(unsigned long64_t)p);
+           //mpz_fdiv_r_ui(temp,temp,p);
+           //mpz_fdiv_r(temp,A,temp3);
+           //mpz_invert(temp3,temp,temp3);
+           //Ainv[i] = mpz_get_ui(temp3);
+           Ainv[i] = modinverse(mpz_fdiv_r_ui(temp,A,p),p);
 
            for (j=0; j<s; j++)
            {
               mpz_fdiv_r_ui(temp,Bterms[j],p);
-	      //mpz_fdiv_r_ui(temp,temp,p);
+              //mpz_fdiv_r_ui(temp,temp,p);
               mpz_mul_ui(temp,temp,2*Ainv[i]);
               Ainv2B[j][i] = mpz_fdiv_r_ui(temp,temp,p);
            }
 
            mpz_fdiv_r_ui(temp,B,p);
-	   //mpz_fdiv_r_ui(temp,temp,p);
+           //mpz_fdiv_r_ui(temp,temp,p);
            mpz_sub(temp,sqrts[i],temp);
            mpz_add_ui(temp,temp,p);
            mpz_mul_ui(temp,temp,Ainv[i]);
@@ -1473,13 +1380,13 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
               mpz_fdiv_r_ui(D,n,p*p);
               mpz_fdiv_r_ui(Bdivp2,B,p*p);
               mpz_mul_ui(temp,Bdivp2,amodp[j]);
-              mpz_realloc2(temp3,64);
-	      //mpz_set_ui(temp3,p);
-	      //mpz_fdiv_r_ui(temp,temp,p*p);
-	      mpz_fdiv_r_ui(temp,temp,p);
-	      //mpz_invert(temp3,temp,temp3);
-	      //u1=mpz_get_ui(temp3);
-	      u1 = modinverse(mpz_fdiv_r_ui(temp,temp,p),p);
+              //mpz_realloc2(temp3,64);
+              //mpz_set_ui(temp3,p);
+              //mpz_fdiv_r_ui(temp,temp,p*p);
+              mpz_fdiv_r_ui(temp,temp,p);
+              //mpz_invert(temp3,temp,temp3);
+              //u1=mpz_get_ui(temp3);
+              u1 = modinverse(mpz_fdiv_r_ui(temp,temp,p),p);
               mpz_mul(temp,Bdivp2,Bdivp2);
               mpz_sub(temp,temp,D);
               mpz_neg(temp,temp);
@@ -1488,9 +1395,9 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
               mpz_add_ui(temp,temp,Mdiv2);
               mpz_add_ui(temp,temp,p);
               //mpz_fdiv_r_ui(temp,temp,p*p);
-	      soln1[index]=mpz_fdiv_r_ui(temp,temp,p);
+              soln1[index]=mpz_fdiv_r_ui(temp,temp,p);
               //soln1[index] = mpz_get_ui(temp);
-              soln2[index]=0xFFFFFFFFl;
+              soln2[index] = (unsigned long) -1;
            }
 
 // Count the number of polynomial curves used so far and compute the C coefficient of our polynomial
@@ -1505,28 +1412,41 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
            mpz_set_ui(temp,Mdiv2*2);
            mpz_fdiv_qr_ui(q,r,temp,CACHEBLOCKSIZE);
-           sieve2(mpz_get_ui(temp),numPrimes,sieve,1,1,polyadd,soln1,soln2,polycorr,offsets,offsets2);
-           sieveInterval(CACHEBLOCKSIZE,numPrimes,sieve,0,1,polyadd,soln1,soln2,polycorr,offsets,offsets2);
+           M = mpz_get_ui(temp);
+
+           /* set the solns1 and solns2 arrays */
+           update_solns(1, numPrimes, soln1, soln2, polyadd, polycorr);
+           /* Sieve from midprime to numPrimes */
+           sieve2(M, numPrimes, sieve, soln1, soln2);
+           /* Set the offsets and offsets2 arrays used for small sieve */
+           set_offsets(sieve, soln1, soln2, offsets, offsets2);
+           /* Sieve from firstprime to midprime-1 */
+           sieveInterval(CACHEBLOCKSIZE,sieve,1,offsets,offsets2);
            if (mpz_cmp_ui(q,1)>0)
            {
               unsigned long maxreps = mpz_get_ui(q)-1;
               for (reps = 1; reps < maxreps; reps++)
               {
-                 sieveInterval(CACHEBLOCKSIZE,numPrimes,sieve+CACHEBLOCKSIZE*reps,0,0,polyadd,soln1,soln2,polycorr,offsets,offsets2);
+                 sieveInterval(CACHEBLOCKSIZE,sieve+CACHEBLOCKSIZE*reps,1,offsets,offsets2);
               }
               if (mpz_cmp_ui(r,0)==0)
               {
-                 sieveInterval(CACHEBLOCKSIZE,numPrimes,sieve+CACHEBLOCKSIZE*reps,1,0,polyadd,soln1,soln2,polycorr,offsets,offsets2);
+                 sieveInterval(CACHEBLOCKSIZE,sieve+CACHEBLOCKSIZE*reps,0,offsets,offsets2);
               } else
               {
-                 sieveInterval(CACHEBLOCKSIZE,numPrimes,sieve+CACHEBLOCKSIZE*reps,0,0,polyadd,soln1,soln2,polycorr,offsets,offsets2);
+                 sieveInterval(CACHEBLOCKSIZE,sieve+CACHEBLOCKSIZE*reps,1,offsets,offsets2);
                  reps++;
-                 sieveInterval(mpz_get_ui(r),numPrimes,sieve+CACHEBLOCKSIZE*reps,1,0,polyadd,soln1,soln2,polycorr,offsets,offsets2);
+                 sieveInterval(mpz_get_ui(r),sieve+CACHEBLOCKSIZE*reps,0,offsets,offsets2);
               }
            }
 
-           evaluateSieve(relations,0,mpz_get_ui(temp),sieve,A,B,C,soln1, soln2, polyadd, polycorr, m,XArr,aind,min,s,multiplier,exponents);
-    }
+           evaluateSieve(
+              relations, 0, M, sieve, A, B, C,
+              soln1, soln2, m, XArr, aind,
+              min, s, exponents,
+              temp, temp2, temp3, temp4
+           );
+        }
 
 #ifdef COUNT
         if (curves%20==0) printf("%ld curves.\n",(long)curves);
@@ -1543,11 +1463,11 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
 // Do the matrix algebra step
 
-    unsigned long kernel = gaussReduce(m, numPrimes, relSought, 0);
+    numRelations = gaussReduce(m, numPrimes, relSought);
 #ifdef REPORT
-    printf("%ld relations in kernel.\n",kernel);
+    printf("%ld relations in kernel.\n", numRelations);
 #endif
-
+    numRelations += 0;
 
 // We want factors of n, not kn, so divide out by the multiplier
 
@@ -1556,20 +1476,18 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 // Now do the "square root" and GCD steps hopefully obtaining factors of n
     for (l = relSought-40;l<relSought;l++)
     {
+        unsigned int mat2offset = rightMatrixOffset(numPrimes);
         mpz_set_ui(temp,1);
         mpz_set_ui(temp2,1);
-        mat2off = numPrimes/32;
-        if (numPrimes%32) mat2off++;
-        mat2off*=32;
-        memset(primecount,0,numPrimes*sizeof(int));
+        memset(primecount,0,numPrimes*sizeof(unsigned short));
         for (i = 0; i<(numPrimes); i++)
         {
-           if (getEntry(m,l,i+mat2off))
+           if (getEntry(m,l,mat2offset+i))
            {
               mpz_mul(temp2,temp2,XArr[i]);
-              for (j=1; j<=relations[i][0]; j++)
+              for (j=1; j <= get_relation(relations, i, 0); j++)
               {
-                 primecount[relations[i][j]]++;
+                 primecount[ get_relation(relations, i, j) ]++;
               }
            }
            if (i%30==0) mpz_mod(temp2,temp2,n);
@@ -1597,11 +1515,9 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
     destroyMat(m, numPrimes, relSought);
     free(primecount);
-    for (i = 0; i < numPrimes; i++)
-      free(relations[i]);
     free(relations);
 
-    for (i=0; i<s; i++) {
+    for (i = 0; i < s; i++) {
       free(Ainv2B[i]);
       mpz_clear(Bterms[i]);
     }
@@ -1624,8 +1540,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
     mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
     mpz_clear(q);  mpz_clear(r);
-    mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);
-    mpz_clear(Bdivp2);
+    mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(temp4);
+    mpz_clear(Bdivp2); mpz_clear(nsqrtdiv);
 
     return result;
 }
