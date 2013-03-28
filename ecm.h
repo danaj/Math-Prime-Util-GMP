@@ -5,6 +5,6 @@
 #include "ptypes.h"
 
 extern int  _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV BMax, UV ncurves);
-/* extern int  _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV BMax, UV ncurves); */
+extern int  _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV BMax, UV ncurves);
 
 #endif

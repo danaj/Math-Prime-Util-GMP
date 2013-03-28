@@ -211,3 +211,320 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
 
   return 0;
 }
+
+
+/*******************************************************************/
+
+/* A better ECM, with a stage 2.
+ * Heavily inspired by GMP-ECM, written by Paul Zimmermann (1998),
+ * especially the stage 2 method.
+ */
+
+static mpz_t b, ecn;          /* used throughout ec mult */
+static mpz_t u, v, w;         /* temporaries */
+static mpz_t x1, z1, x2, z2;  /* used by ec_mult and stage2 */
+static mpz_t x1pz1, x1mz1;    /* intermediates */
+
+#define mpz_mulmod(r, a, b, n, t)  \
+  do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
+
+/* (x2:z2) = (x1:z1) + (x2:z2) */
+static void ec_add(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
+{
+  mpz_sub(u, x2, z2);
+  mpz_add(v, x1, z1);
+  mpz_mulmod(u, u, v, ecn, w);   /* u = (x2 - z2) * (x1 + z1) % n */
+
+  mpz_add(v, x2, z2);
+  mpz_sub(w, x1, z1);
+  mpz_mulmod(v, v, w, ecn, x2);  /* v = (x2 + z2) * (x1 - z1) % n */
+
+  mpz_add(w, u, v);
+  mpz_mulmod(x2, w, w, ecn, z2); /* x2 = (u+v)^2 % n */
+
+  mpz_sub(w, u, v);
+  mpz_mulmod(z2, w, w, ecn, v);  /* z2 = (u-v)^2 % n */
+
+  mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
+  /* Per Montgomery 1987, we set Z1 to 1, so no need for x2 *= Z1 */
+}
+
+/* (x2:z2) = 2(x1:z1) */
+static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
+{
+  mpz_add(u, x1, z1);
+  mpz_mulmod(u, u, u, ecn, w);   /* u = (x1+z1)^2 % n */
+
+  mpz_sub(v, x1, z1);
+  mpz_mulmod(v, v, v, ecn, w);   /* v = (x1-z1)^2 % n */
+
+  mpz_mulmod(x2, u, v, ecn, w);  /* x2 = uv % n */
+
+  mpz_sub(w, u, v);              /* w = u-v = 4(x1 * z1) */
+  mpz_mulmod(u, b, w, ecn, z2);
+  mpz_add(u, u, v);              /* u = (v+b*w) mod n */
+  mpz_mulmod(z2, w, u, ecn, v);  /* z2 = (w*u) mod n */
+}
+
+/* #define ec_adddouble(x1, z1, x2, z2, x) ec_add(x1, z1, x2, z2, x); ec_double(x2, z2, x2, z2); */
+static void ec_adddouble(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
+{
+  mpz_add(x1pz1, x1, z1);
+  mpz_sub(x1mz1, x1, z1);
+
+  /* ADD:  x2:z2 += x1:z1 */
+  mpz_sub(u, x2, z2);
+  mpz_mulmod(u, u, x1pz1, ecn, w); /* u = (x2 - z2) * (x1 + z1) % n */
+
+  mpz_add(v, x2, z2);
+  mpz_mulmod(v, v, x1mz1, ecn, w); /* v = (x2 + z2) * (x1 - z1) % n */
+
+  mpz_add(w, u, v);
+  mpz_mulmod(x2, w, w, ecn, z2); /* x2 = (u+v)^2 % n */
+
+  mpz_sub(w, u, v);
+  mpz_mulmod(z2, w, w, ecn, v);  /* z2 = (u-v)^2 % n */
+  mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
+
+  /* DOUBLE: x1:z1 = 2*(x1:z1) */
+  mpz_mulmod(u, x1pz1, x1pz1, ecn, w); /* u = (x1+z1)^2 % n */
+  mpz_mulmod(v, x1mz1, x1mz1, ecn, w); /* v = (x1-z1)^2 % n */
+
+  mpz_mulmod(x1, u, v, ecn, w);  /* x1 = uv % n */
+  mpz_sub(w, u, v);              /* w = u-v = 4(x1 * z1) */
+  mpz_mulmod(u, b, w, ecn, z1);
+  mpz_add(u, u, v);              /* u = (v+b*w) mod n */
+  mpz_mulmod(z1, w, u, ecn, v);  /* z1 = (w*u) mod n */
+}
+
+static void ec_mult(UV k, mpz_t x, mpz_t z)
+{
+  int l, r;
+
+  r = --k; l = -1; while (r != 1) { r >>= 1; l++; }
+  if (k & ( UVCONST(1)<<l)) {
+    mpz_set(x1, x);
+    mpz_set(z1, z);
+    ec_double(x2, z2, x1, z1);
+    /* (x1:z1) = (x1:z1) + (x2:z2);  (x2:z2) = 2(x2:z2) */
+    ec_adddouble(x1, z1, x2, z2, x);
+  } else {
+    mpz_set(x2, x);
+    mpz_set(z2, z);
+    ec_double(x1, z1, x2, z2);
+    ec_add(x2, z2, x1, z1, x);
+  }
+  l--;
+  while (l >= 1) {
+    if (k & ( UVCONST(1)<<l)) {
+      /* (x1:z1) = (x1:z1) + (x2:z2);  (x2:z2) = 2(x2:z2) */
+      ec_adddouble(x1, z1, x2, z2, x);
+    } else {
+      /* (x2:z2) = (x1:z1) + (x2:z2);  (x1:z1) = 2(x1:z1) */
+      ec_adddouble(x2, z2, x1, z1, x);
+    }
+    l--;
+  }
+  if (k & 1) {
+    ec_double(x, z, x2, z2);
+  } else {
+    ec_add(x2, z2, x1, z1, x);
+    mpz_set(x, x2);
+    mpz_set(z, z2);
+  }
+}
+
+#define NORMALIZE(f, u, v, x, z, n) \
+    mpz_gcdext(f, u, NULL, z, n); \
+    found = mpz_cmp_ui(f, 1); \
+    if (found) break; \
+    mpz_mulmod(x, x, u, n, v); \
+    mpz_set_ui(z, 1);
+
+static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
+{
+  UV D, i, m;
+  mpz_t* nqx = 0;
+  mpz_t g, one;
+  int found;
+  PRIME_ITERATOR(iter);
+
+  do {
+    NORMALIZE(f, u, v, x, z, ecn);
+
+    D = sqrt( (double)B2 / 2.0 );
+    if (D%2) D++;
+    nqx = (mpz_t *) calloc( (2*D+1), sizeof(mpz_t) );
+
+    mpz_init_set(nqx[1], x);
+    mpz_init_set_ui(g, 1);
+    mpz_init_set_ui(one, 1);
+
+    for (i = 2; i <= 2*D; i++) {
+      if (i % 2) {
+        mpz_set(x2, nqx[(i+1)/2]);  mpz_set_ui(z2, 1);
+        ec_add(x2, z2, nqx[(i-1)/2], one, x);
+      } else {
+        ec_double(x2, z2, nqx[i/2], one);
+      }
+      mpz_init_set(nqx[i], x2);
+      NORMALIZE(f, u, v, nqx[i], z2, ecn);
+    }
+    if (found) break;
+
+    mpz_set(x1, x);
+    mpz_set(z1, z);
+    mpz_set(x, nqx[2*D-1]);
+    mpz_set_ui(z, 1);
+
+    for (m = 1; m < B2+D; m += 2*D) {
+      if (m != 1) {
+        mpz_set(x2, x1);
+        mpz_set(z2, z1);
+        ec_add(x1, z1, nqx[2*D], one, x);
+        NORMALIZE(f, u, v, x1, z1, ecn);
+        mpz_set(x, x2);  mpz_set(z, z2);
+      }
+      if (m+D > B1) {
+        prime_iterator_setprime(&iter, m-D-1);
+        for (i = prime_iterator_next(&iter); i < m; i = prime_iterator_next(&iter)) {
+          /* if (m+D-i<1 || m+D-i>2*D) croak("index %lu range\n",i-(m-D)); */
+          mpz_sub(w, x1, nqx[m+D-i]);
+          mpz_mulmod(g, g, w, ecn, u);
+        }
+        for ( ; i <= m+D; i = prime_iterator_next(&iter)) {
+          if (i > m && !prime_iterator_isprime(&iter, m+m-i)) {
+            /* if (i-m<1 || i-m>2*D) croak("index %lu range\n",i-(m-D)); */
+            mpz_sub(w, x1, nqx[i-m]);
+            mpz_mulmod(g, g, w, ecn, u);
+          }
+        }
+        mpz_gcd(f, g, ecn);
+        found = mpz_cmp_ui(f, 1);
+        if (found) break;
+      }
+    }
+  } while (0);
+  prime_iterator_destroy(&iter);
+
+  if (nqx != 0) {
+    for (i = 1; i <= 2*D; i++) {
+      if (nqx[i] != 0)
+        mpz_clear(nqx[i]);
+    }
+    free(nqx);
+    mpz_clear(g);
+    mpz_clear(one);
+  }
+  if (found && !mpz_cmp(f, ecn)) found = 0;
+  return (found) ? 2 : 0;
+}
+
+int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
+{
+  mpz_t sigma, a, x, z;
+  UV curve, q;
+  UV B2 = 100*B1;
+  int found = 0;
+  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+
+  TEST_FOR_2357(n, f);
+
+  mpz_init_set(ecn, n);
+  mpz_init(x);  mpz_init(z);  mpz_init(sigma);  mpz_init(a);
+
+  mpz_init(u);  mpz_init(v);  mpz_init(w);
+  mpz_init(x1);  mpz_init(z1);
+  mpz_init(x2);  mpz_init(z2);
+  mpz_init(x1pz1);  mpz_init(x1mz1);
+  mpz_init(b);
+
+  for (curve = 0; curve < ncurves; curve++) {
+    PRIME_ITERATOR(iter);
+    do {
+      mpz_urandomm(sigma, *p_randstate, n);
+    } while (mpz_cmp_ui(sigma, 5) <= 0);
+    mpz_mul_ui(w, sigma, 4);
+    mpz_mod(v, w, n);
+
+    mpz_mul(x, sigma, sigma);
+    mpz_sub_ui(w, x, 5);
+    mpz_mod(u, w, n);
+
+    mpz_mul(x, u, u);
+    mpz_mulmod(x, x, u, n, w);
+
+    mpz_mul(z, v, v);
+    mpz_mulmod(z, z, v, n, w);
+
+    mpz_mul(b, x, v);
+    mpz_mul_ui(w, b, 4);
+    mpz_mod(b, w, n);
+
+    mpz_sub(a, v, u);
+    mpz_mul(w, a, a);
+    mpz_mulmod(w, w, a, n, w);
+
+    mpz_mul_ui(a, u, 3);
+    mpz_add(a, a, v);
+    mpz_mul(w, w, a);
+    mpz_mod(a, w, n);     /* a = ((v-u)^3 * (3*u + v)) % n */
+
+    mpz_gcdext(f, u, NULL, b, n);
+    found = mpz_cmp_ui(f, 1);
+    if (found) {
+      if (!mpz_cmp(f, n)) { found = 0; continue; }
+      break;
+    }
+
+    mpz_mul(a, a, u);
+    mpz_sub_ui(a, a, 2);
+    mpz_mod(a, a, n);
+
+    mpz_add_ui(b, a, 2);
+    if (mpz_mod_ui(w, b, 2)) mpz_add(b, b, n);
+    mpz_tdiv_q_2exp(b, b, 1);
+    if (mpz_mod_ui(w, b, 2)) mpz_add(b, b, n);
+    mpz_tdiv_q_2exp(b, b, 1);
+
+    do { NORMALIZE(f, u, v, x, z, n); } while (0);
+    if (found) {
+      if (!mpz_cmp(f, n)) { found = 0; continue; }
+      break;
+    }
+
+    /* Stage 1 */
+    for (q = 2; q < B1; q = prime_iterator_next(&iter)) {
+      UV k = q;
+      UV kmin = B1 / q;
+      while (k <= kmin)  k *= q;
+
+      NORMALIZE(f, u, v, x, z, n);
+      ec_mult(k, x, z);
+    }
+    prime_iterator_destroy(&iter);
+
+    if (!found)
+      do { NORMALIZE(f, u, v, x, z, n); } while (0);
+
+    /* Stage 2 */
+    if (!found && B2 > B1)
+      found = ec_stage2(B1, B2, x, z, f);
+
+    if (found) {
+      if (!mpz_cmp(f, n)) { found = 0; continue; }
+      /* gmp_printf("S%d\n", found); */
+      break;
+    }
+  }
+
+  mpz_clear(a);  mpz_clear(b);  mpz_clear(ecn);
+  mpz_clear(u);  mpz_clear(v);  mpz_clear(w);
+  mpz_clear(x);  mpz_clear(z);
+  mpz_clear(x1);  mpz_clear(z1);
+  mpz_clear(x2);  mpz_clear(z2);
+  mpz_clear(x1pz1);  mpz_clear(x1mz1);
+  mpz_clear(sigma);
+
+  return found;
+}

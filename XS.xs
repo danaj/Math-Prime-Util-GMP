@@ -12,7 +12,7 @@
 #include "small_factor.h"
 #include "ecm.h"
 #include "simpqs.h"
-#define _GMP_ECM_FACTOR _GMP_ecm_factor_affine
+#define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
 /* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
  * clever (and brittle), just do all C<->Perl bigints via strings.  It's
@@ -495,42 +495,39 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
-          /* We have some limitations:
-           *   - pbrent is good for finding small factors, but as n gets
-           *     large it really slows down.
-           *   - pminus1 is actually pretty efficient and uses a reasonable
-           *     amount of memory.
-           *   - ecm needs a lot of tuning work and a second stage
-           *   - If there aren't little factors and we're 30+ digits, then
-           *     QS is _the_ answer and everything else is just wasting time.
-           *
-           * So, I've made p-1 larger and moved pbrent until after QS.
-           *
-           * TODO: QS should be able to return multiple factors.
-           */
-
-          /* Small p-1 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 4000000);
-          if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+          /* TODO: QS should be able to return multiple factors. */
+          /* TODO: ECM B1 & curves should be parameterized base on len(n) */
 
           /* Small ecm */
-          if (!success)  success = _GMP_ECM_FACTOR(n, f, 12500, 4);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 10000, 10);
           if (success&&o) {gmp_printf("small ecm found factor %Zd\n", f);o=0;}
+
+          /* Small p-1 */
+          if (!success)  success = _GMP_pminus1_factor(n, f, 100000, 2000000);
+          if (success&&o) {gmp_printf("p-1 (100k) found factor %Zd\n", f);o=0;}
+
+          /* Larger ECM if big enough */
+          if (1 && !success && mpz_sizeinbase(n, 10) >= 50) {
+            if (!success)  success = _GMP_ECM_FACTOR(n, f, 20000, 10);
+            if (success&&o) {gmp_printf("ecm (40k) found factor %Zd\n", f);o=0;}
+          }
 
           /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
            * slow and a memory hog if not (compared to ECM) */
           if (!success)  success = _GMP_simpqs(n, f);
           if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
 
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 50000, 20);
+          if (success&&o) {gmp_printf("ecm (50k,20) found factor %Zd\n",f);o=0;}
+
           if (!success)  success = _GMP_pbrent_factor(n, f, 1, 4*1024*1024);
           if (success&&o) {gmp_printf("pbrent (1,4M) found factor %Zd\n", f);o=0;}
 
-          /* ECM with high bmax but only 2 curves. */
-          if (!success)  success = _GMP_ECM_FACTOR(n, f, 625000, 2);
-          if (success&&o) {gmp_printf("ecm (625k,2) ecm found factor %Zd\n", f);o=0;}
-
-          /* Getting serious with ECM */
-          if (!success)  success = _GMP_ECM_FACTOR(n, f, 3125000, 40);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 200000, 20);
+          if (success&&o) {gmp_printf("ecm (200k,20) ecm found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 800000, 20);
+          if (success&&o) {gmp_printf("ecm (800k,10) ecm found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 3000000, 40);
           if (success&&o) {gmp_printf("ecm (3M,40) found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_prho_factor(n, f, 17, 32*1024*1024);
@@ -539,6 +536,9 @@ _GMP_factor(IN char* strn)
           /* HOLF in case it's a near-ratio-of-perfect-square */
           if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
           if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
+
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 8000000, 40);
+          if (success&&o) {gmp_printf("ecm (8M,40) found factor %Zd\n", f);o=0;}
 
           /* Large p-1 with stage 2: B2 = 20*B1 */
           if (!success)  success = _GMP_pminus1_factor(n, f, 5000000, 5000000*20);
