@@ -38,6 +38,17 @@ static UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, U
   } while (sieve[d] & masktab30[m]);
   return (segment_start + d*30 + m);
 }
+static int is_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
+{
+  UV d, m, mtab;
+  if (p < segment_start) return -1;
+  d = (p-segment_start)/30;
+  if (d >= segment_bytes) return -1;
+  m = (p-segment_start) - d*30;
+  mtab = masktab30[m];
+  if (mtab == 0)  return 0;
+  return ((sieve[d] & mtab) == 0);
+}
 
 #define next_prime_in_sieve(sieve, p) next_prime_in_segment(sieve, 0, UV_MAX, p)
 
@@ -444,4 +455,53 @@ UV prime_iterator_next(prime_iterator *iter)
     return n;
   }
   croak("MPU: segment size too small, could not find prime\n");
+}
+
+static int _is_trial_prime(UV n)
+{
+  UV i = 7;
+  UV limit = (UV)sqrt(n);
+  while (1) {   /* trial division, skipping multiples of 2/3/5 */
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 4;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 2;
+    if (i > limit) break;  if ((n % i) == 0) return 0;  i += 6;
+  }
+  return 1;
+}
+
+int prime_iterator_isprime(prime_iterator *iter, UV n)
+{
+  if (n < 11) {
+    switch (n) {
+      case 2: case 3: case 5: case 7:  return 1;  break;
+      default: break;
+    }
+    return 0;
+  }
+
+  /* Primary sieve */
+  if (primary_sieve != 0 && n < 30*PRIMARY_SIZE) {
+    int isp = is_prime_in_segment(primary_sieve, 0, PRIMARY_SIZE, n);
+    if (isp >= 0) return isp;
+  }
+
+  /* Current segment */
+  if (iter->segment_mem != 0) {
+    int isp = is_prime_in_segment(iter->segment_mem, iter->segment_start, iter->segment_bytes, n);
+    if (isp >= 0) return isp;
+  }
+
+  /* Out of segment range, can't answer.  Try simple divisibility */
+  {
+    UV d = n/30;
+    UV m = n - d*30;
+    unsigned char mtab = masktab30[m];
+    if (mtab == 0)  return 0;
+    return _is_trial_prime(n);
+  }
 }
