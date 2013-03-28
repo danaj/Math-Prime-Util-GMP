@@ -148,26 +148,26 @@ static int sqrtmod(mpz_t asqrt, mpz_t a, mpz_t p)
 }
 
 /* DANAJ: Modify matrix code to do 64-bit-padded character arrays */
-typedef unsigned char* row;  /* row of an F2 matrix */
-typedef row* matrix;        /* matrix as a list of pointers to rows */
+typedef unsigned char* row_t;  /* row of an F2 matrix */
+typedef row_t* matrix_t;       /* matrix as a list of pointers to rows */
 
 #define insertEntry(m, i, j)   m[i][(j)/8] |= (1U << ((j)%8))
 #define xorEntry(m, i, j)      m[i][(j)/8] ^= (1U << ((j)%8))
 #define getEntry(m, i, j)     (m[i][(j)/8] &  (1U << ((j)%8)))
 #define swapRows(m, x, y) \
-  do { row temp = m[x];   m[x] = m[y];  m[y] = temp; } while (0)
+  do { row_t temp = m[x];   m[x] = m[y];  m[y] = temp; } while (0)
 
 #define matBytes(numcols) (((numcols+63)/64) * 8)
 #define rightMatrixOffset(numcols)  (8 * matBytes(numcols))
 
 /* Clear just the left side */
-static void clearRow(matrix m, unsigned int numcols, unsigned int row)
+static void clearRow(matrix_t m, unsigned int numcols, unsigned int row)
 {
   memset( m[row], 0, matBytes(numcols) );
 }
 
 /* bitwise xor of two rows, both left and right matrices */
-static void xorRows(matrix m, unsigned int numcols, unsigned int source, unsigned int dest)
+static void xorRows(matrix_t m, unsigned int numcols, unsigned int source, unsigned int dest)
 {
   unsigned int i, q;
   UV* x = (UV*) m[dest];
@@ -183,21 +183,21 @@ static void xorRows(matrix m, unsigned int numcols, unsigned int source, unsigne
     x[i] ^= y[i];
 }
 
-static matrix constructMat(unsigned int cols, unsigned int rows)
+static matrix_t constructMat(unsigned int cols, unsigned int rows)
 {
   unsigned int i;
-  matrix m;
+  matrix_t m;
   size_t nbytes = matBytes(cols);
   unsigned int mat2offset = rightMatrixOffset(cols);
 
   /* printf("construct mat %u %u (%lu bytes)\n", cols, rows, rows*sizeof(row) + rows*(2*nbytes)); */
   /* If cols > rows, we write off the array */
   if (cols < rows) croak("SIMPQS:  cols %u > rows %u\n", cols, rows);
-  m = (row *) malloc( rows * sizeof(row) );
+  m = (row_t *) malloc( rows * sizeof(row_t) );
   if (m == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
 
   for (i = 0; i < rows; i++) { /* two matrices, side by side */
-    m[i] = (row) calloc( 2*nbytes, sizeof(unsigned char) );
+    m[i] = (row_t) calloc( 2*nbytes, sizeof(unsigned char) );
     if (m[i] == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
   }
 
@@ -208,7 +208,7 @@ static matrix constructMat(unsigned int cols, unsigned int rows)
   return m;
 }
 
-static void destroyMat(matrix m, unsigned int cols, unsigned int rows)
+static void destroyMat(matrix_t m, unsigned int cols, unsigned int rows)
 {
   unsigned int i;
   for (i = 0; i < rows; i++)
@@ -217,7 +217,7 @@ static void destroyMat(matrix m, unsigned int cols, unsigned int rows)
 }
 
 #if 0
-static void displayRow(matrix m, unsigned int row, unsigned int numcols)
+static void displayRow(matrix_t m, unsigned int row, unsigned int numcols)
 {
   int j;
   unsigned int mat2offset = rightMatrixOffset(numcols);
@@ -233,7 +233,7 @@ static void displayRow(matrix m, unsigned int row, unsigned int numcols)
 #endif
 
 /* gaussReduce:  Apply Gaussian elimination to a matrix. */
-static unsigned int gaussReduce(matrix m, unsigned int numPrimes, unsigned int relSought)
+static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int relSought)
 {
   unsigned int rowUpto = 0;
   unsigned int irow, checkRow;
@@ -394,14 +394,12 @@ static unsigned int midprime;
 static unsigned int largeprime;
 
 static unsigned int *factorBase; //array of factor base primes
-static unsigned int numPrimes; //number of primes in factor base
+//static unsigned int numPrimes; //number of primes in factor base
 static unsigned int relSought; //number of relations sought, i.e. a "few" more than numPrimes
 static unsigned char * primeSizes; //array of sizes in bits, of the factor base primes
-static unsigned char * sieve; //actual array where sieving takes place
 static unsigned int relsFound =0; //number of relations found so far
 static unsigned char * flags; //flags used for speeding up sieving for large primes
 static unsigned int partials = 0; //number of partial relations
-static unsigned int Mdiv2; //size of sieving interval divide 2
 
 static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
 
@@ -564,15 +562,13 @@ static void initSieve(void)
 {
     factorBase = 0;
     primeSizes = 0;
-    sieve = 0;
     flags = 0;
     sqrts = 0;
 }
-static void clearSieve(void)
+static void clearSieve(unsigned long numPrimes)
 {
     if (factorBase) { free(factorBase);  factorBase = 0; }
     if (primeSizes) { free(primeSizes);  primeSizes = 0; }
-    if (sieve) { free(sieve);  sieve = 0; }
     if (flags) { free(flags);  flags = 0; }
     if (sqrts) {
       unsigned int i;
@@ -661,6 +657,8 @@ static void tonelliShanks(unsigned long numPrimes, mpz_t n)
 
 ===========================================================================*/
 static void evaluateSieve(
+    unsigned long numPrimes,
+    unsigned long Mdiv2,
     unsigned long * relations,
     unsigned long ctimesreps,
     unsigned long M,
@@ -670,7 +668,7 @@ static void evaluateSieve(
     mpz_t C,
     unsigned long * soln1,
     unsigned long * soln2,
-    matrix m,
+    matrix_t m,
     mpz_t * XArr,
     unsigned long * aind,
     int min,
@@ -695,7 +693,7 @@ static void evaluateSieve(
      mpz_set_ui(temp3, 0);
      mpz_set_ui(res, 0);
      i = 0;
-     j=0;
+     j = 0;
      sieve2 = (unsigned long *) sieve;
 #ifdef POLS
      gmp_printf("%Zdx^2%+Zdx\n%+Zd\n",A,B,C);
@@ -932,7 +930,7 @@ static void evaluateSieve(
 static void update_solns(unsigned long first, unsigned long limit, unsigned long * soln1, unsigned long * soln2, int polyadd, const unsigned long * polycorr)
 {
   unsigned int prime;
-  long p, correction;
+  unsigned long p, correction;
 
   for (prime = first; prime < limit; prime++) {
     if (soln2[prime] == (unsigned long) -1) continue;
@@ -973,6 +971,7 @@ static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsi
      unsigned int prime;
      unsigned char * position2;
      unsigned char * position;
+     unsigned char * bound;
      ptrdiff_t diff;
      unsigned char * end;
      unsigned long ptimes4;
@@ -990,7 +989,7 @@ static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsi
         diff=position2-position;
 
         ptimes4 = currentprime*4;
-        unsigned char * bound=end-ptimes4;
+        bound=end-ptimes4;
         while (bound - position > 0)
         {
               (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
@@ -1029,7 +1028,7 @@ static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsi
         diff=position2-position;
 
         ptimes4 = 2*currentprime;
-        unsigned char * bound=end-ptimes4;
+        bound=end-ptimes4;
         while (bound - position > 0)
         {
               (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
@@ -1137,50 +1136,48 @@ static unsigned long silly_random(unsigned long upto)
              small blocks for the small primes.
 
 ============================================================================*/
-static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long multiplier)
+static int mainRoutine(
+  unsigned long numPrimes,
+  unsigned long Mdiv2,
+  mpz_t n,
+  mpz_t f,
+  unsigned long multiplier)
 {
-    mpz_t A; mpz_init(A);
-    mpz_t B; mpz_init(B);
-    mpz_t C; mpz_init(C);
-    mpz_t D; mpz_init(D);
-    mpz_t Bdivp2; mpz_init(Bdivp2);
-    mpz_t q; mpz_init(q);
-    mpz_t r; mpz_init(r);
-    mpz_t nsqrtdiv; mpz_init(nsqrtdiv);
-    mpz_t temp; mpz_init(temp);
-    mpz_t temp2; mpz_init(temp2);
-    mpz_t temp3; mpz_init(temp3);
-    mpz_t temp4; mpz_init(temp4);
-
+    mpz_t A, B, C, D, Bdivp2, q, r, nsqrtdiv, temp, temp2, temp3, temp4;
     int result = 0;
-
-    /* gmp_randstate_t state;
-    gmp_randinit_default(state); */
-
-    unsigned long u1;
-
     int i, j, l, s, fact, span, min;
-    unsigned long p, reps, numRelations, M;
-
+    unsigned long u1, p, reps, numRelations, M;
     unsigned long curves = 0;
-
-    unsigned long * relations;
+    unsigned long  * relations;
     unsigned short * primecount;
+    unsigned char  * sieve;
+    int            * exponents;
+    unsigned long  * aind;
+    unsigned long  * amodp;
+    unsigned long  * Ainv;
+    unsigned long  * soln1;
+    unsigned long  * soln2;
+    unsigned long ** Ainv2B;
+    unsigned char ** offsets;
+    unsigned char ** offsets2;
+    mpz_t          * XArr;
+    mpz_t          * Bterms;
+    matrix_t m;
 
-    int * exponents = (int *) calloc(firstprime,sizeof(int));
-    if (exponents==NULL)
-      croak("SIMPQS: Unable to allocate memory!\n");
+
+    exponents = (int *) calloc(firstprime,sizeof(int));
+    if (exponents==NULL) croak("SIMPQS: Unable to allocate memory!\n");
 
     s = mpz_sizeinbase(n,2)/28+1;
 
-    unsigned long * aind = (unsigned long*) calloc(sizeof(unsigned long),s);
-    unsigned long * amodp = (unsigned long*) calloc(sizeof(unsigned long),s);
-    unsigned long * Ainv = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    unsigned long * soln1 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    unsigned long * soln2 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    unsigned long ** Ainv2B = (unsigned long**) calloc(sizeof(unsigned long*),s);
+    aind = (unsigned long*) calloc(sizeof(unsigned long),s);
+    amodp = (unsigned long*) calloc(sizeof(unsigned long),s);
+    Ainv = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
+    soln1 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
+    soln2 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
+    Ainv2B = (unsigned long**) calloc(sizeof(unsigned long*),s);
     if (Ainv2B == 0) croak("SIMPQS: Unable to allocate memory!\n");
-    mpz_t* Bterms = (mpz_t*) malloc( s * sizeof(mpz_t));
+    Bterms = (mpz_t*) malloc( s * sizeof(mpz_t));
     if (Bterms == 0) croak("SIMPQS: Unable to allocate memory!\n");
 
     for (i=0; i<s; i++)
@@ -1190,12 +1187,10 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
        mpz_init(Bterms[i]);
     }
 
-    matrix m;
+    XArr = (mpz_t*) calloc( sizeof(mpz_t), relSought );
+
     m = constructMat(numPrimes, relSought);
-
     relsFound = 0;
-
-    mpz_t XArr[relSought];
 
     //one dword extra for sentinel to speed up sieve evaluation loop
     sieve = (unsigned char *) calloc(sizeof(unsigned char),Mdiv2*2 + sizeof(unsigned long));
@@ -1204,12 +1199,16 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
     flags = (unsigned char*) malloc(numPrimes * sizeof(unsigned char));
 
-    unsigned char** offsets = (unsigned char **) malloc(midprime * sizeof(unsigned char *));
-    unsigned char** offsets2 = (unsigned char **)malloc(midprime * sizeof(unsigned char *));
+    offsets = (unsigned char **) malloc(midprime * sizeof(unsigned char *));
+    offsets2 = (unsigned char **)malloc(midprime * sizeof(unsigned char *));
 
     relations = (unsigned long *) calloc(relSought * RELATIONS_PER_PRIME, sizeof(unsigned long));
 
     primecount = (unsigned short *) malloc(numPrimes * sizeof(unsigned short));
+
+    mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
+    mpz_init(Bdivp2); mpz_init(q); mpz_init(r); mpz_init(nsqrtdiv);
+    mpz_init(temp); mpz_init(temp2); mpz_init(temp3); mpz_init(temp4);
 
 //Compute min A_prime and A_span
 
@@ -1290,12 +1289,12 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
         }
 
         mpz_set(B,Bterms[0]);
-        for (i=1; i<s; i++)
+        for (i = 1; i < s; i++)
         {
            mpz_add(B,B,Bterms[i]);
         }
 
-        for (i=0; i<numPrimes; i++)
+        for (i = 0; i < (int)numPrimes; i++)
         {
            p = factorBase[i];
            Ainv[i] = modinverse(mpz_fdiv_r_ui(temp,A,p),p);
@@ -1338,11 +1337,10 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
            }
            polycorr = Ainv2B[j];
 
-           int index;
            for (j=0; j<s; j++)
            {
-              index = aind[j]+min;
-              p = factorBase[index];
+              int findex = aind[j]+min;
+              p = factorBase[findex];
               mpz_fdiv_r_ui(D,n,p*p);
               mpz_fdiv_r_ui(Bdivp2,B,p*p);
               mpz_mul_ui(temp,Bdivp2,amodp[j]);
@@ -1355,8 +1353,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
               mpz_mul_ui(temp,temp,u1);
               mpz_add_ui(temp,temp,Mdiv2);
               mpz_add_ui(temp,temp,p);
-              soln1[index]=mpz_fdiv_r_ui(temp,temp,p);
-              soln2[index] = (unsigned long) -1;
+              soln1[findex]=mpz_fdiv_r_ui(temp,temp,p);
+              soln2[findex] = (unsigned long) -1;
            }
 
 // Count the number of polynomial curves used so far and compute the C coefficient of our polynomial
@@ -1400,6 +1398,7 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
            }
 
            evaluateSieve(
+              numPrimes, Mdiv2,
               relations, 0, M, sieve, A, B, C,
               soln1, soln2, m, XArr, aind,
               min, s, exponents,
@@ -1433,25 +1432,25 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     mpz_div_ui(n,n,multiplier);
 
 // Now do the "square root" and GCD steps hopefully obtaining factors of n
-    for (l = relSought-40;l<relSought;l++)
+    for (l = (int)relSought-40; l < (int)relSought; l++)
     {
         unsigned int mat2offset = rightMatrixOffset(numPrimes);
         mpz_set_ui(temp,1);
         mpz_set_ui(temp2,1);
         memset(primecount,0,numPrimes*sizeof(unsigned short));
-        for (i = 0; i<(numPrimes); i++)
+        for (i = 0; i< (int)numPrimes; i++)
         {
            if (getEntry(m,l,mat2offset+i))
            {
               mpz_mul(temp2,temp2,XArr[i]);
-              for (j=1; j <= get_relation(relations, i, 0); j++)
+              for (j = 1; j <= (int)get_relation(relations, i, 0); j++)
               {
                  primecount[ get_relation(relations, i, j) ]++;
               }
            }
            if (i%30==0) mpz_mod(temp2,temp2,n);
         }
-        for (j = 0; j<numPrimes; j++)
+        for (j = 0; j < (int)numPrimes; j++)
         {
            mpz_set_ui(temp3,factorBase[j]);
            mpz_pow_ui(temp3,temp3,primecount[j]/2);
@@ -1493,9 +1492,10 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
     free(flags);    flags = 0;
     free(offsets);  offsets = 0;
     free(offsets2); offsets2 = 0;
-    for (i = 0; i < relSought; i++) {
+    for (i = 0; i < (int)relSought; i++) {
       mpz_clear(XArr[i]);
     }
+    free(XArr);
 
     mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
     mpz_clear(q);  mpz_clear(r);
@@ -1507,6 +1507,8 @@ static int mainRoutine(unsigned long Mdiv2, mpz_t n, mpz_t f, unsigned long mult
 
 int _GMP_simpqs(mpz_t n, mpz_t f)
 {
+  unsigned long numPrimes;
+  unsigned long Mdiv2;
   unsigned long multiplier;
   int result;
 
@@ -1569,11 +1571,11 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
   tonelliShanks(numPrimes,n);
   TonelliDestroy();
 
-  result = mainRoutine(Mdiv2, n, f, multiplier);
+  result = mainRoutine(numPrimes, Mdiv2, n, f, multiplier);
   if (!result)
     mpz_set(f, n);
 
-  clearSieve();
+  clearSieve(numPrimes);
   /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
   return result;
 }
