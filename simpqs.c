@@ -22,17 +22,24 @@
 /*============================================================================
    Some modifications made in 2013 by Dana Jacobsen:
      - put it in one file
-     - merge some of the 1.0 and 2.0 changes
+     - merge some of the 2.0 changes
      - make it work with smaller values
      - fix some memory errors
      - free memory all over
      - fewer globals
      - mpz_nextprime is slow, slow, slow.  Use prime_iterator.
      - Alternate multiplier selection routine.
-   This does not use jasonp's block Lanczos code that v2.0 uses.  That code
-   litters temporary files everywhere, but that's a solvable problem.
+     - lots of little changes / optimizations
+
+   Version 2.0 scatters temp files everywhere, but that could be solved.
+   The main benefits left in 2.0 are:
+      (1) combining partial relations (this is huge for large inputs)
+      (2) much less memory use, though partly due to using temp files
+      (3) jasonp's block Lanczos routine.
+   This code goes through curves faster than v2.0, but with big inputs it
+   ends up needing 2x the time because of not combining partials as well as
+   the final linear algebra time.
    TODO: Tune 25-40 digit parameters
-   TODO: Portability
 ============================================================================*/
 
 #include <string.h>
@@ -208,7 +215,7 @@ static matrix_t constructMat(unsigned int cols, unsigned int rows)
   return m;
 }
 
-static void destroyMat(matrix_t m, unsigned int cols, unsigned int rows)
+static void destroyMat(matrix_t m, unsigned int rows)
 {
   unsigned int i;
   for (i = 0; i < rows; i++)
@@ -274,11 +281,9 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
 
 #if ULONG_MAX == 4294967295UL
 #define SIEVEMASK 0xC0C0C0C0UL
-#define MIDPRIME 1500
 #define SIEVEDIV 1
 #elif ULONG_MAX == 18446744073709551615UL
 #define SIEVEMASK 0xC0C0C0C0C0C0C0C0UL
-#define MIDPRIME       1500
 #define SIEVEDIV 1
 #else
  #error Cannot determine ulong size
@@ -286,7 +291,6 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
 
 #define CACHEBLOCKSIZE 64000 //Should be a little less than the L1/L2 cache size
                              //and a multiple of 64000
-#define MEDIUMPRIME    900
 #define SECONDPRIME    6000 //This should be lower for slower machines
 #define FUDGE          0.15 //Every program needs a mysterious fudge factor
 
@@ -295,7 +299,7 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
 //===========================================================================
 // Large prime cutoffs
 
-static unsigned long largeprimes[] =
+static unsigned int largeprimes[] =
 {
      100000, 100000, 125000, 125000, 150000, 150000, 175000, 175000, 200000, 200000, //30-39
      250000, 300000, 370000, 440000, 510000, 580000, 650000, 720000, 790000, 8600000, //40-49
@@ -310,7 +314,7 @@ static unsigned long largeprimes[] =
 
 //============================================================================
 // Number of primes to use in factor base, given the number of decimal digits specified
-static unsigned long primesNo[] =
+static unsigned int primesNo[] =
 {
      1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, //30-39
      1600, 1600, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, //40-49
@@ -325,7 +329,7 @@ static unsigned long primesNo[] =
 
 //============================================================================
 // First prime actually sieved for
-static unsigned long firstPrimes[] =
+static unsigned int firstPrimes[] =
 {
      5, 5, 5, 6, 6, 6, 6, 7, 7, 7, //30-39
      8, 8, 8, 8, 8, 8, 8, 8, 8, 8, //40-49
@@ -340,7 +344,7 @@ static unsigned long firstPrimes[] =
 
 //============================================================================
 // Logs of primes are rounded and errors accumulate; this specifies how great an error to allow
-static unsigned long errorAmounts[] =
+static unsigned int errorAmounts[] =
 {
      10, 10, 10, 11, 13, 14, 14, 15, 15, 16, //30-39
      16, 17, 17, 18, 18, 19, 19, 19, 20, 20, //40-49
@@ -355,7 +359,7 @@ static unsigned long errorAmounts[] =
 
 //============================================================================
 // This is the threshold the sieve value must exceed in order to be considered for smoothness
-static unsigned long thresholds[] =
+static unsigned int thresholds[] =
 {
      63, 63, 63, 64, 64, 64, 65, 65, 65, 66, //30-39
      66, 67, 67, 68, 68, 68, 69, 69, 69, 69, //40-49
@@ -371,7 +375,7 @@ static unsigned long thresholds[] =
 //============================================================================
 // Size of sieve to use divided by 2, given the number of decimal digits specified
 //N.B: probably optimal if chosen to be a multiple of 32000, though other sizes are supported
-static unsigned long sieveSize[] =
+static unsigned int sieveSize[] =
 {
      64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //30-39
      64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //40-49
@@ -390,7 +394,6 @@ static unsigned int secondprime; //min(numprimes, SECONDPRIME) = cutoff for usin
 static unsigned int firstprime;  //first prime actually sieved with
 static unsigned char errorbits;  //first prime actually sieved with
 static unsigned char threshold;  //sieve threshold cutoff for smooth relations
-static unsigned int midprime;
 static unsigned int largeprime;
 
 static unsigned int *factorBase; //array of factor base primes
@@ -476,7 +479,7 @@ static unsigned long modinverse(unsigned long a, unsigned long p)
 
    This is derived from Jason Papadopoulos's mpqs K-S method.  I believe it
    does a slightly better job than the K-S in FLINT 2.3, but that's debatable.
-   An alternative would be to implement the method from Silverman 1987.
+   An alternative would be to implement the method directly from Silverman 1987.
 
 ==========================================================================*/
 /* small square-free numbers:  do { say $_ if moebius($_) != 0 } for 1..101 */
@@ -704,9 +707,9 @@ static void evaluateSieve(
         do
         {
            while (!(sieve2[j] & SIEVEMASK)) j++;
-           i=j*sizeof(unsigned long);
+           i = j * sizeof(unsigned long);
            j++;
-           while ((i<j*sizeof(unsigned long))&&(sieve[i] < threshold)) i++;
+           while ((i < j*sizeof(unsigned long)) && (sieve[i] < threshold)) i++;
         } while (sieve[i] < threshold);
 
         if ((i<M) && (relsFound < relSought))
@@ -724,68 +727,59 @@ static void evaluateSieve(
            bits-=errorbits;
 
            numfactors=0;
-
            extra = 0;
-           if (factorBase[0]!=1)
+
+           memset(exponents, 0, firstprime * sizeof(int));
+
+           if (factorBase[0] != 1 && mpz_divisible_ui_p(res, factorBase[0]))
            {
-              mpz_set_ui(temp,factorBase[0]);
-              exponent = mpz_remove(res,res,temp);
-              if (exponent)
-              {
-                 extra+=primeSizes[0];
-                 for (ii = 0; ii<exponent; ii++)
-                   set_relation(relations, relsFound, ++numfactors, 0);
-              }
-              if (exponent & 1)
-                insertEntry(m,relsFound,0);
+             extra += primeSizes[0];
+             mpz_set_ui(temp,factorBase[0]);
+             exponent = mpz_remove(res,res,temp);
+             exponents[0] = exponent;
            }
 
-           mpz_set_ui(temp,factorBase[1]);
-           exponent = mpz_remove(res,res,temp);
-           if (exponent)
+           exponents[1] = 0;
+           if (mpz_divisible_ui_p(res, factorBase[1]))
            {
-              extra+=primeSizes[1];
-              for (ii = 0; ii<exponent; ii++)
-                set_relation(relations, relsFound, ++numfactors, 1);
+             extra += primeSizes[1];
+             mpz_set_ui(temp,factorBase[1]);
+             exponent = mpz_remove(res,res,temp);
+             exponents[1] = exponent;
            }
-           if (exponent & 1)
-             insertEntry(m,relsFound,1);
 
-           for (k = 2; k<firstprime; k++)
+           for (k = 2; k < firstprime; k++)
            {
               modp=(i+ctimesreps)%factorBase[k];
 
+              exponents[k] = 0;
               if (soln2[k] != (unsigned long)-1 )
               {
                  if ((modp==soln1[k]) || (modp==soln2[k]))
                  {
+                    extra+=primeSizes[k];
                     mpz_set_ui(temp,factorBase[k]);
                     exponent = mpz_remove(res,res,temp);
 
 #ifdef ERRORS
                     if (exponent==0) printf("Error!\n");
 #endif
-                    extra+=primeSizes[k];
 #ifdef RELS
                     if (exponent > 0) printf(" %ld",(long)factorBase[k]);
                     if (exponent > 1) printf("^%d",exponent);
 #endif
                     exponents[k] = exponent;
-                    if (exponent & 1)
-                      insertEntry(m,relsFound,k);
-                 } else exponents[k] = 0;
-              } else
+                 }
+              } else if (mpz_divisible_ui_p(res, factorBase[k]))
               {
+                 extra += primeSizes[k];
                  mpz_set_ui(temp,factorBase[k]);
                  exponent = mpz_remove(res,res,temp);
-                 if (exponent) extra+=primeSizes[k];
 #ifdef RELS
                  if (exponent > 0) printf(" %ld",(long)factorBase[k]);
                  if (exponent > 1) printf("^%d",exponent);
 #endif
                  exponents[k] = exponent;
-                 if (exponent & 1)
-                   insertEntry(m,relsFound,k);
               }
            }
            sieve[i]+=extra;
@@ -817,19 +811,17 @@ static void evaluateSieve(
                        if (exponent & 1)
                          insertEntry(m,relsFound,k);
                     }
-                 } else
+                 } else if (mpz_divisible_ui_p(res, factorBase[k]))
                  {
+                    extra += primeSizes[k];
                     mpz_set_ui(temp,factorBase[k]);
                     exponent = mpz_remove(res,res,temp);
-                    if (exponent) extra+=primeSizes[k];
-
 #ifdef RELS
                     if (exponent > 0) printf(" %ld",(long)factorBase[k]);
                     if (exponent > 1) printf("^%d",exponent);
 #endif
-                    if (exponent)
-                      for (ii = 0; ii < exponent; ii++)
-                        set_relation(relations, relsFound, ++numfactors, k);
+                    for (ii = 0; ii < exponent; ii++)
+                      set_relation(relations, relsFound, ++numfactors, k);
                     if (exponent & 1)
                       insertEntry(m,relsFound,k);
                  }
@@ -843,12 +835,12 @@ static void evaluateSieve(
                     modp=(i+ctimesreps)%factorBase[k];
                     if ((modp==soln1[k]) || (modp==soln2[k]))
                     {
+                       extra+=primeSizes[k];
                        mpz_set_ui(temp,factorBase[k]);
                        exponent = mpz_remove(res,res,temp);
 #ifdef ERRORS
                        if (exponent==0) printf("Error!\n");
 #endif
-                       extra+=primeSizes[k];
 #ifdef RELS
                        if (exponent > 0) printf(" %ld",(long)factorBase[k]);
                        if (exponent > 1) printf("^%d",exponent);
@@ -896,11 +888,13 @@ static void evaluateSieve(
 #ifdef RELS
                     printf("....R\n");
 #endif
-                    for (ii = 1; ii<firstprime; ii++)
+                    for (ii = 0; ii<firstprime; ii++)
                     {
                        int jj;
                        for (jj = 0; jj < exponents[ii]; jj++)
                          set_relation(relations, relsFound, ++numfactors, ii);
+                       if (exponents[ii] & 1)
+                         insertEntry(m,relsFound,ii);
                     }
                     set_relation(relations, relsFound, 0, numfactors);
 
@@ -946,7 +940,7 @@ static void update_solns(unsigned long first, unsigned long limit, unsigned long
 static void set_offsets(unsigned char * const sieve, const unsigned long * const soln1, const unsigned long * const soln2, unsigned char * * offsets1, unsigned char * * offsets2)
 {
   unsigned int prime;
-  for (prime = firstprime; prime < midprime; prime++) {
+  for (prime = firstprime; prime < secondprime; prime++) {
     if (soln2[prime] == (unsigned long) -1) {
       offsets1[prime] = 0;
       offsets2[prime] = 0;
@@ -964,96 +958,55 @@ static void set_offsets(unsigned char * const sieve, const unsigned long * const
              starting at start
 
 =============================================================================*/
-static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsigned char * * offsets, unsigned char * * offsets2)
+static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsigned char * * offsets1, unsigned char * * offsets2)
 {
-     unsigned char currentprimesize;
-     unsigned int currentprime;
-     unsigned int prime;
-     unsigned char * position2;
-     unsigned char * position;
-     unsigned char * bound;
-     ptrdiff_t diff;
-     unsigned char * end;
-     unsigned long ptimes4;
+  unsigned int prime, p;
+  unsigned char size;
+  unsigned char * pos1;
+  unsigned char * pos2;
+  unsigned char * end = sieve + M;
+  unsigned char * bound;
+  ptrdiff_t diff;
 
-     end = sieve+M;
+  for (prime = firstprime; prime < secondprime; prime++)
+  {
+    if (offsets1[prime] == 0) continue;
+    p    = factorBase[prime];
+    size = primeSizes[prime];
+    pos1 = offsets1[prime];
+    pos2 = offsets2[prime];
+    diff = pos2 - pos1;
+    /* if pos1 < bound, then both *pos1 and *pos2 can be written to. */
+    bound = (diff >= 0) ? end-diff : end;
 
-     for (prime=firstprime; prime<MEDIUMPRIME; prime++)
-     {
-        if (offsets[prime] == 0) continue;
-        currentprime = factorBase[prime];
-        currentprimesize = primeSizes[prime];
+    /* Write both values, unrolled 4 times. */
+    bound -= (4-1)*p;
+    while (pos1 < bound) {
+      pos1[0  ] += size;  pos1[    diff] += size;
+      pos1[1*p] += size;  pos1[1*p+diff] += size;
+      pos1[2*p] += size;  pos1[2*p+diff] += size;
+      pos1[3*p] += size;  pos1[3*p+diff] += size;
+      pos1 += 4*p;
+    }
+    bound += (4-1)*p;
+    /* Write both values */
+    while (pos1 < bound) {
+      pos1[0] += size;  pos1[diff] += size;  pos1 += p;
+    }
+    pos2 = pos1 + diff;    /* Restore pos2 */
 
-        position = offsets[prime];
-        position2 = offsets2[prime];
-        diff=position2-position;
-
-        ptimes4 = currentprime*4;
-        bound=end-ptimes4;
-        while (bound - position > 0)
-        {
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-        }
-        while ((end - position > 0)&&(end - position - diff > 0))
-        {
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-
-        }
-        position2 = position+diff;
-        if (end - position2 > 0)
-        {
-              (* position2)+=currentprimesize, position2+=currentprime;
-        }
-        if (end - position > 0)
-        {
-              (* position)+=currentprimesize, position+=currentprime;
-        }
-
-        if (more) {
-           offsets[prime] = position;
-           offsets2[prime] = position2;
-        }
-     }
-
-     for (prime=MEDIUMPRIME; prime<midprime; prime++)
-     {
-        currentprime = factorBase[prime];
-        currentprimesize = primeSizes[prime];
-
-        position = offsets[prime];
-        position2 = offsets2[prime];
-        diff=position2-position;
-
-        ptimes4 = 2*currentprime;
-        bound=end-ptimes4;
-        while (bound - position > 0)
-        {
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-              (* position)+=currentprimesize,(* (position+diff))+=currentprimesize, position+=currentprime;
-        }
-        position2 = position+diff;
-        while ((end - position > 0)&&(end - position2 > 0))
-        {
-              (* position)+=currentprimesize, position+=currentprime, (* position2)+=currentprimesize, position2+=currentprime;
-
-        }
-
-        if (end - position2 > 0)
-        {
-              (* position2)+=currentprimesize, position2+=currentprime;
-        }
-        if (end - position > 0)
-        {
-              (* position)+=currentprimesize, position+=currentprime;
-        }
-        if (more) {
-           offsets[prime] = position;
-           offsets2[prime] = position2;
-        }
-     }
+    /* Finish writing to pos1 and pos2 */
+    while (pos1 < end) {
+      *pos1 += size; pos1 += p;
+    }
+    while (pos2 < end) {
+      *pos2 += size; pos2 += p;
+    }
+    if (more) {
+      offsets1[prime] = pos1;
+      offsets2[prime] = pos2;
+    }
+  }
 }
 
 /*===========================================================================
@@ -1071,27 +1024,6 @@ static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sie
      memset(flags, 0, numPrimes*sizeof(unsigned char));
      *end = 255; //sentinel to speed up sieve evaluators inner loop
 
-     for (prime = midprime; prime < secondprime; prime++)
-     {
-        unsigned int  p    = factorBase[prime];
-        unsigned char size = primeSizes[prime];
-        unsigned char* pos1 = sieve + soln1[prime];
-        unsigned char* pos2 = sieve + soln2[prime];
-        ptrdiff_t diff = pos2 - pos1;
-        unsigned char* fin = (diff >= 0) ? end-diff : end;
-
-        while ( pos1 < fin )
-        {
-             pos1[   0] += size;
-             pos1[diff] += size;
-             pos1 += p;
-        }
-        pos2 = pos1 + diff;
-
-        if ( pos1       < end)  pos1[   0] += size;
-        if ((pos1+diff) < end)  pos1[diff] += size;
-     }
-
      for (prime = secondprime; prime < numPrimes; prime++)
      {
         unsigned int  p    = factorBase[prime];
@@ -1099,6 +1031,7 @@ static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sie
         unsigned char* pos1 = sieve + soln1[prime];
         unsigned char* pos2 = sieve + soln2[prime];
 
+        if (soln2[prime] == (unsigned long)-1 ) continue;
         while (end - pos1 > 0)
         {
               flags[prime] |= ((unsigned char)1<<((pos1-sieve)&7));
@@ -1165,7 +1098,7 @@ static int mainRoutine(
     matrix_t m;
 
 
-    exponents = (int *) calloc(firstprime,sizeof(int));
+    exponents = (int *) malloc(firstprime * sizeof(int));
     if (exponents==NULL) croak("SIMPQS: Unable to allocate memory!\n");
 
     s = mpz_sizeinbase(n,2)/28+1;
@@ -1199,8 +1132,8 @@ static int mainRoutine(
 
     flags = (unsigned char*) malloc(numPrimes * sizeof(unsigned char));
 
-    offsets = (unsigned char **) malloc(midprime * sizeof(unsigned char *));
-    offsets2 = (unsigned char **)malloc(midprime * sizeof(unsigned char *));
+    offsets = (unsigned char **) malloc(secondprime * sizeof(unsigned char *));
+    offsets2 = (unsigned char **)malloc(secondprime * sizeof(unsigned char *));
 
     relations = (unsigned long *) calloc(relSought * RELATIONS_PER_PRIME, sizeof(unsigned long));
 
@@ -1373,11 +1306,11 @@ static int mainRoutine(
 
            /* set the solns1 and solns2 arrays */
            update_solns(1, numPrimes, soln1, soln2, polyadd, polycorr);
-           /* Sieve from midprime to numPrimes */
+           /* Sieve [secondprime , numPrimes) */
            sieve2(M, numPrimes, sieve, soln1, soln2);
            /* Set the offsets and offsets2 arrays used for small sieve */
            set_offsets(sieve, soln1, soln2, offsets, offsets2);
-           /* Sieve from firstprime to midprime-1 */
+           /* Sieve [firstprime , secondprime) */
            sieveInterval(CACHEBLOCKSIZE,sieve,1,offsets,offsets2);
            if (mpz_cmp_ui(q,1)>0)
            {
@@ -1471,7 +1404,7 @@ static int mainRoutine(
           }
     }
 
-    destroyMat(m, numPrimes, relSought);
+    destroyMat(m, relSought);
     free(primecount);
     free(relations);
 
@@ -1537,7 +1470,6 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     largeprime = largeprimes[decdigits-MINDIG];
 
     secondprime = (numPrimes < SECONDPRIME) ? numPrimes : SECONDPRIME;
-    midprime    = (numPrimes < MIDPRIME)    ? numPrimes : MIDPRIME;
 
     firstprime = firstPrimes[decdigits-MINDIG];
     errorbits = errorAmounts[decdigits-MINDIG];
@@ -1548,17 +1480,16 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
     largeprime = numPrimes*10*decdigits;
 
     secondprime = SECONDPRIME;
-    midprime = MIDPRIME;
     firstprime = 30;
     errorbits = decdigits/4 + 2;
     threshold = 43+(7*decdigits)/10;
   }
 
 #ifdef REPORT
-  printf("Using multiplier: %ld\n",(long)multiplier);
-  printf("%ld primes in factor base.\n",(long)numPrimes);
-  printf("Sieving interval M = %ld\n",(long)Mdiv2*2);
-  printf("Large prime cutoff = factorBase[%ld]\n",largeprime);
+  printf("Using multiplier: %lu\n",multiplier);
+  printf("%lu primes in factor base.\n",numPrimes);
+  printf("Sieving interval M = %lu\n",Mdiv2*2);
+  printf("Large prime cutoff = factorBase[%u]\n",largeprime);
 #endif
 
   /* We probably need fewer than this */
