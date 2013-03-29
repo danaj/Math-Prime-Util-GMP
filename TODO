@@ -4,8 +4,6 @@
   by Bosma and AK Lenstra
   Also http://www.ne.lpfritz.org/ftp/Prime/
 
-- ECM should add a stage 2.
-
 - prime_count - needs the pc(#) option as well as pc(#,#)
 
 - Consider adding Lehmer's method for prime count.  The only use I can really
@@ -23,9 +21,11 @@
 
 - M-R with large bases, don't modify the input a.
 
-- Tune and improve SIMPQS for our uses.
-
-- Check FLINT 2.3 for QS improvements.  Example: The Knuth-Schroeppel
-  multiplier code has been tweaked.  See what impact the new method has.
+- Tune and improve SIMPQS for our uses.  Check FLINT 2.3 for improvements.
 
 - Write a QS.
+
+- Tweak XS.xs factoring.  For larger inputs we should get to QS sooner.
+  Possibly do smaller ECM instead of so much time with pbrent.
+
+- Figure out how to have QS return multiple results.
