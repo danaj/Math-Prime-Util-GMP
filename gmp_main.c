@@ -126,15 +126,13 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     IV sign = 1;
     mpz_init(t);
     while (1) {
-      UV gcd, j;
-      gcd = mpz_gcd_ui(NULL, n, D_ui);
+      UV gcd = mpz_gcd_ui(NULL, n, D_ui);
       if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0) {
         D_ui = 0;
         break;
       }
       mpz_set_si(t, (IV)D_ui * sign);
-      j = mpz_jacobi(t, n);
-      if (j == -1)  break;
+      if (mpz_jacobi(t, n) == -1)  break;
       D_ui += 2;
       sign = -sign;
     }
@@ -144,7 +142,7 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   }
   Q = (1 - D) / 4;
   if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
-  if (D != P*P - 4*Q)  croak("incorrect DPQ\n");
+  if (D != ((IV)(P*P)) - 4*Q)  croak("incorrect DPQ\n");
   /* Now start on the lucas sequence */
   mpz_init_set(d, n);
   mpz_add_ui(d, d, 1);
@@ -352,8 +350,7 @@ static UV order(UV r, mpz_t n, UV limit) {
 
 static void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
 {
-  int i, j;
-  UV rindex;
+  UV i, j, prindex;
 
   for (i = 0; i < r; i++)
     mpz_set_ui(ptmp[i], 0);
@@ -361,8 +358,8 @@ static void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
     if (!mpz_sgn(px[i])) continue;
     for (j = 0; j < r; j++) {
       if (!mpz_sgn(py[j])) continue;
-      rindex = (i+j) % r;
-      mpz_addmul( ptmp[rindex], px[i], py[j] );
+      prindex = (i+j) % r;
+      mpz_addmul( ptmp[prindex], px[i], py[j] );
     }
   }
   /* Put ptmp into px and mod n */
@@ -371,19 +368,19 @@ static void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
 }
 static void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
 {
-  int i, d, s;
+  UV i, d, s;
   UV degree = r-1;
 
   for (i = 0; i < r; i++)
     mpz_set_ui(ptmp[i], 0);
   for (d = 0; d <= 2*degree; d++) {
-    UV rindex = d % r;
+    UV prindex = d % r;
     for (s = (d <= degree) ? 0 : d-degree; s <= (d/2); s++) {
       if (s*2 == d) {
-        mpz_addmul( ptmp[rindex], px[s], px[s] );
+        mpz_addmul( ptmp[prindex], px[s], px[s] );
       } else {
-        mpz_addmul( ptmp[rindex], px[s], px[d-s] );
-        mpz_addmul( ptmp[rindex], px[s], px[d-s] );
+        mpz_addmul( ptmp[prindex], px[s], px[d-s] );
+        mpz_addmul( ptmp[prindex], px[s], px[d-s] );
       }
     }
   }
@@ -394,28 +391,27 @@ static void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
 
 static void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod)
 {
-  int i;
-  mpz_t pow;
+  UV i;
+  mpz_t mpow;
 
   for (i = 0; i < r; i++)
     mpz_set_ui(pres[i], 0);
   mpz_set_ui(pres[0], 1);
 
-  mpz_init_set(pow, power);
+  mpz_init_set(mpow, power);
 
-  while (mpz_cmp_ui(pow, 0) > 0) {
-    if (mpz_odd_p(pow))            poly_mod_mul(pres, pn, ptmp, r, mod);
-    mpz_tdiv_q_2exp(pow, pow, 1);
-    if (mpz_cmp_ui(pow, 0) > 0)    poly_mod_sqr(pn, ptmp, r, mod);
+  while (mpz_cmp_ui(mpow, 0) > 0) {
+    if (mpz_odd_p(mpow))            poly_mod_mul(pres, pn, ptmp, r, mod);
+    mpz_tdiv_q_2exp(mpow, mpow, 1);
+    if (mpz_cmp_ui(mpow, 0) > 0)    poly_mod_sqr(pn, ptmp, r, mod);
   }
-  mpz_clear(pow);
+  mpz_clear(mpow);
 }
 
 static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
 {
-  int i;
   int retval = 1;
-  UV n_mod_r;
+  UV i, n_mod_r;
   mpz_t t;
 
   for (i = 0; i < r; i++)
@@ -446,8 +442,8 @@ int _GMP_is_aks_prime(mpz_t n)
 {
   mpz_t sqrtn;
   mpz_t *px, *py, *pt;
-  int i, retval;
-  UV log2n, limit, rlimit, r, a;
+  int retval;
+  UV i, log2n, limit, rlimit, r, a;
   PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
@@ -1006,7 +1002,7 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_init(oldV);
   while (rounds-- > 0) {
     mpz_set_ui(m, 1); mpz_set(oldU, U);  mpz_set(oldV, V);
-    for (i = 0; i < inner; i++) {
+    for (i = 0; i < (int)inner; i++) {
       mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_tdiv_r(U, U, n);
       mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
       mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
@@ -1134,7 +1130,7 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
-  mpz_t a, savea, b, t;
+  mpz_t a, savea, t;
   UV q, saveq, j;
   PRIME_ITERATOR(iter);
 
@@ -1143,7 +1139,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 
   mpz_init(a);
   mpz_init(savea);
-  mpz_init(b);
   mpz_init(t);
 
   if (_verbose>2) gmp_printf("# trying %Zd  with B=%lu\n", n, (unsigned long)B1);
@@ -1307,7 +1302,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     prime_iterator_destroy(&iter);
     mpz_clear(a);
     mpz_clear(savea);
-    mpz_clear(b);
     mpz_clear(t);
     if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
       return 1;
