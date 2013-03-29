@@ -482,31 +482,32 @@ static unsigned long modinverse(unsigned long a, unsigned long p)
    An alternative would be to implement the method directly from Silverman 1987.
 
 ==========================================================================*/
-/* small square-free numbers:  do { say $_ if moebius($_) != 0 } for 1..101 */
+/* Multiplers should be small square-free numbers, i.e.
+ *    do { say $_ if moebius($_) != 0 } for 1..100
+ * but SIMPQS doesn't deal well with composite multipliers.  So, just primes.
+ */
 static const unsigned long multipliers[] = {
-  1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31,
-  33, 34, 35, 37, 38, 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59, 61,
-  62, 65, 66, 67, 69, 70, 71, 73, 74, 77, 78, 79, 82, 83, 85, 86, 87, 89,
-  91, 93, 94, 95, 97, 101};
+  1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59,
+  61, 67, 71, 73, 79, 83, 89, 97};
 #define NUMMULTS (sizeof(multipliers)/sizeof(unsigned long))
+
 #ifndef M_LN2
 #define M_LN2 0.69314718055994530942
 #endif
 
 static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
 {
-  unsigned int i, j, best_mult, num_mults, knmod8;
-  unsigned int maxprimes = (2*numPrimes <= 300) ? 2*numPrimes : 300;
-  float best_score;
+  unsigned int i, j, best_mult, knmod8;
+  unsigned int maxprimes = (2*numPrimes <= 1000) ? 2*numPrimes : 1000;
+  float best_score, contrib;
   float scores[NUMMULTS];
   mpz_t temp;
 
   mpz_init(temp);
 
   for (i = 0; i < NUMMULTS; i++) {
-    unsigned int curr_mult = multipliers[i];
-    scores[i] = 0.5 * logf((float)curr_mult);
-    mpz_mul_ui(temp, n, curr_mult);
+    scores[i] = 0.5 * logf((float)multipliers[i]);
+    mpz_mul_ui(temp, n, multipliers[i]);
     knmod8 = mpz_mod_ui(temp, temp, 8);
     switch (knmod8) {
       case 1:  scores[i] -= 2 * M_LN2;  break;
@@ -516,24 +517,23 @@ static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
       default: break;
     }
   }
-  num_mults = i;
 
   {
+    unsigned long prime, modp, knmodp;
     PRIME_ITERATOR(iter);
     for (i = 1; i < maxprimes; i++) {
-      unsigned int prime = prime_iterator_next(&iter);
-      float contrib = logf((float)prime) / (float)(prime-1);
-      unsigned int modp = mpz_mod_ui(temp, n, prime);
+      prime = prime_iterator_next(&iter);
+      modp = mpz_mod_ui(temp, n, prime);
+      contrib = logf((float)prime) / (float)(prime-1);
 
-      for (j = 0; j < num_mults; j++) {
-        unsigned int curr_mult = multipliers[j];
-        mpz_set_ui(temp, modp);
-        mpz_mul_ui(temp, temp, curr_mult);
-        mpz_mod_ui(temp, temp, prime);
-        if (mpz_sgn(temp) == 0) {
+      for (j = 0; j < NUMMULTS; j++) {
+        knmodp = (modp * multipliers[j]) % prime;
+        if (knmodp == 0) {
           scores[j] -= contrib;
-        } else if (mpz_kronecker_ui(temp, prime) == 1) {
-          scores[j] -= 2*contrib;
+        } else {
+          mpz_set_ui(temp, knmodp);
+          if (mpz_kronecker_ui(temp, prime) == 1)
+            scores[j] -= 2*contrib;
         }
       }
     }
@@ -543,7 +543,7 @@ static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
 
   best_score = 1000.0;
   best_mult = 1;
-  for (i = 0; i < num_mults; i++) {
+  for (i = 0; i < NUMMULTS; i++) {
     float score = scores[i];
     if (score < best_score) {
       best_score = score;
