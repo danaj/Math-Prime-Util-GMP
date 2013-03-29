@@ -331,10 +331,10 @@ static unsigned int primesNo[] =
 // First prime actually sieved for
 static unsigned int firstPrimes[] =
 {
-     5, 5, 5, 6, 6, 6, 6, 7, 7, 7, //30-39
-     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, //40-49
-     9, 8, 9, 9, 9, 9, 10, 10, 10, 10, //50-59
-     10, 10, 11, 11, 12, 12, 13, 14, 15, 17, //60-69  //10
+     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, //30-39
+     3, 3, 3, 4, 6, 6, 7, 8, 9, 10, //40-49
+     11,11,11,11,11, 12, 12, 12, 12, 12, //50-59
+     14, 14, 14, 14, 14, 14, 14, 14, 15, 17, //60-69
      19, 21, 22, 22, 23, //70-74
      24, 25, 25, 26, 26, //75-79
      27, 27, 27, 27, 28, //80-84
@@ -409,7 +409,7 @@ static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
 #define RELATIONS_PER_PRIME 100
 static void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
 {
-  if (nrel < RELATIONS_PER_PRIME)
+  if (nrel < RELATIONS_PER_PRIME)  
     rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
 }
 static unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
@@ -709,10 +709,10 @@ static void evaluateSieve(
            while (!(sieve2[j] & SIEVEMASK)) j++;
            i = j * sizeof(unsigned long);
            j++;
-           while ((i < j*sizeof(unsigned long)) && (sieve[i] < threshold)) i++;
+           while (((unsigned long)i < j*sizeof(unsigned long)) && (sieve[i] < threshold)) i++;
         } while (sieve[i] < threshold);
 
-        if ((i<M) && (relsFound < relSought))
+        if (((unsigned long)i<M) && (relsFound < relSought))
         {
            mpz_set_ui(temp,i+ctimesreps);
            mpz_sub_ui(temp,temp,Mdiv2);
@@ -1152,7 +1152,7 @@ static int mainRoutine(
     for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
     span = numPrimes/s/s/2;
     min=fact-span/2;
-    while ((fact*fact)/min - min < span)
+    while ( min > 0 && (fact*fact)/min - min < span )
       min--;
 
 #ifdef ADETAILS
@@ -1196,7 +1196,7 @@ static int mainRoutine(
         fact-=min;
         do
         {
-           for (j=0;((j<i)&&(aind[j]!=fact));j++);
+           for (j=0;((j<i)&&(aind[j]!=(unsigned long)fact));j++);
            fact++;
         } while (j!=i);
         fact--;
@@ -1375,8 +1375,11 @@ static int mainRoutine(
         {
            if (getEntry(m,l,mat2offset+i))
            {
+              int nrelations = get_relation(relations, i, 0);
+              if (nrelations >= RELATIONS_PER_PRIME)
+                nrelations = RELATIONS_PER_PRIME-1;
               mpz_mul(temp2,temp2,XArr[i]);
-              for (j = 1; j <= (int)get_relation(relations, i, 0); j++)
+              for (j = 1; j <= nrelations; j++)
               {
                  primecount[ get_relation(relations, i, j) ]++;
               }
