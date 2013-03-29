@@ -249,6 +249,7 @@ static void ec_add(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
 
   mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
   /* Per Montgomery 1987, we set Z1 to 1, so no need for x2 *= Z1 */
+  /* 5 mulmods, 6 adds */
 }
 
 /* (x2:z2) = 2(x1:z1) */
@@ -266,6 +267,7 @@ static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
   mpz_mulmod(u, b, w, ecn, z2);
   mpz_add(u, u, v);              /* u = (v+b*w) mod n */
   mpz_mulmod(z2, w, u, ecn, v);  /* z2 = (w*u) mod n */
+  /* 5 mulmods, 4 adds */
 }
 
 /* #define ec_adddouble(x1, z1, x2, z2, x) ec_add(x1, z1, x2, z2, x); ec_double(x2, z2, x2, z2); */
@@ -427,7 +429,7 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   mpz_t sigma, a, x, z;
   UV curve, q;
   UV B2 = 100*B1;
-  int found = 0;
+  int found;
   gmp_randstate_t* p_randstate = _GMP_get_randstate();
 
   TEST_FOR_2357(n, f);
@@ -443,6 +445,7 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
 
   for (curve = 0; curve < ncurves; curve++) {
     PRIME_ITERATOR(iter);
+    found = 0;
     do {
       mpz_urandomm(sigma, *p_randstate, n);
     } while (mpz_cmp_ui(sigma, 5) <= 0);
@@ -474,10 +477,7 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
 
     mpz_gcdext(f, u, NULL, b, n);
     found = mpz_cmp_ui(f, 1);
-    if (found) {
-      if (!mpz_cmp(f, n)) { found = 0; continue; }
-      break;
-    }
+    if (found) { if (!mpz_cmp(f, n)) continue; else break; }
 
     mpz_mul(a, a, u);
     mpz_sub_ui(a, a, 2);
@@ -490,13 +490,12 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
     mpz_tdiv_q_2exp(b, b, 1);
 
     do { NORMALIZE(f, u, v, x, z, n); } while (0);
-    if (found) {
-      if (!mpz_cmp(f, n)) { found = 0; continue; }
-      break;
-    }
+    if (found) { if (!mpz_cmp(f, n)) continue; else break; }
 
     /* Stage 1 */
-    for (q = 2; q < B1; q = prime_iterator_next(&iter)) {
+    for (q = 2; q < B1; q *= 2)
+      ec_double(x, z, x, z);
+    for (q = prime_iterator_next(&iter); q < B1; q = prime_iterator_next(&iter)) {
       UV k = q;
       UV kmin = B1 / q;
       while (k <= kmin)  k *= q;
@@ -513,12 +512,9 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
     if (!found && B2 > B1)
       found = ec_stage2(B1, B2, x, z, f);
 
-    if (found) {
-      if (!mpz_cmp(f, n)) { found = 0; continue; }
-      /* gmp_printf("S%d\n", found); */
-      break;
-    }
+    if (found) { if (!mpz_cmp(f, n)) continue; else break; }
   }
+  /* gmp_printf("S%d\n", found); */
 
   mpz_clear(a);  mpz_clear(b);  mpz_clear(ecn);
   mpz_clear(u);  mpz_clear(v);  mpz_clear(w);

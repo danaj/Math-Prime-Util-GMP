@@ -29,3 +29,5 @@
   Possibly do smaller ECM instead of so much time with pbrent.
 
 - Figure out how to have QS return multiple results.
+
+- turn on seed for GMP random

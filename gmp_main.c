@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include <gmp.h>
 
 #include "EXTERN.h"
@@ -24,7 +25,12 @@ gmp_randstate_t* _GMP_get_randstate(void) { return &_randstate; }
 
 void _GMP_init(void)
 {
+  /* We should _not_use this random number system for crypto, so
+   * using this lousy seed is ok.  We just would like something a
+   * bit different every run. */
+  /* unsigned long seed = time(NULL); */
   gmp_randinit_mt(_randstate);
+  /* gmp_randseed_ui(_randstate, seed); */
   prime_iterator_global_startup();
 }
 

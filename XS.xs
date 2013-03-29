@@ -455,7 +455,7 @@ _GMP_factor(IN char* strn)
         while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
           int success = 0;
           int o = _GMP_get_verbose();
-          UV B1;
+          UV B1 = 5000;
 
           /*
            * This set of operations is meant to provide good performance for
