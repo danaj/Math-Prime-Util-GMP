@@ -217,7 +217,9 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
 
 /* A better ECM, with a stage 2.
  * Heavily inspired by GMP-ECM, written by Paul Zimmermann (1998),
- * especially the stage 2 method.
+ * especially the stage 2 method.  Also see "The elliptic curve
+ * integer factorization method" by Bosma and Lenstra as well as many
+ * other articles.
  */
 
 static mpz_t b, ecn;          /* used throughout ec mult */

@@ -185,6 +185,7 @@ Version 0.07
   @factors = squfof_factor($n);   # no more than o1 rounds
   @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
   @factors = ecm_factor($n);      # o1 = B1, o2 = # of curves
+  @factors = qs_factor($n);       # (no arguments)
 
 =head1 DESCRIPTION
 
@@ -394,19 +395,21 @@ special cases of C<n = 0> and C<n = 1> will return C<n>.
 Like most advanced factoring programs, a mix of methods is used.  This
 includes trial division for small factors, perfect power detection,
 Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
-Hart's OLF, ECM (elliptic curve method), and QS (quadratic sieve)..
+Hart's OLF, ECM (elliptic curve method), and QS (quadratic sieve).
+Certainly improvements could be designed for this algorithm
+(suggestions are welcome).
 
-Certainly improvements could be designed for this algorithm (suggestions are
-welcome).  Most importantly, improving ECM and adding MPQS/SIQS would be a
-big help with larger numbers.  These are non-trivial (though feasible) methods.
+In practice, this factors 26-digit semiprimes in under 100ms, 36-digit
+semiprimes in under one second.  Arbitrary integers are factored faster.
+It is many orders of magnitude faster than any other factoring module on
+CPAN circa early 2013.  It is comparable in speed to Math::Pari's factorint
+for most inputs.
 
-In practice, this factors most 26-digit semiprimes in under a second.  It is
-many orders of magnitude faster than any other factoring module on CPAN circa
-2012.  Pari's factorint is faster (and can be accessed from Perl via
-L<Math::Pari>), as are the standalone programs
+If you want better factoring in general, I recommend looking at the standlone
+programs
 L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
-L<gmp-ecm|http://ecm.gforge.inria.fr/>,
+L<gmp-ecm|http://ecm.gforge.inria.fr/>, and
 L<GGNFS|http://sourceforge.net/projects/ggnfs/>.
 
 
@@ -557,8 +560,8 @@ is not faster than the C<prho> and C<pbrent> methods in general.
 =head2 ecm_factor
 
   my @factors = ecm_factor($n);
-  my @factors = ecm_factor($n, 12500);
-  my @factors = ecm_factor($n, 12500, 10);
+  my @factors = ecm_factor($n, 12500);      # B1 = 12500
+  my @factors = ecm_factor($n, 12500, 10);  # B1 = 12500, curves = 10
 
 Given a positive number input, tries to discover a factor using ECM.  The
 resulting array will contain either two factors (it succeeded) or the original
@@ -568,13 +571,28 @@ parameter, which relates to the size of factor to search for.  An optional
 third parameter indicates the number of random curves to use at each
 smoothness value being searched.
 
-This is a straightforward implementation of Hendrik Lenstra's elliptic curve
-factoring method, usually referred to as ECM.  Its implementation is textbook,
-with no substantial optimizations done.  It uses a single stage, affine
-coordinates, binary ladder multiplication, and simple initialization.  The
-list of enhancements that can be made is numerous, and it will be much, much
-slower than GMP-ECM.  However, it uses simple GMP and extends the useful
-factoring range of this module.
+This is an implementation of Hendrik Lenstra's elliptic curve factoring
+method, usually referred to as ECM.  The implementation is fairly basic,
+using projective coordinates, binary ladder multiplication, and two stages.
+It is much slower than the latest GMP-ECM, but still quite useful for
+factoring reasonably sized inputs.
+
+
+=head2 qs_factor
+
+  my @factors = qs_factor($n);
+
+Given a positive number input, tries to discover factors using QS (the
+quadratic sieve).  The resulting array will contain one or more numbers such
+that multiplying @factors yields the original input.
+
+The current implementation is a modified version of SIMPQS, a predecessor to
+the QS in FLINT, and was written by William Hart in 2006.  It will not operate
+on input less than 30 digits.  The memory use for large inputs is more than
+desired, so other methods such as pbrent, pminus1, and ecm are recommended to
+begin with to filter out small factors.  However, it is substantially faster
+than the other methods on large inputs having large factors, and is the method
+of choice for 35+ digit semiprimes.
 
 
 =head1 SEE ALSO
@@ -599,15 +617,14 @@ version 0.05 or newer.
 =item L<Math::Pari>
 Supports quite a bit of the same functionality (and much more).  See
 L<Math::Prime::Util/"SEE ALSO"> for more detailed information on how the
-modules compare.  For factoring, L<Math::Pari> will typically be faster
-with 25+ digit numbers and much faster as the size increases.
+modules compare.
 
 =item L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
 L<gmp-ecm|http://ecm.gforge.inria.fr/>,
 L<GGNFS|http://sourceforge.net/projects/ggnfs/>
 Good general purpose factoring utilities.  These will be faster than this
-module, and B<much> faster as the factor increases in size.
+module, and B<much> better as the factor increases in size.
 
 =back
 
@@ -643,13 +660,15 @@ Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 William Hart wrote the SIMPQS code currently used for QS factoring.
 
+The ECM stage 2 was inspired heavily by GMP-ECM by Paul Zimmermann.
+
 
 =head1 ACKNOWLEDGEMENTS
 
 Obviously none of this would be possible without the mathematicians who
 created and published their work.  Eratosthenes, Gauss, Euler, Riemann,
 Fermat, Lucas, Baillie, Pollard, Brent, Montgomery, Shanks, Hart, Wagstaff,
-Dixon, Pomerance, A.K Lenstra, H. W. Lenstra Jr., Knuth, etc.
+Dixon, Pomerance, A.K. Lenstra, H. W. Lenstra Jr., Knuth, etc.
 
 The GNU GMP team, whose product allows me to concentrate on coding high-level
 algorithms and not worry about any of the details of how modular exponentiation
@@ -668,7 +687,7 @@ module quite a bit for testing against.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2012 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2013 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

@@ -4,7 +4,10 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - The new ECM and QS make factoring much faster, especially for 30+
       digit inputs.  Factoring should give reasonable times out to 70+
-      digits now.  Time is competitive with Pari now.
+      digits now.  Time is competitive with Math::Pari now, and often faster
+      (noting that Math::Pari uses a fairly old version of Pari).
+
+    - Factoring mix redone given the big changes in ECM and QS.
 
     - Add William Hart's SIMPQS (a simple QS that is a predecessor to what
       went into FLINT).  Not the fastest by a long shot (yafu and msieve take
