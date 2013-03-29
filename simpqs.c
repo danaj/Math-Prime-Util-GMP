@@ -59,6 +59,9 @@
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
+  #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
+  #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
+  #define Safefree(mem)             free((void*)mem)
 #else
   #include "EXTERN.h"
   #include "perl.h"
@@ -200,11 +203,11 @@ static matrix_t constructMat(unsigned int cols, unsigned int rows)
   /* printf("construct mat %u %u (%lu bytes)\n", cols, rows, rows*sizeof(row) + rows*(2*nbytes)); */
   /* If cols > rows, we write off the array */
   if (cols < rows) croak("SIMPQS:  cols %u > rows %u\n", cols, rows);
-  m = (row_t *) malloc( rows * sizeof(row_t) );
+  New(0, m, rows, row_t);
   if (m == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
 
   for (i = 0; i < rows; i++) { /* two matrices, side by side */
-    m[i] = (row_t) calloc( 2*nbytes, sizeof(unsigned char) );
+    Newz(0, m[i], 2*nbytes, unsigned char);
     if (m[i] == 0) croak("SIMPQS: Unable to allocate memory for matrix!\n");
   }
 
@@ -219,8 +222,8 @@ static void destroyMat(matrix_t m, unsigned int rows)
 {
   unsigned int i;
   for (i = 0; i < rows; i++)
-    free(m[i]);
-  free(m);
+    Safefree(m[i]);
+  Safefree(m);
 }
 
 #if 0
@@ -570,15 +573,15 @@ static void initSieve(void)
 }
 static void clearSieve(unsigned long numPrimes)
 {
-    if (factorBase) { free(factorBase);  factorBase = 0; }
-    if (primeSizes) { free(primeSizes);  primeSizes = 0; }
-    if (flags) { free(flags);  flags = 0; }
+    if (factorBase) { Safefree(factorBase);  factorBase = 0; }
+    if (primeSizes) { Safefree(primeSizes);  primeSizes = 0; }
+    if (flags) { Safefree(flags);  flags = 0; }
     if (sqrts) {
       unsigned int i;
       for (i = 0; i < numPrimes; i++) {
         mpz_clear(sqrts[i]);
       }
-      free(sqrts);  sqrts = 0;
+      Safefree(sqrts);  sqrts = 0;
     }
 }
 
@@ -596,8 +599,8 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
   UV primesinbase = 0;
   PRIME_ITERATOR(iter);
 
-  if (factorBase) { free(factorBase);  factorBase = 0; }
-  factorBase = (unsigned int *) malloc( B * sizeof(unsigned int));
+  if (factorBase) { Safefree(factorBase);  factorBase = 0; }
+  New(0, factorBase, B, unsigned int);
 
   factorBase[primesinbase++] = multiplier;
   if (multiplier != 2)
@@ -624,7 +627,7 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
 static void computeSizes(unsigned long numPrimes)
 {
   unsigned long i;
-  primeSizes = (unsigned char *) malloc( numPrimes * sizeof(unsigned char));
+  New(0, primeSizes, numPrimes, unsigned char);
   for (i = 0; i < numPrimes; i++)
     primeSizes[i]=(unsigned char)floor(log(factorBase[i])/log(2.0)-FUDGE+0.5);
 }
@@ -640,7 +643,7 @@ static void tonelliShanks(unsigned long numPrimes, mpz_t n)
 {
   unsigned long i;
   mpz_t temp;
-  sqrts = (mpz_t *) malloc( numPrimes * sizeof(mpz_t) );
+  New(0, sqrts, numPrimes, mpz_t);
   mpz_init_set_ui(sqrts[0], 0);
   mpz_init(temp);
 
@@ -1097,47 +1100,43 @@ static int mainRoutine(
     mpz_t          * Bterms;
     matrix_t m;
 
-
-    exponents = (int *) malloc(firstprime * sizeof(int));
-    if (exponents==NULL) croak("SIMPQS: Unable to allocate memory!\n");
-
     s = mpz_sizeinbase(n,2)/28+1;
 
-    aind = (unsigned long*) calloc(sizeof(unsigned long),s);
-    amodp = (unsigned long*) calloc(sizeof(unsigned long),s);
-    Ainv = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    soln1 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    soln2 = (unsigned long*) calloc(sizeof(unsigned long),numPrimes);
-    Ainv2B = (unsigned long**) calloc(sizeof(unsigned long*),s);
-    if (Ainv2B == 0) croak("SIMPQS: Unable to allocate memory!\n");
-    Bterms = (mpz_t*) malloc( s * sizeof(mpz_t));
-    if (Bterms == 0) croak("SIMPQS: Unable to allocate memory!\n");
+    New(  0, exponents, firstprime, int );
+    Newz( 0, aind,          s, unsigned long );
+    Newz( 0, amodp,         s, unsigned long );
+    Newz( 0, Ainv,  numPrimes, unsigned long );
+    Newz( 0, soln1, numPrimes, unsigned long );
+    Newz( 0, soln2, numPrimes, unsigned long );
+    Newz( 0, Ainv2B,        s, unsigned long*);
+    Newz( 0, XArr,  relSought, mpz_t );
+    New(  0, Bterms,        s, mpz_t );
+    if (exponents == 0 || aind == 0 || amodp == 0 || Ainv == 0 ||
+        soln1 == 0 || soln2 == 0 || Ainv2B == 0 || Bterms == 0 ||
+        XArr == 0)
+      croak("SIMPQS: Unable to allocate memory!\n");
 
     for (i=0; i<s; i++)
     {
-       Ainv2B[i] = (unsigned long *) calloc(sizeof(unsigned long),numPrimes);
+       New(0, Ainv2B[i], numPrimes, unsigned long);
        if (Ainv2B[i] == 0) croak("SIMPQS: Unable to allocate memory!\n");
        mpz_init(Bterms[i]);
     }
 
-    XArr = (mpz_t*) calloc( sizeof(mpz_t), relSought );
-
     m = constructMat(numPrimes, relSought);
     relsFound = 0;
 
-    //one dword extra for sentinel to speed up sieve evaluation loop
-    sieve = (unsigned char *) calloc(sizeof(unsigned char),Mdiv2*2 + sizeof(unsigned long));
-    if (sieve==NULL)
-      croak("SIMPQS: Unable to allocate memory for sieve!\n");
+    /* One extra word for sentinel */
+    Newz(0, sieve,     Mdiv2*2 + sizeof(unsigned long), unsigned char);
+    New( 0, flags,     numPrimes,   unsigned char);
+    New( 0, offsets,   secondprime, unsigned char*);
+    New( 0, offsets2,  secondprime, unsigned char*);
+    New( 0, primecount,numPrimes,   unsigned short);
+    Newz(0, relations, relSought * RELATIONS_PER_PRIME, unsigned long);
 
-    flags = (unsigned char*) malloc(numPrimes * sizeof(unsigned char));
-
-    offsets = (unsigned char **) malloc(secondprime * sizeof(unsigned char *));
-    offsets2 = (unsigned char **)malloc(secondprime * sizeof(unsigned char *));
-
-    relations = (unsigned long *) calloc(relSought * RELATIONS_PER_PRIME, sizeof(unsigned long));
-
-    primecount = (unsigned short *) malloc(numPrimes * sizeof(unsigned short));
+    if (sieve == 0 || flags == 0 || offsets == 0 || offsets2 == 0 ||
+        relations == 0 || primecount == 0)
+      croak("SIMPQS: Unable to allocate memory!\n");
 
     mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
     mpz_init(Bdivp2); mpz_init(q); mpz_init(r); mpz_init(nsqrtdiv);
@@ -1408,30 +1407,30 @@ static int mainRoutine(
     }
 
     destroyMat(m, relSought);
-    free(primecount);
-    free(relations);
+    Safefree(primecount);
+    Safefree(relations);
 
     for (i = 0; i < s; i++) {
-      free(Ainv2B[i]);
+      Safefree(Ainv2B[i]);
       mpz_clear(Bterms[i]);
     }
-    free(exponents);  
-    free(aind);
-    free(amodp);
-    free(Ainv);
-    free(soln1);
-    free(soln2);
-    free(Ainv2B);
-    free(Bterms);
+    Safefree(exponents);  
+    Safefree(aind);
+    Safefree(amodp);
+    Safefree(Ainv);
+    Safefree(soln1);
+    Safefree(soln2);
+    Safefree(Ainv2B);
+    Safefree(Bterms);
 
-    free(sieve);    sieve = 0;
-    free(flags);    flags = 0;
-    free(offsets);  offsets = 0;
-    free(offsets2); offsets2 = 0;
+    Safefree(sieve);    sieve = 0;
+    Safefree(flags);    flags = 0;
+    Safefree(offsets);  offsets = 0;
+    Safefree(offsets2); offsets2 = 0;
     for (i = 0; i < (int)relSought; i++) {
       mpz_clear(XArr[i]);
     }
-    free(XArr);
+    Safefree(XArr);
 
     mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
     mpz_clear(q);  mpz_clear(r);

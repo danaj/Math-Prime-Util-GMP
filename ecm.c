@@ -356,8 +356,8 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 
     D = sqrt( (double)B2 / 2.0 );
     if (D%2) D++;
-    nqx = (mpz_t *) calloc( (2*D+1), sizeof(mpz_t) );
 
+    Newz(0, nqx, 2*D+1, mpz_t);
     mpz_init_set(nqx[1], x);
     mpz_init_set_ui(g, 1);
     mpz_init_set_ui(one, 1);
@@ -414,7 +414,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
       if (nqx[i] != 0)
         mpz_clear(nqx[i]);
     }
-    free(nqx);
+    Safefree(nqx);
     mpz_clear(g);
     mpz_clear(one);
   }

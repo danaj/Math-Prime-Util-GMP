@@ -470,7 +470,7 @@ _GMP_factor(IN char* strn)
            * of many 12-digit or 14-digit primes should take under 10 seconds.
            */
 
-          if (mpz_cmp_ui(n, UV_MAX>>2) < 0) {
+          if (mpz_cmp_ui(n, (unsigned long)(UV_MAX>>2)) < 0) {
             UV ui_n = mpz_get_ui(n);
             UV ui_factors[2];
             if (!mpz_cmp_ui(n, ui_n)) {
