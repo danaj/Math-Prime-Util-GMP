@@ -484,17 +484,24 @@ _GMP_factor(IN char* strn)
             if (success&&o) {gmp_printf("UV SQUFOF found factor %Zd\n", f);o=0;}
           }
 
-          if (!success)  success = _GMP_pbrent_factor(n, f, 3, 96*1024);
-          if (success&&o) {gmp_printf("small prho found factor %Zd\n", f);o=0;}
-
+          //if (!success) o=1;
+          /* Make sure it isn't a perfect power */
           if (!success)  success = _GMP_power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
+
+          /* Really small ECM to find small factors */
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 150, 40);
+          if (success&&o) {gmp_printf("tiny ecm (150) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 500, 30);
+          if (success&&o) {gmp_printf("tiny ecm (500) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 10);
+          if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
 
           /* Small p-1 */
           if (!success)  success = _GMP_pminus1_factor(n, f, 100000, 2000000);
           if (success&&o) {gmp_printf("p-1 (100k) found factor %Zd\n", f);o=0;}
 
-          /* Do some small ECM */
+          /* ECM with a good chance of success */
           if (!success) {
             UV bits = mpz_sizeinbase(n, 2);
             UV curves = 20;

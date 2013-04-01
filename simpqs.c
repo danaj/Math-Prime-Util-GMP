@@ -69,7 +69,7 @@
 #endif
 
 
-static void modmul(mpz_t ab, mpz_t a, mpz_t b, mpz_t p)
+static INLINE void modmul(mpz_t ab, mpz_t a, mpz_t b, mpz_t p)
 {
      mpz_mul(ab,a,b);
      mpz_fdiv_r(ab,ab,p);
@@ -171,7 +171,7 @@ typedef row_t* matrix_t;       /* matrix as a list of pointers to rows */
 #define rightMatrixOffset(numcols)  (8 * matBytes(numcols))
 
 /* Clear just the left side */
-static void clearRow(matrix_t m, unsigned int numcols, unsigned int row)
+static INLINE void clearRow(matrix_t m, unsigned int numcols, unsigned int row)
 {
   memset( m[row], 0, matBytes(numcols) );
 }
@@ -410,12 +410,12 @@ static unsigned int partials = 0; //number of partial relations
 static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
 
 #define RELATIONS_PER_PRIME 100
-static void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
+static INLINE void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
 {
   if (nrel < RELATIONS_PER_PRIME)  
     rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
 }
-static unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
+static INLINE unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
 {
   return rel[ prime*RELATIONS_PER_PRIME + nrel ];
 }

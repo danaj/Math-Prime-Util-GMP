@@ -225,7 +225,6 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
 static mpz_t b, ecn;          /* used throughout ec mult */
 static mpz_t u, v, w;         /* temporaries */
 static mpz_t x1, z1, x2, z2;  /* used by ec_mult and stage2 */
-static mpz_t x1pz1, x1mz1;    /* intermediates */
 
 #define mpz_mulmod(r, a, b, n, t)  \
   do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
@@ -297,39 +296,6 @@ static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
   /* 5 mulmods, 4 adds */
 }
 
-#if 0
-/* #define ec_adddouble(x1, z1, x2, z2, x) ec_add(x1, z1, x2, z2, x); ec_double(x2, z2, x2, z2); */
-static void ec_adddouble(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
-{
-  mpz_add(x1pz1, x1, z1);
-  mpz_sub(x1mz1, x1, z1);
-
-  /* ADD:  x2:z2 += x1:z1 */
-  mpz_sub(u, x2, z2);
-  mpz_mulmod(u, u, x1pz1, ecn, w); /* u = (x2 - z2) * (x1 + z1) % n */
-
-  mpz_add(v, x2, z2);
-  mpz_mulmod(v, v, x1mz1, ecn, w); /* v = (x2 + z2) * (x1 - z1) % n */
-
-  mpz_add(w, u, v);
-  mpz_mulmod(x2, w, w, ecn, z2); /* x2 = (u+v)^2 % n */
-
-  mpz_sub(w, u, v);
-  mpz_mulmod(z2, w, w, ecn, v);  /* z2 = (u-v)^2 % n */
-  mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
-
-  /* DOUBLE: x1:z1 = 2*(x1:z1) */
-  mpz_mulmod(u, x1pz1, x1pz1, ecn, w); /* u = (x1+z1)^2 % n */
-  mpz_mulmod(v, x1mz1, x1mz1, ecn, w); /* v = (x1-z1)^2 % n */
-
-  mpz_mulmod(x1, u, v, ecn, w);  /* x1 = uv % n */
-  mpz_sub(w, u, v);              /* w = u-v = 4(x1 * z1) */
-  mpz_mulmod(u, b, w, ecn, z1);
-  mpz_add(u, u, v);              /* u = (v+b*w) mod n */
-  mpz_mulmod(z1, w, u, ecn, v);  /* z1 = (w*u) mod n */
-}
-#endif
-
 static void ec_mult(UV k, mpz_t x, mpz_t z)
 {
   int l, r;
@@ -382,6 +348,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
     D = sqrt( (double)B2 / 2.0 );
     if (D%2) D++;
 
+    /* We really only need half of these. Only even values used. */
     Newz(0, nqx, 2*D+1, mpz_t);
     mpz_init_set(nqx[1], x);
     mpz_init_set_ui(g, 1);
@@ -404,6 +371,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
     mpz_set(x, nqx[2*D-1]);
     mpz_set_ui(z, 1);
 
+    /* See Zimmermann, "20 Years of ECM", 2006, page 11-12 */
     for (m = 1; m < B2+D; m += 2*D) {
       if (m != 1) {
         mpz_set(x2, x1);
@@ -451,7 +419,7 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
 {
   mpz_t sigma, a, x, z;
   UV i, curve, q;
-  UV B2 = 100*B1;
+  UV B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
   int found = 0;
   gmp_randstate_t* p_randstate = _GMP_get_randstate();
 
@@ -463,7 +431,6 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   mpz_init(u);  mpz_init(v);  mpz_init(w);
   mpz_init(x1);  mpz_init(z1);
   mpz_init(x2);  mpz_init(z2);
-  mpz_init(x1pz1);  mpz_init(x1mz1);
   mpz_init(b);
 
   for (curve = 0; curve < ncurves; curve++) {
@@ -553,7 +520,6 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   mpz_clear(x);  mpz_clear(z);
   mpz_clear(x1);  mpz_clear(z1);
   mpz_clear(x2);  mpz_clear(z2);
-  mpz_clear(x1pz1);  mpz_clear(x1mz1);
   mpz_clear(sigma);
 
   return found;

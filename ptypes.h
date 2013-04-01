@@ -57,4 +57,12 @@
 
 #define MPUassert(c,text) if (!(c)) { croak("Math::Prime::Util internal error: " text); }
 
+#if defined(__GNUC__)
+  #define INLINE inline
+#elif defined(_MSC_VER)
+  #define INLINE __inline
+#else
+  #define INLINE
+#endif
+
 #endif

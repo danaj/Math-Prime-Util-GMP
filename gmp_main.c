@@ -49,7 +49,7 @@ static const unsigned char wheel_advance[30] =
   {0,6,0,0,0,0,0,4,0,0,0,2,0,4,0,0,0,2,0,4,0,0,0,6,0,0,0,0,0,2};
 
 
-static int _GMP_miller_rabin_ui(mpz_t n, UV base)
+static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
 {
   int rval;
   mpz_t a;
