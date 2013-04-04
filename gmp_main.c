@@ -12,6 +12,7 @@
 
 #include "gmp_main.h"
 #include "prime_iterator.h"
+#include "small_factor.h"
 #include "ecm.h"
 
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_affine
@@ -805,6 +806,16 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
 
     /* Try to factor it without trying too hard */
     if (!success)  success = _GMP_power_factor(m, f);
+
+    if (!success && mpz_cmp_ui(m, (unsigned long)(UV_MAX>>2)) < 0) {
+      UV ui_m = mpz_get_ui(m);
+      UV ui_factors[2];
+      if (!mpz_cmp_ui(m, ui_m)) {
+        success = racing_squfof_factor(ui_m, ui_factors, 200000)-1;
+        if (success)
+          mpz_set_ui(f, ui_factors[0]);
+      }
+    }
     if (do_quick) {
       UV log2m = mpz_sizeinbase(m, 2);
       UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);
@@ -824,7 +835,7 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
         for (i = 1; i < 10; i++) {
           B1 *= 4;
           success = _GMP_ECM_FACTOR(m, f, B1, 10);
-          if (success) { fprintf(stderr, "B1 = %lu\n", B1); break; }
+          if (success) break;
         }
       }
     }
