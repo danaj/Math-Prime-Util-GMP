@@ -242,9 +242,8 @@ prime by BPSW is the BLS75 method: Brillhart, Lehmer, and Selfridge's
 improvement to the Pocklington-Lehmer primality test.  The test requires
 factoring C<n-1> to C<(n/2)^(1/3)>, compared to C<n^(1/2)> of the standard
 Pocklington-Lehmer or PPBLS test, or a complete factoring for the Lucas
-test.  The main problem is still finding factors, which is done using
-a small number of rounds of Pollard's Rho.  This works quite well and is
-very fast when the factors are small.
+test.  The main problem is still finding factors.  A quick set of tests
+using Pollard's p-1, Pollard's Rho, and ECM are used.
 
 
 =head2 is_provable_prime
@@ -584,7 +583,8 @@ factoring reasonably sized inputs.
 
 Given a positive number input, tries to discover factors using QS (the
 quadratic sieve).  The resulting array will contain one or more numbers such
-that multiplying @factors yields the original input.
+that multiplying @factors yields the original input.  Typically multiple
+factors will be produced, unlike the other C<..._factor> routines.
 
 The current implementation is a modified version of SIMPQS, a predecessor to
 the QS in FLINT, and was written by William Hart in 2006.  It will not operate
@@ -658,9 +658,7 @@ module, and B<much> better as the factor increases in size.
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
-William Hart wrote the SIMPQS code currently used for QS factoring.
-
-The ECM stage 2 was inspired heavily by GMP-ECM by Paul Zimmermann.
+William Hart wrote the SIMPQS code which is the basis for the QS code.
 
 
 =head1 ACKNOWLEDGEMENTS
@@ -683,6 +681,9 @@ Jonathan Leto and Bob Kuo, who wrote and distributed the L<Math::Primality>
 module on CPAN.  Their implementation of BPSW provided the motivation I needed
 to get it done in this module and L<Math::Prime::Util>.  I also used their
 module quite a bit for testing against.
+
+Paul Zimmermann's papers and GMP-ECM code were of great value for my projective
+ECM implementation, as well as the papers by Brent and Montgomery.
 
 
 =head1 COPYRIGHT

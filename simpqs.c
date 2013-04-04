@@ -20,14 +20,14 @@
 ============================================================================*/
 
 /*============================================================================
-   Some modifications made in 2013 by Dana Jacobsen:
+   Modifications made in 2013 by Dana Jacobsen:
      - put it in one file
      - merge some of the 2.0 changes
      - make it work with smaller values
      - fix some memory errors
      - free memory all over
      - fewer globals
-     - mpz_nextprime is slow, slow, slow.  Use prime_iterator.
+     - Use prime_iterator -- much faster than mpz_nextprime
      - Alternate multiplier selection routine.
      - lots of little changes / optimizations
 
@@ -39,7 +39,6 @@
    This code goes through curves faster than v2.0, but with big inputs it
    ends up needing 2x the time because of not combining partials as well as
    the final linear algebra time.
-   TODO: Tune 25-40 digit parameters
 ============================================================================*/
 
 #include <string.h>

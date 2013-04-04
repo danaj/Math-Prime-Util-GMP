@@ -14,8 +14,7 @@
 #include "prime_iterator.h"
 #include "small_factor.h"
 #include "ecm.h"
-
-#define _GMP_ECM_FACTOR _GMP_ecm_factor_affine
+#define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
 static int _verbose = 0;
 void _GMP_set_verbose(int v) { _verbose = v; }
@@ -824,10 +823,10 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       /* These keep the time in the realm of 2ms per input number, which
        * means they adjust for size.  Success varies by size:
        *   99% of  70-bit inputs
-       *   87% of  90-bit inputs
-       *   57% of 120-bit inputs
-       *   24% of 160-bit inputs
-       *    9% of 190-bit inputs
+       *   90% of  90-bit inputs
+       *   58% of 120-bit inputs
+       *   25% of 160-bit inputs
+       *   10% of 190-bit inputs
        */
       UV log2m = mpz_sizeinbase(m, 2);
       UV brent_rounds = (log2m <= 64) ? 100000 : 100000 / (log2m-63);
@@ -835,24 +834,43 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       if (log2m < 70) brent_rounds *= 3;
       if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
       if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+      if (!success && log2m < 80)  success = _GMP_ECM_FACTOR(m, f, 150, 5);
       if (!success)  success = _GMP_pbrent_factor(m, f, 3, brent_rounds);
       if (!success && final_B2 > 10000)  success = _GMP_pminus1_factor(m, f, 10000, final_B2);
     } else {
       if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
       if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
-      if (!success)  success = _GMP_pbrent_factor (m, f, 3, 32*1024);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 100000);
-      if (!success)  success = _GMP_ECM_FACTOR    (m, f,   500, 40);
-      if (!success)  success = _GMP_ECM_FACTOR    (m, f,  2000, 10);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 100000, 1000000);
-      if (!success)  success = _GMP_ECM_FACTOR    (m, f,  8000, 10);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 1000000, 10000000);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 200000);
+      if (!success)  success = _GMP_ECM_FACTOR(m, f, 500, 30);
+      if (!success)  success = _GMP_ECM_FACTOR(m, f, 2000, 20);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 200000, 4000000);
+      if (!success)  success = _GMP_ECM_FACTOR(m, f, 10000, 10);
+      /* QS.  Uses lots of memory, but finds multiple factors quickly */
+      if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,2)<300) {
+            mpz_t farray[66];
+            int i, nfactors;
+            for (i = 0; i < 66; i++)
+              mpz_init(farray[i]);
+            nfactors = _GMP_simpqs(m, farray);
+            /* Insert all found factors */
+            if (nfactors > 1) {
+              success = 1;
+              for (i = 0; i < nfactors; i++) {
+                primality_handle_factor(farray[i], _GMP_primality_bls, 0);
+              }
+            }
+            for (i = 0; i < 66; i++)
+              mpz_clear(farray[i]);
+            if (success)
+              continue;
+      }
       if (!success) {
         UV i;
-        UV B1 = 8000;
-        for (i = 1; i < 10; i++) {
-          B1 *= 4;
-          success = _GMP_ECM_FACTOR(m, f, B1, 10);
+        UV B1 = 10000;
+        UV curves = 10;
+        for (i = 1; i < 18; i++) {
+          B1 *= 2;
+          success = _GMP_ECM_FACTOR(m, f, B1, curves);
           if (success) break;
         }
       }
