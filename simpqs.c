@@ -45,24 +45,31 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <limits.h>
 #include <math.h>
 #include <gmp.h>
 
-#include "ptypes.h"
-#include "simpqs.h"
-#include "prime_iterator.h"
-
 #ifdef STANDALONE_SIMPQS
   typedef unsigned long UV;
   typedef   signed long IV;
+  #define INLINE
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
   #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
   #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
   #define Safefree(mem)             free((void*)mem)
+  #define PRIME_ITERATOR(i) mpz_t i; mpz_init_set_ui(i, 2)
+  static UV prime_iterator_next(mpz_t *iter) { mpz_nextprime(*iter, *iter); return mpz_get_ui(*iter); }
+  static void prime_iterator_destroy(mpz_t *iter) { mpz_clear(*iter); }
+  static void prime_iterator_setprime(mpz_t *iter, UV n) {mpz_set_ui(*iter, n);}
+  /* static int prime_iterator_isprime(mpz_t *iter, UV n) {int isp; mpz_t t; mpz_init_set_ui(t, n); isp = mpz_probab_prime_p(t, 10); mpz_clear(t); return isp;} */
 #else
+  #include "ptypes.h"
+  #include "simpqs.h"
+  #include "prime_iterator.h"
+
   #include "EXTERN.h"
   #include "perl.h"
   #include "XSUB.h"
@@ -1063,6 +1070,110 @@ static unsigned long silly_random(unsigned long upto)
    return randval%upto;
 }
 
+/* Verify that the factor reduction hasn't broken anything */
+static void verify_factor_array(mpz_t n, mpz_t* farray, int nfacs)
+{
+  int i, j;
+  mpz_t t;
+  mpz_init_set_ui(t, 1);
+  /* Assert we don't have duplicates */
+  for (i = 0; i < nfacs; i++) {
+    for (j = i+1; j < nfacs; j++) {
+      if (mpz_cmp(farray[i],farray[j]) == 0) { gmp_printf("duplicate: F[%d] = F[%d] = %Zd\n", i, j, farray[i]); croak("assert"); }
+    }
+  }
+  /* Assert that all factors multiply to n */
+  for (i = 0; i < nfacs; i++)
+    mpz_mul(t, t, farray[i]);
+  if (mpz_cmp(t, n) != 0) { gmp_printf("farray doesn't multiply: n=%Zd t=%Zd\n", n, t); croak("assert"); }
+  /* Assert that gcd of each non-identical factor is 1 */
+  for (i = 0; i < nfacs; i++) {
+    for (j = i+1; j < nfacs; j++) {
+      if (mpz_cmp(farray[i],farray[j]) != 0) {
+        mpz_gcd(t, farray[i], farray[j]);
+        if (mpz_cmp_ui(t, 1) != 0) { gmp_printf("gcd: farray[%d] = %Zd  farray[%d] = %Zd\n", i, farray[i], j, farray[j]); croak("assert"); }
+      }
+    }
+  }
+  mpz_clear(t);
+  if (0) {
+    printf("     VERIFIED:\n");
+    for (i = 0; i < nfacs; i++) gmp_printf("  F[%d] = %Zd\n", i, farray[i]);
+    printf("\n");
+  }
+}
+static int allprime_factor_array(mpz_t* farray, int nfacs)
+{
+  int i;
+  for (i = 0; i < nfacs; i++) {
+    if (!mpz_probab_prime_p(farray[i], 5))   /* Be lazy */
+      return 0;
+  }
+  return 1;
+}
+  
+static int insert_factor(mpz_t n, mpz_t* farray, int nfacs, mpz_t f)
+{
+  int i, j;
+  mpz_t t, t2;
+  /* gmp_printf("putting %Zd\n", f); */
+
+  if (mpz_cmp_ui(f, 1) <= 0)
+    return nfacs;
+
+  /* skip duplicates */
+  for (i = 0; i < nfacs; i++)
+    if (mpz_cmp(farray[i], f) == 0)
+      break;
+  if (i != nfacs) { return nfacs; }
+  /* for (i = 0; i < nfacs; i++) gmp_printf("  F[%d] = %Zd\n", i, farray[i]); */
+  mpz_init(t);  mpz_init(t2);
+  /* Now start looking for common factors */
+  for (i = 0; i < nfacs; i++) {
+    mpz_gcd(t, farray[i], f);
+    /* gmp_printf("  fa[%d]: %Zd  f: %Zd  t: %Zd\n", i, farray[i], f, t); */
+    /* F,f  =>  F/t,t,f/t */
+    if (mpz_cmp_ui(t, 1) == 0) {               /* t=1:   F and f unchanged */
+      continue;
+#if 0
+    } else if (mpz_cmp(t, f) == 0) {           /* t=f:   F/t, f */
+      mpz_divexact(t2, farray[i], t);
+      gmp_printf("  t=f: F[%d]/f = %Zd/%Zd = %Zd\n", i, farray[i], t, t2);
+      /* Remove the old farray[i] */
+      for (j = i+1; j < nfacs; j++)
+        mpz_set(farray[j-1], farray[j]);
+      mpz_set_ui(farray[nfacs--], 0);
+      gmp_printf("       insert F/f=%Zd\n", t2);
+      nfacs = insert_factor(n, farray, nfacs, t2);
+      gmp_printf("       insert f=%Zd\n", f);
+      nfacs = insert_factor(n, farray, nfacs, f);
+      i=0; break;
+#endif
+    } else {                                   /* 1>t>f: F/t, t, f/t */
+      mpz_divexact(t2, farray[i], t);
+      if (0) gmp_printf("  t<f: F[%d]/t = %Zd/%Zd = %Zd\n", i, farray[i], t,t2);
+      /* Remove the old farray[i] */
+      for (j = i+1; j < nfacs; j++)
+        mpz_set(farray[j-1], farray[j]);
+      mpz_set_ui(farray[nfacs--], 0);
+      if (0) gmp_printf("       insert F/f=%Zd\n", t2);
+      nfacs = insert_factor(n, farray, nfacs, t2);
+      if (0) gmp_printf("       insert t=%Zd\n", t);
+      nfacs = insert_factor(n, farray, nfacs, t);
+      mpz_divexact(f, f, t);
+      if (0) gmp_printf("       insert f/t=%Zd\n", f);
+      nfacs = insert_factor(n, farray, nfacs, f);
+      i=0; break;
+    }
+  }
+  if (i == nfacs) {
+    /* gmp_printf("  set %d to %Zd\n", nfacs, f); */
+    mpz_set(farray[nfacs++], f);
+  }
+  mpz_clear(t);  mpz_clear(t2);
+  return nfacs;
+}
+
 
 /*============================================================================
    mainRoutine:
@@ -1076,12 +1187,11 @@ static int mainRoutine(
   unsigned long numPrimes,
   unsigned long Mdiv2,
   mpz_t n,
-  mpz_t f,
+  mpz_t* farray,
   unsigned long multiplier)
 {
     mpz_t A, B, C, D, Bdivp2, q, r, nsqrtdiv, temp, temp2, temp3, temp4;
-    int result = 0;
-    int i, j, l, s, fact, span, min;
+    int i, j, l, s, fact, span, min, nfactors;
     unsigned long u1, p, reps, numRelations, M;
     unsigned long curves = 0;
     unsigned long  * relations;
@@ -1142,7 +1252,7 @@ static int mainRoutine(
     mpz_init(Bdivp2); mpz_init(q); mpz_init(r); mpz_init(nsqrtdiv);
     mpz_init(temp); mpz_init(temp2); mpz_init(temp3); mpz_init(temp4);
 
-//Compute min A_prime and A_span
+    /* Compute min A_prime and A_span */
 
     mpz_mul_ui(temp,n,2);
     mpz_sqrt(temp,temp);
@@ -1158,7 +1268,7 @@ static int mainRoutine(
     printf("s = %d, fact = %d, min = %d, span = %d\n",s,fact,min,span);
 #endif
 
-//Compute first polynomial and adjustments
+    /* Compute first polynomial and adjustments */
 
     while (relsFound < relSought)
     {
@@ -1289,7 +1399,8 @@ static int mainRoutine(
               soln2[findex] = (unsigned long) -1;
            }
 
-// Count the number of polynomial curves used so far and compute the C coefficient of our polynomial
+           /* Count the number of polynomial curves used so far and compute
+            * the C coefficient of our polynomial */
 
            curves++;
 
@@ -1297,7 +1408,7 @@ static int mainRoutine(
            mpz_sub(C,C,n);
            mpz_divexact(C,C,A);
 
-// Do the sieving and relation collection
+           /* Do the sieving and relation collection */
 
            mpz_set_ui(temp,Mdiv2*2);
            mpz_fdiv_qr_ui(q,r,temp,CACHEBLOCKSIZE);
@@ -1351,7 +1462,7 @@ static int mainRoutine(
     printf("Done with sieving!\n");
 #endif
 
-// Do the matrix algebra step
+    /* Do the matrix algebra step */
 
     numRelations = gaussReduce(m, numPrimes, relSought);
 #ifdef REPORT
@@ -1359,12 +1470,14 @@ static int mainRoutine(
 #endif
     numRelations += 0;
 
-// We want factors of n, not kn, so divide out by the multiplier
+    /* We want factors of n, not kn, so divide out by the multiplier */
 
     mpz_div_ui(n,n,multiplier);
 
-// Now do the "square root" and GCD steps hopefully obtaining factors of n
-    for (l = (int)relSought-40; l < (int)relSought; l++)
+    /* Now do the "sqrt" and GCD steps hopefully obtaining factors of n */
+    mpz_set(farray[0], n);
+    nfactors = 1;  /* We have one result -- n */
+    for (l = (int)relSought-64; l < (int)relSought; l++)
     {
         unsigned int mat2offset = rightMatrixOffset(numPrimes);
         mpz_set_ui(temp,1);
@@ -1396,14 +1509,11 @@ static int mainRoutine(
         mpz_gcd(temp,temp,n);
         /* Only non-trivial factors */
         if (mpz_cmp_ui(temp,1) && mpz_cmp(temp,n) && mpz_divisible_p(n,temp) ) {
-          result = 1;
-          mpz_set(f, temp);
-#ifdef STANDALONE_SIMPQS
-          gmp_printf("%Zd\n",temp);
-#else
-          break;
-#endif
-          }
+          nfactors = insert_factor(n, farray, nfactors, temp);
+          verify_factor_array(n, farray, nfactors);
+          if (allprime_factor_array(farray, nfactors))
+            break;
+        }
     }
 
     destroyMat(m, relSought);
@@ -1437,22 +1547,21 @@ static int mainRoutine(
     mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(temp4);
     mpz_clear(Bdivp2); mpz_clear(nsqrtdiv);
 
-    return result;
+    return nfactors;
 }
 
-int _GMP_simpqs(mpz_t n, mpz_t f)
+int _GMP_simpqs(mpz_t n, mpz_t* farray)
 {
   unsigned long numPrimes;
   unsigned long Mdiv2;
   unsigned long multiplier;
   int result;
 
+  mpz_set(farray[0], n);
   initSieve();
   decdigits = mpz_sizeinbase(n,10); /* often 1 too big */
-  if (decdigits < MINDIG) {
-    mpz_set(f, n);
+  if (decdigits < MINDIG)
     return 0;
-  }
 
 #ifdef REPORT
   gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
@@ -1504,9 +1613,7 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
   tonelliShanks(numPrimes,n);
   TonelliDestroy();
 
-  result = mainRoutine(numPrimes, Mdiv2, n, f, multiplier);
-  if (!result)
-    mpz_set(f, n);
+  result = mainRoutine(numPrimes, Mdiv2, n, farray, multiplier);
 
   clearSieve(numPrimes);
   /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
@@ -1522,11 +1629,14 @@ int _GMP_simpqs(mpz_t n, mpz_t f)
 ===========================================================================*/
 int main(int argc, char **argv)
 {
-  int result;
-  mpz_t n, f;
+  int i, nfactors;
+  mpz_t n;
+  mpz_t* farray;
 
   mpz_init(n);
-  mpz_init(f);
+  New(0, farray, 64, mpz_t);
+  for (i = 0; i < 64; i++)
+    mpz_init_set_ui(farray[i], 0);
 
   printf("Input number to factor [ >=%d decimal digits]: ", MINDIG);
   gmp_scanf("%Zd",n);getchar();
@@ -1535,13 +1645,14 @@ int main(int argc, char **argv)
   if (decdigits < MINDIG)
     croak("SIMPQS: Error in input or number has too few digits.\n");
 
-  result = _GMP_simpqs(n, f);
+  nfactors = _GMP_simpqs(n, farray);
 
-  if (result) {
-    gmp_printf("SUCCESS: %Zd\n", f);
-  } else {
-    gmp_printf("FAILURE\n");
-  }
+  for (i = 0; i < nfactors; i++)
+    gmp_printf("  %Zd\n", farray[i]);
+
+  for (i = 0; i < 64; i++)
+    mpz_clear(farray[i]);
+  Safefree(farray);
 
   return 0;
 }

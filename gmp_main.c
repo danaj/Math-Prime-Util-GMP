@@ -810,17 +810,23 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);
       if (!success)  success = _GMP_pbrent_factor(m, f, 3, rounds);
     } else {
-      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 64*1024);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 5, 64*1024);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 7, 64*1024);
-      if (!success)  success = _GMP_pbrent_factor(m, f,11, 64*1024);
-      if (!success)  success = _GMP_pbrent_factor(m, f,13, 64*1024);
+      if (!success)  success = _GMP_pbrent_factor (m, f, 3, 32*1024);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 100000);
+      if (!success)  success = _GMP_ECM_FACTOR    (m, f,   500, 40);
+      if (!success)  success = _GMP_ECM_FACTOR    (m, f,  2000, 10);
       if (!success)  success = _GMP_pminus1_factor(m, f, 100000, 1000000);
-      if (!success)  success = _GMP_ECM_FACTOR   (m, f, 125000, 5);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 1, 8*1024*1024);
-      if (!success)  success = _GMP_ECM_FACTOR   (m, f, 3125000, 10);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 3, 256*1024*1024);
-      if (!success)  success = _GMP_ECM_FACTOR   (m, f, 400000000, 200);
+      if (!success)  success = _GMP_ECM_FACTOR    (m, f,  8000, 10);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 1000000, 10000000);
+      if (!success) {
+        UV i;
+        UV B1 = 8000;
+        for (i = 1; i < 10; i++) {
+          B1 *= 4;
+          success = _GMP_ECM_FACTOR(m, f, B1, 10);
+          if (success) { fprintf(stderr, "B1 = %lu\n", B1); break; }
+        }
+      }
     }
     /* If we couldn't factor m and the stack is empty, we've failed. */
     if ( (!success) && (msp == 0) )

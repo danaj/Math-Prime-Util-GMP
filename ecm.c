@@ -439,21 +439,21 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
       mpz_urandomm(sigma, *p_randstate, n);
     } while (mpz_cmp_ui(sigma, 5) <= 0);
     mpz_mul_ui(w, sigma, 4);
-    mpz_mod(v, w, n);
+    mpz_mod(v, w, n);             /* v = 4σ */
 
     mpz_mul(x, sigma, sigma);
     mpz_sub_ui(w, x, 5);
-    mpz_mod(u, w, n);
+    mpz_mod(u, w, n);             /* u = σ^2-5 */
 
     mpz_mul(x, u, u);
-    mpz_mulmod(x, x, u, n, w);
+    mpz_mulmod(x, x, u, n, w);    /* x = u^3 */
 
     mpz_mul(z, v, v);
-    mpz_mulmod(z, z, v, n, w);
+    mpz_mulmod(z, z, v, n, w);    /* z = v^3 */
 
     mpz_mul(b, x, v);
     mpz_mul_ui(w, b, 4);
-    mpz_mod(b, w, n);
+    mpz_mod(b, w, n);             /* b = 4 u^3 v */
 
     mpz_sub(a, v, u);
     mpz_mul(w, a, a);
@@ -462,13 +462,13 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
     mpz_mul_ui(a, u, 3);
     mpz_add(a, a, v);
     mpz_mul(w, w, a);
-    mpz_mod(a, w, n);     /* a = ((v-u)^3 * (3*u + v)) % n */
+    mpz_mod(a, w, n);             /* a = ((v-u)^3 * (3*u + v)) % n */
 
     mpz_gcdext(f, u, NULL, b, n);
     found = mpz_cmp_ui(f, 1);
     if (found) { if (!mpz_cmp(f, n)) { found = 0; continue; } break; }
-
     mpz_mul(a, a, u);
+
     mpz_sub_ui(a, a, 2);
     mpz_mod(a, a, n);
 

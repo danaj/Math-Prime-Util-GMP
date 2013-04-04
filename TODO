@@ -23,11 +23,6 @@
 
 - Tune and improve SIMPQS for our uses.  Check FLINT 2.3 for improvements.
 
-- Write a QS.
-
-- Tweak XS.xs factoring.  For larger inputs we should get to QS sooner.
-  Possibly do smaller ECM instead of so much time with pbrent.
-
-- Figure out how to have QS return multiple results.
+- Write our own QS.
 
 - turn on seed for GMP random

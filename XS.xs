@@ -419,9 +419,28 @@ qs_factor(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    SIMPLE_FACTOR_START("qs_factor");
-    success = _GMP_simpqs(n, f);
-    SIMPLE_FACTOR_END;
+    /* Returns multiple factors, so do this separately */
+    validate_string_number("qs_factor (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    if (mpz_cmp_ui(n, 3) <= 0) {
+      XPUSH_MPZ(n);
+    } else {
+      if (_GMP_is_prob_prime(n)) {
+        XPUSH_MPZ(n);
+      } else {
+        mpz_t farray[66];
+        int i, nfactors;
+        for (i = 0; i < 66; i++)
+          mpz_init(farray[i]);
+        nfactors = _GMP_simpqs(n, farray);
+        for (i = 0; i < nfactors; i++) {
+          XPUSH_MPZ(farray[i]);
+        }
+        for (i = 0; i < 66; i++)
+          mpz_clear(farray[i]);
+      }
+    }
+    mpz_clear(n);
 
 void
 _GMP_factor(IN char* strn)
@@ -484,13 +503,15 @@ _GMP_factor(IN char* strn)
             if (success&&o) {gmp_printf("UV SQUFOF found factor %Zd\n", f);o=0;}
           }
 
-          //if (!success) o=1;
           /* Make sure it isn't a perfect power */
           if (!success)  success = _GMP_power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
+          if (!success)  success = _GMP_pminus1_factor(n, f, 10000, 200000);
+          if (success&&o) {gmp_printf("p-1 (10k) found factor %Zd\n", f);o=0;}
+
           /* Really small ECM to find small factors */
-          if (!success)  success = _GMP_ECM_FACTOR(n, f, 150, 40);
+          if (!success)  success = _GMP_ECM_FACTOR(n, f, 150, 50);
           if (success&&o) {gmp_printf("tiny ecm (150) found factor %Zd\n", f);o=0;}
           if (!success)  success = _GMP_ECM_FACTOR(n, f, 500, 30);
           if (success&&o) {gmp_printf("tiny ecm (500) found factor %Zd\n", f);o=0;}
@@ -498,8 +519,8 @@ _GMP_factor(IN char* strn)
           if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
 
           /* Small p-1 */
-          if (!success)  success = _GMP_pminus1_factor(n, f, 100000, 2000000);
-          if (success&&o) {gmp_printf("p-1 (100k) found factor %Zd\n", f);o=0;}
+          if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 4000000);
+          if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
 
           /* ECM with a good chance of success */
           if (!success) {
@@ -517,13 +538,32 @@ _GMP_factor(IN char* strn)
             if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
           }
 
-          /* TODO: QS should be able to return multiple factors. */
-
           /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
            * slow and a memory hog if not (compared to ECM).  Restrict to
-           * reasonable size numbers (< 91 digits). */
-          if (mpz_sizeinbase(n, 2) < 300) {
-            if (!success)  success = _GMP_simpqs(n, f);
+           * reasonable size numbers (< 91 digits).  Because of the way it
+           * works, it will generate (possibly) multiple factors for the same
+           * amount of work.  Go to some trouble to use them. */
+          if (!success && mpz_sizeinbase(n,10)>=30 && mpz_sizeinbase(n,2)<300) {
+            mpz_t farray[66];
+            int i, nfactors;
+            for (i = 0; i < 66; i++)
+              mpz_init(farray[i]);
+            nfactors = _GMP_simpqs(n, farray);
+            mpz_set(f, farray[0]);
+            if (nfactors > 2) {
+              /* We found multiple factors */
+              for (i = 2; i < nfactors; i++) {
+                if (o){gmp_printf("SIMPQS found extra factor %Zd\n",farray[i]);}
+                if (ntofac == MAX_FACTORS-1) croak("Too many factors\n");
+                mpz_init_set(tofac_stack[ntofac], farray[i]);
+                ntofac++;
+                mpz_divexact(n, n, farray[i]);
+              }
+              /* f = farray[0], n = farray[1], farray[2..] pushed */
+            }
+            for (i = 0; i < 66; i++)
+              mpz_clear(farray[i]);
+            success = nfactors > 1;
             if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
           }
 

@@ -3,6 +3,6 @@
 
 #include <gmp.h>
 
-extern int  _GMP_simpqs(mpz_t n, mpz_t f);
+extern int  _GMP_simpqs(mpz_t n, mpz_t* farray);
 
 #endif
