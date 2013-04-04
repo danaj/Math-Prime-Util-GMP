@@ -765,16 +765,20 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
   mpz_init(s);
 
   { /* Pull small factors out */
-    UV tf = 2;
-    while ( (tf = _GMP_trial_factor(B, tf, 1000)) != 0 ) {
-      if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
-      mpz_init_set_ui(fstack[fsp++], tf);
-      while (mpz_divisible_ui_p(B, tf)) {
-        mpz_mul_ui(A, A, tf);
-        mpz_divexact_ui(B, B, tf);
+    PRIME_ITERATOR(iter);
+    UV tf;
+    for (tf = 2; tf < 2000; tf = prime_iterator_next(&iter)) {
+      if (mpz_cmp_ui(B, tf*tf) < 0) break;
+      if (mpz_divisible_ui_p(B, tf)) {
+        if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
+        mpz_init_set_ui(fstack[fsp++], tf);
+        do {
+          mpz_mul_ui(A, A, tf);
+          mpz_divexact_ui(B, B, tf);
+        } while (mpz_divisible_ui_p(B, tf));
       }
-      tf++;
     }
+    prime_iterator_destroy(&iter);
   }
 
   if (success) {
@@ -817,12 +821,26 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       }
     }
     if (do_quick) {
+      /* These keep the time in the realm of 2ms per input number, which
+       * means they adjust for size.  Success varies by size:
+       *   99% of  70-bit inputs
+       *   87% of  90-bit inputs
+       *   57% of 120-bit inputs
+       *   24% of 160-bit inputs
+       *    9% of 190-bit inputs
+       */
       UV log2m = mpz_sizeinbase(m, 2);
-      UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 3, rounds);
-    } else {
-      if (!success)  success = _GMP_pbrent_factor (m, f, 3, 32*1024);
+      UV brent_rounds = (log2m <= 64) ? 100000 : 100000 / (log2m-63);
+      int final_B2 = 1000 * (150-(int)log2m);
+      if (log2m < 70) brent_rounds *= 3;
+      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
       if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+      if (!success)  success = _GMP_pbrent_factor(m, f, 3, brent_rounds);
+      if (!success && final_B2 > 10000)  success = _GMP_pminus1_factor(m, f, 10000, final_B2);
+    } else {
+      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+      if (!success)  success = _GMP_pbrent_factor (m, f, 3, 32*1024);
       if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 100000);
       if (!success)  success = _GMP_ECM_FACTOR    (m, f,   500, 40);
       if (!success)  success = _GMP_ECM_FACTOR    (m, f,  2000, 10);
@@ -842,10 +860,11 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
     /* If we couldn't factor m and the stack is empty, we've failed. */
     if ( (!success) && (msp == 0) )
       break;
-    /* Put the two factors f and m/f into the stacks */
+    /* Put the two factors f and m/f into the stacks, smallest first */
+    mpz_divexact(m, m, f);
+    if (mpz_cmp(m, f) < 0) { mpz_set(t, m); mpz_set(m, f); mpz_set(f, t); }
     primality_handle_factor(f, _GMP_primality_bls, 0);
-    mpz_divexact(f, m, f);
-    primality_handle_factor(f, _GMP_primality_bls, 0);
+    primality_handle_factor(m, _GMP_primality_bls, 0);
   }
 
   if (success) {

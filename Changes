@@ -9,6 +9,10 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Factoring mix redone given the big changes in ECM and QS.
 
+    - Primality proofs in is_prime and is_provable_prime both adjusted to
+      better use p-1 and ECM.  The quick proof is a little faster for small
+      numbers and has a higher success rate for all input sizes.
+
     - Add William Hart's SIMPQS (a simple QS that is a predecessor to what
       went into FLINT).  Not the fastest by a long shot (yafu and msieve take
       that prize), but it's quite small and works pretty well.  Eventually I
