@@ -410,7 +410,6 @@ static unsigned int *factorBase; //array of factor base primes
 static unsigned int relSought; //number of relations sought, i.e. a "few" more than numPrimes
 static unsigned char * primeSizes; //array of sizes in bits, of the factor base primes
 static unsigned int relsFound =0; //number of relations found so far
-static unsigned char * flags; //flags used for speeding up sieving for large primes
 static unsigned int partials = 0; //number of partial relations
 
 static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
@@ -574,14 +573,12 @@ static void initSieve(void)
 {
     factorBase = 0;
     primeSizes = 0;
-    flags = 0;
     sqrts = 0;
 }
 static void clearSieve(unsigned long numPrimes)
 {
     if (factorBase) { Safefree(factorBase);  factorBase = 0; }
     if (primeSizes) { Safefree(primeSizes);  primeSizes = 0; }
-    if (flags) { Safefree(flags);  flags = 0; }
     if (sqrts) {
       unsigned int i;
       for (i = 0; i < numPrimes; i++) {
@@ -680,6 +677,7 @@ static void evaluateSieve(
     mpz_t C,
     unsigned long * soln1,
     unsigned long * soln2,
+    unsigned char * flags,
     matrix_t m,
     mpz_t * XArr,
     unsigned long * aind,
@@ -1024,14 +1022,12 @@ static void sieveInterval(unsigned long M, unsigned char * sieve, int more, unsi
    Function: Second sieve for larger primes
 
 =========================================================================== */
-static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sieve, const unsigned long * soln1, const unsigned long * soln2)
+static void sieve2(unsigned long M, unsigned long numPrimes, unsigned char * sieve, const unsigned long * soln1, const unsigned long * soln2, unsigned char * flags)
 {
      unsigned int prime;
      unsigned char *end = sieve + M;
 
-     memset(sieve, 0, M*sizeof(unsigned char));
      memset(flags, 0, numPrimes*sizeof(unsigned char));
-     *end = 255; //sentinel to speed up sieve evaluators inner loop
 
      for (prime = secondprime; prime < numPrimes; prime++)
      {
@@ -1069,6 +1065,16 @@ static unsigned long silly_random(unsigned long upto)
    return randval%upto;
 }
 
+/*============================================================================
+
+  danaj: added these routines to reduce the set of factors to co-primes.
+  It's not the most efficient solution, but it's trivial in time compared
+  to the loop it's in, much less the rest of the QS.  It gives us a nice
+  set of factors back, which is much more useful than the essentially
+  random combinations we discover.
+
+============================================================================*/
+
 /* Verify that the factor reduction hasn't broken anything */
 static void verify_factor_array(mpz_t n, mpz_t* farray, int nfacs)
 {
@@ -1095,11 +1101,6 @@ static void verify_factor_array(mpz_t n, mpz_t* farray, int nfacs)
     }
   }
   mpz_clear(t);
-  if (0) {
-    printf("     VERIFIED:\n");
-    for (i = 0; i < nfacs; i++) gmp_printf("  F[%d] = %Zd\n", i, farray[i]);
-    printf("\n");
-  }
 }
 static int allprime_factor_array(mpz_t* farray, int nfacs)
 {
@@ -1115,7 +1116,6 @@ static int insert_factor(mpz_t n, mpz_t* farray, int nfacs, mpz_t f)
 {
   int i, j;
   mpz_t t, t2;
-  /* gmp_printf("putting %Zd\n", f); */
 
   if (mpz_cmp_ui(f, 1) <= 0)
     return nfacs;
@@ -1125,50 +1125,30 @@ static int insert_factor(mpz_t n, mpz_t* farray, int nfacs, mpz_t f)
     if (mpz_cmp(farray[i], f) == 0)
       break;
   if (i != nfacs) { return nfacs; }
+
+  /* Look for common factors in all the existing set */
   /* for (i = 0; i < nfacs; i++) gmp_printf("  F[%d] = %Zd\n", i, farray[i]); */
   mpz_init(t);  mpz_init(t2);
-  /* Now start looking for common factors */
   for (i = 0; i < nfacs; i++) {
     mpz_gcd(t, farray[i], f);
-    /* gmp_printf("  fa[%d]: %Zd  f: %Zd  t: %Zd\n", i, farray[i], f, t); */
-    /* F,f  =>  F/t,t,f/t */
-    if (mpz_cmp_ui(t, 1) == 0) {               /* t=1:   F and f unchanged */
+    if (mpz_cmp_ui(t, 1) == 0) /* t=1:   F and f unchanged */
       continue;
-#if 0
-    } else if (mpz_cmp(t, f) == 0) {           /* t=f:   F/t, f */
-      mpz_divexact(t2, farray[i], t);
-      gmp_printf("  t=f: F[%d]/f = %Zd/%Zd = %Zd\n", i, farray[i], t, t2);
-      /* Remove the old farray[i] */
-      for (j = i+1; j < nfacs; j++)
-        mpz_set(farray[j-1], farray[j]);
-      mpz_set_ui(farray[nfacs--], 0);
-      gmp_printf("       insert F/f=%Zd\n", t2);
-      nfacs = insert_factor(n, farray, nfacs, t2);
-      gmp_printf("       insert f=%Zd\n", f);
-      nfacs = insert_factor(n, farray, nfacs, f);
-      i=0; break;
-#endif
-    } else {                                   /* 1>t>f: F/t, t, f/t */
-      mpz_divexact(t2, farray[i], t);
-      if (0) gmp_printf("  t<f: F[%d]/t = %Zd/%Zd = %Zd\n", i, farray[i], t,t2);
-      /* Remove the old farray[i] */
-      for (j = i+1; j < nfacs; j++)
-        mpz_set(farray[j-1], farray[j]);
-      mpz_set_ui(farray[nfacs--], 0);
-      if (0) gmp_printf("       insert F/f=%Zd\n", t2);
-      nfacs = insert_factor(n, farray, nfacs, t2);
-      if (0) gmp_printf("       insert t=%Zd\n", t);
-      nfacs = insert_factor(n, farray, nfacs, t);
-      mpz_divexact(f, f, t);
-      if (0) gmp_printf("       insert f/t=%Zd\n", f);
-      nfacs = insert_factor(n, farray, nfacs, f);
-      i=0; break;
-    }
+    mpz_divexact(t2, farray[i], t);    /* t2 = F/t */
+    mpz_divexact(f, f, t);             /* f  = f/t */
+    /* Remove the old farray[i] */
+    for (j = i+1; j < nfacs; j++)
+      mpz_set(farray[j-1], farray[j]);
+    mpz_set_ui(farray[nfacs--], 0);
+    /* Insert F/t, t, f/t */
+    nfacs = insert_factor(n, farray, nfacs, t2);
+    nfacs = insert_factor(n, farray, nfacs, t);
+    nfacs = insert_factor(n, farray, nfacs, f);
+    i=0;
+    break;
   }
-  if (i == nfacs) {
-    /* gmp_printf("  set %d to %Zd\n", nfacs, f); */
+  /* If nothing common, insert it. */
+  if (i == nfacs)
     mpz_set(farray[nfacs++], f);
-  }
   mpz_clear(t);  mpz_clear(t2);
   return nfacs;
 }
@@ -1202,6 +1182,7 @@ static int mainRoutine(
     unsigned long  * Ainv;
     unsigned long  * soln1;
     unsigned long  * soln2;
+    unsigned char  * flags;
     unsigned long ** Ainv2B;
     unsigned char ** offsets;
     unsigned char ** offsets2;
@@ -1225,6 +1206,12 @@ static int mainRoutine(
         XArr == 0)
       croak("SIMPQS: Unable to allocate memory!\n");
 
+    flags = 0;
+    if (secondprime < numPrimes) {
+      New(0, flags, numPrimes, unsigned char);
+      if (flags == 0) croak("SIMPQS: Unable to allocate memory!\n");
+    }
+
     for (i=0; i<s; i++)
     {
        New(0, Ainv2B[i], numPrimes, unsigned long);
@@ -1237,14 +1224,11 @@ static int mainRoutine(
 
     /* One extra word for sentinel */
     Newz(0, sieve,     Mdiv2*2 + sizeof(unsigned long), unsigned char);
-    New( 0, flags,     numPrimes,   unsigned char);
     New( 0, offsets,   secondprime, unsigned char*);
     New( 0, offsets2,  secondprime, unsigned char*);
-    New( 0, primecount,numPrimes,   unsigned short);
     Newz(0, relations, relSought * RELATIONS_PER_PRIME, unsigned long);
 
-    if (sieve == 0 || flags == 0 || offsets == 0 || offsets2 == 0 ||
-        relations == 0 || primecount == 0)
+    if (sieve == 0 || offsets == 0 || offsets2 == 0 || relations == 0)
       croak("SIMPQS: Unable to allocate memory!\n");
 
     mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
@@ -1415,8 +1399,12 @@ static int mainRoutine(
 
            /* set the solns1 and solns2 arrays */
            update_solns(1, numPrimes, soln1, soln2, polyadd, polycorr);
+           /* Clear sieve and insert sentinel at end (used in evaluateSieve) */
+           memset(sieve, 0, M*sizeof(unsigned char));
+           sieve[M] = 255;
            /* Sieve [secondprime , numPrimes) */
-           sieve2(M, numPrimes, sieve, soln1, soln2);
+           if (secondprime < numPrimes)
+             sieve2(M, numPrimes, sieve, soln1, soln2, flags);
            /* Set the offsets and offsets2 arrays used for small sieve */
            set_offsets(sieve, soln1, soln2, offsets, offsets2);
            /* Sieve [firstprime , secondprime) */
@@ -1442,7 +1430,7 @@ static int mainRoutine(
            evaluateSieve(
               numPrimes, Mdiv2,
               relations, 0, M, sieve, A, B, C,
-              soln1, soln2, m, XArr, aind,
+              soln1, soln2, flags, m, XArr, aind,
               min, s, exponents,
               temp, temp2, temp3, temp4
            );
@@ -1461,6 +1449,30 @@ static int mainRoutine(
     printf("Done with sieving!\n");
 #endif
 
+    /* Free everything we don't need for the linear algebra */
+
+    for (i = 0; i < s; i++) {
+      Safefree(Ainv2B[i]);
+      mpz_clear(Bterms[i]);
+    }
+    Safefree(exponents);  
+    Safefree(aind);
+    Safefree(amodp);
+    Safefree(Ainv);
+    Safefree(soln1);
+    Safefree(soln2);
+    Safefree(Ainv2B);
+    Safefree(Bterms);
+    if (flags) Safefree(flags);
+
+    Safefree(sieve);    sieve = 0;
+    Safefree(offsets);  offsets = 0;
+    Safefree(offsets2); offsets2 = 0;
+
+    mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
+    mpz_clear(q);  mpz_clear(r);
+    mpz_clear(Bdivp2); mpz_clear(nsqrtdiv);
+
     /* Do the matrix algebra step */
 
     numRelations = gaussReduce(m, numPrimes, relSought);
@@ -1476,6 +1488,8 @@ static int mainRoutine(
     /* Now do the "sqrt" and GCD steps hopefully obtaining factors of n */
     mpz_set(farray[0], n);
     nfactors = 1;  /* We have one result -- n */
+    New( 0, primecount, numPrimes, unsigned short);
+    if (primecount == 0) croak("SIMPQS: Unable to allocate memory!\n");
     for (l = (int)relSought-64; l < (int)relSought; l++)
     {
         unsigned int mat2offset = rightMatrixOffset(numPrimes);
@@ -1491,18 +1505,16 @@ static int mainRoutine(
                 nrelations = RELATIONS_PER_PRIME-1;
               mpz_mul(temp2,temp2,XArr[i]);
               for (j = 1; j <= nrelations; j++)
-              {
-                 primecount[ get_relation(relations, i, j) ]++;
-              }
+                primecount[ get_relation(relations, i, j) ]++;
            }
-           if (i%30==0) mpz_mod(temp2,temp2,n);
+           if (i%16==0) mpz_mod(temp2,temp2,n);
         }
         for (j = 0; j < (int)numPrimes; j++)
         {
            mpz_set_ui(temp3,factorBase[j]);
            mpz_pow_ui(temp3,temp3,primecount[j]/2);
            mpz_mul(temp,temp,temp3);
-           if (j%30==0) mpz_mod(temp,temp,n);
+           if (j%16==0) mpz_mod(temp,temp,n);
         }
         mpz_sub(temp,temp2,temp);
         mpz_gcd(temp,temp,n);
@@ -1515,36 +1527,18 @@ static int mainRoutine(
         }
     }
 
-    destroyMat(m, relSought);
+    /* Free everything remaining */
     Safefree(primecount);
+
+    destroyMat(m, relSought);
     Safefree(relations);
 
-    for (i = 0; i < s; i++) {
-      Safefree(Ainv2B[i]);
-      mpz_clear(Bterms[i]);
-    }
-    Safefree(exponents);  
-    Safefree(aind);
-    Safefree(amodp);
-    Safefree(Ainv);
-    Safefree(soln1);
-    Safefree(soln2);
-    Safefree(Ainv2B);
-    Safefree(Bterms);
-
-    Safefree(sieve);    sieve = 0;
-    Safefree(flags);    flags = 0;
-    Safefree(offsets);  offsets = 0;
-    Safefree(offsets2); offsets2 = 0;
     for (i = 0; i < (int)relSought; i++) {
       mpz_clear(XArr[i]);
     }
     Safefree(XArr);
 
-    mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
-    mpz_clear(q);  mpz_clear(r);
     mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(temp4);
-    mpz_clear(Bdivp2); mpz_clear(nsqrtdiv);
 
     return nfactors;
 }
