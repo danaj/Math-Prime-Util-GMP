@@ -1,7 +1,31 @@
 /*============================================================================
-    Copyright 2006 William Hart
 
-    This file is part of SIMPQS.
+  Quadratic Sieve
+
+  This is derived from SIMPQS, copyright 2006 William Hart.
+
+   Modifications made in 2013 by Dana Jacobsen:
+     - put it in one file
+     - merge some of the 2.0 changes
+     - make it work with smaller values
+     - fix some memory errors
+     - free memory all over
+     - fewer globals
+     - Use prime_iterator -- much faster than mpz_nextprime
+     - Alternate multiplier selection routine.
+     - lots of little changes / optimizations
+
+   Version 2.0 scatters temp files everywhere, but that could be solved.
+   The main benefits left in 2.0 are:
+      (1) combining partial relations (this is huge for large inputs)
+      (2) much less memory use, though partly due to using temp files
+      (3) jasonp's block Lanczos routine.
+   This code goes through curves slightly faster than v2.0, but with big
+   inputs it ends up needing 2x the time because of not combining partials
+   as well as the final linear algebra time.
+============================================================================*/
+
+/*============================================================================
 
     SIMPQS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,27 +43,6 @@
 
 ============================================================================*/
 
-/*============================================================================
-   Modifications made in 2013 by Dana Jacobsen:
-     - put it in one file
-     - merge some of the 2.0 changes
-     - make it work with smaller values
-     - fix some memory errors
-     - free memory all over
-     - fewer globals
-     - Use prime_iterator -- much faster than mpz_nextprime
-     - Alternate multiplier selection routine.
-     - lots of little changes / optimizations
-
-   Version 2.0 scatters temp files everywhere, but that could be solved.
-   The main benefits left in 2.0 are:
-      (1) combining partial relations (this is huge for large inputs)
-      (2) much less memory use, though partly due to using temp files
-      (3) jasonp's block Lanczos routine.
-   This code goes through curves faster than v2.0, but with big inputs it
-   ends up needing 2x the time because of not combining partials as well as
-   the final linear algebra time.
-============================================================================*/
 
 #include <string.h>
 #include <stdio.h>
@@ -75,89 +78,52 @@
 #endif
 
 
-static INLINE void modmul(mpz_t ab, mpz_t a, mpz_t b, mpz_t p)
-{
-     mpz_mul(ab,a,b);
-     mpz_fdiv_r(ab,ab,p);
-}
-
-/* variables for sqrtmod */
-static mpz_t two;
-static mpz_t p1;
-static mpz_t b;
-static mpz_t g;
-static mpz_t mk;
-static mpz_t bpow;
-static mpz_t gpow;
-
-/* - Initialises variables */
-static void TonelliInit(void)
-{
-    mpz_init_set_ui(two, 2);
-    mpz_init(p1);
-    mpz_init(b);
-    mpz_init(g);
-    mpz_init(mk);
-    mpz_init(bpow);
-    mpz_init(gpow);
-}
-static void TonelliDestroy(void)
-{
-    mpz_clear(two);
-    mpz_clear(p1);
-    mpz_clear(b);
-    mpz_clear(g);
-    mpz_clear(mk);
-    mpz_clear(bpow);
-    mpz_clear(gpow);
-}
+/* tdiv_r is faster, but we'd need to guarantee in the input is positive */
+#define mpz_mulmod(r, a, b, n, t)  \
+  do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
 
 /* - Tonelli-Shanks: sets asqrt to a square root of a modulo p */
-/*- Return: 0 if a is not a square mod p, 1 otherwise. */
-static int sqrtmod(mpz_t asqrt, mpz_t a, mpz_t p)
+/* - Return: 0 if a is not a square mod p, 1 otherwise. */
+static int sqrtmod(mpz_t asqrt, mpz_t a, mpz_t p,
+                   mpz_t t, mpz_t t2, mpz_t b, mpz_t g) /* 4 temp variables */
 {
      int r,k,m,i;
 
-     if (mpz_kronecker(a,p)!=1)
+     if (mpz_kronecker(a, p) != 1)
      {
          mpz_set_ui(asqrt,0);
          return 0;   /* return 0 if a is not a square mod p */
      }
 
-     mpz_sub_ui(p1,p,1);
-     r = mpz_remove(p1,p1,two);
-     mpz_powm(b,a,p1,p);
-     for (k=2; ;k++)
-     {
-         if (mpz_ui_kronecker(k,p) == -1) break;
-     }
-     mpz_set_ui(mk,k);
-     mpz_powm(g,mk,p1,p);
-     mpz_add_ui(p1,p1,1);
-     mpz_divexact_ui(p1,p1,2);
-     mpz_powm(asqrt,a,p1,p);
+     /* t2 = (p-1) => q2^r => t2 = q. */
+     mpz_sub_ui(t2, p, 1);
+     mpz_set_ui(t, 2);
+     r = mpz_remove(t2, t2, t);
+     mpz_powm(b, a, t2, p);
+     for (k = 2; ; k++)
+       if (mpz_ui_kronecker(k,p) == -1) break;
+     mpz_set_ui(t, k);
+     mpz_powm(g, t, t2, p);
+     mpz_add_ui(t2, t2, 1);
+     mpz_divexact_ui(t2, t2, 2);
+     mpz_powm(asqrt, a, t2, p);
      if (!mpz_cmp_ui(b,1))
-     {
-          return 1;
-     }
+       return 1;
 
-     while (mpz_cmp_ui(b,1))
+     while (mpz_cmp_ui(b, 1))
      {
-           mpz_set(bpow,b);
-           for (m=1; (m<=r-1) && (mpz_cmp_ui(bpow,1));m++)
-           {
-               mpz_powm_ui(bpow,bpow,2,p);
-           }
-           mpz_set(gpow,g);
-           for (i = 1;i<= r-m-1;i++)
-           {
-               mpz_powm_ui(gpow,gpow,2,p);
-           };
-           modmul(asqrt,asqrt,gpow,p);
-           mpz_powm_ui(gpow,gpow,2,p);
-           modmul(b,b,gpow,p);
-           mpz_set(gpow,g);
-           r = m;
+       /* calculate how many times b^2 mod p == 1 */
+       mpz_set(t, b);
+       for (m = 1; (m<=r-1) && (mpz_cmp_ui(t,1)); m++)
+         mpz_powm_ui(t, t, 2, p);
+       /* t2 = g^2 mod p a number of times*/
+       mpz_set(t2, g);
+       for (i = 1; i <= r-m-1; i++)
+         mpz_powm_ui(t2, t2, 2, p);
+       mpz_mulmod(asqrt, asqrt, t2, p, t);
+       mpz_powm_ui(t2, t2, 2, p);
+       mpz_mulmod(b, b, t2, p, t);
+       r = m;
      }
 
      return 1;
@@ -249,23 +215,23 @@ static void displayRow(matrix_t m, unsigned int row, unsigned int numcols)
 #endif
 
 /* gaussReduce:  Apply Gaussian elimination to a matrix. */
-static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int relSought)
+static unsigned int gaussReduce(matrix_t m, unsigned int cols, unsigned int rows)
 {
   unsigned int rowUpto = 0;
   unsigned int irow, checkRow;
   int icol;
 
-  for (icol = numPrimes-1; icol >= 0; icol--) {
+  for (icol = cols-1; icol >= 0; icol--) {
     irow = rowUpto;
 
-    while ( (irow < relSought) && (getEntry(m,irow,icol) == 0) )
+    while ( (irow < rows) && (getEntry(m,irow,icol) == 0) )
       irow++;
 
-    if (irow < relSought) {
+    if (irow < rows) {
       swapRows(m,rowUpto,irow);
-      for (checkRow = rowUpto+1; checkRow < relSought; checkRow++) {
+      for (checkRow = rowUpto+1; checkRow < rows; checkRow++) {
         if (getEntry(m,checkRow,icol) != 0)
-          xorRows(m, numPrimes, rowUpto, checkRow);
+          xorRows(m, cols, rowUpto, checkRow);
       }
       rowUpto++;
     }
@@ -276,14 +242,22 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
 /*===========================================================================*/
  /* Uncomment these for various pieces of debugging information */
 
-/* #define COUNT    // Shows the number of relations generated and curves used during sieving */
-/* #define RELPRINT // Shows the actual factorizations of the relations */
-/* #define ERRORS   // Error if relation should be divisible by a prime but isn't */
-/* #define POLS     // Shows the polynomials being used by the sieve */
-/* #define ADETAILS // Prints some details about the factors of the A coefficients of the polys */
-/* #define LARGESTP // Prints the size of the largest factorbase prime */
-/* #define CURPARTS // Prints the number of curves used and number of partial relations */
-/* #define REPORT //report sieve size, multiplier and number of primes used */
+ /* Shows the number of relations generated and curves used during sieving */
+/* #define COUNT */
+ /* Shows the actual factorizations of the relations */
+/* #define RELPRINT */
+ /* Error if relation should be divisible by a prime but isn't */
+/* #define ERRORS */
+ /* Shows the polynomials being used by the sieve */
+/* #define POLS */
+ /* Prints some details about the factors of the A coefficients of the polys */
+/* #define ADETAILS */
+ /* Prints the size of the largest factorbase prime */
+/* #define LARGESTP */
+ /* Prints the number of curves used and number of partial relations */
+/* #define CURPARTS */
+ /* Report sieve size, multiplier and number of primes used */
+/* #define REPORT */
 
 /*===========================================================================*/
 /* Architecture dependent fudge factors */
@@ -302,55 +276,55 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
 #define CACHEBLOCKSIZE 64000
 /* Make lower for slower machines */
 #define SECONDPRIME    6000
-/* Mysterious fudge factor... */
-#define FUDGE          0.15
+/* Used for tweaking the bit size calculation for FB primes */
+#define SIZE_FUDGE     0.15
 
 /* Will not factor numbers with less than this number of decimal digits */
 #define MINDIG 30
 
 /*===========================================================================*/
-/*  Large prime cutoffs */
+/*  Large prime cutoffs, in thousands */
 static unsigned int largeprimes[] =
 {
-     100000, 100000, 125000, 125000, 150000, 150000, 175000, 175000, 200000, 200000, /* 30-39 */
-     250000, 300000, 370000, 440000, 510000, 580000, 650000, 720000, 790000, 8600000, /* 40-49 */
-     930000, 1000000, 1700000, 2400000, 3100000, 3800000, 4500000, 5200000, 5900000, 6600000, /* 50-59 */
-     7300000, 8000000, 8900000, 10000000, 11300000, 12800000, 14500000, 16300000, 18100000, 20000000, /* 60-69 */
-     22000000, 24000000, 27000000, 32000000, 39000000, /* 70-74 */
-     53000000, 65000000, 75000000, 87000000, 100000000, /* 75-79 */
-     114000000, 130000000, 150000000, 172000000, 195000000, /* 80-84 */
-     220000000, 250000000, 300000000, 350000000, 400000000, /* 85-89 */
-     450000000, 500000000 /* 90-91 */
+   100,  100,  125,   125,   150,   150,   175,   175,   200,   200, /* 30-39 */
+   250,  300,  370,   440,   510,   580,   650,   720,   790,  8600, /* 40-49 */
+   930, 1000, 1700,  2400,  3100,  3800,  4500,  5200,  5900,  6600, /* 50-59 */
+  7300, 8000, 8900, 10000, 11300, 12800, 14500, 16300, 18100, 20000, /* 60-69 */
+   22000,  24000,  27000,  32000,  39000, /* 70-74 */
+   53000,  65000,  75000,  87000, 100000, /* 75-79 */
+  114000, 130000, 150000, 172000, 195000, /* 80-84 */
+  220000, 250000, 300000, 350000, 400000, /* 85-89 */
+  450000, 500000 /* 90-91 */
 };
 
 /*===========================================================================*/
 /* Number of primes to use in factor base */
 static unsigned int primesNo[] =
 {
-     1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, //30-39
-     1600, 1600, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, //40-49
-     2150, 2200, 2250, 2300, 2400, 2500, 2600, 2700, 2800, 2900, //50-59
-     3000, 3150, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, //60-69
-     9500, 10000, 11500, 13000, 15000, //70-74
-     17000, 24000, 27000, 30000, 37000, //75-79
-     45000, 47000, 53000, 57000, 58000,  //80-84
-     59000, 60000, 64000, 68000, 72000,  //85-89
-     76000, 80000 //90-91
+     1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, /* 30-39 */
+     1600, 1600, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, /* 40-49 */
+     2150, 2200, 2250, 2300, 2400, 2500, 2600, 2700, 2800, 2900, /* 50-59 */
+     3000, 3150, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, /* 60-69 */
+      9500, 10000, 11500, 13000, 15000, /* 70-74 */
+     17000, 24000, 27000, 30000, 37000, /* 75-79 */
+     45000, 47000, 53000, 57000, 58000, /* 80-84 */
+     59000, 60000, 64000, 68000, 72000, /* 85-89 */
+     76000, 80000 /* 90-91 */
 };
 
 /*===========================================================================*/
 /* First prime actually sieved for */
 static unsigned int firstPrimes[] =
 {
-     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, //30-39
-     3, 3, 3, 4, 6, 6, 7, 8, 9, 10, //40-49
-     11,11,11,11,11, 12, 12, 12, 12, 12, //50-59
-     14, 14, 14, 14, 14, 14, 14, 14, 15, 17, //60-69
-     19, 21, 22, 22, 23, //70-74
-     24, 25, 25, 26, 26, //75-79
-     27, 27, 27, 27, 28, //80-84
-     28, 28, 28, 29, 29, //85-89
-     29, 29 //90-91
+      3,  3,  3,  3,  3,  3,  3,  3,  3,  3, /* 30-39 */
+      3,  3,  3,  4,  6,  6,  7,  8,  9, 10, /* 40-49 */
+     11, 11, 11, 11, 11, 12, 12, 12, 12, 12, /* 50-59 */
+     14, 14, 14, 14, 14, 14, 14, 14, 15, 17, /* 60-69 */
+     19, 21, 22, 22, 23, /* 70-74 */
+     24, 25, 25, 26, 26, /* 75-79 */
+     27, 27, 27, 27, 28, /* 80-84 */
+     28, 28, 28, 29, 29, /* 85-89 */
+     29, 29 /* 90-91 */
 };
 
 /*===========================================================================*/
@@ -358,30 +332,30 @@ static unsigned int firstPrimes[] =
  * This specifies how great an error to allow */
 static unsigned int errorAmounts[] =
 {
-     10, 10, 10, 11, 13, 14, 14, 15, 15, 16, //30-39
-     16, 17, 17, 18, 18, 19, 19, 19, 20, 20, //40-49
-     21, 21, 21, 22, 22, 22, 23, 23, 23, 24, //50-59
-     24, 24, 25, 25, 25, 25, 26, 26, 26, 26, //60-69 //24
-     27, 27, 28, 28, 29, //70-74
-     29, 30, 30, 30, 31, //75-79
-     31, 31, 31, 32, 32, //80-84
-     32, 32, 32, 33, 33, //85-89
-     33, 33 //90-91
+     10, 10, 10, 11, 13, 14, 14, 15, 15, 16, /* 30-39 */
+     16, 17, 17, 18, 18, 19, 19, 19, 20, 20, /* 40-49 */
+     21, 21, 21, 22, 22, 22, 23, 23, 23, 24, /* 50-59 */
+     24, 24, 25, 25, 25, 25, 26, 26, 26, 26, /* 60-69 */
+     27, 27, 28, 28, 29, /* 70-74 */
+     29, 30, 30, 30, 31, /* 75-79 */
+     31, 31, 31, 32, 32, /* 80-84 */
+     32, 32, 32, 33, 33, /* 85-89 */
+     33, 33 /* 90-91 */
 };
 
 /*===========================================================================*/
 /* Threshold the sieve value must exceed to be considered for smoothness */
 static unsigned int thresholds[] =
 {
-     63, 63, 63, 64, 64, 64, 65, 65, 65, 66, //30-39
-     66, 67, 67, 68, 68, 68, 69, 69, 69, 69, //40-49
-     70, 70, 70, 71, 71, 71, 72, 72, 73, 73, //50-59
-     74, 74, 75, 75, 76, 76, 77, 77, 78, 79, //60-69 //74
-     80, 81, 82, 83, 84, //70-74
-     85, 86, 87, 88, 89, //75-79
-     91, 92, 93, 93, 94, //80-84
-     95, 96, 97, 98, 100, //85-89
-     101, 102 //90-91
+     63, 63, 63, 64, 64, 64, 65, 65, 65, 66, /* 30-39 */
+     66, 67, 67, 68, 68, 68, 69, 69, 69, 69, /* 40-49 */
+     70, 70, 70, 71, 71, 71, 72, 72, 73, 73, /* 50-59 */
+     74, 74, 75, 75, 76, 76, 77, 77, 78, 79, /* 60-69 */
+     80, 81, 82, 83, 84, /* 70-74 */
+     85, 86, 87, 88, 89, /* 75-79 */
+     91, 92, 93, 93, 94, /* 80-84 */
+     95, 96, 97, 98,100, /* 85-89 */
+     101, 102 /* 90-91 */
 };
 
 /*===========================================================================*/
@@ -389,32 +363,26 @@ static unsigned int thresholds[] =
  * Optimal if chosen to be a multiple of 32000 */
 static unsigned int sieveSize[] =
 {
-     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //30-39
-     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //40-49
-     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //50-59
-     64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //60-69
-     64000, 64000, 64000, 64000, 64000, //70-74
-     96000, 96000, 96000, 128000, 128000, //75-79
-     160000, 160000, 160000, 160000, 160000, //80-84
-     192000, 192000, 192000, 192000, 192000, //85-89
-     192000, 192000 //90-91
+     64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 30-39 */
+     64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 40-49 */
+     64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 50-59 */
+     64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 60-69 */
+      64000,  64000,  64000,  64000,  64000, /* 70-74 */
+      96000,  96000,  96000, 128000, 128000, /* 75-79 */
+     160000, 160000, 160000, 160000, 160000, /* 80-84 */
+     192000, 192000, 192000, 192000, 192000, /* 85-89 */
+     192000, 192000 /* 90-91 */
 };
 
 /*===========================================================================*/
-static unsigned int secondprime; //min(numprimes, SECONDPRIME) = cutoff for using flags when sieving
-static unsigned int firstprime;  //first prime actually sieved with
-static unsigned char errorbits;  //first prime actually sieved with
-static unsigned char threshold;  //sieve threshold cutoff for smooth relations
+static unsigned int secondprime; /* cutoff for using flags when sieving */
+static unsigned int firstprime;  /* first prime actually sieved with */
+static unsigned char errorbits;  /* first prime actually sieved with */
+static unsigned char threshold;  /* sieve threshold cutoff for smth relations */
 static unsigned int largeprime;
 
-static unsigned int *factorBase; //array of factor base primes
-//static unsigned int numPrimes; //number of primes in factor base
-static unsigned int relSought; //number of relations sought, i.e. a "few" more than numPrimes
-static unsigned char * primeSizes; //array of sizes in bits, of the factor base primes
-static unsigned int relsFound =0; //number of relations found so far
-static unsigned int partials = 0; //number of partial relations
-
-static mpz_t * sqrts; //square roots of n modulo each prime in the factor base
+static unsigned int *factorBase; /* array of factor base primes */
+static unsigned char * primeSizes; /* array of sizes in bits of fb primes */
 
 #define RELATIONS_PER_PRIME 100
 static INLINE void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
@@ -440,9 +408,9 @@ static INLINE unsigned long get_relation(unsigned long* rel, unsigned int prime,
 
 static unsigned long modinverse(unsigned long a, unsigned long p)
 {
-  long u1, u3;
-  long v1, v3;
-  long t1, t3, quot;
+   long u1, u3;
+   long v1, v3;
+   long t1, t3, quot;
    u1=1; u3=a;
    v1=0; v3=p;
    t1=0; t3=0;
@@ -571,30 +539,23 @@ static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes)
    Function: Initialises the global gmp variables.
 
 ========================================================================*/
-static void initSieve(void)
+static void initFactorBase(void)
 {
     factorBase = 0;
     primeSizes = 0;
-    sqrts = 0;
 }
-static void clearSieve(unsigned long numPrimes)
+static void clearFactorBase(void)
 {
     if (factorBase) { Safefree(factorBase);  factorBase = 0; }
     if (primeSizes) { Safefree(primeSizes);  primeSizes = 0; }
-    if (sqrts) {
-      unsigned int i;
-      for (i = 0; i < numPrimes; i++) {
-        mpz_clear(sqrts[i]);
-      }
-      Safefree(sqrts);  sqrts = 0;
-    }
 }
 
 /*========================================================================
    Compute Factor Base:
 
    Function: Computes primes p up to B for which n is a square mod p,
-   allocates memory and stores them in an array pointed to by factorBase
+   allocates memory and stores them in an array pointed to by factorBase.
+   Additionally allocates and computes the primeSizes array.
    Returns: number of primes actually in the factor base
 
 ========================================================================*/
@@ -619,45 +580,35 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
 #ifdef LARGESTP
   gmp_printf("Largest prime less than %Zd\n",p);
 #endif
-}
 
-/*===========================================================================
-   Compute Prime Sizes:
-
-   Function: Computes the size in bits of each prime in the factor base
-     allocates memory for an array, primeSizes, to store the sizes
-     stores the size for each of the numPrimes primes in the array
-
-===========================================================================*/
-static void computeSizes(unsigned long numPrimes)
-{
-  unsigned long i;
-  New(0, primeSizes, numPrimes, unsigned char);
-  for (i = 0; i < numPrimes; i++)
-    primeSizes[i]=(unsigned char)floor(log(factorBase[i])/log(2.0)-FUDGE+0.5);
+  /* Allocate and compute the number of bits required to store each prime */
+  New(0, primeSizes, B, unsigned char);
+  for (p = 0; p < B; p++)
+    primeSizes[p] =
+      (unsigned char) floor( log(factorBase[p]) / log(2.0) - SIZE_FUDGE + 0.5 );
 }
 
 /*===========================================================================
    Tonelli-Shanks:
 
    Function: Performs Tonelli-Shanks on n mod every prime in the factor base
-      allocates memory for the results to be stored in the array sqrts
 
 ===========================================================================*/
-static void tonelliShanks(unsigned long numPrimes, mpz_t n)
+static void tonelliShanks(unsigned long numPrimes, mpz_t n, mpz_t * sqrts)
 {
   unsigned long i;
-  mpz_t temp;
-  New(0, sqrts, numPrimes, mpz_t);
-  mpz_init_set_ui(sqrts[0], 0);
-  mpz_init(temp);
+  mpz_t fbprime, t1, t2, t3, t4;
 
-  for (i = 1; i<numPrimes; i++) {
-    mpz_init(sqrts[i]);
-    mpz_set_ui(temp,factorBase[i]);
-    sqrtmod(sqrts[i],n,temp);
+  mpz_init(fbprime);
+  mpz_init(t1); mpz_init(t2); mpz_init(t3); mpz_init(t4);
+
+  mpz_set_ui(sqrts[0], 0);
+  for (i = 1; i < numPrimes; i++) {
+    mpz_set_ui(fbprime, factorBase[i]);
+    sqrtmod(sqrts[i], n, fbprime, t1, t2, t3, t4);
   }
-  mpz_clear(temp);
+  mpz_clear(t1); mpz_clear(t2); mpz_clear(t3); mpz_clear(t4);
+  mpz_clear(fbprime);
 }
 
 /*==========================================================================
@@ -686,6 +637,9 @@ static void evaluateSieve(
     int min,
     int s,
     int * exponents,
+    unsigned long * npartials,
+    unsigned long * nrelsfound,
+    unsigned long * nrelssought,
     mpz_t temp,
     mpz_t temp2,
     mpz_t temp3,
@@ -699,6 +653,8 @@ static void evaluateSieve(
      unsigned long * sieve2;
      unsigned char bits;
      int numfactors;
+     unsigned long relsFound = *nrelsfound;
+     unsigned long relSought = *nrelssought;
 
      mpz_set_ui(temp, 0);
      mpz_set_ui(temp2, 0);
@@ -724,20 +680,18 @@ static void evaluateSieve(
         if (((unsigned long)i<M) && (relsFound < relSought))
         {
            mpz_set_ui(temp,i+ctimesreps);
-           mpz_sub_ui(temp,temp,Mdiv2);
+           mpz_sub_ui(temp, temp, Mdiv2); /* X         */
 
-           mpz_set(temp3,B);          /* B          */
-           mpz_addmul(temp3,A,temp);  /* AX+B       */
-           mpz_add(temp2,temp3,B);    /* AX+2B      */
-           mpz_mul(temp2,temp2,temp); /* AX^2+2BX   */
-           mpz_add(res,temp2,C);      /* AX^2+2BX+C */
+           mpz_set(temp3, B);             /* B          */
+           mpz_addmul(temp3, A, temp);    /* AX+B       */
+           mpz_add(temp2, temp3, B);      /* AX+2B      */
+           mpz_mul(temp2, temp2, temp);   /* AX^2+2BX   */
+           mpz_add(res, temp2, C);        /* AX^2+2BX+C */
 
-           bits=mpz_sizeinbase(res,2);
-           bits-=errorbits;
+           bits = mpz_sizeinbase(res,2) - errorbits;
 
            numfactors=0;
            extra = 0;
-
            memset(exponents, 0, firstprime * sizeof(int));
 
            if (factorBase[0] != 1 && mpz_divisible_ui_p(res, factorBase[0]))
@@ -873,7 +827,7 @@ static void evaluateSieve(
               {
                  if (mpz_cmp_ui(res,largeprime)<0)
                  {
-                    partials++;
+                    (*npartials)++;
                  }
                  clearRow(m,numPrimes,relsFound);
 #ifdef RELS
@@ -886,7 +840,7 @@ static void evaluateSieve(
                  {
                     if (mpz_cmp_ui(res,largeprime)<0)
                     {
-                       partials++;
+                       (*npartials)++;
                     }
                     clearRow(m,numPrimes,relsFound);
 #ifdef RELS
@@ -911,7 +865,7 @@ static void evaluateSieve(
 
                     relsFound++;
 #ifdef COUNT
-                    if (relsFound%20==0) fprintf(stderr,"%ld relations, %ld partials.\n",(long)relsFound,(long)partials);
+                    if (relsFound%20==0) fprintf(stderr,"%lu relations, %lu partials.\n", relsFound, *npartials);
 #endif
                  }
               }
@@ -927,6 +881,9 @@ static void evaluateSieve(
 
         } else if (relsFound >= relSought) i++;
      }
+     /* Update caller */
+     *nrelsfound = relsFound;
+     *nrelssought = relSought;
 }
 
 
@@ -1167,6 +1124,7 @@ static int insert_factor(mpz_t n, mpz_t* farray, int nfacs, mpz_t f)
 static int mainRoutine(
   unsigned long numPrimes,
   unsigned long Mdiv2,
+  unsigned long relSought,
   mpz_t n,
   mpz_t* farray,
   unsigned long multiplier)
@@ -1175,6 +1133,8 @@ static int mainRoutine(
     int i, j, l, s, fact, span, min, nfactors;
     unsigned long u1, p, reps, numRelations, M;
     unsigned long curves = 0;
+    unsigned long npartials = 0;
+    unsigned long relsFound = 0;
     unsigned long  * relations;
     unsigned short * primecount;
     unsigned char  * sieve;
@@ -1190,6 +1150,7 @@ static int mainRoutine(
     unsigned char ** offsets2;
     mpz_t          * XArr;
     mpz_t          * Bterms;
+    mpz_t          * sqrts;
     matrix_t m;
 
     s = mpz_sizeinbase(n,2)/28+1;
@@ -1222,7 +1183,6 @@ static int mainRoutine(
     }
 
     m = constructMat(numPrimes, relSought);
-    relsFound = 0;
 
     /* One extra word for sentinel */
     Newz(0, sieve,     Mdiv2*2 + sizeof(unsigned long), unsigned char);
@@ -1236,6 +1196,13 @@ static int mainRoutine(
     mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
     mpz_init(Bdivp2); mpz_init(q); mpz_init(r); mpz_init(nsqrtdiv);
     mpz_init(temp); mpz_init(temp2); mpz_init(temp3); mpz_init(temp4);
+
+    /* Compute sqrt(n) mod factorbase[i] */
+    New(0, sqrts, numPrimes, mpz_t);
+    if (sqrts == 0) croak("SIMPQS: Unable to allocate memory!\n");
+    for (p = 0; p < numPrimes; p++)
+      mpz_init(sqrts[p]);
+    tonelliShanks(numPrimes, n, sqrts);
 
     /* Compute min A_prime and A_span */
 
@@ -1304,8 +1271,8 @@ static int mainRoutine(
            amodp[i] = mpz_fdiv_r_ui(temp,temp,p);
 
            mpz_set_ui(temp,modinverse(mpz_get_ui(temp),p));
-           mpz_mul(temp,temp,sqrts[aind[i]+min]);
-           mpz_fdiv_r_ui(temp,temp,p);
+           mpz_mul(temp, temp, sqrts[aind[i]+min]);
+           mpz_fdiv_r_ui(temp, temp, p);
            if (mpz_cmp_ui(temp,p/2)>0)
            {
               mpz_sub_ui(temp,temp,p);
@@ -1434,6 +1401,7 @@ static int mainRoutine(
               relations, 0, M, sieve, A, B, C,
               soln1, soln2, flags, m, XArr, aind,
               min, s, exponents,
+              &npartials, &relsFound, &relSought,
               temp, temp2, temp3, temp4
            );
         }
@@ -1444,7 +1412,7 @@ static int mainRoutine(
     }
 
 #ifdef CURPARTS
-    printf("%ld curves, %ld partials.\n",(long)curves,(long)partials);
+    printf("%lu curves, %lu partials.\n", curves, npartials);
 #endif
 
 #ifdef REPORT
@@ -1453,6 +1421,9 @@ static int mainRoutine(
 
     /* Free everything we don't need for the linear algebra */
 
+    for (p = 0; p < numPrimes; p++)
+      mpz_clear(sqrts[p]);
+    Safefree(sqrts);
     for (i = 0; i < s; i++) {
       Safefree(Ainv2B[i]);
       mpz_clear(Bterms[i]);
@@ -1547,11 +1518,10 @@ static int mainRoutine(
 
 int _GMP_simpqs(mpz_t n, mpz_t* farray)
 {
-  unsigned long numPrimes, Mdiv2, multiplier, decdigits;
+  unsigned long numPrimes, Mdiv2, multiplier, decdigits, relSought;
   int result;
 
   mpz_set(farray[0], n);
-  initSieve();
   decdigits = mpz_sizeinbase(n,10); /* often 1 too big */
   if (decdigits < MINDIG)
     return 0;
@@ -1571,7 +1541,7 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
 
     Mdiv2 = sieveSize[decdigits-MINDIG]/SIEVEDIV;
     if (Mdiv2*2 < CACHEBLOCKSIZE) Mdiv2 = CACHEBLOCKSIZE/2;
-    largeprime = largeprimes[decdigits-MINDIG];
+    largeprime = 1000 * largeprimes[decdigits-MINDIG];
 
     secondprime = (numPrimes < SECONDPRIME) ? numPrimes : SECONDPRIME;
 
@@ -1598,17 +1568,12 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
 
   /* We probably need fewer than this */
   relSought = numPrimes;
+  initFactorBase();
   computeFactorBase(n, numPrimes, multiplier);
 
-  computeSizes(numPrimes);
+  result = mainRoutine(numPrimes, Mdiv2, relSought, n, farray, multiplier);
 
-  TonelliInit();
-  tonelliShanks(numPrimes,n);
-  TonelliDestroy();
-
-  result = mainRoutine(numPrimes, Mdiv2, n, farray, multiplier);
-
-  clearSieve(numPrimes);
+  clearFactorBase();
   /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
   return result;
 }
