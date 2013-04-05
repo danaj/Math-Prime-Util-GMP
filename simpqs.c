@@ -273,20 +273,20 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
   return rowUpto;
 }
 
-//===========================================================================
-//Uncomment these for various pieces of debugging information
+/*===========================================================================*/
+ /* Uncomment these for various pieces of debugging information */
 
-//#define COUNT    // Shows the number of relations generated and curves used during sieving
-//#define RELPRINT // Shows the actual factorizations of the relations
-//#define ERRORS   // Error if relation should be divisible by a prime but isn't
-//#define POLS     // Shows the polynomials being used by the sieve
-//#define ADETAILS // Prints some details about the factors of the A coefficients of the polys
-//#define LARGESTP // Prints the size of the largest factorbase prime
-//#define CURPARTS // Prints the number of curves used and number of partial relations
-//#define REPORT //report sieve size, multiplier and number of primes used
+/* #define COUNT    // Shows the number of relations generated and curves used during sieving */
+/* #define RELPRINT // Shows the actual factorizations of the relations */
+/* #define ERRORS   // Error if relation should be divisible by a prime but isn't */
+/* #define POLS     // Shows the polynomials being used by the sieve */
+/* #define ADETAILS // Prints some details about the factors of the A coefficients of the polys */
+/* #define LARGESTP // Prints the size of the largest factorbase prime */
+/* #define CURPARTS // Prints the number of curves used and number of partial relations */
+/* #define REPORT //report sieve size, multiplier and number of primes used */
 
-//===========================================================================
-//Architecture dependent fudge factors
+/*===========================================================================*/
+/* Architecture dependent fudge factors */
 
 #if ULONG_MAX == 4294967295UL
 #define SIEVEMASK 0xC0C0C0C0UL
@@ -298,31 +298,33 @@ static unsigned int gaussReduce(matrix_t m, unsigned int numPrimes, unsigned int
  #error Cannot determine ulong size
 #endif
 
-#define CACHEBLOCKSIZE 64000 //Should be a little less than the L1/L2 cache size
-                             //and a multiple of 64000
-#define SECONDPRIME    6000 //This should be lower for slower machines
-#define FUDGE          0.15 //Every program needs a mysterious fudge factor
+/* Should be a little less than the L1/L2 cache size and a multiple of 64000 */
+#define CACHEBLOCKSIZE 64000
+/* Make lower for slower machines */
+#define SECONDPRIME    6000
+/* Mysterious fudge factor... */
+#define FUDGE          0.15
 
-#define MINDIG 30 //Will not factor numbers with less than this number of decimal digits
+/* Will not factor numbers with less than this number of decimal digits */
+#define MINDIG 30
 
-//===========================================================================
-// Large prime cutoffs
-
+/*===========================================================================*/
+/*  Large prime cutoffs */
 static unsigned int largeprimes[] =
 {
-     100000, 100000, 125000, 125000, 150000, 150000, 175000, 175000, 200000, 200000, //30-39
-     250000, 300000, 370000, 440000, 510000, 580000, 650000, 720000, 790000, 8600000, //40-49
-     930000, 1000000, 1700000, 2400000, 3100000, 3800000, 4500000, 5200000, 5900000, 6600000, //50-59
-     7300000, 8000000, 8900000, 10000000, 11300000, 12800000, 14500000, 16300000, 18100000, 20000000, //60-69
-     22000000, 24000000, 27000000, 32000000, 39000000,  //70-74
-     53000000, 65000000, 75000000, 87000000, 100000000, //75-79
-     114000000, 130000000, 150000000, 172000000, 195000000, //80-84
-     220000000, 250000000, 300000000, 350000000, 400000000, //85-89
-     450000000, 500000000 //90-91
+     100000, 100000, 125000, 125000, 150000, 150000, 175000, 175000, 200000, 200000, /* 30-39 */
+     250000, 300000, 370000, 440000, 510000, 580000, 650000, 720000, 790000, 8600000, /* 40-49 */
+     930000, 1000000, 1700000, 2400000, 3100000, 3800000, 4500000, 5200000, 5900000, 6600000, /* 50-59 */
+     7300000, 8000000, 8900000, 10000000, 11300000, 12800000, 14500000, 16300000, 18100000, 20000000, /* 60-69 */
+     22000000, 24000000, 27000000, 32000000, 39000000, /* 70-74 */
+     53000000, 65000000, 75000000, 87000000, 100000000, /* 75-79 */
+     114000000, 130000000, 150000000, 172000000, 195000000, /* 80-84 */
+     220000000, 250000000, 300000000, 350000000, 400000000, /* 85-89 */
+     450000000, 500000000 /* 90-91 */
 };
 
-//============================================================================
-// Number of primes to use in factor base, given the number of decimal digits specified
+/*===========================================================================*/
+/* Number of primes to use in factor base */
 static unsigned int primesNo[] =
 {
      1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, //30-39
@@ -336,8 +338,8 @@ static unsigned int primesNo[] =
      76000, 80000 //90-91
 };
 
-//============================================================================
-// First prime actually sieved for
+/*===========================================================================*/
+/* First prime actually sieved for */
 static unsigned int firstPrimes[] =
 {
      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, //30-39
@@ -351,8 +353,9 @@ static unsigned int firstPrimes[] =
      29, 29 //90-91
 };
 
-//============================================================================
-// Logs of primes are rounded and errors accumulate; this specifies how great an error to allow
+/*===========================================================================*/
+/* Logs of primes are rounded and errors accumulate
+ * This specifies how great an error to allow */
 static unsigned int errorAmounts[] =
 {
      10, 10, 10, 11, 13, 14, 14, 15, 15, 16, //30-39
@@ -366,8 +369,8 @@ static unsigned int errorAmounts[] =
      33, 33 //90-91
 };
 
-//============================================================================
-// This is the threshold the sieve value must exceed in order to be considered for smoothness
+/*===========================================================================*/
+/* Threshold the sieve value must exceed to be considered for smoothness */
 static unsigned int thresholds[] =
 {
      63, 63, 63, 64, 64, 64, 65, 65, 65, 66, //30-39
@@ -381,9 +384,9 @@ static unsigned int thresholds[] =
      101, 102 //90-91
 };
 
-//============================================================================
-// Size of sieve to use divided by 2, given the number of decimal digits specified
-//N.B: probably optimal if chosen to be a multiple of 32000, though other sizes are supported
+/*===========================================================================*/
+/* Size of sieve to use divided by 2
+ * Optimal if chosen to be a multiple of 32000 */
 static unsigned int sieveSize[] =
 {
      64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, 64000, //30-39
@@ -397,8 +400,7 @@ static unsigned int sieveSize[] =
      192000, 192000 //90-91
 };
 
-//============================================================================
-static unsigned int decdigits;   //number of decimal digits of n
+/*===========================================================================*/
 static unsigned int secondprime; //min(numprimes, SECONDPRIME) = cutoff for using flags when sieving
 static unsigned int firstprime;  //first prime actually sieved with
 static unsigned char errorbits;  //first prime actually sieved with
@@ -724,11 +726,11 @@ static void evaluateSieve(
            mpz_set_ui(temp,i+ctimesreps);
            mpz_sub_ui(temp,temp,Mdiv2);
 
-           mpz_set(temp3,B);  //B
-           mpz_addmul(temp3,A,temp);  //AX+B
-           mpz_add(temp2,temp3,B);  //AX+2B
-           mpz_mul(temp2,temp2,temp);  //AX^2+2BX
-           mpz_add(res,temp2,C);  //AX^2+2BX+C
+           mpz_set(temp3,B);          /* B          */
+           mpz_addmul(temp3,A,temp);  /* AX+B       */
+           mpz_add(temp2,temp3,B);    /* AX+2B      */
+           mpz_mul(temp2,temp2,temp); /* AX^2+2BX   */
+           mpz_add(res,temp2,C);      /* AX^2+2BX+C */
 
            bits=mpz_sizeinbase(res,2);
            bits-=errorbits;
@@ -1545,9 +1547,7 @@ static int mainRoutine(
 
 int _GMP_simpqs(mpz_t n, mpz_t* farray)
 {
-  unsigned long numPrimes;
-  unsigned long Mdiv2;
-  unsigned long multiplier;
+  unsigned long numPrimes, Mdiv2, multiplier, decdigits;
   int result;
 
   mpz_set(farray[0], n);
@@ -1634,8 +1634,7 @@ int main(int argc, char **argv)
   printf("Input number to factor [ >=%d decimal digits]: ", MINDIG);
   gmp_scanf("%Zd",n);getchar();
 
-  decdigits = mpz_sizeinbase(n,10);
-  if (decdigits < MINDIG)
+  if (mpz_sizeinbase(n,10) < MINDIG)
     croak("SIMPQS: Error in input or number has too few digits.\n");
 
   nfactors = _GMP_simpqs(n, farray);
