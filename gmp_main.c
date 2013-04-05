@@ -13,6 +13,7 @@
 #include "gmp_main.h"
 #include "prime_iterator.h"
 #include "small_factor.h"
+#include "simpqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
@@ -28,9 +29,9 @@ void _GMP_init(void)
   /* We should _not_use this random number system for crypto, so
    * using this lousy seed is ok.  We just would like something a
    * bit different every run. */
-  /* unsigned long seed = time(NULL); */
+  unsigned long seed = time(NULL);
   gmp_randinit_mt(_randstate);
-  /* gmp_randseed_ui(_randstate, seed); */
+  gmp_randseed_ui(_randstate, seed);
   prime_iterator_global_startup();
 }
 
