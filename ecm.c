@@ -13,6 +13,8 @@
 #include "prime_iterator.h"
 #include "gmp_main.h"
 
+#define USE_PRAC
+
 #define TEST_FOR_2357(n, f) \
   { \
     if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; } \
@@ -296,6 +298,12 @@ static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
   /* 5 mulmods, 4 adds */
 }
 
+/* See http://alexandria.tue.nl/extra2/200311829.pdf for lots of discussion
+ * and algorithms for various addition chains.
+ */
+
+#ifndef USE_PRAC
+
 static void ec_mult(UV k, mpz_t x, mpz_t z)
 {
   int l, r;
@@ -326,6 +334,150 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
     ec_add3(x, z, x2, z2, x1, z1, x, z);
   }
 }
+
+#else
+
+/* PRAC
+ *
+ * "Evaluating recurrences of form X_{m+n} = f(X_m, X_n, X_{m-n}) via
+ *  Lucas chains, Peter L. Montgomery, Dec 1983 (revised Jan 1992).
+ *
+ * "20 years of ECM" by Paul Zimmerman, 2006.
+ *
+ * Code derived from GMP-ECM (Zimmermann & Kruppa)
+ */
+
+/* PRAC, algorithm from Montgofrom GMP-ECM, algorithm from Montgomery */
+/* See "20 years of ECM" by Paul Zimmermann for more info */
+static mpz_t x3, z3, x4, z4;  /* used by prac */
+#define ADD 6 /* number of multiplications in an addition */
+#define DUP 5 /* number of multiplications in a double */
+
+/* Returns the number of mulmods */
+static UV lucas_cost(UV n, double v)
+{
+  UV c, d, e, r;
+
+  d = n;
+  r = (UV) ( ((double)d / v) + 0.5 );
+  if (r >=n )
+    return(ADD*n);
+  d = n - r;
+  e = 2 * r - n;
+  c = DUP + ADD;  /* initial double and final add */
+  while (d != e) {
+    if (d < e) { r = d;  d = e;  e = r; }
+    if (4 * d <= 5 * e && ((d + e) % 3) == 0) {
+ /*C1*/ d = (2 * d - e) / 3;  e = (e - d) / 2;  c += 3 * ADD; /* 3 adds */
+    } else if (4 * d <= 5 * e && (d - e) % 6 == 0) {
+ /*C2*/ d = (d - e) / 2;  c += ADD + DUP; /* one add, one double */
+    } else if (d <= 4 * e) {
+ /*C3*/ d -= e;  c += ADD; /* one add */
+    } else if ((d + e) % 2 == 0) {
+ /*C4*/ d = (d - e) / 2;  c += ADD + DUP; /* one add, one double */
+    } else if (d % 2 == 0) {
+ /*C5*/ d /= 2;  c += ADD + DUP; /* one add, one double */
+    } else if (d % 3 == 0) {
+ /*C6*/ d = d / 3 - e;  c += 3 * ADD + DUP; /* three adds, one double */
+    } else if ((d + e) % 3 == 0) {
+ /*C7*/ d = (d - 2 * e) / 3;  c += 3 * ADD + DUP; /* three adds, one double */
+    } else if ((d - e) % 3 == 0) {
+ /*C8*/ d = (d - e) / 3;  c += 3 * ADD + DUP; /* three adds, one double */
+    } else {
+ /*C9*/ e /= 2;  c += ADD + DUP; /* one add, one double */
+    }
+  }
+  return(c);
+}
+
+#define SWAP(a, b) \
+  t = x##a; x##a = x##b; x##b = t;  t = z##a; z##a = z##b; z##b = t;
+
+/* PRAC: computes kP from P=(x:z) and puts the result in (x:z). Assumes k>2.*/
+static void ec_mult(UV k, mpz_t x, mpz_t z)
+{
+   unsigned int  d, e, r, i;
+   __mpz_struct *xA, *zA, *xB, *zB, *xC, *zC, *xT, *zT, *xT2, *zT2, *t;
+
+   static double const v[] =
+     {1.61803398875, 1.72360679775, 1.618347119656, 1.617914406529};
+
+   /* chooses the best value of v */
+   r = ADD * k;
+   i = 0;
+   for (d = 0; d < 4; d++) {
+     e = lucas_cost(k, v[d]);
+     if (e < r) { r = e;  i = d; }
+   }
+   r = (unsigned int)((double)k / v[i] + 0.5);
+   /* A=(x:z) B=(x1:z1) C=(x2:z2) T=T1=(x3:z3) T2=(x4:z4) */
+   xA=x; zA=z; xB=x1; zB=z1; xC=x2; zC=z2; xT=x3; zT=z3; xT2=x4; zT2=z4;
+   /* first iteration always begins by Condition 3, then a swap */
+   d = k - r;
+   e = 2 * r - k;
+   mpz_set(xB,xA); mpz_set(zB,zA); /* B=A */
+   mpz_set(xC,xA); mpz_set(zC,zA); /* C=A */
+   ec_double(xA,zA,xA,zA);         /* A=2*A */
+   while (d != e) {
+      if (d < e) {
+         r = d;  d = e;  e = r;
+         SWAP(A,B);
+      }
+      /* do the first line of Table 4 whose condition qualifies */
+      if (4 * d <= 5 * e && ((d + e) % 3) == 0) { /* condition 1 */
+         d = (2 * d - e) / 3;
+         e = (e - d) / 2;
+         ec_add3(xT,zT,xA,zA,xB,zB,xC,zC);   /* T = f(A,B,C) */
+         ec_add3(xT2,zT2,xT,zT,xA,zA,xB,zB); /* T2= f(T,A,B) */
+         ec_add3(xB,zB,xB,zB,xT,zT,xA,zA);   /* B = f(B,T,A) */
+         SWAP(A,T2);
+      } else if (4 * d <= 5 * e && (d - e) % 6 == 0) { /* condition 2 */
+         d = (d - e) / 2;
+         ec_add3(xB,zB,xA,zA,xB,zB,xC,zC);   /* B = f(A,B,C) */
+         ec_double(xA,zA,xA,zA);             /* A = 2*A */
+      } else if (d <= (4 * e)) { /* condition 3 */
+         d -= e;
+         ec_add3(xC,zC,xB,zB,xA,zA,xC,zC);   /* C = f(B,A,C) */
+         SWAP(B,C);
+      } else if ((d + e) % 2 == 0) { /* condition 4 */
+         d = (d - e) / 2;
+         ec_add3(xB,zB,xB,zB,xA,zA,xC,zC);   /* B = f(B,A,C) */
+         ec_double(xA,zA,xA,zA);             /* A = 2*A */
+      } else if (d % 2 == 0) { /* condition 5 */
+         d /= 2;
+         ec_add3(xC,zC,xC,zC,xA,zA,xB,zB);   /* C = f(C,A,B) */
+         ec_double(xA,zA,xA,zA);             /* A = 2*A */
+      } else if (d % 3 == 0) { /* condition 6 */
+         d = d / 3 - e;
+         ec_double(xT,zT,xA,zA);             /* T = 2*A */
+         ec_add3(xT2,zT2,xA,zA,xB,zB,xC,zC); /* T2= f(A,B,C) */
+         ec_add3(xA,zA,xT,zT,xA,zA,xA,zA);   /* A = f(T,A,A) */
+         ec_add3(xC,zC,xT,zT,xT2,zT2,xC,zC); /* C = f(T,T2,C) */
+         SWAP(B,C);
+      } else if ((d + e) % 3 == 0) { /* condition 7 */
+         d = (d - 2 * e) / 3;
+         ec_add3(xT,zT,xA,zA,xB,zB,xC,zC);   /* T = f(A,B,C) */
+         ec_add3(xB,zB,xT,zT,xA,zA,xB,zB);   /* B = f(T1,A,B) */
+         ec_double(xT,zT,xA,zA);
+         ec_add3(xA,zA,xA,zA,xT,zT,xA,zA);   /* A = 3*A */
+      } else if ((d - e) % 3 == 0) { /* condition 8 */
+         d = (d - e) / 3;
+         ec_add3(xT,zT,xA,zA,xB,zB,xC,zC);   /* T = f(A,B,C) */
+         ec_add3(xC,zC,xC,zC,xA,zA,xB,zB);   /* C = f(A,C,B) */
+         SWAP(B,T);
+         ec_double(xT,zT,xA,zA);
+         ec_add3(xA,zA,xA,zA,xT,zT,xA,zA);   /* A = 3*A */
+      } else { /* condition 9 */
+         e /= 2;
+         ec_add3(xC,zC,xC,zC,xB,zB,xA,zA);   /* C = f(C,B,A) */
+         ec_double(xB,zB,xB,zB);             /* B = 2*B */
+      }
+   }
+   ec_add3(xA,zA,xA,zA,xB,zB,xC,zC);
+   if (x!=xA) { mpz_set(x,xA); mpz_set(z,zA); }
+}
+
+#endif /* PRAC */
 
 #define NORMALIZE(f, u, v, x, z, n) \
     mpz_gcdext(f, u, NULL, z, n); \
@@ -371,7 +523,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
     mpz_set(x, nqx[2*D-1]);
     mpz_set_ui(z, 1);
 
-    /* See Zimmermann, "20 Years of ECM", 2006, page 11-12 */
+    /* See Zimmermann, "20 Years of ECM" slides, 2006, page 11-12 */
     for (m = 1; m < B2+D; m += 2*D) {
       if (m != 1) {
         mpz_set(x2, x1);
@@ -418,7 +570,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
 {
   mpz_t sigma, a, x, z;
-  UV i, curve, q;
+  UV i, curve, q, k;
   UV B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
   int found = 0;
   gmp_randstate_t* p_randstate = _GMP_get_randstate();
@@ -426,12 +578,12 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   TEST_FOR_2357(n, f);
 
   mpz_init_set(ecn, n);
-  mpz_init(x);  mpz_init(z);  mpz_init(sigma);  mpz_init(a);
-
-  mpz_init(u);  mpz_init(v);  mpz_init(w);
-  mpz_init(x1);  mpz_init(z1);
-  mpz_init(x2);  mpz_init(z2);
-  mpz_init(b);
+  mpz_init(x);   mpz_init(z);   mpz_init(a);   mpz_init(b);
+  mpz_init(u);   mpz_init(v);   mpz_init(w);   mpz_init(sigma);
+  mpz_init(x1);  mpz_init(z1);  mpz_init(x2);  mpz_init(z2);
+#ifdef USE_PRAC
+  mpz_init(x3);  mpz_init(z3);  mpz_init(x4);  mpz_init(z4);
+#endif
 
   for (curve = 0; curve < ncurves; curve++) {
     PRIME_ITERATOR(iter);
@@ -485,11 +637,13 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
     for (q = 2; q < B1; q *= 2)
       ec_double(x, z, x, z);
     mpz_mulmod(sigma, sigma, x, ecn, w);
-    i = 1;
+    i = 15;
     for (q = prime_iterator_next(&iter); q < B1; q = prime_iterator_next(&iter)) {
-      UV k = q;
-      UV kmin = B1 / q;
-      while (k <= kmin)  k *= q;
+      /* PRAC is a little faster with:
+       *     for (k = 1; k <= B1/q; k *= q)
+       *       ec_mult(q, x, z);
+       * but binary multiplication is much slower that way. */
+      for (k = q; k <= B1/q; k *= q) ;
       ec_mult(k, x, z);
       mpz_mulmod(sigma, sigma, x, ecn, w);
       if (i++ % 32 == 0) {
@@ -515,12 +669,13 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   }
   /* if (found) gmp_printf("S%d\n", found); */
 
-  mpz_clear(a);  mpz_clear(b);  mpz_clear(ecn);
-  mpz_clear(u);  mpz_clear(v);  mpz_clear(w);
-  mpz_clear(x);  mpz_clear(z);
-  mpz_clear(x1);  mpz_clear(z1);
-  mpz_clear(x2);  mpz_clear(z2);
-  mpz_clear(sigma);
+  mpz_clear(ecn);
+  mpz_clear(x);   mpz_clear(z);   mpz_clear(a);   mpz_clear(b);
+  mpz_clear(u);   mpz_clear(v);   mpz_clear(w);   mpz_clear(sigma);
+  mpz_clear(x1);  mpz_clear(z1);  mpz_clear(x2);  mpz_clear(z2);
+#ifdef USE_PRAC
+  mpz_clear(x3);  mpz_clear(z3);  mpz_clear(x4);  mpz_clear(z4);
+#endif
 
   return found;
 }
