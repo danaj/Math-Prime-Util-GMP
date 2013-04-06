@@ -6,12 +6,13 @@ Revision history for Perl extension Math::Prime::Util::GMP
       note that it doesn't build up to B1 like the old version.  This has
       a big impact on factoring and primality proving.
 
-    - Add William Hart's SIMPQS (a simple QS that is a predecessor to what
-      went into FLINT).  Not the fastest by a long shot (yafu and msieve take
-      that prize), but it's quite small and works pretty well.  Eventually I
-      would like to replace this with a QS of my own.  Some improvements from
-      version 2.0 that remain are (1) no partial relations, (2) uses too much
-      memory, and (3) uses GE instead of jasonp's block Lanczos.
+    - Add a QS based on William Hart's SIMPQS (a simple QS that is a
+      predecessor to what went into FLINT).  Not the fastest by a long shot
+      (yafu and msieve take that prize), but it's quite small and works pretty
+      well.  Eventually this will get replaced with a home-built QS.  Meanwhile
+      some improvements from version 2.0 that remain are (1) no partial
+      relations, (2) uses too much memory, and (3) uses GE instead of
+      jasonp's block Lanczos.
 
     - The new ECM and QS make factoring much faster, especially for 30+
       digit inputs.  Factoring should give reasonable times out to 70+
