@@ -26,7 +26,7 @@ gmp_randstate_t* _GMP_get_randstate(void) { return &_randstate; }
 
 void _GMP_init(void)
 {
-  /* We should _not_use this random number system for crypto, so
+  /* We should  not use this random number system for crypto, so
    * using this lousy seed is ok.  We just would like something a
    * bit different every run. */
   unsigned long seed = time(NULL);
@@ -791,11 +791,11 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
     mpz_tdiv_q(s, B, t);
     mpz_mod(r, B, t);
 
-    mpz_mul(m, t, A);    // m = 2*A*A
-    mpz_sub_ui(t, r, 1); // t = r-1
-    mpz_mul(t, t, A);    // t = A*(r-1)
-    mpz_add(m, m, t);    // m = 2A^2 + A(r-1)
-    mpz_add_ui(m, m, 1); // m = 2A^2 + A(r-1) + 1
+    mpz_mul(m, t, A);    /* m = 2*A*A              */
+    mpz_sub_ui(t, r, 1); /* t = r-1                */
+    mpz_mul(t, t, A);    /* t = A*(r-1)            */
+    mpz_add(m, m, t);    /* m = 2A^2 + A(r-1)      */
+    mpz_add_ui(m, m, 1); /* m = 2A^2 + A(r-1) + 1  */
     mpz_add_ui(t, A, 1);
     mpz_mul(m, m, t);
 
@@ -899,7 +899,7 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
       proper_r = 1;
     } else {
       mpz_mul(t, r, r);
-      mpz_submul_ui(t, s, 8);   // t = r^2 - 8s
+      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
       if ( ! mpz_perfect_square_p(t) )
         proper_r = 1;
     }

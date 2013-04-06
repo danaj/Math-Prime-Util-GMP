@@ -1,10 +1,11 @@
 /*============================================================================
 
-  Quadratic Sieve
+   Quadratic Sieve
 
-  This is derived from SIMPQS, copyright 2006 William Hart.
+   This is derived from SIMPQS, copyright 2006 William Hart.
 
    Modifications made in 2013 by Dana Jacobsen:
+     - returns all coprime factors found
      - put it in one file
      - merge some of the 2.0 changes
      - make it work with smaller values
