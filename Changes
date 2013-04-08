@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.09  1x April 2013
+
+    - 
+
 0.08   5 April 2013
 
     - Switch to a projective ECM with a stage 2.  Much better results, but

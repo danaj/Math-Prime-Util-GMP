@@ -53,7 +53,7 @@
 #include <math.h>
 #include <gmp.h>
 
-#ifdef STANDALONE_SIMPQS
+#ifdef STANDALONE
   typedef unsigned long UV;
   typedef   signed long IV;
   #define INLINE
@@ -78,57 +78,7 @@
   #include "XSUB.h"
 #endif
 
-
-/* tdiv_r is faster, but we'd need to guarantee in the input is positive */
-#define mpz_mulmod(r, a, b, n, t)  \
-  do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
-
-/* - Tonelli-Shanks: sets asqrt to a square root of a modulo p */
-/* - Return: 0 if a is not a square mod p, 1 otherwise. */
-static int sqrtmod(mpz_t asqrt, mpz_t a, mpz_t p,
-                   mpz_t t, mpz_t t2, mpz_t b, mpz_t g) /* 4 temp variables */
-{
-     int r,k,m,i;
-
-     if (mpz_kronecker(a, p) != 1)
-     {
-         mpz_set_ui(asqrt,0);
-         return 0;   /* return 0 if a is not a square mod p */
-     }
-
-     /* t2 = (p-1) => q2^r => t2 = q. */
-     mpz_sub_ui(t2, p, 1);
-     mpz_set_ui(t, 2);
-     r = mpz_remove(t2, t2, t);
-     mpz_powm(b, a, t2, p);
-     for (k = 2; ; k++)
-       if (mpz_ui_kronecker(k,p) == -1) break;
-     mpz_set_ui(t, k);
-     mpz_powm(g, t, t2, p);
-     mpz_add_ui(t2, t2, 1);
-     mpz_divexact_ui(t2, t2, 2);
-     mpz_powm(asqrt, a, t2, p);
-     if (!mpz_cmp_ui(b,1))
-       return 1;
-
-     while (mpz_cmp_ui(b, 1))
-     {
-       /* calculate how many times b^2 mod p == 1 */
-       mpz_set(t, b);
-       for (m = 1; (m<=r-1) && (mpz_cmp_ui(t,1)); m++)
-         mpz_powm_ui(t, t, 2, p);
-       /* t2 = g^2 mod p a number of times*/
-       mpz_set(t2, g);
-       for (i = 1; i <= r-m-1; i++)
-         mpz_powm_ui(t2, t2, 2, p);
-       mpz_mulmod(asqrt, asqrt, t2, p, t);
-       mpz_powm_ui(t2, t2, 2, p);
-       mpz_mulmod(b, b, t2, p, t);
-       r = m;
-     }
-
-     return 1;
-}
+#include "utility.h"
 
 /* DANAJ: Modify matrix code to do 64-bit-padded character arrays */
 typedef unsigned char* row_t;  /* row of an F2 matrix */
@@ -396,62 +346,6 @@ static INLINE unsigned long get_relation(unsigned long* rel, unsigned int prime,
   return rel[ prime*RELATIONS_PER_PRIME + nrel ];
 }
 
-
-/*========================================================================
-   Modular Inversion:
-
-   Function: GMP has a modular inverse function, but believe it or not,
-             this clumsy implementation is apparently quite a bit faster.
-             It inverts the value a, modulo the prime p, using the extended
-             gcd algorithm.
-
-========================================================================*/
-
-static unsigned long modinverse(unsigned long a, unsigned long p)
-{
-   long u1, u3;
-   long v1, v3;
-   long t1, t3, quot;
-   u1=1; u3=a;
-   v1=0; v3=p;
-   t1=0; t3=0;
-   while (v3)
-   {
-      quot=u3-v3;
-      if (u3 < (v3<<2))
-      {
-         if (quot < v3)
-         {
-            if (quot < 0)
-            {
-               t1 = u1; u1 = v1; v1 = t1;
-               t3 = u3; u3 = v3; v3 = t3;
-            } else
-            {
-               t1 = u1 - v1; u1 = v1; v1 = t1;
-               t3 = u3 - v3; u3 = v3; v3 = t3;
-            }
-         } else if (quot < (v3<<1))
-         {
-            t1 = u1 - (v1<<1); u1 = v1; v1 = t1;
-            t3 = u3 - (v3<<1); u3 = v3; v3 = t3;
-         } else
-         {
-            t1 = u1 - v1*3; u1 = v1; v1 = t1;
-            t3 = u3 - v3*3; u3 = v3; v3 = t3;
-         }
-      } else
-      {
-         quot=u3/v3;
-         t1 = u1 - v1*quot; u1 = v1; v1 = t1;
-         t3 = u3 - v3*quot; u3 = v3; v3 = t3;
-      }
-   }
-
-   if (u1<0) u1+=p;
-
-   return u1;
-}
 
 /*=========================================================================
    Knuth_Schroeppel Multiplier:
@@ -1579,7 +1473,7 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
   return result;
 }
 
-#ifdef STANDALONE_SIMPQS
+#ifdef STANDALONE
 /*===========================================================================
    Main Program:
 

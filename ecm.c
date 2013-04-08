@@ -401,12 +401,13 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
    __mpz_struct *xA, *zA, *xB, *zB, *xC, *zC, *xT, *zT, *xT2, *zT2, *t;
 
    static double const v[] =
-     {1.61803398875, 1.72360679775, 1.618347119656, 1.617914406529};
+     {1.61803398875, 1.72360679775, 1.618347119656, 1.617914406529,
+      1.58017872826};
 
    /* chooses the best value of v */
    r = ADD * k;
    i = 0;
-   for (d = 0; d < 4; d++) {
+   for (d = 0; d < 5; d++) {
      e = lucas_cost(k, v[d]);
      if (e < r) { r = e;  i = d; }
    }

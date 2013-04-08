@@ -16,6 +16,7 @@
 #include "simpqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
+#include "utility.h"
 
 static int _verbose = 0;
 void _GMP_set_verbose(int v) { _verbose = v; }
@@ -340,81 +341,6 @@ int _GMP_is_provable_prime(mpz_t n)
 /*****************************************************************************/
 /*          AKS.    This implementation is quite slow, but useful to have.   */
 
-static UV order(UV r, mpz_t n, UV limit) {
-  UV j;
-  mpz_t t;
-
-  mpz_init_set_ui(t, 1);
-  for (j = 1; j <= limit; j++) {
-    mpz_mul(t, t, n);
-    mpz_mod_ui(t, t, r);
-    if (!mpz_cmp_ui(t, 1))
-      break;
-  }
-  mpz_clear(t);
-  return j;
-}
-
-static void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
-{
-  UV i, j, prindex;
-
-  for (i = 0; i < r; i++)
-    mpz_set_ui(ptmp[i], 0);
-  for (i = 0; i < r; i++) {
-    if (!mpz_sgn(px[i])) continue;
-    for (j = 0; j < r; j++) {
-      if (!mpz_sgn(py[j])) continue;
-      prindex = (i+j) % r;
-      mpz_addmul( ptmp[prindex], px[i], py[j] );
-    }
-  }
-  /* Put ptmp into px and mod n */
-  for (i = 0; i < r; i++)
-    mpz_mod(px[i], ptmp[i], mod);
-}
-static void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
-{
-  UV i, d, s;
-  UV degree = r-1;
-
-  for (i = 0; i < r; i++)
-    mpz_set_ui(ptmp[i], 0);
-  for (d = 0; d <= 2*degree; d++) {
-    UV prindex = d % r;
-    for (s = (d <= degree) ? 0 : d-degree; s <= (d/2); s++) {
-      if (s*2 == d) {
-        mpz_addmul( ptmp[prindex], px[s], px[s] );
-      } else {
-        mpz_addmul( ptmp[prindex], px[s], px[d-s] );
-        mpz_addmul( ptmp[prindex], px[s], px[d-s] );
-      }
-    }
-  }
-  /* Put ptmp into px and mod n */
-  for (i = 0; i < r; i++)
-    mpz_mod(px[i], ptmp[i], mod);
-}
-
-static void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod)
-{
-  UV i;
-  mpz_t mpow;
-
-  for (i = 0; i < r; i++)
-    mpz_set_ui(pres[i], 0);
-  mpz_set_ui(pres[0], 1);
-
-  mpz_init_set(mpow, power);
-
-  while (mpz_cmp_ui(mpow, 0) > 0) {
-    if (mpz_odd_p(mpow))            poly_mod_mul(pres, pn, ptmp, r, mod);
-    mpz_tdiv_q_2exp(mpow, mpow, 1);
-    if (mpz_cmp_ui(mpow, 0) > 0)    poly_mod_sqr(pn, ptmp, r, mod);
-  }
-  mpz_clear(mpow);
-}
-
 static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
 {
   int retval = 1;
@@ -484,7 +410,7 @@ int _GMP_is_aks_prime(mpz_t n)
       mpz_clear(sqrtn);
       return 1;
     }
-    if (order(r, n, limit) > limit)
+    if (mpz_order_ui(r, n, limit) > limit)
       break;
   }
   prime_iterator_destroy(&iter);

@@ -18,6 +18,8 @@ ecm.h
 ecm.c
 simpqs.h
 simpqs.c
+utility.h
+utility.c
 t/01-load.t
 t/02-can.t
 t/10-isprime.t
