@@ -75,8 +75,8 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
   }
 
   mpz_sub_ui(q, p, 1);
-  mpz_set_ui(t, 2);
-  e = mpz_remove(q, q, t);
+  e = mpz_scan1(q, 0);              /* Remove 2^e from q */
+  mpz_tdiv_q_2exp(q, q, e);
   mpz_set_ui(t, 2);
   while (mpz_legendre(t, p) != -1)  /* choose t "at random" */
     mpz_add_ui(t, t, 1);

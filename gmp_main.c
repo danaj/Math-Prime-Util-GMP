@@ -75,22 +75,22 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   }
   mpz_init_set(nminus1, n);
   mpz_sub_ui(nminus1, nminus1, 1);
-  mpz_init_set(d, nminus1);
+  mpz_init_set(x, a);
 
-  s = mpz_scan1(d, 0);
-  mpz_tdiv_q_2exp(d, d, s);
-
-  /* Handle large and small bases.  TODO: don't modify their input a */
-  if (mpz_cmp(a, n) >= 0)
-    mpz_mod(a, a, n);
-  if ( (mpz_cmp_ui(a, 1) <= 0) || (mpz_cmp(a, nminus1) >= 0) ) {
+  /* Handle large and small bases.  Use x so we don't modify their input a. */
+  if (mpz_cmp(x, n) >= 0)
+    mpz_mod(x, x, n);
+  if ( (mpz_cmp_ui(x, 1) <= 0) || (mpz_cmp(x, nminus1) >= 0) ) {
     mpz_clear(nminus1);
-    mpz_clear(d);
+    mpz_clear(x);
     return 1;
   }
 
-  mpz_init(x);
-  mpz_powm(x, a, d, n);
+  mpz_init_set(d, nminus1);
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+
+  mpz_powm(x, x, d, n);
   mpz_clear(d); /* done with a and d */
   rval = 0;
   if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {

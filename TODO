@@ -14,8 +14,8 @@
 
 - Add Riemann R function
 
-- M-R with large bases, don't modify the input a.
-
 - Tune and improve SIMPQS for our uses.  Check FLINT 2.3 for improvements.
 
 - Write our own QS.
+
+- The statics in ecm and QS won't play well with threading.
