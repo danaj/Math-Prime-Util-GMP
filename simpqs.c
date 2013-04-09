@@ -72,6 +72,7 @@
   #include "ptypes.h"
   #include "simpqs.h"
   #include "prime_iterator.h"
+  #include "gmp_main.h"
 
   #include "EXTERN.h"
   #include "perl.h"
@@ -1414,16 +1415,35 @@ static int mainRoutine(
 int _GMP_simpqs(mpz_t n, mpz_t* farray)
 {
   unsigned long numPrimes, Mdiv2, multiplier, decdigits, relSought;
-  int result;
+  int result = 0;
+  int verbose = _GMP_get_verbose();
 
   mpz_set(farray[0], n);
   decdigits = mpz_sizeinbase(n,10); /* often 1 too big */
   if (decdigits < MINDIG)
     return 0;
 
+  if (verbose>2) gmp_printf("# qs trying %Zd (%lu digits)\n", n, decdigits);
 #ifdef REPORT
   gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
 #endif
+
+  /* It's important to remove small factors. */
+  {
+    UV p;
+    PRIME_ITERATOR(iter);
+    for (p = 2; p < 1000; p = prime_iterator_next(&iter)) {
+      if (mpz_cmp_ui(n, p*p) < 0) break;
+      while (mpz_divisible_ui_p(n, p)) {
+        mpz_set_ui(farray[result++], p);
+        mpz_divexact_ui(n, n, p);
+      }
+    }
+    decdigits = mpz_sizeinbase(n,10);
+    if (decdigits < MINDIG)
+      return result;
+    mpz_set(farray[result], n);
+  }
 
   /* Get a preliminary number of primes, pick a multiplier, apply it */
   numPrimes = (decdigits <= 91) ? primesNo[decdigits-MINDIG] : 64000;
@@ -1460,15 +1480,23 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
   printf("Sieving interval M = %lu\n",Mdiv2*2);
   printf("Large prime cutoff = factorBase[%u]\n",largeprime);
 #endif
+  if (verbose>2) gmp_printf("# qs    mult %lu, digits %lu, sieving %lu, primes %lu\n", multiplier, decdigits, Mdiv2*2, numPrimes);
 
   /* We probably need fewer than this */
   relSought = numPrimes;
   initFactorBase();
   computeFactorBase(n, numPrimes, multiplier);
 
-  result = mainRoutine(numPrimes, Mdiv2, relSought, n, farray, multiplier);
+  result += mainRoutine(numPrimes, Mdiv2, relSought, n, farray+result, multiplier);
 
   clearFactorBase();
+  if (verbose>2) {
+    int i;
+    gmp_printf("# qs:");
+    for (i = 0; i < result; i++)
+      gmp_printf(" %Zd", farray[i]);
+    gmp_printf("%s\n", (result) ? "" : " no factors");
+  }
   /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
   return result;
 }

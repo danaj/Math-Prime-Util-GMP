@@ -1128,7 +1128,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_init(savea);
   mpz_init(t);
 
-  if (_verbose>2) gmp_printf("# trying %Zd  with B=%lu\n", n, (unsigned long)B1);
+  if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%lu B2=%lu)\n", n, (unsigned long)B1, (unsigned long)B2);
 
   /* STAGE 1
    * Montgomery 1987 p249-250 and Brent 1990 p5 both indicate we can calculate
@@ -1222,7 +1222,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_t precomp_bm[111];
     int   is_precomp[111] = {0};
 
-    if (_verbose>2) gmp_printf("# Starting second stage from %lu to %lu\n", (unsigned long)B1, (unsigned long)B2);
     mpz_init(bmdiff);
     mpz_init_set(bm, a);
     mpz_init_set_ui(b, 1);
@@ -1278,7 +1277,6 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       if (is_precomp[j])
         mpz_clear(precomp_bm[j]);
     }
-    if (_verbose>2) gmp_printf("# End second stage\n");
     if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
       goto end_success;
   }
@@ -1290,8 +1288,11 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_clear(a);
     mpz_clear(savea);
     mpz_clear(t);
-    if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+    if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
+      if (_verbose>2) gmp_printf("# p-1: %Zd\n", f);
       return 1;
+    }
+    if (_verbose>2) gmp_printf("# p-1: no factor\n");
     mpz_set(f, n);
     return 0;
 }
