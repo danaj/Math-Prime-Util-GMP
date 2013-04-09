@@ -14,12 +14,17 @@
 extern int sqrtmod(mpz_t s, mpz_t a, mpz_t p,
                    mpz_t t, mpz_t t2, mpz_t b, mpz_t g); /* 4 temp variables */
 
-unsigned long modinverse(unsigned long a, unsigned long p);
+extern unsigned long modinverse(unsigned long a, unsigned long p);
 
-UV mpz_order_ui(UV r, mpz_t n, UV limit);
+extern UV mpz_order_ui(UV r, mpz_t n, UV limit);
 
-void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod);
-void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod);
-void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod);
+extern void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod);
+extern void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod);
+extern void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod);
+
+/* Solve x^2 + |D|y^2 = p */
+extern int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
+/* Solve x^2 + |D|y^2 = 4p */
+extern int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
 
 #endif

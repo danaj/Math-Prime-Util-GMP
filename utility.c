@@ -107,6 +107,103 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
   return 1;
 }
 
+/* Smith-Cornacchia: Solve x,y for x^2 + |D|y^2 = p given prime p */
+/* See Cohen 1.5.2 */
+int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
+{
+  int result = 0;
+  mpz_t a, b, c, d;
+
+  if (mpz_jacobi(D, p) < 0)     /* No solution */
+    return 0;
+
+  mpz_init(a); mpz_init(b); mpz_init(c); mpz_init(d);
+
+  sqrtmod(x, D, p, a, b, c, d);
+  mpz_set(a, p);
+  mpz_set(b, x);
+  mpz_sqrt(c, p);
+
+  while (mpz_cmp(b,c) > 0) {
+    mpz_set(d, a);
+    mpz_set(a, b);
+    mpz_mod(b, d, b);
+  }
+
+  mpz_mul(a, b, b);
+  mpz_sub(a, p, a);   /* a = p - b^2 */
+  mpz_abs(d, D);      /* d = |D| */
+
+  if (mpz_divisible_p(a, d)) {
+    mpz_divexact(c, a, d);
+    if (mpz_perfect_square_p(c)) {
+      mpz_set(x, b);
+      mpz_sqrt(y, c);
+      result = 1;
+    }
+  }
+
+  mpz_clear(a); mpz_clear(b); mpz_clear(c); mpz_clear(d);
+
+  return result;
+}
+
+/* Modified Cornacchia, Solve x,y for x^2 + |D|y^2 = 4p given prime p */
+/* See Cohen 1.5.3 */
+int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
+{
+  int result = 0;
+  mpz_t a, b, c, d;
+
+  if (mpz_cmp_ui(p, 2) == 0) {
+    mpz_add_ui(x, D, 8);
+    if (mpz_perfect_square_p(x)) {
+      mpz_sqrt(x, x);
+      mpz_set_ui(y, 1);
+      result = 1;
+    }
+    return result;
+  }
+  if (mpz_jacobi(D, p) == -1)     /* No solution */
+    return 0;
+
+  mpz_init(a); mpz_init(b); mpz_init(c); mpz_init(d);
+
+  sqrtmod(x, D, p, a, b, c, d);
+  if ( (mpz_even_p(D) && mpz_odd_p(x)) || (mpz_odd_p(D) && mpz_even_p(x)) )
+    mpz_sub(x, p, x);
+
+  mpz_mul_ui(a, p, 2);
+  mpz_set(b, x);
+  mpz_sqrt(c, p);
+  mpz_mul_ui(c, c, 2);
+
+  /* Euclidean algorithm */
+  while (mpz_cmp(b, c) > 0) {
+    mpz_set(d, a);
+    mpz_set(a, b);
+    mpz_mod(b, d, b);
+  }
+
+  mpz_mul_ui(c, p, 4);
+  mpz_mul(a, b, b);
+  mpz_sub(a, c, a);   /* a = 4p - b^2 */
+  mpz_abs(d, D);      /* d = |D| */
+
+  if (mpz_divisible_p(a, d)) {
+    mpz_divexact(c, a, d);
+    if (mpz_perfect_square_p(c)) {
+      mpz_set(x, b);
+      mpz_sqrt(y, c);
+      result = 1;
+    }
+  }
+
+  mpz_clear(a); mpz_clear(b); mpz_clear(c); mpz_clear(d);
+
+  return result;
+}
+
 
 /* Modular inversion: invert a mod p.
  * This implementation from William Hart, using extended gcd.
