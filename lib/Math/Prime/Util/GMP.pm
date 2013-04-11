@@ -78,6 +78,34 @@ sub is_strong_pseudoprime {
   1;
 }
 
+sub is_provable_prime {
+  my ($n, $proof) = @_;
+  return 0 if $n < 2;
+  return _is_provable_prime($n) if !defined $proof;
+
+  croak "second argument must be an array ref" if ref($proof) ne 'ARRAY';
+  my ($result, $text) = _is_provable_prime($n, 1);
+  if ($result == 0) {
+    @$proof = ();
+    return 0;
+  }
+  {
+    my %parts;
+    foreach my $part (split(/\n/, $text)) {
+      $part =~ /^(\d+) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
+      my($fn, $fstr, $astr) = ($1, $2, $3);
+      my @f = split(/ /, $fstr);
+      my @a = split(/ /, $astr);
+      foreach my $f (@f) {
+        $f = $parts{$f} if defined $parts{$f};
+      }
+      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+    }
+    @$proof = @{$parts{$n}};
+  }
+  return $result;
+}
+
 sub factor {
   my ($n) = @_;
   return ($n) if $n < 4;

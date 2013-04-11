@@ -136,16 +136,30 @@ is_prime(IN char* strn)
   OUTPUT:
     RETVAL
 
-int
-is_provable_prime(IN char* strn)
+void
+_is_provable_prime(IN char* strn, IN int wantproof = 0)
   PREINIT:
+    int result;
     mpz_t n;
-  CODE:
+  PPCODE:
     PRIMALITY_START("is_provable_prime", 2);
-    RETVAL = _GMP_is_provable_prime(n);
+    if (wantproof == 0) {
+      result = _GMP_is_provable_prime(n, 0);
+      XPUSHs(sv_2mortal(newSViv( result )));
+    } else {
+      char* prooftext;
+      int nbytes = 1024;
+      int ndig = mpz_sizeinbase(n, 10);
+      if (ndig > 64) {
+        nbytes += (3*ndig) * (ndig-64);
+      }
+      New(0, prooftext, nbytes, char);
+      result = _GMP_is_provable_prime(n, prooftext);
+      XPUSHs(sv_2mortal(newSViv( result )));
+      XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));
+      Safefree(prooftext);
+    }
     mpz_clear(n);
-  OUTPUT:
-    RETVAL
 
 int
 is_aks_prime(IN char* strn)

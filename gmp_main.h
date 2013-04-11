@@ -18,13 +18,13 @@ extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 
 extern int  _GMP_is_prime(mpz_t n);
 extern int  _GMP_is_prob_prime(mpz_t n);
-extern int  _GMP_is_provable_prime(mpz_t n);
+extern int  _GMP_is_provable_prime(mpz_t n, char * prooftext);
 extern int  _GMP_is_aks_prime(mpz_t n);
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
 
 /* extern int _GMP_primality_pocklington(mpz_t n, int do_quick); */
-extern int _GMP_primality_bls(mpz_t n, int do_quick);
+extern int _GMP_primality_bls(mpz_t n, int do_quick, char ** prooftextptr);
 
 extern int  _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds);
 extern int  _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds);

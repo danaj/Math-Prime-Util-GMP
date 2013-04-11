@@ -302,7 +302,7 @@ int _GMP_is_prime(mpz_t n)
    * to about 50 digits).
    */
   if (mpz_sizeinbase(n, 2) <= 200) {
-    prob_prime = _GMP_primality_bls(n, 1);
+    prob_prime = _GMP_primality_bls(n, 1, 0);
     if (prob_prime < 0)
       return 0;
     if (prob_prime > 0)
@@ -311,7 +311,7 @@ int _GMP_is_prime(mpz_t n)
   return 1;
 }
 
-int _GMP_is_provable_prime(mpz_t n)
+int _GMP_is_provable_prime(mpz_t n, char* prooftext)
 {
   int prob_prime;
 
@@ -330,7 +330,7 @@ int _GMP_is_provable_prime(mpz_t n)
      )
     return 0;
 
-  prob_prime = _GMP_primality_bls(n, 0);
+  prob_prime = _GMP_primality_bls(n, 0, &prooftext);
   if (prob_prime < 0)
     return 0;
   if (prob_prime > 0)
@@ -481,9 +481,10 @@ int _GMP_is_aks_prime(mpz_t n)
  *
  * BLS: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
  *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
- *   - (A+1) * (2*A*A + (r-1) * A + 1) > n
- *   - a^(n-1) % n = 1
- *   - gcd(a^((n-1)/f)-1,n) = 1  for ALL factors f of A
+ *   - n < (A+1) * (2*A*A + (r-1) * A + 1)
+ *   - for each each factor f of A, there exists an a (1 < a < n-1) s.t.
+ *     - a^(n-1) % n = 1
+ *     - gcd(a^((n-1)/f)-1,n) = 1  for ALL factors f of A
  * then:
  *     if s = 0 or r*r - 8*s is not a perfect square
  *         n is prime
@@ -531,7 +532,7 @@ int _GMP_is_aks_prime(mpz_t n)
 #define primality_handle_factor(f, primality_func, factor_prob) \
   { \
     int f_prob_prime = _GMP_is_prob_prime(f); \
-    if ( (f_prob_prime == 1) && (primality_func(f, do_quick)) ) \
+    if ( (f_prob_prime == 1) && (primality_func(f, do_quick, prooftextptr)) ) \
       f_prob_prime = 2; \
     if (f_prob_prime == 2) { \
       if (fsp >= PRIM_STACK_SIZE) { success = 0; } \
@@ -668,7 +669,7 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
 }
 #endif
 
-int _GMP_primality_bls(mpz_t n, int do_quick)
+int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
 {
   mpz_t nm1, A, B, t, m, f, r, s;
   mpz_t mstack[PRIM_STACK_SIZE];
@@ -812,23 +813,27 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
     primality_handle_factor(m, _GMP_primality_bls, 0);
   }
 
-  if (success) {
-    int pcount, a, proper_r;
+  /* clear mstack since we don't care about it.  Use to hold a values. */
+  while (msp-- > 0)
+    mpz_clear(mstack[msp]);
+  msp = 0;
+
+  if (success > 0) {
+    mpz_mul(t, r, r);
+    mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
+    /* N is prime if and only if s=0 OR t not a perfect square */
+    /* So, N is a composite if s != 0 and t is perfect square */
+    if (mpz_sgn(s) != 0 && mpz_perfect_square_p(t))
+      success = -1;
+  }
+
+  if (success > 0) {
+    int pcount, a;
     int const alimit = do_quick ? 200 : 10000;
     mpz_t p, ap;
 
     mpz_init(p);
     mpz_init(ap);
-
-    proper_r = 0;
-    if (!mpz_sgn(s)) {
-      proper_r = 1;
-    } else {
-      mpz_mul(t, r, r);
-      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
-      if ( ! mpz_perfect_square_p(t) )
-        proper_r = 1;
-    }
 
     for (pcount = 0; success && pcount < fsp; pcount++) {
       PRIME_ITERATOR(iter);
@@ -848,22 +853,28 @@ int _GMP_primality_bls(mpz_t n, int do_quick)
         if (mpz_cmp_ui(t, 1) != 0)
           continue;
         success = 1;   /* We found an a for this p */
+        mpz_init_set(mstack[msp++], ap);
       }
       prime_iterator_destroy(&iter);
     }
-
-    /* If all cases hold then n is prime if and only if proper_r */
-    if ( success && !proper_r )
-      success = -1;
     mpz_clear(p);
     mpz_clear(ap);
   }
-  while (msp-- > 0) {
-    mpz_clear(mstack[msp]);
+  if (success > 0 && prooftextptr != 0 && *prooftextptr != 0) {
+    int i;
+    if (fsp != msp) croak("Different f and a counts\n");
+    *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd :", n);
+    for (i = 0; i < fsp; i++)
+      *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", fstack[i]);
+    *prooftextptr += gmp_sprintf(*prooftextptr, " :");
+    for (i = 0; i < msp; i++)
+      *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", mstack[i]);
+    *prooftextptr += gmp_sprintf(*prooftextptr, "\n");
   }
-  while (fsp-- > 0) {
+  while (fsp-- > 0)
     mpz_clear(fstack[fsp]);
-  }
+  while (msp-- > 0)
+    mpz_clear(mstack[msp]);
   mpz_clear(nm1);
   mpz_clear(A);
   mpz_clear(B);
