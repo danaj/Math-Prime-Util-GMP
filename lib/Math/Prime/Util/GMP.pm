@@ -79,31 +79,32 @@ sub is_strong_pseudoprime {
 }
 
 sub is_provable_prime {
-  my ($n, $proof) = @_;
+  my ($n) = @_;
   return 0 if $n < 2;
-  return _is_provable_prime($n) if !defined $proof;
+  return _is_provable_prime($n);
+}
 
-  croak "second argument must be an array ref" if ref($proof) ne 'ARRAY';
+sub is_provable_prime_with_cert {
+  my ($n) = @_;
+  my @composite = (0, []);
+  return @composite if $n < 2;
+
   my ($result, $text) = _is_provable_prime($n, 1);
-  if ($result == 0) {
-    @$proof = ();
-    return 0;
-  }
-  {
-    my %parts;
-    foreach my $part (split(/\n/, $text)) {
-      $part =~ /^(\d+) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
-      my($fn, $fstr, $astr) = ($1, $2, $3);
-      my @f = split(/ /, $fstr);
-      my @a = split(/ /, $astr);
-      foreach my $f (@f) {
-        $f = $parts{$f} if defined $parts{$f};
-      }
-      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+  return @composite if $result == 0;
+
+  my %parts;
+  foreach my $part (split(/\n/, $text)) {
+    $part =~ /^(\d+) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
+    my($fn, $fstr, $astr) = ($1, $2, $3);
+    my @f = split(/ /, $fstr);
+    my @a = split(/ /, $astr);
+    foreach my $f (@f) {
+      $f = $parts{$f} if defined $parts{$f};
     }
-    @$proof = @{$parts{$n}};
+    $parts{$fn} = [$fn, "n-1", [@f], [@a]];
   }
-  return $result;
+  return @composite if !defined $parts{$n};
+  return ($result, $parts{$n});
 }
 
 sub factor {
@@ -283,9 +284,29 @@ Takes a positive number as input and returns back either 0 (composite),
 taken to return either 0 or 2 for all numbers.
 
 The current method is the BLS75 algorithm as described in C<is_prime>,
-but using much more aggressive factoring.  Planned enhancements for a later
-release include using a faster method (e.g. APRCL or ECPP), and the ability
-to return a certificate.
+but using much more aggressive factoring.  A later version will include
+a faster method for large numbers (ECPP).  A certificate can be obtained
+along with the result using the L</is_provable_prime_with_cert> method.
+
+
+=head2 is_provable_prime_with_cert
+
+Takes a positive number as input and returns back an array with two elements.
+The result will be one of:
+
+  (0, [])      The input is composite.
+
+  (1, [])      The input is probably prime but we could not prove it.
+               This is a failure in our ability to factor some necessary
+               element in a reasonable time, not a significant proof
+               failure.
+
+  (2, [cert] ) The input is prime, and the certificate contains all the
+               information necessary to verify this.
+
+The certificate can be run through the L<Math::Prime::Util/verify_prime>
+function of L<Math::Prime::Util> for verification.  The current implementation
+will return a "n-1" type certificate from the BLS75 test.
 
 
 =head2 is_strong_pseudoprime

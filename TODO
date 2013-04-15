@@ -21,3 +21,5 @@
 - The statics in ecm and QS won't play well with threading.
 
 - document proof return from is_provable_prime, and use of verify_prime
+
+- add test for is_provable_prime_with_cert
