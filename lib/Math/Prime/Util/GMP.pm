@@ -15,6 +15,7 @@ our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
                      is_provable_prime
+                     is_provable_prime_with_cert
                      is_aks_prime
                      is_strong_pseudoprime
                      is_strong_lucas_pseudoprime
@@ -91,6 +92,7 @@ sub is_provable_prime_with_cert {
 
   my ($result, $text) = _is_provable_prime($n, 1);
   return @composite if $result == 0;
+  return ($result, [$n]) if !defined $text || $text eq '';
 
   my %parts;
   foreach my $part (split(/\n/, $text)) {
@@ -98,9 +100,13 @@ sub is_provable_prime_with_cert {
     my($fn, $fstr, $astr) = ($1, $2, $3);
     my @f = split(/ /, $fstr);
     my @a = split(/ /, $astr);
-    foreach my $f (@f) {
-      $f = $parts{$f} if defined $parts{$f};
-    }
+    # Sort f values after linking with associated a.
+    my @fa = sort {$a->[0] <=> $b->[0]}
+             map { [$f[$_],$a[$_]] }
+             0 .. $#f;
+    @f = map { defined $parts{$_} ? $parts{$_} : $_ }
+         map { $_->[0] } @fa;
+    @a = map { $_->[1] } @fa;
     $parts{$fn} = [$fn, "n-1", [@f], [@a]];
   }
   return @composite if !defined $parts{$n};
@@ -267,7 +273,7 @@ larger than C<2^64>, some additional tests are performed on probable primes
 to see if they can be proven by another means.
 
 Currently the method used once numbers have been marked probably
-prime by BPSW is the BLS75 method: Brillhart, Lehmer, and Selfridge's
+prime by BPSW is the BLS75 n-1 method: Brillhart, Lehmer, and Selfridge's
 improvement to the Pocklington-Lehmer primality test.  The test requires
 factoring C<n-1> to C<(n/2)^(1/3)>, compared to C<n^(1/2)> of the standard
 Pocklington-Lehmer or PPBLS test, or a complete factoring for the Lucas
@@ -363,7 +369,7 @@ base 2 being the other half).
 Takes a positive number as input, and returns 1 if the input passes the
 Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
 unconditional primality test which runs in polynomial time for general input.
-In practice, the BLS75 method used by is_provable_prime is much faster.
+In practice, the BLS75 n-1 method used by is_provable_prime is much faster.
 
 
 =head2 primes

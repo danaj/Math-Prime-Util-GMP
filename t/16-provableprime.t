@@ -3,13 +3,14 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_provable_prime/;
+use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert/;
 
 plan tests => 0 + 6
                 + 38
                 + 43
                 + 34
                 + 2
+                + 4   # _with_cert
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -84,3 +85,23 @@ foreach my $n (
 
 is(is_provable_prime('340282366920938463463374607431768211507'), 2, "is_prime(2**128+51) = 2");
 is(is_provable_prime('340282366920938463463374607431768211621'), 2, "is_provable_prime(2**128+165) == 2");
+
+is_deeply([is_provable_prime_with_cert(0)], [0, []], "is_provable_prime_with_cert(0)");
+is_deeply([is_provable_prime_with_cert(2)], [2, [2]], "is_provable_prime_with_cert(2)");
+is_deeply([is_provable_prime_with_cert(96953)], [2, [96953]], "is_provable_prime_with_cert(96953)");
+# We need to ensure this is the only possible return set for n.
+is_deeply([is_provable_prime_with_cert("848301847013166693538593241183")],
+ [2, ["848301847013166693538593241183", "n-1",
+      [2,3,11,13,12697,["77868535196553293845507", "n-1",
+                        [2,3,7,["1854012742775078424893", "n-1",
+                                [2,179,1091,2373421880872807],
+                                [2, 2, 2, 2] ] ],
+                        [2, 2, 2, 2] ] ],
+      [3, 3, 3, 2, 2, 2]
+     ]
+ ],
+ "is_provable_prime_with_cert(848301847013166693538593241183)");
+# These are nice and simple, but we could get different results back depending
+# on which factors got found first.
+#is_deeply([is_provable_prime_with_cert("316912650057057350374175801351")], [2, ["316912650057057350374175801351","n-1",[2, 5, 443, 487, 1451], [7, 2, 2, 2, 2]]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+#is_deeply([is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453")], [2, ["3138550867693340381917894711603833208051177722232017256453","n-1",[2, 3, 19, 43, 379, 87211, 5419, 119827], [2, 2, 2, 2, 2, 2, 2, 2],]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");

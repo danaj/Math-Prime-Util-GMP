@@ -153,7 +153,7 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
       if (ndig > 64) {
         nbytes += (3*ndig) * (ndig-64);
       }
-      New(0, prooftext, nbytes, char);
+      Newz(0, prooftext, nbytes, char);
       result = _GMP_is_provable_prime(n, prooftext);
       XPUSHs(sv_2mortal(newSViv( result )));
       XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));

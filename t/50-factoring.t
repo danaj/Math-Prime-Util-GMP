@@ -23,7 +23,7 @@ plan tests => 0 + 56
 #
 # The obvious point here is that we shouldn't generate tests using our own code,
 # unless we want to hand verify each case (admittedly not that hard).
-# 
+#
 #diag "factoring 32-bit numbers";
 is_deeply( [ factor(0) ], [0], "factor(0)" );
 is_deeply( [ factor(1) ], [1], "factor(1)" );

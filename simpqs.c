@@ -355,7 +355,7 @@ static unsigned char * primeSizes; /* array of sizes in bits of fb primes */
 #define RELATIONS_PER_PRIME 100
 static INLINE void set_relation(unsigned long* rel, unsigned int prime, unsigned int nrel, unsigned long val)
 {
-  if (nrel < RELATIONS_PER_PRIME)  
+  if (nrel < RELATIONS_PER_PRIME)
     rel[ prime*RELATIONS_PER_PRIME + nrel ] = val;
 }
 static INLINE unsigned long get_relation(unsigned long* rel, unsigned int prime, unsigned int nrel)
@@ -968,7 +968,7 @@ static int allprime_factor_array(mpz_t* farray, int nfacs)
   }
   return 1;
 }
-  
+
 static int insert_factor(mpz_t n, mpz_t* farray, int nfacs, mpz_t f)
 {
   int i, j;
@@ -1328,7 +1328,7 @@ static int mainRoutine(
       Safefree(Ainv2B[i]);
       mpz_clear(Bterms[i]);
     }
-    Safefree(exponents);  
+    Safefree(exponents);
     Safefree(aind);
     Safefree(amodp);
     Safefree(Ainv);

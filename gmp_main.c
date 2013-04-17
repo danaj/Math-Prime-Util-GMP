@@ -691,10 +691,11 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
   mpz_init(r);
   mpz_init(s);
 
+#define TRIAL_B1 2000
   { /* Pull small factors out */
     PRIME_ITERATOR(iter);
     UV tf;
-    for (tf = 2; tf < 2000; tf = prime_iterator_next(&iter)) {
+    for (tf = 2; tf < TRIAL_B1; tf = prime_iterator_next(&iter)) {
       if (mpz_cmp_ui(B, tf*tf) < 0) break;
       if (mpz_divisible_ui_p(B, tf)) {
         if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
@@ -728,6 +729,21 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
 
     if (mpz_cmp(m, n) > 0)
       break;
+#if 0
+    /* Theorem 7 would let us do this, though we also have to do one extra
+     * test at the end finding an a for B (treat the unfactored part B as if
+     * it was the last factor). */
+    mpz_mul(m, t, A);           /* m = 2*A*A               */
+    mpz_sub_ui(t, r, TRIAL_B1); /* t = r-B1                */
+    mpz_mul(t, t, A);           /* t = A*(r-B1)            */
+    mpz_add(m, m, t);           /* m = 2A^2 + A(r-B1)      */
+    mpz_add_ui(m, m, 1);        /* m = 2A^2 + A(r-B1) + 1  */
+    mpz_mul_ui(t, A, TRIAL_B1);
+    mpz_add_ui(t, t, 1);        /* t = B1*A+1              */
+    mpz_mul(m, m, t);           /* m = (B1*A+1)*(2A^2+(r-B1)A+1) */
+    if (mpz_cmp(m, n) > 0)
+      break;
+#endif
     success = 0;
     /* If the stack is empty, we have failed. */
     if (msp == 0)
