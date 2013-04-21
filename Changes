@@ -1,6 +1,6 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.09  1x April 2013
+0.09  21 April 2013
 
     - Add primality certificate generation.
 
