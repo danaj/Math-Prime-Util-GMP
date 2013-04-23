@@ -1,5 +1,13 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.10  xx April 2013
+
+    - Change polynomial multiplication to use binary segmentation.  Huge
+      speed improvement for AKS primality proving (20-100x faster).  AKS
+      is now faster in GMP than MPU's C code.  It's still not nearly as fast
+      as other methods: proving 100000000003 takes 65 seconds, while this
+      would take a couple milliseconds at most for an n-1 proof.
+
 0.09  21 April 2013
 
     - Add primality certificate generation.

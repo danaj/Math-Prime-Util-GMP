@@ -264,7 +264,8 @@ UV mpz_order_ui(UV r, mpz_t n, UV limit) {
 
 
 
-
+#if 0
+/* Simple polynomial multiplication */
 void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
 {
   UV i, j, prindex;
@@ -283,7 +284,6 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, mpz_t* ptmp, UV r, mpz_t mod)
   for (i = 0; i < r; i++)
     mpz_mod(px[i], ptmp[i], mod);
 }
-
 void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
 {
   UV i, d, s;
@@ -306,22 +306,118 @@ void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
   for (i = 0; i < r; i++)
     mpz_mod(px[i], ptmp[i], mod);
 }
+#endif
 
-void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t *ptmp, mpz_t power, UV r, mpz_t mod)
+#if 0
+/* Binary segmentation, using simple shift+add method for processing p.
+ * Faster than twiddling bits, but not nearly as fast as import/export.
+ */
+void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
+{
+  UV i, d, bits;
+  UV degree = r-1;
+
+  mpz_mul(t, mod, mod);
+  mpz_mul_ui(t, t, r);
+  bits = mpz_sizeinbase(t, 2);
+
+  mpz_set_ui(p, 0);
+  for (i = 0; i < r; i++) {
+    mpz_mul_2exp(p, p, bits);
+    mpz_add(p, p, px[r-i-1]);
+  }
+
+  if (px == py) {
+    mpz_mul(p, p, p);
+  } else {
+    mpz_set_ui(p2, 0);
+    for (i = 0; i < r; i++) {
+      mpz_mul_2exp(p2, p2, bits);
+      mpz_add(p2, p2, py[r-i-1]);
+    }
+    mpz_mul(p, p, p2);
+  }
+
+  for (d = 0; d <= 2*degree; d++) {
+    mpz_tdiv_r_2exp(t, p, bits);
+    mpz_tdiv_q_2exp(p, p, bits);
+    if (d < r)
+      mpz_set(px[d], t);
+    else
+      mpz_add(px[d-r], px[d-r], t);
+  }
+  for (i = 0; i < r; i++)
+    mpz_mod(px[i], px[i], mod);
+}
+#endif
+
+/* Binary segmentation, using import/export method for processing p.
+ * Thanks to Dan Bernstein's 2007 Quartic paper.
+ */
+void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
+{
+  UV i, bytes;
+  char* s;
+
+  mpz_mul(t, mod, mod);
+  mpz_mul_ui(t, t, r);
+  bytes = mpz_sizeinbase(t, 256);
+  mpz_set_ui(p, 0);
+  mpz_set_ui(p2, 0);
+
+  /* 1. Create big integers from px and py with padding. */
+  {
+    Newz(0, s, r*bytes, char);
+    for (i = 0; i < r; i++)
+      mpz_export(s + i*bytes, NULL, -1, 1, 0, 0, px[i]);
+    mpz_import(p, r*bytes, -1, 1, 0, 0, s);
+    Safefree(s);
+  }
+  if (px != py) {
+    Newz(0, s, r*bytes, char);
+    for (i = 0; i < r; i++)
+      mpz_export(s + i*bytes, NULL, -1, 1, 0, 0, py[i]);
+    mpz_import(p2, r*bytes, -1, 1, 0, 0, s);
+    Safefree(s);
+  }
+
+  /* 2. Multiply using the awesomeness that is GMP. */
+  mpz_mul( p, p, (px == py) ? p : p2 );
+
+  /* 3. Pull out the parts of the result, add+mod, and put in px. */
+  {
+    Newz(0, s, 2*r*bytes, char);
+    /* fill s with data from p */
+    mpz_export(s, NULL, -1, 1, 0, 0, p);
+    for (i = 0; i < r; i++) {
+      /* Set px[i] to the top part, t to the bottom. */
+      mpz_import(px[i], bytes, -1, 1, 0, 0, s + (i+r)*bytes);
+      mpz_import(t,     bytes, -1, 1, 0, 0, s +     i*bytes);
+      /* Add and mod */
+      mpz_add(px[i], px[i], t);
+      mpz_mod(px[i], px[i], mod);
+    }
+    Safefree(s);
+  }
+}
+
+void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod)
 {
   UV i;
-  mpz_t mpow;
+  mpz_t mpow, t1, t2, t3;
 
   for (i = 0; i < r; i++)
     mpz_set_ui(pres[i], 0);
   mpz_set_ui(pres[0], 1);
 
   mpz_init_set(mpow, power);
+  mpz_init(t1);  mpz_init(t2);  mpz_init(t3);
 
   while (mpz_cmp_ui(mpow, 0) > 0) {
-    if (mpz_odd_p(mpow))            poly_mod_mul(pres, pn, ptmp, r, mod);
+    if (mpz_odd_p(mpow))            poly_mod_mul(pres, pn, r, mod, t1, t2, t3);
     mpz_tdiv_q_2exp(mpow, mpow, 1);
-    if (mpz_cmp_ui(mpow, 0) > 0)    poly_mod_sqr(pn, ptmp, r, mod);
+    if (mpz_cmp_ui(mpow, 0) > 0)    poly_mod_mul(pn, pn, r, mod, t1, t2, t3);
   }
+  mpz_clear(t1);  mpz_clear(t2);  mpz_clear(t3);
   mpz_clear(mpow);
 }

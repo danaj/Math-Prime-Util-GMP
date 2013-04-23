@@ -341,7 +341,7 @@ int _GMP_is_provable_prime(mpz_t n, char* prooftext)
 /*****************************************************************************/
 /*          AKS.    This implementation is quite slow, but useful to have.   */
 
-static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
+static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
 {
   int retval = 1;
   UV i, n_mod_r;
@@ -354,7 +354,7 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
   mpz_set_ui(px[0], a);
   mpz_set_ui(px[1], 1);
 
-  poly_mod_pow(py, px, ptmp, n, r, n);
+  poly_mod_pow(py, px, n, r, n);
 
   mpz_init(t);
   n_mod_r = mpz_mod_ui(t, n, r);
@@ -374,7 +374,7 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py, mpz_t* ptmp)
 int _GMP_is_aks_prime(mpz_t n)
 {
   mpz_t sqrtn;
-  mpz_t *px, *py, *pt;
+  mpz_t *px, *py;
   int retval;
   UV i, log2n, limit, rlimit, r, a;
   PRIME_ITERATOR(iter);
@@ -427,18 +427,16 @@ int _GMP_is_aks_prime(mpz_t n)
   /* Create the three polynomials we will use */
   New(0, px, r, mpz_t);
   New(0, py, r, mpz_t);
-  New(0, pt, r, mpz_t);
-  if ( !px || !py || !pt )
+  if ( !px || !py )
     croak("allocation failure\n");
   for (i = 0; i < r; i++) {
     mpz_init(px[i]);
     mpz_init(py[i]);
-    mpz_init(pt[i]);
   }
 
   retval = 1;
   for (a = 1; a <= rlimit; a++) {
-    if (! test_anr(a, n, r, px, py, pt) ) {
+    if (! test_anr(a, n, r, px, py) ) {
       retval = 0;
       break;
     }
@@ -450,11 +448,9 @@ int _GMP_is_aks_prime(mpz_t n)
   for (i = 0; i < r; i++) {
     mpz_clear(px[i]);
     mpz_clear(py[i]);
-    mpz_clear(pt[i]);
   }
   Safefree(px);
   Safefree(py);
-  Safefree(pt);
 
   return retval;
 }
