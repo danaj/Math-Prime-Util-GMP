@@ -257,7 +257,8 @@ UV mpz_order_ui(UV r, mpz_t n, UV limit) {
   mpz_init_set_ui(t, 1);
   for (j = 1; j <= limit; j++) {
     mpz_mul(t, t, n);
-    if (mpz_congruent_ui_p(t, 1, r))
+    mpz_mod_ui(t, t, r);
+    if (!mpz_cmp_ui(t, 1))
       break;
   }
   mpz_clear(t);
