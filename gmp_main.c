@@ -376,7 +376,8 @@ int _GMP_is_aks_prime(mpz_t n)
   mpz_t sqrtn;
   mpz_t *px, *py;
   int retval;
-  UV i, log2n, limit, rlimit, r, a;
+  UV i, limit, rlimit, r, a;
+  double log2n;
   PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
@@ -389,9 +390,20 @@ int _GMP_is_aks_prime(mpz_t n)
 
   mpz_init(sqrtn);
   mpz_sqrt(sqrtn, n);
-  /* limit should be floor(log2(n) * log2(n)).  This overcalculates it. */
-  log2n = mpz_sizeinbase(n, 2);  /* ceil log2(n) */
-  limit = log2n * log2n;
+  /* limit should be floor( log2(n) ** 2 ).  The simple GMP solution is
+   * to get ceil(log2(n)) viz mpz_sizeinbase(n,2) and square, but that
+   * overcalculates by a fair amount.  We'll calculate float log2n as:
+   *   ceil(log2(n**k)) / k  [mpz_sizeinbase(n,2) <=> ceil(log2(n))]
+   * which gives us a value that slightly overestimates log2(n).
+   */
+  {
+    mpz_t t;
+    mpz_init(t);
+    mpz_pow_ui(t, n, 32);
+    log2n = ((double) mpz_sizeinbase(t, 2) + 0.000001) / 32.0;
+    limit = (UV) floor( log2n * log2n );
+    mpz_clear(t);
+  }
 
   if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %lu\n", n, (unsigned long) limit);
 
