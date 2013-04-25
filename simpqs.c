@@ -252,7 +252,7 @@ static unsigned int gaussReduce(matrix_t m, unsigned int cols, unsigned int rows
 
 /*===========================================================================*/
 /*  Large prime cutoffs, in thousands */
-static unsigned int largeprimes[] =
+static const unsigned int largeprimes[] =
 {
    100,  100,  125,   125,   150,   150,   175,   175,   200,   200, /* 30-39 */
    250,  300,  370,   440,   510,   580,   650,   720,   790,  8600, /* 40-49 */
@@ -267,7 +267,7 @@ static unsigned int largeprimes[] =
 
 /*===========================================================================*/
 /* Number of primes to use in factor base */
-static unsigned int primesNo[] =
+static const unsigned int primesNo[] =
 {
      1500, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, /* 30-39 */
      1600, 1600, 1600, 1700, 1750, 1800, 1900, 2000, 2050, 2100, /* 40-49 */
@@ -282,7 +282,7 @@ static unsigned int primesNo[] =
 
 /*===========================================================================*/
 /* First prime actually sieved for */
-static unsigned int firstPrimes[] =
+static const unsigned int firstPrimes[] =
 {
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3, /* 30-39 */
       3,  3,  3,  4,  6,  6,  7,  8,  9, 10, /* 40-49 */
@@ -298,7 +298,7 @@ static unsigned int firstPrimes[] =
 /*===========================================================================*/
 /* Logs of primes are rounded and errors accumulate
  * This specifies how great an error to allow */
-static unsigned int errorAmounts[] =
+static const unsigned int errorAmounts[] =
 {
      10, 10, 10, 11, 13, 14, 14, 15, 15, 16, /* 30-39 */
      16, 17, 17, 18, 18, 19, 19, 19, 20, 20, /* 40-49 */
@@ -313,7 +313,7 @@ static unsigned int errorAmounts[] =
 
 /*===========================================================================*/
 /* Threshold the sieve value must exceed to be considered for smoothness */
-static unsigned int thresholds[] =
+static const unsigned int thresholds[] =
 {
      63, 63, 63, 64, 64, 64, 65, 65, 65, 66, /* 30-39 */
      66, 67, 67, 68, 68, 68, 69, 69, 69, 69, /* 40-49 */
@@ -329,7 +329,7 @@ static unsigned int thresholds[] =
 /*===========================================================================*/
 /* Size of sieve to use divided by 2
  * Optimal if chosen to be a multiple of 32000 */
-static unsigned int sieveSize[] =
+static const unsigned int sieveSize[] =
 {
      64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 30-39 */
      64000,64000,64000,64000,64000,64000,64000,64000,64000,64000, /* 40-49 */
