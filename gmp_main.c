@@ -677,6 +677,54 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
 }
 #endif
 
+/* If set, then tries to apply theorem 7 in addition to theorem 5 */
+#define BLS_THEOREM7 0
+
+static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
+                              mpz_t t, mpz_t y, mpz_t r, mpz_t s)
+{
+  mpz_mul(t, A, B);
+  mpz_add_ui(t, t, 1);
+  if (mpz_cmp(t, n) != 0) croak("BLS75:  A*B != n\n");
+
+  mpz_mul_ui(t, A, 2);
+  mpz_tdiv_qr(s, r, B, t);
+
+  mpz_mul(y, t, A);     /* y = 2*A*A              */
+  mpz_sub_ui(t, r, 1);  /* t = r-1                */
+  mpz_mul(t, t, A);     /* t = A*(r-1)            */
+  mpz_add(y, y, t);     /* y = 2A^2 + A(r-1)      */
+  mpz_add_ui(y, y, 1);  /* y = 2A^2 + A(r-1) + 1  */
+  mpz_add_ui(t, A, 1);  /* t = A+1                */
+  mpz_mul(y, y, t);     /* y = (A+1)*(2A^2+(r-1)A+1) */
+
+  return (mpz_cmp(n, y) < 0) ? 1 : 0;
+}
+
+#if BLS_THEOREM7
+static int bls_theorem7_limit(mpz_t n, mpz_t A, mpz_t B, UV B1,
+                              mpz_t t, mpz_t y, mpz_t r, mpz_t s)
+{
+  mpz_mul(t, A, B);
+  mpz_add_ui(t, t, 1);
+  if (mpz_cmp(t, n) != 0) croak("BLS75:  A*B != n-1\n");
+
+  mpz_mul_ui(t, A, 2);
+  mpz_tdiv_qr(s, r, B, t);
+
+  mpz_mul(y, t, A);     /* y = 2*A*A              */
+  mpz_sub_ui(t, r, B1); /* t = r-B1               */
+  mpz_mul(t, t, A);     /* t = A*(r-B1)           */
+  mpz_add(y, y, t);     /* y = 2A^2 + A(r-B1)     */
+  mpz_add_ui(y, y, 1);  /* y = 2A^2 + A(r-B1) + 1 */
+  mpz_mul_ui(t, A, B1); /* t = A*B1               */
+  mpz_add_ui(t, t, 1);  /* t = A*B1+1             */
+  mpz_mul(y, y, t);     /* y = (A*B1+1)*(2A^2+(r-B1)A+1) */
+
+  return (mpz_cmp(n, y) < 0) ? 1 : 0;
+}
+#endif
+
 int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
 {
   mpz_t nm1, A, B, t, m, f, r, s;
@@ -685,6 +733,8 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
   int msp = 0;
   int fsp = 0;
   int success = 1;
+  int theorem7 = 0;
+  UV B1 = 2000;
 
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return -1;
@@ -699,11 +749,10 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
   mpz_init(r);
   mpz_init(s);
 
-#define TRIAL_B1 2000
   { /* Pull small factors out */
     PRIME_ITERATOR(iter);
     UV tf;
-    for (tf = 2; tf < TRIAL_B1; tf = prime_iterator_next(&iter)) {
+    for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
       if (mpz_cmp_ui(B, tf*tf) < 0) break;
       if (mpz_divisible_ui_p(B, tf)) {
         if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
@@ -723,34 +772,18 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
   }
 
   while (success) {
-    mpz_mul_ui(t, A, 2);
-    mpz_tdiv_q(s, B, t);
-    mpz_mod(r, B, t);
 
-    mpz_mul(m, t, A);    /* m = 2*A*A              */
-    mpz_sub_ui(t, r, 1); /* t = r-1                */
-    mpz_mul(t, t, A);    /* t = A*(r-1)            */
-    mpz_add(m, m, t);    /* m = 2A^2 + A(r-1)      */
-    mpz_add_ui(m, m, 1); /* m = 2A^2 + A(r-1) + 1  */
-    mpz_add_ui(t, A, 1);
-    mpz_mul(m, m, t);
+    if (bls_theorem5_limit(n, A, B, t, m, r, s))
+      break;
 
-    if (mpz_cmp(m, n) > 0)
+#if BLS_THEOREM7
+    /* With theorem 7, we can exit even earlier if we know the lower limit
+     * on the size of the factors of B.  We need to do an additional test
+     * at the end (treat B as if it was the last factor). */
+    if (bls_theorem7_limit(n, A, B, B1, t, m, r, s)) {
+      theorem7 = 1;
       break;
-#if 0
-    /* Theorem 7 would let us do this, though we also have to do one extra
-     * test at the end finding an a for B (treat the unfactored part B as if
-     * it was the last factor). */
-    mpz_mul(m, t, A);           /* m = 2*A*A               */
-    mpz_sub_ui(t, r, TRIAL_B1); /* t = r-B1                */
-    mpz_mul(t, t, A);           /* t = A*(r-B1)            */
-    mpz_add(m, m, t);           /* m = 2A^2 + A(r-B1)      */
-    mpz_add_ui(m, m, 1);        /* m = 2A^2 + A(r-B1) + 1  */
-    mpz_mul_ui(t, A, TRIAL_B1);
-    mpz_add_ui(t, t, 1);        /* t = B1*A+1              */
-    mpz_mul(m, m, t);           /* m = (B1*A+1)*(2A^2+(r-B1)A+1) */
-    if (mpz_cmp(m, n) > 0)
-      break;
+    }
 #endif
     success = 0;
     /* If the stack is empty, we have failed. */
@@ -797,6 +830,27 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
       if (!success)  success = _GMP_ECM_FACTOR(m, f, 2000, 20);
       if (!success)  success = _GMP_pminus1_factor(m, f, 200000, 4000000);
       if (!success)  success = _GMP_ECM_FACTOR(m, f, 10000, 10);
+#if BLS_THEOREM7
+      /* Could we exit now if B1 was larger? */
+      if (!success) {
+        UV newB1 = B1;
+        if      (bls_theorem7_limit(n,A,B,    10000,t,f,r,s)) newB1 = 10000;
+        else if (bls_theorem7_limit(n,A,B,  1000000,t,f,r,s)) newB1 = 1000000;
+        else if (bls_theorem7_limit(n,A,B,100000000,t,f,r,s)) newB1 = 100000000;
+        if (newB1 > B1) {
+          UV tf = _GMP_trial_factor(m, B1, newB1);
+          if (tf == 0) {
+            B1 = newB1;
+            continue; /* Go back to the top and we'll retest with this B1 */
+          } else {
+            /* Holy trial factorization, Batman! */
+            B1 = tf;
+            mpz_set_ui(f, tf);
+            success = 1;
+          }
+        }
+      }
+#endif
       /* QS.  Uses lots of memory, but finds multiple factors quickly */
       if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,2)<300) {
             mpz_t farray[66];
@@ -843,6 +897,10 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
   msp = 0;
 
   if (success > 0) {
+    /* Calculate r and s from final A/B values */
+    mpz_mul_ui(t, A, 2);
+    mpz_tdiv_qr(s, r, B, t);
+
     mpz_mul(t, r, r);
     mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
     /* N is prime if and only if s=0 OR t not a perfect square */
@@ -858,6 +916,12 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
 
     mpz_init(p);
     mpz_init(ap);
+
+    if (theorem7) {
+      /* Theorem 7 used, so add B to the factor list so it gets checked */
+      if (fsp >= PRIM_STACK_SIZE) { croak("BLS75 stack overflow\n"); }
+      mpz_init_set(fstack[fsp++], B);
+    }
 
     for (pcount = 0; success && pcount < fsp; pcount++) {
       PRIME_ITERATOR(iter);
@@ -888,6 +952,13 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
     int i;
     if (fsp != msp) croak("Different f and a counts\n");
     *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd :", n);
+    if (theorem7) {
+      *prooftextptr += gmp_sprintf(*prooftextptr, " %lu %Zd %Zd :",
+                       B1, fstack[--fsp], mstack[--msp]);
+       mpz_clear(fstack[fsp]);  mpz_clear(mstack[msp]);
+    } else {
+      *prooftextptr += gmp_sprintf(*prooftextptr, " 1 %Zd 0 :", B);
+    }
     for (i = 0; i < fsp; i++)
       *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", fstack[i]);
     *prooftextptr += gmp_sprintf(*prooftextptr, " :");

@@ -8,6 +8,10 @@ Revision history for Perl extension Math::Prime::Util::GMP
       as other methods: proving 100000000003 takes 65 seconds, while this
       would take a couple milliseconds at most for an n-1 proof.
 
+    - Compile-time support to BLS75 theorem 7, which reduces the amount of
+      n-1 we need to factor.  Not enabling because it just doesn't help
+      enough, and ECPP is a better place to spend development effort.
+
 0.09  21 April 2013
 
     - Add primality certificate generation.

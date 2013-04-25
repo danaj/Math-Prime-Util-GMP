@@ -96,8 +96,9 @@ sub is_provable_prime_with_cert {
 
   my %parts;
   foreach my $part (split(/\n/, $text)) {
-    $part =~ /^(\d+) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
-    my($fn, $fstr, $astr) = ($1, $2, $3);
+    $part =~ /^(\d+) : (.*) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
+    my($fn, $t7str, $fstr, $astr) = ($1, $2, $3, $4);
+    my @t7 = split(/ /, $t7str);
     my @f = split(/ /, $fstr);
     my @a = split(/ /, $astr);
     # Sort f values after linking with associated a.
@@ -107,7 +108,12 @@ sub is_provable_prime_with_cert {
     @f = map { defined $parts{$_} ? $parts{$_} : $_ }
          map { $_->[0] } @fa;
     @a = map { $_->[1] } @fa;
-    $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+    if ($t7[0] != 1) {
+      # Theorem 7: supply [B1, B, a]
+      $parts{$fn} = [$fn, "n-1 T7", [@t7], [@f], [@a]];
+    } else {
+      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+    }
   }
   return @composite if !defined $parts{$n};
   return ($result, $parts{$n});
