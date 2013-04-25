@@ -26,4 +26,7 @@ extern int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
 /* Solve x^2 + |D|y^2 = 4p */
 extern int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
 
+/* return a Hilbert poly */
+extern UV poly_hilbert(IV D, mpz_t**T);
+
 #endif
