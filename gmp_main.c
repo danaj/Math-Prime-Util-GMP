@@ -378,7 +378,7 @@ int _GMP_is_aks_prime(mpz_t n)
   int retval;
   UV i, limit, rlimit, r, a;
   double log2n;
-  PRIME_ITERATOR(iter);
+  /* PRIME_ITERATOR(iter); */
 
   if (mpz_cmp_ui(n, 4) < 0) {
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
@@ -411,21 +411,22 @@ int _GMP_is_aks_prime(mpz_t n)
    * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
    * far too slow to matter either way. */
 
-  for (r = 2; mpz_cmp_ui(n, r) >= 0; r = prime_iterator_next(&iter)) {
+  /* Note, since order_r(n) can never be > r, we should start r at limit+1 */
+  for (r = limit+1; mpz_cmp_ui(n, r) >= 0; r++) {
     if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
-      prime_iterator_destroy(&iter);
+      /* prime_iterator_destroy(&iter); */
       mpz_clear(sqrtn);
       return 0;
     }
     if (mpz_cmp_ui(sqrtn, r) < 0) {  /* no r <= sqrtn divides n.  prime. */
-      prime_iterator_destroy(&iter);
+      /* prime_iterator_destroy(&iter); */
       mpz_clear(sqrtn);
       return 1;
     }
     if (mpz_order_ui(r, n, limit) > limit)
       break;
   }
-  prime_iterator_destroy(&iter);
+  /* prime_iterator_destroy(&iter); */
   mpz_clear(sqrtn);
 
   if (mpz_cmp_ui(n, r) <= 0) {

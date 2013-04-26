@@ -9,5 +9,6 @@ prime_iterator.o
 small_factor.o
 ecm.o
 simpqs.o
+utility.o
 blib*
 pm_to_blib
