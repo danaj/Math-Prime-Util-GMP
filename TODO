@@ -19,3 +19,7 @@
 - Write our own QS.
 
 - The statics in ecm and QS won't play well with threading.
+
+- Verify Hilbert class polynomials with SAGE if possible.
+
+- More storage work for HCPs in utility.c
