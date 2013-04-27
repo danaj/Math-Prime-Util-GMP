@@ -6,9 +6,12 @@
 #include "ptypes.h"
 #endif
 
-/* tdiv_r is faster, but we'd need to guarantee in the input is positive */
+/* tdiv_r is faster, but we'd need to guarantee the input is positive */
 #define mpz_mulmod(r, a, b, n, t)  \
   do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
+
+#undef mpz_divmod
+extern int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t);
 
 /* s = sqrt(a) mod p */
 extern int sqrtmod(mpz_t s, mpz_t a, mpz_t p,
