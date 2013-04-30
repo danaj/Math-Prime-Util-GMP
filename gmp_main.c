@@ -338,6 +338,20 @@ int _GMP_is_provable_prime(mpz_t n, char* prooftext)
   return 1;
 }
 
+#if 0
+  /* This would be useful for a Bernstein AKS variant */
+static UV largest_factor(UV n) {
+  UV p = 2;
+  PRIME_ITERATOR(iter);
+  while (n >= p*p && !prime_iterator_isprime(&iter, n)) {
+    while ( (n % p) == 0  &&  n >= p*p ) { n /= p; }
+    p = prime_iterator_next(&iter);
+  }
+  prime_iterator_destroy(&iter);
+  return n;
+}
+#endif
+
 /*****************************************************************************/
 /*          AKS.    This implementation is quite slow, but useful to have.   */
 
