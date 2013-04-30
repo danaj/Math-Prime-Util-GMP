@@ -24,13 +24,11 @@
     if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
   }
 
-struct _ec_point  { mpz_t x, y; };
-
 /* P3 = P1 + P2 */
 static void _ec_add_AB(mpz_t n,
-                    struct _ec_point P1,
-                    struct _ec_point P2,
-                    struct _ec_point *P3,
+                    struct ec_affine_point P1,
+                    struct ec_affine_point P2,
+                    struct ec_affine_point *P3,
                     mpz_t m,
                     mpz_t t1,
                     mpz_t t2)
@@ -48,7 +46,7 @@ static void _ec_add_AB(mpz_t n,
   mpz_sub(t1, P2.x, P1.x);
   mpz_mod(t2, t1, n);
 
-  /* m = (y2 - y1) * (x2 - x1)^-1 mod n */
+  /* t1 = 1/deltay mod n */
   if (!mpz_invert(t1, t2, n)) {
     /* We've found a factor!  In multiply, gcd(mult,n) will be a factor. */
     mpz_set_ui(P3->x, 0);
@@ -57,9 +55,9 @@ static void _ec_add_AB(mpz_t n,
   }
 
   mpz_sub(m, P2.y, P1.y);
-  mpz_mod(t2, m, n);        /* t2 = deltay */
+  mpz_mod(t2, m, n);        /* t2 = deltay   mod n */
   mpz_mul(m, t1, t2);
-  mpz_mod(m, m, n);         /* m = deltay / deltax */
+  mpz_mod(m, m, n);         /* m = deltay / deltax   mod n */
 
   /* x3 = m^2 - x1 - x2 mod n */
   mpz_mul(t1, m, m);
@@ -76,8 +74,8 @@ static void _ec_add_AB(mpz_t n,
 /* P3 = 2*P1 */
 static void _ec_add_2A(mpz_t a,
                     mpz_t n,
-                    struct _ec_point P1,
-                    struct _ec_point *P3,
+                    struct ec_affine_point P1,
+                    struct ec_affine_point *P3,
                     mpz_t m,
                     mpz_t t1,
                     mpz_t t2)
@@ -108,10 +106,10 @@ static void _ec_add_2A(mpz_t a,
   mpz_tdiv_r(P3->y, t1, n);
 }
 
-static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_point *R, mpz_t d)
+int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
 {
   int found = 0;
-  struct _ec_point A, B, C;
+  struct ec_affine_point A, B, C;
   mpz_t t, t2, t3, mult;
 
   mpz_init(A.x); mpz_init(A.y);
@@ -123,9 +121,9 @@ static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_p
   mpz_set(A.x, P.x);  mpz_set(A.y, P.y);
   mpz_set_ui(B.x, 0); mpz_set_ui(B.y, 1);
 
-  /* Binary ladder multiply.  Should investigate Lucas chains. */
-  while (k > 0) {
-    if ( k & 1 ) {
+  /* Binary ladder multiply. */
+  while (mpz_cmp_ui(k, 0) > 0) {
+    if (mpz_odd_p(k)) {
       mpz_sub(t, B.x, A.x);
       mpz_mul(t2, mult, t);
       mpz_mod(mult, t2, n);
@@ -139,7 +137,7 @@ static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_p
         /* If the add failed to invert, then we have a factor. */
         mpz_set(B.x, C.x);  mpz_set(B.y, C.y);
       }
-      k--;
+      mpz_sub_ui(k, k, 1);
     } else {
       mpz_mul_ui(t, A.y, 2);
       mpz_mul(t2, mult, t);
@@ -147,7 +145,7 @@ static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_p
 
       _ec_add_2A(a, n, A, &C, t, t2, t3);
       mpz_set(A.x, C.x);  mpz_set(A.y, C.y);
-      k >>= 1;
+      mpz_tdiv_q_2exp(k, k, 1);
     }
   }
   mpz_gcd(d, mult, n);
@@ -167,14 +165,14 @@ static int _ec_multiply(mpz_t a, UV k, mpz_t n, struct _ec_point P, struct _ec_p
 
 int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
 {
-  mpz_t a;
-  struct _ec_point X, Y;
+  mpz_t a, mk;
+  struct ec_affine_point X, Y;
   UV B, curve, q;
   gmp_randstate_t* p_randstate = _GMP_get_randstate();
 
   TEST_FOR_2357(n, f);
 
-  mpz_init(a);
+  mpz_init(a);   mpz_init(mk);
   mpz_init(X.x); mpz_init(X.y);
   mpz_init(Y.x); mpz_init(Y.y);
 
@@ -191,7 +189,8 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
         while (k <= kmin)
           k *= q;
 
-        if (_ec_multiply(a, k, n, X, &Y, f)) {
+        mpz_set_ui(mk, k);
+        if (ec_affine_multiply(a, mk, n, X, &Y, f)) {
           prime_iterator_destroy(&iter);
           mpz_clear(a);
           mpz_clear(X.x); mpz_clear(X.y);
@@ -207,7 +206,7 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
     }
   }
 
-  mpz_clear(a);
+  mpz_clear(a);   mpz_clear(mk);
   mpz_clear(X.x); mpz_clear(X.y);
   mpz_clear(Y.x); mpz_clear(Y.y);
 
