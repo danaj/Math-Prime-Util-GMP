@@ -12,6 +12,9 @@ Revision history for Perl extension Math::Prime::Util::GMP
       n-1 we need to factor.  Not enabling because it just doesn't help
       enough, and ECPP is a better place to spend development effort.
 
+    - Lots of new internal functions to support ECPP, which could be used
+      for future projects.
+
 0.09  21 April 2013
 
     - Add primality certificate generation.

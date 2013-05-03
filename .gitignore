@@ -8,6 +8,7 @@ gmp_main.o
 prime_iterator.o
 small_factor.o
 ecm.o
+ecpp.o
 simpqs.o
 utility.o
 blib*
