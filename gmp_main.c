@@ -302,7 +302,7 @@ int _GMP_is_prime(mpz_t n)
    * to about 50 digits).
    */
   if (mpz_sizeinbase(n, 2) <= 200) {
-    prob_prime = _GMP_primality_bls(n, 1, 0);
+    prob_prime = _GMP_primality_bls(n, 2 /* effort */, 0 /* proof */);
     if (prob_prime < 0)
       return 0;
     if (prob_prime > 0)
@@ -330,7 +330,7 @@ int _GMP_is_provable_prime(mpz_t n, char* prooftext)
      )
     return 0;
 
-  prob_prime = _GMP_primality_bls(n, 0, &prooftext);
+  prob_prime = _GMP_primality_bls(n, 100, &prooftext);
   if (prob_prime < 0)
     return 0;
   if (prob_prime > 0)
@@ -555,7 +555,7 @@ int _GMP_is_aks_prime(mpz_t n)
 #define primality_handle_factor(f, primality_func, factor_prob) \
   { \
     int f_prob_prime = _GMP_is_prob_prime(f); \
-    if ( (f_prob_prime == 1) && (primality_func(f, do_quick, prooftextptr)) ) \
+    if ( (f_prob_prime == 1) && (primality_func(f, effort, prooftextptr)) ) \
       f_prob_prime = 2; \
     if (f_prob_prime == 2) { \
       if (fsp >= PRIM_STACK_SIZE) { success = 0; } \
@@ -740,7 +740,7 @@ static int bls_theorem7_limit(mpz_t n, mpz_t A, mpz_t B, UV B1,
 }
 #endif
 
-int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
+int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, A, B, t, m, f, r, s;
   mpz_t mstack[PRIM_STACK_SIZE];
@@ -819,7 +819,11 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
           mpz_set_ui(f, ui_factors[0]);
       }
     }
-    if (do_quick) {
+    if (effort >= 1) {
+      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
+      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+    }
+    if (!success && effort == 2) {
       /* These keep the time in the realm of 2ms per input number, which
        * means they adjust for size.  Success varies by size:
        *   99% of  70-bit inputs
@@ -832,40 +836,41 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
       UV brent_rounds = (log2m <= 64) ? 100000 : 100000 / (log2m-63);
       int final_B2 = 1000 * (150-(int)log2m);
       if (log2m < 70) brent_rounds *= 3;
-      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
       if (!success && log2m < 80)  success = _GMP_ECM_FACTOR(m, f, 150, 5);
       if (!success)  success = _GMP_pbrent_factor(m, f, 3, brent_rounds);
       if (!success && final_B2 > 10000)  success = _GMP_pminus1_factor(m, f, 10000, final_B2);
-    } else {
-      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
+    }
+    if (!success && effort >= 3) {
       if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 200000);
       if (!success)  success = _GMP_ECM_FACTOR(m, f, 500, 30);
       if (!success)  success = _GMP_ECM_FACTOR(m, f, 2000, 20);
+    }
+    if (!success && effort >= 4) {
       if (!success)  success = _GMP_pminus1_factor(m, f, 200000, 4000000);
       if (!success)  success = _GMP_ECM_FACTOR(m, f, 10000, 10);
+    }
 #if BLS_THEOREM7
-      /* Could we exit now if B1 was larger? */
-      if (!success) {
-        UV newB1 = B1;
-        if      (bls_theorem7_limit(n,A,B,    10000,t,f,r,s)) newB1 = 10000;
-        else if (bls_theorem7_limit(n,A,B,  1000000,t,f,r,s)) newB1 = 1000000;
-        else if (bls_theorem7_limit(n,A,B,100000000,t,f,r,s)) newB1 = 100000000;
-        if (newB1 > B1) {
-          UV tf = _GMP_trial_factor(m, B1, newB1);
-          if (tf == 0) {
-            B1 = newB1;
-            continue; /* Go back to the top and we'll retest with this B1 */
-          } else {
-            /* Holy trial factorization, Batman! */
-            B1 = tf;
-            mpz_set_ui(f, tf);
-            success = 1;
-          }
+    /* Could we exit now if B1 was larger? */
+    if (!success && effort > 2) {
+      UV newB1 = B1;
+      if      (bls_theorem7_limit(n,A,B,    10000,t,f,r,s)) newB1 = 10000;
+      else if (bls_theorem7_limit(n,A,B,  1000000,t,f,r,s)) newB1 = 1000000;
+      else if (bls_theorem7_limit(n,A,B,100000000,t,f,r,s)) newB1 = 100000000;
+      if (newB1 > B1) {
+        UV tf = _GMP_trial_factor(m, B1, newB1);
+        if (tf == 0) {
+          B1 = newB1;
+          continue; /* Go back to the top and we'll retest with this B1 */
+        } else {
+          /* Holy trial factorization, Batman! */
+          B1 = tf;
+          mpz_set_ui(f, tf);
+          success = 1;
         }
       }
+    }
 #endif
+    if (!success && effort > 5) {  /* do here only if effort > 5 */
       /* QS.  Uses lots of memory, but finds multiple factors quickly */
       if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,2)<300) {
             mpz_t farray[66];
@@ -885,15 +890,16 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
             if (success)
               continue;
       }
-      if (!success) {
-        UV i;
-        UV B1 = 10000;
-        UV curves = 10;
-        for (i = 1; i < 18; i++) {
-          B1 *= 2;
-          success = _GMP_ECM_FACTOR(m, f, B1, curves);
-          if (success) break;
-        }
+    }
+    if (!success && effort >= 5) {
+      UV i;
+      UV B1 = 10000;
+      UV curves = 10;
+      for (i = 1; i < 18; i++) {
+        if ((4+i) > (UV)effort) break;
+        B1 *= 2;
+        success = _GMP_ECM_FACTOR(m, f, B1, curves);
+        if (success) break;
       }
     }
     /* If we couldn't factor m and the stack is empty, we've failed. */
@@ -926,7 +932,7 @@ int _GMP_primality_bls(mpz_t n, int do_quick, char** prooftextptr)
 
   if (success > 0) {
     int pcount, a;
-    int const alimit = do_quick ? 200 : 10000;
+    int const alimit = (effort <= 2) ? 200 : 10000;
     mpz_t p, ap;
 
     mpz_init(p);
