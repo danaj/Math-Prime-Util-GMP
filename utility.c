@@ -715,35 +715,22 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   mpz_t pxa[2];
   mpz_t *pt, *ph, *pq;
 
-  if (*nroots >= maxroots)  return;
+  if (*nroots >= maxroots || dg <= 0)  return;
 
   mpz_init(t);
   mpz_init(pxa[0]);  mpz_init(pxa[1]);
 
   if (dg <= 2) {
-    if (dg == 1) {
-      polyz_root_deg1( t, pg, NMOD );
+    if (dg == 1) polyz_root_deg1( pxa[0], pg, NMOD );
+    else         polyz_root_deg2( pxa[0], pxa[1], pg, NMOD );
+    for (dt = 0; dt < dg && *nroots < maxroots; dt++) {
+      mpz_set(t, pxa[dt]);
       dup = 0; /* don't add duplicate roots */
       for (i = 0; i < *nroots; i++)
         if (mpz_cmp(t, roots[i]) == 0)
           { dup = 1; break; }
-      if (!dup) {
-        mpz_set(roots[*nroots], t);
-        nroots[0]++;
-      }
-    } else if (dg == 2) {
-      polyz_root_deg2( pxa[0], pxa[1], pg, NMOD );
-      for (dt = 0; dt <= 1 && *nroots < maxroots; dt++) {
-        mpz_set(t, pxa[dt]);
-        dup = 0; /* don't add duplicate roots */
-        for (i = 0; i < *nroots; i++)
-          if (mpz_cmp(t, roots[i]) == 0)
-            { dup = 1; break; }
-        if (!dup) {
-          mpz_set(roots[*nroots], t);
-          nroots[0]++;
-        }
-      }
+      if (!dup)
+        mpz_set(roots[ (*nroots)++ ], t);
     }
     mpz_clear(t);
     mpz_clear(pxa[0]);  mpz_clear(pxa[1]);

@@ -465,7 +465,7 @@ int _GMP_ecpp(mpz_t N)
 
   /* We must check gcd(N,6), let's check 2*3*5*7*11*13*17*19*23. */
   if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
-    return 0;
+    return _GMP_is_prob_prime(N);
 
   verbose = _GMP_get_verbose();
   mpz_init_set(Ni, N);
