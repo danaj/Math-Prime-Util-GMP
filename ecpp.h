@@ -4,6 +4,6 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern int _GMP_ecpp(mpz_t N);
+extern int _GMP_ecpp(mpz_t N, char** prooftextptr);
 
 #endif

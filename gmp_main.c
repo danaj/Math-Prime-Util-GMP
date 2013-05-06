@@ -15,6 +15,7 @@
 #include "small_factor.h"
 #include "simpqs.h"
 #include "ecm.h"
+#include "ecpp.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 #include "utility.h"
 
@@ -331,6 +332,7 @@ int _GMP_is_provable_prime(mpz_t n, char* prooftext)
     return 0;
 
   prob_prime = _GMP_primality_bls(n, 100, &prooftext);
+  /* prob_prime = _GMP_ecpp(n, &prooftext); */
   if (prob_prime < 0)
     return 0;
   if (prob_prime > 0)
@@ -974,11 +976,12 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
     if (fsp != msp) croak("Different f and a counts\n");
     *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd :", n);
     if (theorem7) {
+      *prooftextptr += gmp_sprintf(*prooftextptr, " N-1 T7 :");
       *prooftextptr += gmp_sprintf(*prooftextptr, " %lu %Zd %Zd :",
                        B1, fstack[--fsp], mstack[--msp]);
        mpz_clear(fstack[fsp]);  mpz_clear(mstack[msp]);
     } else {
-      *prooftextptr += gmp_sprintf(*prooftextptr, " 1 %Zd 0 :", B);
+      *prooftextptr += gmp_sprintf(*prooftextptr, " N-1 T5 :");
     }
     for (i = 0; i < fsp; i++)
       *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", fstack[i]);

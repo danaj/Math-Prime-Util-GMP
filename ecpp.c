@@ -451,7 +451,7 @@ typedef struct {
 } dmqlist_t;
 
 /* returns 2 if N is proven prime, 1 if probably prime, 0 if composite */
-int _GMP_ecpp(mpz_t N)
+int _GMP_ecpp(mpz_t N, char** prooftextptr)
 {
   mpz_t Ni, a, b, u, v, m, q, mD, t, t2, minfactor;
   mpz_t mlist[6];
@@ -506,7 +506,7 @@ int _GMP_ecpp(mpz_t N)
       if (effort > 0) {
         printf("N-1 %ld bits, effort %d...", (long)log2ni, effort);
         fflush(stdout);
-        k = _GMP_primality_bls(Ni, effort, 0);
+        k = _GMP_primality_bls(Ni, effort, prooftextptr);
         printf("%s\n", (k < 0) ? "COMPOSITE" : (k > 0) ? "SUCCESS" : "DONE"); fflush(stdout);
         if (k != 0) {
           if (k > 0) {
@@ -635,7 +635,7 @@ int _GMP_ecpp(mpz_t N)
         int effort = (stage < 5) ? 2 + stage : 8;
         UV log2ni = mpz_sizeinbase(Ni, 2);
         printf("RETRY N-1 %ld bits, effort %d...",(long)log2ni,effort); fflush(stdout);
-        k = (effort > 0) ? _GMP_primality_bls(Ni, effort, 0) : 0;
+        k = (effort > 0) ? _GMP_primality_bls(Ni, effort, prooftextptr) : 0;
         printf("%s\n", (k < 0) ? "COMPOSITE" : (k > 0) ? "SUCCESS" : "DONE"); fflush(stdout);
         if (k < 0) {
           gmp_printf("N-1 says %Zd is composite.\n", Ni);
@@ -665,6 +665,12 @@ int _GMP_ecpp(mpz_t N)
       gmp_printf("m = %Zd\n", m);
       gmp_printf("q = %Zd\n", q);
       gmp_printf("P = (%Zd, %Zd)\n", P.x, P.y);
+    }
+    if (prooftextptr != 0 && *prooftextptr != 0) {
+      *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd : ECPP : ", Ni);
+      *prooftextptr += gmp_sprintf(*prooftextptr,
+                                   "%Zd %Zd %Zd %Zd (%Zd:%Zd)\n",
+                                   a, b, m, q, P.x, P.y);
     }
     mpz_set(Ni, q);
   }

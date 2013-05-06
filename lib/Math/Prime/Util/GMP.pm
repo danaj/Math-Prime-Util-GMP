@@ -96,25 +96,48 @@ sub is_provable_prime_with_cert {
   return ($result, [$n]) if !defined $text || $text eq '';
 
   my %parts;
+  my @ecpp;
   foreach my $part (split(/\n/, $text)) {
-    $part =~ /^(\d+) : (.*) : (.*) : (.*)$/ or croak "is_provable_prime: Parsing error\n";
-    my($fn, $t7str, $fstr, $astr) = ($1, $2, $3, $4);
-    my @t7 = split(/ /, $t7str);
-    my @f = split(/ /, $fstr);
-    my @a = split(/ /, $astr);
-    # Sort f values after linking with associated a.
-    my @fa = sort {$a->[0] <=> $b->[0]}
-             map { [$f[$_],$a[$_]] }
-             0 .. $#f;
-    @f = map { defined $parts{$_} ? $parts{$_} : $_ }
-         map { $_->[0] } @fa;
-    @a = map { $_->[1] } @fa;
-    if ($t7[0] != 1) {
+    if ($part =~ /^(\d+) : N-1 T5 : (.*) : (.*)$/) {
+      my($fn, $fstr, $astr) = ($1, $2, $3);
+      my @f = split(/ /, $fstr);
+      my @a = split(/ /, $astr);
+      # Sort f values after linking with associated a.
+      my @fa = sort {$a->[0] <=> $b->[0]}
+               map { [$f[$_],$a[$_]] }
+               0 .. $#f;
+      @f = map { defined $parts{$_} ? $parts{$_} : $_ }
+           map { $_->[0] } @fa;
+      @a = map { $_->[1] } @fa;
+      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+    } elsif ($part =~ /^(\d+) : N-1 T7 : (.*) : (.*) : (.*)$/) {
+      my($fn, $t7str, $fstr, $astr) = ($1, $2, $3);
+      my @t7 = split(/ /, $t7str);
+      my @f = split(/ /, $fstr);
+      my @a = split(/ /, $astr);
+      # Sort f values after linking with associated a.
+      my @fa = sort {$a->[0] <=> $b->[0]}
+               map { [$f[$_],$a[$_]] }
+               0 .. $#f;
+      @f = map { defined $parts{$_} ? $parts{$_} : $_ }
+           map { $_->[0] } @fa;
+      @a = map { $_->[1] } @fa;
       # Theorem 7: supply [B1, B, a]
       $parts{$fn} = [$fn, "n-1 T7", [@t7], [@f], [@a]];
+    } elsif ($part =~ /(\d+) : ECPP : (\d+) (\d+) (\d+) (\d+) \((\d+):(\d+)\)\s*$/) {
+      my($fn, $a, $b, $m, $q, $px, $py) = ($1, $2, $3, $4, $5, $6, $7);
+      push @ecpp, [$fn, $a, $b, $m, $q, [$px, $py]];
     } else {
-      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
+      croak "is_provable_prime: Parsing error on '$part'\n";
     }
+  }
+  my @cert;
+  if (scalar @ecpp > 0) {
+    my @cert = ($n, "ECPP", @ecpp);
+    # Check to see if the last q was proven via n-1
+    my $lastq = $ecpp[-1]->[4];
+    $ecpp[-1]->[4] = $parts{$lastq} if defined $parts{$lastq};
+    return ($result, @cert);
   }
   return @composite if !defined $parts{$n};
   return ($result, $parts{$n});

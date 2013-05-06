@@ -20,8 +20,6 @@
 
 - The statics in ecm and QS won't play well with threading.
 
-- ECPP export proof.
-
 - ECPP: Perhaps more HCPs/WCPs could be loaded if needed?
 
 - ECPP: backtracking.
@@ -30,3 +28,13 @@
   Have is_provable_prime select one.
 
 - Tests for ECPP.
+
+- Add EAS for big numbers.  When we have a large (say > 300 digits) number in
+  ECPP, instead of immediately processing a factored q, keep running through
+  stage 1 to find all other D/m/q sets that will work.  Choose the smallest q.
+  This trades off the extra factoring time (which is fast in stage 1) for the
+  gain of possibly making the next number smaller, which if done will usually
+  be a big payoff.
+
+- Primality proof text should be allocated / reallocated by the proof code,
+  instead of our making a giant max size guess in the caller.
