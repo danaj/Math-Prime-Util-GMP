@@ -71,11 +71,11 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
     mpz_powm(q, a, t, p);
     if (mpz_cmp_si(q, 1) == 0) { /* s = a^((p+3)/8) mod p */
       mpz_add_ui(t, p, 3);
-      mpz_divexact_ui(t, t, 8);
+      mpz_tdiv_q_2exp(t, t, 3);
       mpz_powm(x, a, t, p);
     } else {                      /* s = 2a * (4a)^((p-5)/8) mod p */
       mpz_sub_ui(t, p, 5);
-      mpz_divexact_ui(t, t, 8);
+      mpz_tdiv_q_2exp(t, t, 3);
       mpz_mul_ui(q, a, 4);
       mpz_powm(x, q, t, p);
       mpz_mul_ui(x, x, 2);
@@ -462,6 +462,13 @@ void polyz_set(mpz_t* pr, long* dr, mpz_t* ps, long ds)
   } while (ds-- > 0);
 }
 
+void polyz_print(const char* header, mpz_t pn, long dn)
+{
+  gmp_printf("%s", header);
+  do { gmp_printf("%Zd ", pn[dn]); } while (dn-- > 0);
+  gmp_printf("\n");
+}
+
 /* Multiply polys px and py to create new poly pr, all modulo 'mod' */
 void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, mpz_t mod)
 {
@@ -696,6 +703,167 @@ void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD)
   mpz_clear(t); mpz_clear(t2); mpz_clear(t3); mpz_clear(t4);
 }
 
+/* Algorithm 2.3.10 procedure "roots" from Crandall & Pomerance.
+ * Step 3/4 of Cohen Algorithm 1.6.1.
+ * Uses some hints from Pate Williams (1997-1998) for the poly math */
+static void polyz_roots(mpz_t* roots, long *nroots,
+                        long maxroots, mpz_t* pg, long dg, mpz_t NMOD,
+                        gmp_randstate_t* p_randstate)
+{
+  long i, ntries, maxtries, maxd, dxa, dt, dh, dq, dup;
+  mpz_t t, power;
+  mpz_t pxa[2];
+  mpz_t *pt, *ph, *pq;
+
+  if (*nroots >= maxroots)  return;
+
+  mpz_init(t);
+  mpz_init(pxa[0]);  mpz_init(pxa[1]);
+
+  if (dg <= 2) {
+    if (dg == 1) {
+      polyz_root_deg1( t, pg, NMOD );
+      dup = 0; /* don't add duplicate roots */
+      for (i = 0; i < *nroots; i++)
+        if (mpz_cmp(t, roots[i]) == 0)
+          { dup = 1; break; }
+      if (!dup) {
+        mpz_set(roots[*nroots], t);
+        nroots[0]++;
+      }
+    } else if (dg == 2) {
+      polyz_root_deg2( pxa[0], pxa[1], pg, NMOD );
+      for (dt = 0; dt <= 1 && *nroots < maxroots; dt++) {
+        mpz_set(t, pxa[dt]);
+        dup = 0; /* don't add duplicate roots */
+        for (i = 0; i < *nroots; i++)
+          if (mpz_cmp(t, roots[i]) == 0)
+            { dup = 1; break; }
+        if (!dup) {
+          mpz_set(roots[*nroots], t);
+          nroots[0]++;
+        }
+      }
+    }
+    mpz_clear(t);
+    mpz_clear(pxa[0]);  mpz_clear(pxa[1]);
+    return;
+  }
+
+  /* If not a monic polynomial, divide by leading coefficient */
+  if (mpz_cmp_ui(pg[dg], 1) != 0) {
+    for (i = 0; i <= dg; i++) {
+      if (!mpz_divmod(pg[i], pg[i], pg[dg], NMOD, t)) {
+        mpz_clear(t);
+        return;
+      }
+    }
+  }
+
+  /* Try hard to find a single root, work less after we got one or two.
+   * In a generic routine we would want to try hard all the time. */
+  ntries = 0;
+  maxtries = (*nroots == 0) ? 200 : (*nroots == 1) ? 50 : 10;
+
+  mpz_init(power);
+  mpz_set_ui(pxa[1], 1);
+  dxa = 1;
+
+  maxd = 2 * dg;
+  New(0, pt, maxd+1, mpz_t);
+  New(0, ph, maxd+1, mpz_t);
+  New(0, pq, maxd+1, mpz_t);
+  for (i = 0; i <= maxd; i++) {
+    mpz_init(pt[i]);
+    mpz_init(ph[i]);
+    mpz_init(pq[i]);
+  }
+
+  mpz_sub_ui(t, NMOD, 1);
+  mpz_tdiv_q_2exp(power, t, 1);
+
+  while (ntries++ < maxtries) {
+    /* pxa = X+a for a random a */
+    mpz_urandomm(pxa[0], *p_randstate, NMOD);
+
+    /* Raise pxa to (NMOD-1)/2, all modulo NMOD and g(x) */
+    polyz_pow_polymod(pt, pxa, pg, &dt, dxa, dg, power, NMOD);
+
+    /* Subtract 1 and gcd */
+    mpz_sub_ui(pt[0], pt[0], 1);
+    polyz_gcd(ph, pt, pg, &dh, dt, dg, NMOD);
+
+    if (dh >= 1 && dh < dg)
+      break;
+  }
+
+  if (dh >= 1 && dh < dg) {
+    /* Recurse with h */
+    polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
+
+    if (*nroots < maxroots) {
+      /* q = g/h, and recurse */
+      polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh);
+      polyz_mod(pq, pq, &dq, NMOD);
+      polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
+    }
+  }
+
+  mpz_clear(t);
+  mpz_clear(power);
+  mpz_clear(pxa[0]);  mpz_clear(pxa[1]);
+
+  for (i = 0; i <= maxd; i++) {
+    mpz_clear(pt[i]);
+    mpz_clear(ph[i]);
+    mpz_clear(pq[i]);
+  }
+  Safefree(pt);
+  Safefree(ph);
+  Safefree(pq);
+}
+
+
+/* Algorithm 1.6.1 from Cohen, minus step 1. */
+void polyz_roots_modp(mpz_t** roots, long *nroots,
+                      mpz_t *pP, long dP, mpz_t NMOD,
+                      gmp_randstate_t* p_randstate)
+{
+  long i;
+
+  *nroots = 0;
+  *roots = 0;
+
+  if (dP == 0)
+    return;
+
+  /* Allocate space for the maximum number of roots */
+  New(0, *roots, dP, mpz_t);
+  for (i = 0; i < dP; i++)
+    mpz_init((*roots)[i]);
+
+  /* Do degree 1 or 2 explicitly */
+  if (dP == 1) {
+    polyz_root_deg1( (*roots)[0], pP, NMOD );
+    *nroots = 1;
+    return;
+  }
+  if (dP == 2) {
+    polyz_root_deg2( (*roots)[0], (*roots)[1], pP, NMOD );
+    *nroots = 2;
+    return;
+  }
+
+  polyz_roots(*roots, nroots, dP, pP, dP, NMOD, p_randstate);
+  /* TODO: Take this out at some point, as it could just be really bad luck.
+   * Leave in for now, because it can be a sign something is messed up. */
+  if (*nroots == 0) croak("failed to find roots\n");
+
+  /* Clear out space for roots we didn't find */
+  for (i = *nroots; i < dP; i++)
+    mpz_clear((*roots)[i]);
+}
+
 
 #include "class_poly_data.h"
 
@@ -709,9 +877,9 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
       mpz_t t;
       UV degree = _class_poly_data[i].degree;
       int ctype = _class_poly_data[i].type;
+      const char* s = _class_poly_data[i].coefs;
       if (type != 0) *type = ctype;
       if (T == 0) return degree;
-      const char* s = _class_poly_data[i].coefs;
       New(0, *T, degree+1, mpz_t);
       mpz_init(t);
       for (j = 0; j < degree; j++) {
@@ -735,4 +903,28 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
   }
   if (T != 0) *T = 0;
   return 0;
+}
+
+UV* poly_class_degrees(void)
+{
+  UV* dlist;
+  UV d, i, max_degree, p;
+
+  New(0, dlist, NUM_CLASS_POLYS+1, UV);
+  /* Inefficient */
+  max_degree = 0;
+  for (i = 0; i < NUM_CLASS_POLYS; i++)
+    if (_class_poly_data[i].degree > max_degree)
+      max_degree = _class_poly_data[i].degree;
+
+  p = 0;
+  for (d = 1; d <= max_degree; d++) {
+    for (i = 0; i < NUM_CLASS_POLYS; i++) {
+      if (_class_poly_data[i].degree == d) {
+        dlist[p++] = _class_poly_data[i].D;
+      }
+    }
+  }
+  dlist[p] = 0;
+  return dlist;
 }

@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.09';
+  $Math::Prime::Util::GMP::VERSION = '0.10';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
                      is_provable_prime
                      is_provable_prime_with_cert
                      is_aks_prime
+                     is_ecpp_prime
                      is_strong_pseudoprime
                      is_strong_lucas_pseudoprime
                      primes
@@ -175,7 +176,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.09
+Version 0.10
 
 
 =head1 SYNOPSIS
@@ -376,6 +377,16 @@ Takes a positive number as input, and returns 1 if the input passes the
 Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
 unconditional primality test which runs in polynomial time for general input.
 In practice, the BLS75 n-1 method used by is_provable_prime is much faster.
+
+
+=head2 is_ecpp_prime
+
+  say "$n is definitely prime" if is_ecpp_prime($n);
+
+Takes a positive number as input, and returns 1 if the input passes the
+ECPP primality test.  This is the Atkin-Morain Elliptic Curve Primality
+Proving algorithm.  It is the fastest primality proving method in
+Math::Prime::Util for larger inputs (anything over 40 digits).
 
 
 =head2 primes
@@ -660,13 +671,13 @@ of choice for 35+ digit semiprimes.
 
 =over 4
 
-=item  L<Math::Prime::Util>.
+=item L<Math::Prime::Util>.
 Has many more functions, lots of fast code for dealing with native-precision
 arguments (including much faster primes using sieves), and will use this
 module when needed for big numbers.  Using L<Math::Prime::Util> rather than
 this module directly is recommended.
 
-=item  L<Math::Primality> (version 0.08)
+=item L<Math::Primality> (version 0.08)
 A Perl module with support for the strong Miller-Rabin test, strong
 Lucas-Selfridge test, the BPSW probable prime test, next_prime / prev_prime,
 the AKS primality test, and prime_count.  It uses L<Math::GMPz> to do all
@@ -686,6 +697,10 @@ L<gmp-ecm|http://ecm.gforge.inria.fr/>,
 L<GGNFS|http://sourceforge.net/projects/ggnfs/>
 Good general purpose factoring utilities.  These will be faster than this
 module, and B<much> better as the factor increases in size.
+
+=item L<Primo|http://www.ellipsa.eu/public/primo/primo.html> is the state
+of the art in freely available (though not open source!) primality proving
+programs.  If you have 1000+ digit numbers to prove, you want to use this.
 
 =back
 
@@ -711,6 +726,8 @@ module, and B<much> better as the factor increases in size.
 =item Daniel Shanks, "SQUFOF notes", unpublished notes, transcribed by Stephen McMath.  L<http://www.usna.edu/Users/math/wdj/mcmath/shanks_squfof.pdf>
 
 =item Jason E. Gower and Samuel S. Wagstaff, Jr, "Square Form Factorization", Mathematics of Computation, v77, 2008, pages 551-588.  L<http://homes.cerias.purdue.edu/~ssw/squfof.pdf>
+
+=item A.O.L. Atkin and F. Morain, "Elliptic Curves and primality proving", Mathematics of Computation, v61, 1993, pages 29-68.  L<http://www.ams.org/journals/mcom/1993-61-203/S0025-5718-1993-1199989-X/>
 
 =back
 

@@ -12,6 +12,11 @@ Revision history for Perl extension Math::Prime::Util::GMP
       n-1 we need to factor.  Not enabling because it just doesn't help
       enough, and ECPP is a better place to spend development effort.
 
+    - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
+      40 digits, then slows down very rapidly.  This ECPP implementation is
+      good to 300-500 digits.  Timing for 10**100+267:
+          AKS: ~1 year.    BLS75 n-1: ~5 minutes.    ECPP: 0.3 seconds.
+
     - Lots of new internal functions to support ECPP, which could be used
       for future projects.
 

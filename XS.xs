@@ -12,6 +12,7 @@
 #include "small_factor.h"
 #include "ecm.h"
 #include "simpqs.h"
+#include "ecpp.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
 /* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
@@ -168,6 +169,17 @@ is_aks_prime(IN char* strn)
   CODE:
     PRIMALITY_START("is_aks_prime", 2);
     RETVAL = _GMP_is_aks_prime(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
+is_ecpp_prime(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_ecpp_prime", 2);
+    RETVAL = _GMP_ecpp(n);
     mpz_clear(n);
   OUTPUT:
     RETVAL

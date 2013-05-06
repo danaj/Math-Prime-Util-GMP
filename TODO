@@ -19,3 +19,14 @@
 - Write our own QS.
 
 - The statics in ecm and QS won't play well with threading.
+
+- ECPP export proof.
+
+- ECPP: Perhaps more HCPs/WCPs could be loaded if needed?
+
+- ECPP: backtracking.
+
+- Functions:  is_aks_prime, is_ecpp_prime, is_nminus1_prime (BLS75).
+  Have is_provable_prime select one.
+
+- Tests for ECPP.
