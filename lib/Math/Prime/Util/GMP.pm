@@ -327,10 +327,10 @@ tests with random bases to weed out composites and provide a deterministic
 answer for tiny numbers (under C<2^64>).  We then try a quick
 BLS75 n-1 test.  If that test is taking too long, then ECPP is used.
 
-The time required for primes of different input sizes on a 2009-era
-workstation averages about C<4ms> for 30-digits, C<20ms> for 40-digit,
-C<90ms> for 60-digit, C<290ms> for 80-digit, C<0.5s> for 100-digit,
-C<8s> for 200-digit, and 400-digit inputs about a minute.
+The time required for primes of different input sizes on a circa-2009
+workstation averages about C<3ms> for 30-digits, C<8ms> for 40-digit,
+C<30ms> for 60-digit, C<75ms> for 80-digit, C<200ms> for 100-digit,
+C<2s> for 200-digit, and 400-digit inputs about a minute.
 Expect a lot of time variation for larger inputs.  You can see progress
 indication if verbose is turned on (some at level 1, and a lot at level 2).
 
@@ -442,10 +442,10 @@ Math::Prime::Util.
 
 The implementation here uses the "factor and prove" strategy (FPS), which
 is good for numbers up to about 300 digits, and then starts getting bogged
-down in factoring.  A limited set of 677 precalculated discriminants are
+down in factoring.  A limited set of 477 precalculated discriminants are
 used, and for proving larger inputs having more helps a lot.  A future
 implementation will switch to the "factor all" strategy (FAS) which should
-improve performance greatly for 400-1000 digit numbers.
+improve performance greatly for 400+ digit numbers.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
 

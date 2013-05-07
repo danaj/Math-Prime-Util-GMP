@@ -285,12 +285,12 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
  *
  * For 128-bit primes:
  *                      is_prob_prime           2 uS
- *                      is_prime              280 uS  (+4 MR, 50% proven)
- *                      is_provable_prime    1440 uS
+ *                      is_prime              140 uS  (+4 MR, 50% proven)
+ *                      is_provable_prime     400 uS
  * For 256-bit primes:
  *                      is_prob_prime           2 uS
  *                      is_prime                2 uS  (+4 MR)
- *                      is_provable_prime  136000 uS
+ *                      is_provable_prime    6600 uS
  *
  * The extra M-R tests in is_prime start actually costing something after
  * 1000 bits or so.  Primality proving will get quite a bit slower as the

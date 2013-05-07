@@ -22,6 +22,12 @@
  * Alternately if I had fast Hilbert/Weber polynomial generation code, I could
  * calculate values as needed.
  *
+ * The other major issue is that this uses the "factor and prove" strategy
+ * rather than "factor all" strategy.  What I see is basically what Morain
+ * wrote in 1992, that this works well to about 300 digits then starts getting
+ * bogged down in factoring.  For larger inputs it really needs backtracking,
+ * especially because of the limited set of discriminants.
+ *
  * Another across-the-board performance improvement could be had by linking in
  * the GMP-ECM factoring package, which is much faster than my N-1 and ECM.
  * I have not yet measured what this would do.
@@ -37,9 +43,9 @@
  * from the command line using Perl, averaged across multiple runs.
  *
  *    10**49+9      0.027s
- *    10**100+267   0.26s
- *    2**511+111    1.3s
- *    2**1023+1155  15s
+ *    10**100+267   0.16s
+ *    2**511+111    0.4s
+ *    2**1023+1155  5s
  *    10**1000+453  12 minutes with large discriminant data
  *    10**999+7     25 minutes with large discriminant data
  *
@@ -48,10 +54,6 @@
  * to compare and contrast (GMP-ECM, GMP-ECPP).  Thanks to the authors of GMP.
  * Thanks to Schoof, Goldwasser, Kilian, Atkin, Morain, Lenstra, etc. for all
  * the math and publications.  Thanks to Gauss, Euler, et al.
- *
- * TODO: Output a proof through the Perl MPU::GMP mechanism.  Currently the
- * output of verbose=2 can be parsed by the GMP-ECM verifier included with
- * MPU in the examples directory.
  */
 
 #include <stdio.h>
@@ -129,17 +131,20 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, long sta
 
     success = 0;
     if (stage == 1) {
-      if (!success) success = _GMP_pminus1_factor(n, f, 100, 1000);
-      if (!success) success = _GMP_pminus1_factor(n, f, 1000, 20000);
-      if (!success) success = _GMP_ecm_factor_projective(n, f, 200, 10);
+      if (!success) success = _GMP_pminus1_factor(n, f, 200, 2000);
+      if (!success) success = _GMP_pminus1_factor(n, f, 2000, 40000);
     } else if (stage == 2) {
-      if (!success) success = _GMP_pminus1_factor(n, f, 40000, 800000);
-      if (!success) success = _GMP_ecm_factor_projective(n, f, 1000, 5);
+      if (!success) success = _GMP_pminus1_factor(n, f, 10000, 200000);
+      if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
     } else if (stage == 3) {
-      if (!success) success = _GMP_ecm_factor_projective(n, f, 2000, 10);
-    } else if (stage >= 4) {
-      UV B = 5000 * (stage-3) * (stage-3) * (stage-3);
-      if (!success) success=_GMP_ecm_factor_projective(n, f, B, 10);
+      if (!success) success = _GMP_pminus1_factor(n, f, 40000, 800000);
+      if (!success) success = _GMP_ecm_factor_projective(n, f, 500, 4);
+    } else if (stage == 4) {
+      if (!success) success = _GMP_pminus1_factor(n, f, 100000, 5000000);
+      if (!success) success = _GMP_ecm_factor_projective(n, f, 1000, 10);
+    } else if (stage >= 5) {
+      UV B = 4000 * (stage-4) * (stage-4) * (stage-4);
+      if (!success) success = _GMP_ecm_factor_projective(n, f, B, 20);
     }
     if (success) {
       if (mpz_cmp_ui(f, 1) == 0 || mpz_cmp(f, n) == 0) {
