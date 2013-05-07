@@ -2,6 +2,19 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
 0.10  xx May 2013
 
+    - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
+      40 digits, then slows down very rapidly.  This ECPP implementation is
+      good to 300-500 digits.  Timing for 10**100+267:
+          AKS: ~1 year.    BLS75 n-1: ~5 minutes.    ECPP: 0.3 seconds.
+
+    - is_prime does an additional 4 random-base M-R tests, to give a little
+      extra over is_prob_prime at little cost.
+
+    - is_provable_prime will try a quick n-1 then do ECPP.
+
+    - is_nminus1_prime added to give access to that specific method, in
+      case someone has reason to insist on that proof type.
+
     - Change polynomial multiplication to use binary segmentation.  Huge
       speed improvement for AKS primality proving (20-100x faster).  AKS
       is now faster in GMP than MPU's C code.  It's still not nearly as fast
@@ -12,18 +25,8 @@ Revision history for Perl extension Math::Prime::Util::GMP
       n-1 we need to factor.  Not enabling because it just doesn't help
       enough, and ECPP is a better place to spend development effort.
 
-    - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
-      40 digits, then slows down very rapidly.  This ECPP implementation is
-      good to 300-500 digits.  Timing for 10**100+267:
-          AKS: ~1 year.    BLS75 n-1: ~5 minutes.    ECPP: 0.3 seconds.
-
     - Lots of new internal functions to support ECPP, which could be used
       for future projects.
-
-    - is_prime does an additional 4 random-base M-R tests, to give a little
-      extra over is_prob_prime at little cost.
-
-    - is_provable_prime will try a quick n-1 then do ECPP.
 
 0.09  21 April 2013
 

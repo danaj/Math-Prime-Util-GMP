@@ -12,6 +12,7 @@
 #include "small_factor.h"
 #include "ecm.h"
 #include "simpqs.h"
+#include "bls75.h"
 #include "ecpp.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
@@ -164,6 +165,17 @@ is_aks_prime(IN char* strn)
   CODE:
     PRIMALITY_START("is_aks_prime", 2);
     RETVAL = _GMP_is_aks_prime(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
+is_nminus1_prime(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_nminus1_prime", 2);
+    RETVAL = _GMP_primality_bls_nm1(n, 100, 0);
     mpz_clear(n);
   OUTPUT:
     RETVAL

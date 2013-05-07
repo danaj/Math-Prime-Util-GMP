@@ -347,7 +347,7 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
  * Code derived from GMP-ECM (Zimmermann & Kruppa)
  */
 
-/* PRAC, algorithm from Montgofrom GMP-ECM, algorithm from Montgomery */
+/* PRAC, details from GMP-ECM, algorithm from Montgomery */
 /* See "20 years of ECM" by Paul Zimmermann for more info */
 static mpz_t x3, z3, x4, z4;  /* used by prac */
 #define ADD 6 /* number of multiplications in an addition */

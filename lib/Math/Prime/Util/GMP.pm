@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
                      is_provable_prime
                      is_provable_prime_with_cert
                      is_aks_prime
+                     is_nminus1_prime
                      is_ecpp_prime
                      is_strong_pseudoprime
                      is_strong_lucas_pseudoprime
@@ -191,7 +192,6 @@ __END__
 
 =encoding utf8
 
-
 =head1 NAME
 
 Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using GMP
@@ -302,13 +302,16 @@ like C<is_prob_prime>, as will numbers less than C<2^64>.  For numbers
 larger than C<2^64>, some additional tests are performed on probable primes
 to see if they can be proven by another means.
 
-Currently the method used once numbers have been marked probably
-prime by BPSW is the BLS75 n-1 method: Brillhart, Lehmer, and Selfridge's
-improvement to the Pocklington-Lehmer primality test.  The test requires
-factoring C<n-1> to C<(n/2)^(1/3)>, compared to C<n^(1/2)> of the standard
-Pocklington-Lehmer or PPBLS test, or a complete factoring for the Lucas
-test.  The main problem is still finding factors.  A quick set of tests
-using Pollard's p-1, Pollard's Rho, and ECM are used.
+As with L</is_prob_prime>, a BPSW test is first performed.  If this
+indicates "probably prime" then a small number of Miller-Rabin tests
+with random bases are performed.  For numbers under 200 bits, a quick
+BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
+if the result cannot be quickly determined, and results in approximately
+50% success rate at 128-bits.
+
+The result is that many numbers will return back 2 (definitely prime),
+and the numbers that return 1 (probably prime) have gone through more
+tests than L</is_prob_prime> while not taking too long.
 
 
 =head2 is_provable_prime
@@ -319,10 +322,20 @@ Takes a positive number as input and returns back either 0 (composite),
 2 (definitely prime), or 1 (probably prime).  A great deal of effort is
 taken to return either 0 or 2 for all numbers.
 
-The current method is the BLS75 algorithm as described in C<is_prime>,
-but using much more aggressive factoring.  A later version will include
-a faster method for large numbers (ECPP).  A certificate can be obtained
-along with the result using the L</is_provable_prime_with_cert> method.
+The current method first uses BPSW and a small number of Miller-Rabin
+tests with random bases to weed out composites and provide a deterministic
+answer for tiny numbers (under C<2^64>).  We then try a quick
+BLS75 n-1 test.  If that test is taking too long, then ECPP is used.
+
+The time required for primes of different input sizes on a 2009-era
+workstation averages about C<4ms> for 30-digits, C<20ms> for 40-digit,
+C<90ms> for 60-digit, C<290ms> for 80-digit, C<0.5s> for 100-digit,
+C<8s> for 200-digit, and 400-digit inputs about a minute.
+Expect a lot of time variation for larger inputs.  You can see progress
+indication if verbose is turned on (some at level 1, and a lot at level 2).
+
+A certificate can be obtained along with the result using the
+L</is_provable_prime_with_cert> method.
 
 
 =head2 is_provable_prime_with_cert
@@ -342,7 +355,8 @@ The result will be one of:
 
 The certificate can be run through the L<Math::Prime::Util/verify_prime>
 function of L<Math::Prime::Util> for verification.  The current implementation
-will return a "n-1" type certificate from the BLS75 test.
+will return either certificates of either "n-1" type, "ECPP" type, or a
+mix of the two (e.g. ECPP ended with n-1 for the final number).
 
 
 =head2 is_strong_pseudoprime
@@ -399,8 +413,23 @@ base 2 being the other half).
 Takes a positive number as input, and returns 1 if the input passes the
 Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
 unconditional primality test which runs in polynomial time for general input.
-In practice, the BLS75 n-1 method used by is_provable_prime is much faster.
+In practice, L</is_nminus1_prime> and L</is_ecpp_prime> are B<much> faster.
 
+Typically you should use L</is_provable_prime> and let it decide the method.
+
+=head2 is_nminus1_prime
+
+  say "$n is definitely prime" if is_nminus1_prime($n);
+
+Takes a positive number as input, and returns 1 if the input passes either
+theorem 5 or theorem 7 of the Brillhart-Lehmer-Selfridge primality test.
+This is a deterministic unconditional primality test which requires factoring
+C<n-1> to a linear factor less than the cube root of the input.  For small
+inputs (under 40 digits) this is typically very easy, and some numbers will
+naturally lead to this being very fast.  As the input grows, this method
+slows down rapidly.
+
+Typically you should use L</is_provable_prime> and let it decide the method.
 
 =head2 is_ecpp_prime
 
@@ -409,7 +438,16 @@ In practice, the BLS75 n-1 method used by is_provable_prime is much faster.
 Takes a positive number as input, and returns 1 if the input passes the
 ECPP primality test.  This is the Atkin-Morain Elliptic Curve Primality
 Proving algorithm.  It is the fastest primality proving method in
-Math::Prime::Util for larger inputs (anything over 40 digits).
+Math::Prime::Util.
+
+The implementation here uses the "factor and prove" strategy (FPS), which
+is good for numbers up to about 300 digits, and then starts getting bogged
+down in factoring.  A limited set of 677 precalculated discriminants are
+used, and for proving larger inputs having more helps a lot.  A future
+implementation will switch to the "factor all" strategy (FAS) which should
+improve performance greatly for 400-1000 digit numbers.
+
+Typically you should use L</is_provable_prime> and let it decide the method.
 
 
 =head2 primes
@@ -489,18 +527,19 @@ special cases of C<n = 0> and C<n = 1> will return C<n>.
 Like most advanced factoring programs, a mix of methods is used.  This
 includes trial division for small factors, perfect power detection,
 Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
-Hart's OLF, ECM (elliptic curve method), and QS (quadratic sieve).
+Hart's OLF (a Fermat variant), ECM (elliptic curve method), and
+QS (quadratic sieve).
 Certainly improvements could be designed for this algorithm
 (suggestions are welcome).
 
-In practice, this factors 26-digit semiprimes in under 100ms, 36-digit
+In practice, this factors 26-digit semiprimes in under C<100ms>, 36-digit
 semiprimes in under one second.  Arbitrary integers are factored faster.
 It is many orders of magnitude faster than any other factoring module on
-CPAN circa early 2013.  It is comparable in speed to Math::Pari's factorint
+CPAN circa early 2013.  It is comparable in speed to Math::Pari's C<factorint>
 for most inputs.
 
-If you want better factoring in general, I recommend looking at the standlone
-programs
+If you want better factoring in general, I recommend looking at the
+standalone programs
 L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
 L<gmp-ecm|http://ecm.gforge.inria.fr/>, and
@@ -666,8 +705,9 @@ third parameter indicates the number of random curves to use at each
 smoothness value being searched.
 
 This is an implementation of Hendrik Lenstra's elliptic curve factoring
-method, usually referred to as ECM.  The implementation is fairly basic,
-using projective coordinates, binary ladder multiplication, and two stages.
+method, usually referred to as ECM.  The implementation is reasonable,
+using projective coordinates, Montgomery's PRAC heuristic for EC
+multiplication, and two stages.
 It is much slower than the latest GMP-ECM, but still quite useful for
 factoring reasonably sized inputs.
 
@@ -684,10 +724,10 @@ factors will be produced, unlike the other C<..._factor> routines.
 The current implementation is a modified version of SIMPQS, a predecessor to
 the QS in FLINT, and was written by William Hart in 2006.  It will not operate
 on input less than 30 digits.  The memory use for large inputs is more than
-desired, so other methods such as pbrent, pminus1, and ecm are recommended to
-begin with to filter out small factors.  However, it is substantially faster
-than the other methods on large inputs having large factors, and is the method
-of choice for 35+ digit semiprimes.
+desired, so other methods such as L</pbrent_factor>, L</pminus1_factor>, and
+L</ecm_factor> are recommended to begin with to filter out small factors.
+However, it is substantially faster than the other methods on large inputs
+having large factors, and is the method of choice for 35+ digit semiprimes.
 
 
 =head1 SEE ALSO
@@ -767,13 +807,13 @@ William Hart wrote the SIMPQS code which is the basis for the QS code.
 Obviously none of this would be possible without the mathematicians who
 created and published their work.  Eratosthenes, Gauss, Euler, Riemann,
 Fermat, Lucas, Baillie, Pollard, Brent, Montgomery, Shanks, Hart, Wagstaff,
-Dixon, Pomerance, A.K. Lenstra, H. W. Lenstra Jr., Knuth, etc.
+Dixon, Pomerance, A.K. Lenstra, H. W. Lenstra Jr., Atkin, Knuth, etc.
 
 The GNU GMP team, whose product allows me to concentrate on coding high-level
 algorithms and not worry about any of the details of how modular exponentiation
 and the like happen, and still get decent performance for my purposes.
 
-Ben Buhrows and Jason Papadopoulos deserve special mention for their open
+Ben Buhrow and Jason Papadopoulos deserve special mention for their open
 source factoring tools, which are both readable and fast.  In particular I am
 leveraging their SQUFOF work in the current implementation.  They are a huge
 resource to the community.
