@@ -40,5 +40,6 @@ t/50-factoring.t
 t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
+t/93-release-spelling.t
 examples/bench-mp-psrp.pl
 .travis.yml
