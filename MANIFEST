@@ -17,6 +17,8 @@ small_factor.c
 ecm.h
 ecm.c
 class_poly_data.h
+bls75.h
+bls75.h
 ecpp.h
 ecpp.c
 simpqs.h

@@ -472,12 +472,13 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   if (prooftextptr) {
     proofstr_size = 4096;
     New(0, proofstr, proofstr_size, char);
-    proofptr = proofstr;
-    *proofptr = 0;
+    *proofstr = 0;
   } else {
     proofstr_size = 0;
     proofstr = 0;
+    proofptr = 0;
   }
+  proofptr = proofstr;
   verbose = _GMP_get_verbose();
   mpz_init_set(Ni, N);
   mpz_init(a); mpz_init(b); mpz_init(u); mpz_init(v);

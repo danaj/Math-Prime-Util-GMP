@@ -15,7 +15,8 @@ WriteMakefile1(
                     'small_factor.o '   .
                     'utility.o '        .
                     'ecm.o '            .
-                    'ecpp.o '            .
+                    'bls75.o '          .
+                    'ecpp.o '           .
                     'simpqs.o '         .
                     'gmp_main.o '       .
                     'XS.o',
