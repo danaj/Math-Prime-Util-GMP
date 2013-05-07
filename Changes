@@ -1,6 +1,6 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.10  xx April 2013
+0.10  xx May 2013
 
     - Change polynomial multiplication to use binary segmentation.  Huge
       speed improvement for AKS primality proving (20-100x faster).  AKS
@@ -19,6 +19,11 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Lots of new internal functions to support ECPP, which could be used
       for future projects.
+
+    - is_prime does an additional 4 random-base M-R tests, to give a little
+      extra over is_prob_prime at little cost.
+
+    - is_provable_prime will try a quick n-1 then do ECPP.
 
 0.09  21 April 2013
 

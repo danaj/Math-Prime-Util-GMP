@@ -35,7 +35,7 @@
  *         gcd(a^((n-1)/f)-1,n) = 1
  * then n is prime.
  *
- * BLS: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
+ * BLS T5: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
  *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
  *   - n < (A+1) * (2*A*A + (r-1) * A + 1)
  *   - for each each factor f of A, there exists an a (1 < a < n-1) s.t.
@@ -61,6 +61,11 @@
  * more than ~ log2(n).  However all but BLS75 require testing all integers
  * 1 < a < n-1 before answering in the negative, which is impractical.
  *
+ * BLS75 theorem 7 is the final n-1 theorem and takes into account any
+ * knowledge that the remaining factor is not below a threshold B.  Since
+ * we do initial trial division this helps.  It is usually of only small
+ * benefit.
+ *
  *
  * AKS is not too hard to implement, but it's impractically slow.
  *
@@ -70,10 +75,8 @@
  *
  */
 
-/* For these primality functions:
- *   -1   n is definitely composite
- *    1   n is definitely prime
- *    0   we can't decide
+/* Like all the primality functions:
+ *   2 = definitely prime, 1 = maybe prime, 0 = definitely composite
  *
  * You really should run is_prob_prime on n first, so we only have to run
  * these tests on numbers that are very probably prime.
@@ -82,13 +85,14 @@
 /* FIXME:
  *   (1) too much repetitious overhead code in these
  *   (2) way too much copy/paste between Pocklington and BLS
+ *   (3) Pocklington has code rotted, so fix before using
  */
 #define PRIM_STACK_SIZE 128
 
 #define primality_handle_factor(f, primality_func, factor_prob) \
   { \
     int f_prob_prime = _GMP_is_prob_prime(f); \
-    if ( (f_prob_prime == 1) && (primality_func(f, effort, prooftextptr)) ) \
+    if ( (f_prob_prime == 1) && (primality_func(f, effort, prooftextptr) == 2) ) \
       f_prob_prime = 2; \
     if (f_prob_prime == 2) { \
       if (fsp >= PRIM_STACK_SIZE) { success = 0; } \
@@ -273,7 +277,7 @@ static int bls_theorem7_limit(mpz_t n, mpz_t A, mpz_t B, UV B1,
 }
 #endif
 
-int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
+int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, A, B, t, m, f, r, s;
   mpz_t mstack[PRIM_STACK_SIZE];
@@ -285,7 +289,7 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
   UV B1 = 2000;
 
   /* We need to do this for BLS */
-  if (mpz_even_p(n)) return -1;
+  if (mpz_even_p(n)) return 0;
 
   mpz_init(nm1);
   mpz_sub_ui(nm1, n, 1);
@@ -316,7 +320,7 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
 
   if (success) {
     mpz_set(f, B);
-    primality_handle_factor(f, _GMP_primality_bls, 1);
+    primality_handle_factor(f, _GMP_primality_bls_nm1, 1);
   }
 
   while (success) {
@@ -415,7 +419,7 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
             if (nfactors > 1) {
               success = 1;
               for (i = 0; i < nfactors; i++) {
-                primality_handle_factor(farray[i], _GMP_primality_bls, 0);
+                primality_handle_factor(farray[i], _GMP_primality_bls_nm1, 0);
               }
             }
             for (i = 0; i < 66; i++)
@@ -441,8 +445,8 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
     /* Put the two factors f and m/f into the stacks, smallest first */
     mpz_divexact(m, m, f);
     if (mpz_cmp(m, f) < 0) { mpz_set(t, m); mpz_set(m, f); mpz_set(f, t); }
-    primality_handle_factor(f, _GMP_primality_bls, 0);
-    primality_handle_factor(m, _GMP_primality_bls, 0);
+    primality_handle_factor(f, _GMP_primality_bls_nm1, 0);
+    primality_handle_factor(m, _GMP_primality_bls_nm1, 0);
   }
 
   /* clear mstack since we don't care about it.  Use to hold a values. */
@@ -546,5 +550,7 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
   mpz_clear(t);
   mpz_clear(r);
   mpz_clear(s);
-  return success;
+  if (success < 0) return 0;
+  if (success > 0) return 2;
+  return 1;
 }

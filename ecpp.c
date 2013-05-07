@@ -65,10 +65,11 @@
 #include "XSUB.h"
 
 #include "ecpp.h"
+#include "gmp_main.h"
 #include "ecm.h"
 #include "utility.h"
 #include "prime_iterator.h"
-#include "gmp_main.h"
+#include "bls75.h"
 
 #undef USE_NM1
 int verbose = 2;
@@ -522,7 +523,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
       if (effort > 0) {
         char* nm1_proof = 0;
         /* -1 = composite, 0 = dunno, 1 = proved prime */
-        k = _GMP_primality_bls(Ni, effort, &nm1_proof);
+        k = _GMP_primality_bls_nm1(Ni, effort, &nm1_proof);
         if (k > 0) {
           result = 2;
           if (prooftextptr && nm1_proof != 0) {
@@ -635,20 +636,11 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
 
       if (niresult)  break;
 
-      if (stage == 1) {
-        /* If no Ds worked, make sure we don't have a composite.  We already
-         * checked that Ni is a BPSW pseudoprime, so it would be *shocking* if
-         * it were composite.  We have little to lose by testing. */
-        /* TODO: Consider using GMP's probable prime function */
-        if (numDs == 0) {
-          mpz_set_ui(t, 3);
-          for (k = 0; k < 100; k++) {
-            if (_GMP_miller_rabin(Ni, t) == 0) {
-              printf("composite found!\n");
-              goto end_ecpp;
-            }
-            _GMP_next_prime(t);
-          }
+      if (stage == 1 && numDs == 0) {
+        /* If no Ds were found, make sure we don't have a composite. */
+        if (_GMP_miller_rabin_random(Ni, 10) == 0) {
+          if (verbose) gmp_printf("composite %Zd found in ecpp!\n", Ni);
+          goto end_ecpp;
         }
       }
 

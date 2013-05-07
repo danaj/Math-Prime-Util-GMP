@@ -59,6 +59,32 @@ static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
   return rval;
 }
 
+int _GMP_miller_rabin_random(mpz_t n, UV numbases)
+{
+  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+  mpz_t base;
+  UV i;
+
+  /* We could just use mpz_probab_prime_p and call it a day. */
+
+  /* Make sure we can make proper random bases */
+  if (mpz_cmp_ui(n, 2) < 0) return 0;  /* below 2 is composite */
+  if (mpz_cmp_ui(n, 4) < 0) return 1;  /* 2 and 3 are prime */
+  if (mpz_even_p(n))        return 0;  /* multiple of 2 is composite */
+
+  mpz_init(base);
+  for (i = 0; i < numbases; i++) {
+    /* select a random base between 2 and n-2 (we're lazy and use n-1) */
+    do {
+      mpz_urandomm(base, *p_randstate, n);
+    } while (mpz_cmp(base, n) >= 0 || mpz_cmp_ui(base, 1) <= 0);
+    if (_GMP_miller_rabin(n, base) == 0)
+      break;
+  }
+  mpz_clear(base);
+  return (i >= numbases);
+}
+
 int _GMP_miller_rabin(mpz_t n, mpz_t a)
 {
   mpz_t nminus1, d, x;
@@ -250,6 +276,26 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   return 0;
 }
 
+/*
+ * is_prob_prime      BPSW -- fast, no known counterexamples
+ * is_prime           is_prob_prime + a little extra
+ * is_provable_prime  really prove it, which could take a very long time
+ *
+ * They're all identical for numbers <= 2^64.
+ *
+ * For 128-bit primes:
+ *                      is_prob_prime           2 uS
+ *                      is_prime              280 uS  (+4 MR, 50% proven)
+ *                      is_provable_prime    1440 uS
+ * For 256-bit primes:
+ *                      is_prob_prime           2 uS
+ *                      is_prime                2 uS  (+4 MR)
+ *                      is_provable_prime  136000 uS
+ *
+ * The extra M-R tests in is_prime start actually costing something after
+ * 1000 bits or so.  Primality proving will get quite a bit slower as the
+ * number of bits increases.
+ */
 
 int _GMP_is_prob_prime(mpz_t n)
 {
@@ -275,66 +321,44 @@ int _GMP_is_prob_prime(mpz_t n)
 
 int _GMP_is_prime(mpz_t n)
 {
-  int prob_prime;
+  int prob_prime = _GMP_is_prob_prime(n);
 
-  prob_prime = _GMP_is_prob_prime(n);
-  if (prob_prime != 1)
-    return prob_prime;
-  /*
-   * BPSW indicated this is a prime, so we're pretty darn sure it is.  For
-   * smaller numbers, try a quick proof using the Pocklington or BLS test.
-   * We only do this for reasonably small numbers, and we're rather
-   * half-hearted about the test, as it requires partially factoring n-1,
-   * which may be easy or may be very hard.  They might not care at all
-   * about this, so don't spend too much time.
-   *
-   * The idea is that they can call:
-   *    is_prob_prime      BPSW
-   *    is_prime           is_prob_prime + a little extra
-   *    is_provable_prime  really prove it, which could take hours or days
-   *
-   * If we had better large-number factoring, we could extend the reasonable
-   * range for this test.  In the long run, ECPP is the better method.  What
-   * Pocklington/BLS gives us is a quite fast and very easy (in code) way to
-   * prove primality for a lot of numbers in the 2^64 - 2^200 bit range (up
-   * to about 50 digits).
-   */
-  if (mpz_sizeinbase(n, 2) <= 200) {
-    prob_prime = _GMP_primality_bls(n, 2 /* effort */, 0 /* proof */);
-    if (prob_prime < 0)
-      return 0;
-    if (prob_prime > 0)
-      return 2;
-  }
-  return 1;
+  /* We're pretty sure n is a prime since it passed the BPSW test.  Try
+   * 10 random M-R bases to give some extra assurance. */
+  if (prob_prime == 1)
+    prob_prime = _GMP_miller_rabin_random(n, 4);
+
+  /* For small numbers, try a quick BLS75 n-1 proof. */
+  if (prob_prime == 1 && mpz_sizeinbase(n, 2) <= 200)
+    prob_prime = _GMP_primality_bls_nm1(n, 2 /* effort */, 0 /* proof */);
+
+  return prob_prime;
 }
 
 int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
-  int prob_prime;
+  int prob_prime = _GMP_is_prob_prime(n);
 
-  prob_prime = _GMP_is_prob_prime(n);
-  if (prob_prime != 1)
-    return prob_prime;
+  /* The primality proving algorithms tend to be VERY slow for composites,
+   * so run a few more MR tests. */
+  if (prob_prime == 1)
+    prob_prime = _GMP_miller_rabin_random(n, 4);
 
-  /* Miller-Rabin tests are fast, and the primality proving methods are
-   * really, really, really slow for composites.  So run a few more MR tests
-   * just in case.  These bases aren't special.
+  /* We can choose a primality proving algorithm:
+   *   AKS    _GMP_is_aks_prime       really slow, don't bother
+   *   N-1    _GMP_primality_bls_nm1  small or special numbers
+   *   ECPP   _GMP_ecpp               fastest in general
    */
-  if (    (_GMP_miller_rabin_ui(n, 325) == 0)
-       || (_GMP_miller_rabin_ui(n, 131) == 0)
-       || (_GMP_miller_rabin_ui(n, 223) == 0)
-       || (_GMP_miller_rabin_ui(n, 887) == 0)
-     )
-    return 0;
 
-  prob_prime = _GMP_primality_bls(n, 100, prooftext);
-  /* prob_prime = _GMP_ecpp(n, prooftext) - 1; */
-  if (prob_prime < 0)
-    return 0;
-  if (prob_prime > 0)
-    return 2;
-  return 1;
+  /* Give n-1 a small go */
+  if (prob_prime == 1)
+    prob_prime = _GMP_primality_bls_nm1(n, 2, prooftext);
+
+  /* ECPP */
+  if (prob_prime == 1)
+    prob_prime = _GMP_ecpp(n, prooftext);
+
+  return prob_prime;
 }
 
 #if 0

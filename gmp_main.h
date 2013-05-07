@@ -13,6 +13,7 @@ extern void _GMP_destroy(void);
 
 extern int  _GMP_miller_rabin(mpz_t n, mpz_t a);
 extern int  _GMP_is_strong_lucas_pseudoprime(mpz_t n);
+extern int  _GMP_miller_rabin_random(mpz_t n, UV numbases);
 
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 
@@ -22,9 +23,6 @@ extern int  _GMP_is_provable_prime(mpz_t n, char ** prooftext);
 extern int  _GMP_is_aks_prime(mpz_t n);
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
-
-/* extern int _GMP_primality_pocklington(mpz_t n, int do_quick); */
-extern int _GMP_primality_bls(mpz_t n, int effort, char ** prooftextptr);
 
 extern int  _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds);
 extern int  _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds);

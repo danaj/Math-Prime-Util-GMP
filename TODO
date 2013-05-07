@@ -36,5 +36,4 @@
   gain of possibly making the next number smaller, which if done will usually
   be a big payoff.
 
-- Primality proof text should be allocated / reallocated by the proof code,
-  instead of our making a giant max size guess in the caller.
+- Documentation of changed is_prime and is_provable_prime behavior.
