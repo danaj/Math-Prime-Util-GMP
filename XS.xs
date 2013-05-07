@@ -148,20 +148,12 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
       result = _GMP_is_provable_prime(n, 0);
       XPUSHs(sv_2mortal(newSViv( result )));
     } else {
-      /* n-1 is 3 numbers, ECPP is 7, plus separators */
-      /* TODO: This is vastly overestimating the typical space used.
-       *       We should have the proof returned to us and let them alloc. */
-      char* prooftext;
-      int nbytes = 1024;
-      int ndig = mpz_sizeinbase(n, 10);
-      if (ndig > 19) {
-        nbytes += (7*ndig + 17) * (ndig-19);
-      }
-      Newz(0, prooftext, nbytes, char);
-      result = _GMP_is_provable_prime(n, prooftext);
+      char* prooftext = 0;
+      result = _GMP_is_provable_prime(n, &prooftext);
       XPUSHs(sv_2mortal(newSViv( result )));
       XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));
-      Safefree(prooftext);
+      if (prooftext != 0)
+        Safefree(prooftext);
     }
     mpz_clear(n);
 

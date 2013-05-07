@@ -312,7 +312,7 @@ int _GMP_is_prime(mpz_t n)
   return 1;
 }
 
-int _GMP_is_provable_prime(mpz_t n, char* prooftext)
+int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
   int prob_prime;
 
@@ -331,8 +331,8 @@ int _GMP_is_provable_prime(mpz_t n, char* prooftext)
      )
     return 0;
 
-  prob_prime = _GMP_primality_bls(n, 100, &prooftext);
-  /* prob_prime = _GMP_ecpp(n, &prooftext); */
+  prob_prime = _GMP_primality_bls(n, 100, prooftext);
+  /* prob_prime = _GMP_ecpp(n, prooftext) - 1; */
   if (prob_prime < 0)
     return 0;
   if (prob_prime > 0)
@@ -971,24 +971,37 @@ int _GMP_primality_bls(mpz_t n, int effort, char** prooftextptr)
     mpz_clear(p);
     mpz_clear(ap);
   }
-  if (success > 0 && prooftextptr != 0 && *prooftextptr != 0) {
-    int i;
+  if (success > 0 && prooftextptr != 0) {
+    int i, prooflen;
+    char *proofstr, *proofptr;
     if (fsp != msp) croak("Different f and a counts\n");
-    *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd :", n);
+    prooflen = mpz_sizeinbase(n, 10) * (1 + fsp + msp) + 200;
+    New(0, proofstr, prooflen, char);
+    proofptr = proofstr;
+    *proofptr = 0;
+    proofptr += gmp_sprintf(proofptr, "%Zd :", n);
     if (theorem7) {
-      *prooftextptr += gmp_sprintf(*prooftextptr, " N-1 T7 :");
-      *prooftextptr += gmp_sprintf(*prooftextptr, " %lu %Zd %Zd :",
+      proofptr += gmp_sprintf(proofptr, " N-1 T7 :");
+      proofptr += gmp_sprintf(proofptr, " %lu %Zd %Zd :",
                        B1, fstack[--fsp], mstack[--msp]);
        mpz_clear(fstack[fsp]);  mpz_clear(mstack[msp]);
     } else {
-      *prooftextptr += gmp_sprintf(*prooftextptr, " N-1 T5 :");
+      proofptr += gmp_sprintf(proofptr, " N-1 T5 :");
     }
     for (i = 0; i < fsp; i++)
-      *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", fstack[i]);
-    *prooftextptr += gmp_sprintf(*prooftextptr, " :");
+      proofptr += gmp_sprintf(proofptr, " %Zd", fstack[i]);
+    proofptr += gmp_sprintf(proofptr, " :");
     for (i = 0; i < msp; i++)
-      *prooftextptr += gmp_sprintf(*prooftextptr, " %Zd", mstack[i]);
-    *prooftextptr += gmp_sprintf(*prooftextptr, "\n");
+      proofptr += gmp_sprintf(proofptr, " %Zd", mstack[i]);
+    proofptr += gmp_sprintf(proofptr, "\n");
+    /* Set or append */
+    if (*prooftextptr == 0) {
+      *prooftextptr = proofstr;
+    } else {
+      Renew(*prooftextptr, strlen(*prooftextptr) + strlen(proofstr) + 1, char);
+      (void) strcat(*prooftextptr, proofstr);
+      Safefree(proofstr);
+    }
   }
   while (fsp-- > 0)
     mpz_clear(fstack[fsp]);

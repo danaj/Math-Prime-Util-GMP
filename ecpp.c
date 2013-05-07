@@ -462,11 +462,22 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   int result = 0;
   int facresult, curveresult, niresult;
   dmqlist_t *dmqlist;
+  char *proofstr, *proofptr;
+  size_t proofstr_size;
 
   /* We must check gcd(N,6), let's check 2*3*5*7*11*13*17*19*23. */
   if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
     return _GMP_is_prob_prime(N);
 
+  if (prooftextptr) {
+    proofstr_size = 4096;
+    New(0, proofstr, proofstr_size, char);
+    proofptr = proofstr;
+    *proofptr = 0;
+  } else {
+    proofstr_size = 0;
+    proofstr = 0;
+  }
   verbose = _GMP_get_verbose();
   mpz_init_set(Ni, N);
   mpz_init(a); mpz_init(b); mpz_init(u); mpz_init(v);
@@ -494,27 +505,38 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
       goto end_ecpp;
     }
 #ifdef USE_NM1
-    /* Try a simple n-1 test.
-     * Effort 1 is almost free, 2 is very fast.  3 isn't too bad.
-     * The likelihood of this succeeding goes down rapidly with size.
+    /* Try a simple n-1 test.  Note that Atkin and Morain discuss using
+     * n-1 and n+1 tests at each level, so this is fairly common.  It probably
+     * made even more sense in 1992 when the usual cutoff was a sieve.
+     *
+     * For not-big numbers, Effort 1 is nearly free, 2 is very fast, 3 is ok.
+     * The likelihood of this succeeding goes down rapidly with size, and the
+     * cost goes up.
      * For effort 2, it is about 50% at 128 bits, 25% at 160, 10% at 190. */
     {
       UV log2ni = mpz_sizeinbase(Ni, 2);
       int effort = (log2ni <= 128) ? 2
-                 : (log2ni <= 200) ? 1
+                 : (log2ni <= 256) ? 1
                  :                   0;
       if (effort > 0) {
-        printf("N-1 %ld bits, effort %d...", (long)log2ni, effort);
-        fflush(stdout);
-        k = _GMP_primality_bls(Ni, effort, prooftextptr);
-        printf("%s\n", (k < 0) ? "COMPOSITE" : (k > 0) ? "SUCCESS" : "DONE"); fflush(stdout);
-        if (k != 0) {
-          if (k > 0) {
-            gmp_printf("N-1: %Zd\n", Ni);
-            result = 2;
+        char* nm1_proof = 0;
+        /* -1 = composite, 0 = dunno, 1 = proved prime */
+        k = _GMP_primality_bls(Ni, effort, &nm1_proof);
+        if (k > 0) {
+          result = 2;
+          if (prooftextptr && nm1_proof != 0) {
+            size_t new_size = strlen(proofstr) + strlen(nm1_proof) + 1;
+            if ( new_size > proofstr_size ) {
+              proofstr_size = new_size;
+              Renew(proofstr, proofstr_size, char);
+            }
+            (void) strcat(proofstr, nm1_proof);
           }
-          goto end_ecpp;
         }
+        if (nm1_proof != 0)
+          Safefree(nm1_proof);
+        if (k != 0)
+          goto end_ecpp;
       }
     }
 #endif
@@ -615,10 +637,11 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
       if (stage == 1) {
         /* If no Ds worked, make sure we don't have a composite.  We already
          * checked that Ni is a BPSW pseudoprime, so it would be *shocking* if
-         * it were composite.  Still, we have nothing to lose by testing. */
+         * it were composite.  We have little to lose by testing. */
+        /* TODO: Consider using GMP's probable prime function */
         if (numDs == 0) {
-          mpz_set_ui(t, 2);
-          for (k = 0; k < 150; k++) {
+          mpz_set_ui(t, 3);
+          for (k = 0; k < 100; k++) {
             if (_GMP_miller_rabin(Ni, t) == 0) {
               printf("composite found!\n");
               goto end_ecpp;
@@ -628,27 +651,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
         }
       }
 
-#ifdef USE_NM1
-      /* OK, so we've made a pass and didn't find anything.  Try a little
-       * harder to prove via N-1 */
-      {
-        int effort = (stage < 5) ? 2 + stage : 8;
-        UV log2ni = mpz_sizeinbase(Ni, 2);
-        printf("RETRY N-1 %ld bits, effort %d...",(long)log2ni,effort); fflush(stdout);
-        k = (effort > 0) ? _GMP_primality_bls(Ni, effort, prooftextptr) : 0;
-        printf("%s\n", (k < 0) ? "COMPOSITE" : (k > 0) ? "SUCCESS" : "DONE"); fflush(stdout);
-        if (k < 0) {
-          gmp_printf("N-1 says %Zd is composite.\n", Ni);
-          goto end_ecpp;
-        }
-        if (k > 0) {
-          gmp_printf("N-1: %Zd\n", Ni);
-          result = 2;
-          goto end_ecpp;
-        }
-      }
-#endif
-    }
+    } /* end stage loop */
     for ( ; numQs > 0; numQs--) {
       mpz_clear(dmqlist[numQs-1].m);
       mpz_clear(dmqlist[numQs-1].q);
@@ -666,11 +669,18 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
       gmp_printf("q = %Zd\n", q);
       gmp_printf("P = (%Zd, %Zd)\n", P.x, P.y);
     }
-    if (prooftextptr != 0 && *prooftextptr != 0) {
-      *prooftextptr += gmp_sprintf(*prooftextptr, "%Zd : ECPP : ", Ni);
-      *prooftextptr += gmp_sprintf(*prooftextptr,
-                                   "%Zd %Zd %Zd %Zd (%Zd:%Zd)\n",
-                                   a, b, m, q, P.x, P.y);
+    if (prooftextptr != 0) {
+      int prooflen = mpz_sizeinbase(Ni, 10) * 7 + 20;
+      size_t offset = proofptr - proofstr;
+      if ( (offset + 1 + prooflen) > proofstr_size ) {
+        proofstr_size += 4*prooflen;
+        Renew(proofstr, proofstr_size, char);
+        proofptr = proofstr + offset;
+      }
+      proofptr += gmp_sprintf(proofptr, "%Zd : ECPP : ", Ni);
+      proofptr += gmp_sprintf(proofptr,
+                              "%Zd %Zd %Zd %Zd (%Zd:%Zd)\n",
+                              a, b, m, q, P.x, P.y);
     }
     mpz_set(Ni, q);
   }
@@ -691,6 +701,18 @@ end_ecpp:
     mpz_clear(dmqlist[numQs-1].q);
   }
   Safefree(dmqlist);
+  /* Append our proof */
+  if (prooftextptr != 0) {
+    if (result != 2) {
+      Safefree(proofstr);
+    } else if (*prooftextptr == 0) {
+      *prooftextptr = proofstr;
+    } else {
+      Renew(*prooftextptr, strlen(*prooftextptr) + strlen(proofstr) + 1, char);
+      (void) strcat(*prooftextptr, proofstr);
+      Safefree(proofstr);
+    }
+  }
 
   return result;
 }

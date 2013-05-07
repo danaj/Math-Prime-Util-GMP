@@ -137,7 +137,7 @@ sub is_provable_prime_with_cert {
     # Check to see if the last q was proven via n-1
     my $lastq = $ecpp[-1]->[4];
     $ecpp[-1]->[4] = $parts{$lastq} if defined $parts{$lastq};
-    return ($result, @cert);
+    return ($result, [@cert]);
   }
   return @composite if !defined $parts{$n};
   return ($result, $parts{$n});
