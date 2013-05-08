@@ -152,9 +152,12 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
       char* prooftext = 0;
       result = _GMP_is_provable_prime(n, &prooftext);
       XPUSHs(sv_2mortal(newSViv( result )));
-      XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));
-      if (prooftext != 0)
+      if (prooftext) {
+        XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));
         Safefree(prooftext);
+      } else {
+        XPUSHs(sv_2mortal(newSVpv("", 0)));
+      }
     }
     mpz_clear(n);
 
