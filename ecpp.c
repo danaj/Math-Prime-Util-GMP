@@ -20,7 +20,9 @@
  * for the MPU package.  A much larger set of 1731 values compiles to 400k,
  * and helps a lot with larger inputs.  Better yet, 3140 values takes 1.5MB.
  * Alternately if I had fast Hilbert/Weber polynomial generation code, I could
- * calculate values as needed.
+ * calculate values as needed.  As Marcel Martin wrote in 2001:
+ *   "Small disc table + Backtracking is a loosing [sic] strategy."
+ * He is right in the long term, but for now my crutches are needed.
  *
  * The other major issue is that this uses the "factor and prove" strategy
  * rather than "factor all" strategy.  What I see is basically what Morain
@@ -38,16 +40,18 @@
  * numbers (~300 digits) then this software should work well.  It also allows
  * tinkering with the program as desired.
  *
- * Benchmarks.  All but the last are using the small (477) discriminant set.
- * Times are on a single core of a 4.2GHz i7-3930K (a fast machine), times
- * from the command line using Perl, averaged across multiple runs.
+ * Benchmarks.  All but the ones indicated are using the small (477 values)
+ * discriminant set.  Times are on a single core of a 4.2GHz i7-3930K (a
+ * fast machine), from the command line using Perl, averaged across multiple
+ * runs.
  *
  *    10**49+9      0.027s
  *    10**100+267   0.16s
  *    2**511+111    0.4s
  *    2**1023+1155  5s
- *    10**1000+453  12 minutes with large discriminant data
- *    10**999+7     25 minutes with large discriminant data
+ *    2**2067+131    1.5 minutes with large discriminant data
+ *    10**1000+453  12   minutes with large discriminant data
+ *    10**999+7     25   minutes with large discriminant data
  *
  * Thanks to H. Cohen, R. Crandall & C. Pomerance, and H. Riesel for their
  * text books.  Thanks to the authors of open source software who allow me
