@@ -5,8 +5,6 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/is_prime/;
 
-my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
-
 plan tests => 0 + 6
                 + 19
                 + 1

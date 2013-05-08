@@ -5,8 +5,6 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/primes/;
 
-my $extra = defined $ENV{RELEASE_TESTING} && $ENV{RELEASE_TESTING};
-
 plan tests => 12 + 12 + 1 + 1 + 19 + 1 + 1 + 13*5;
 
 ok(!eval { primes(undef); },   "primes(undef)");

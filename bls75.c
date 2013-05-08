@@ -1,4 +1,10 @@
 
+/* If set, then tries to apply theorem 7 in addition to theorem 5.
+ * Normally I would just have this on, but then we'd produce certificates
+ * that Math::Prime::Util 0.26 couldn't understand. :(
+ */
+#define BLS_THEOREM7 0
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,9 +234,6 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
   return success;
 }
 #endif
-
-/* If set, then tries to apply theorem 7 in addition to theorem 5 */
-#define BLS_THEOREM7 0
 
 static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
                               mpz_t t, mpz_t y, mpz_t r, mpz_t s)
