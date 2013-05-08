@@ -36,5 +36,3 @@
   This drops our q sizes faster, at the expense of more up-front time.
   I have this running, but for small numbers it doesn't matter much, and for
   large numbers it just highlights how much nicer FAS would be.
-
-- Tests for ECPP.

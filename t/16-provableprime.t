@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert/;
+use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert
+                              is_aks_prime is_nminus1_prime is_ecpp_prime/;
 
 plan tests => 0 + 6
                 + 38
@@ -11,6 +12,7 @@ plan tests => 0 + 6
                 + 34
                 + 2
                 + 4   # _with_cert
+                + 3   # AKS, N-1, ECPP
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -105,3 +107,13 @@ is_deeply([is_provable_prime_with_cert("848301847013166693538593241183")],
 # on which factors got found first.
 #is_deeply([is_provable_prime_with_cert("316912650057057350374175801351")], [2, ["316912650057057350374175801351","n-1",[2, 5, 443, 487, 1451], [7, 2, 2, 2, 2]]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
 #is_deeply([is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453")], [2, ["3138550867693340381917894711603833208051177722232017256453","n-1",[2, 3, 19, 43, 379, 87211, 5419, 119827], [2, 2, 2, 2, 2, 2, 2, 2],]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+
+# Individual routines
+# AKS.  Sigh, so freaking slow.
+ok( is_aks_prime(74017), "is_aks_prime(74017)" );
+
+# BLS75 n-1
+ok( is_nminus1_prime("340282366920938463463374607431768211507"), "is_nminus1_prime(340282366920938463463374607431768211507)" );
+
+# ECPP
+ok( is_ecpp_prime("340282366920938463463374607431768211507"), "is_ecpp_prime(340282366920938463463374607431768211507)" );
