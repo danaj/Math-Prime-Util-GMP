@@ -112,7 +112,7 @@ sub is_provable_prime_with_cert {
       @a = map { $_->[1] } @fa;
       $parts{$fn} = [$fn, "n-1", [@f], [@a]];
     } elsif ($part =~ /^(\d+) : N-1 T7 : (.*) : (.*) : (.*)$/) {
-      my($fn, $t7str, $fstr, $astr) = ($1, $2, $3);
+      my($fn, $t7str, $fstr, $astr) = ($1, $2, $3, $4);
       my @t7 = split(/ /, $t7str);
       my @f = split(/ /, $fstr);
       my @a = split(/ /, $astr);
@@ -123,8 +123,8 @@ sub is_provable_prime_with_cert {
       @f = map { defined $parts{$_} ? $parts{$_} : $_ }
            map { $_->[0] } @fa;
       @a = map { $_->[1] } @fa;
-      # Theorem 7: supply [B1, B, a]
-      $parts{$fn} = [$fn, "n-1 T7", [@t7], [@f], [@a]];
+      # Theorem 7: supply ["B", B1, B, a]
+      $parts{$fn} = [$fn, "n-1", ["B", @t7], [@f], [@a]];
     } elsif ($part =~ /(\d+) : ECPP : (\d+) (\d+) (\d+) (\d+) \((\d+):(\d+)\)\s*$/) {
       my($fn, $a, $b, $m, $q, $px, $py) = ($1, $2, $3, $4, $5, $6, $7);
       push @ecpp, [$fn, $a, $b, $m, $q, [$px, $py]];

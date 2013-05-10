@@ -3,7 +3,7 @@
  * Normally I would just have this on, but then we'd produce certificates
  * that Math::Prime::Util 0.26 couldn't understand. :(
  */
-#define BLS_THEOREM7 0
+#define BLS_THEOREM7 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -289,7 +289,11 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   int fsp = 0;
   int success = 1;
   int theorem7 = 0;
+#if BLS_THEOREM7
+  UV B1 = 20000;
+#else
   UV B1 = 2000;
+#endif
 
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return 0;
