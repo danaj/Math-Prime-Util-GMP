@@ -893,8 +893,9 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       if ( !mpz_sgn(a) )
         break;
       mpz_sub_ui(t, a, 1);
-      mpz_mul(t, b, t);
-      mpz_tdiv_r(b, t, n);
+      mpz_mul(b, b, t);
+      if ((j % 4) == 0)           /* put off mods a little */
+        mpz_tdiv_r(b, b, n);
       if ( (j++ % 64) == 0) {     /* GCD every so often */
         mpz_gcd(f, b, n);
         if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
