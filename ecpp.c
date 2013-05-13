@@ -232,6 +232,10 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   polyz_mod(T, T, &dT, N);
 
   polyz_roots_modp(roots, &nroots,  T, dT, N, p_randstate);
+  if (nroots == 0) {
+    gmp_printf("N = %Zd\n", N);
+    croak("Failed to find roots for D = %ld\n", D);
+  }
   for (i = 0; i <= dT; i++)
     mpz_clear(T[i]);
   Safefree(T);
@@ -586,7 +590,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
           numDs++;
 
           if (verbose > 1)
-            printf("  Candidate D %ld (%s poly)\n", D, (poly_type == 1) ? "Hilbert" : "Weber");
+            { printf("  Candidate D %ld (%s poly)\n", D, (poly_type == 1) ? "Hilbert" : "Weber"); fflush(stdout); }
 
           choose_m(mlist, D, u, v, Ni, t, t2);
           for (k = 0; k < 6; k++) {
@@ -615,7 +619,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
         /* We may want to consider sorting by size instead.  Certainly after
          * stage 2 we're far more concerned with factoring than root finding. */
         if (verbose)
-          printf("  At stage %ld with %ld D values and %ld q values\n", stage, numDs, numQs);
+          { printf("  At stage %ld with %ld D values and %ld q values\n", stage, numDs, numQs); fflush(stdout); }
         for (k = 0; k < numQs; k++) {
           mpz_set(m, dmqlist[k].m);
           facresult = check_for_factor(q, dmqlist[k].q, minfactor, t, stage);
@@ -670,6 +674,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
       gmp_printf("m = %Zd\n", m);
       gmp_printf("q = %Zd\n", q);
       gmp_printf("P = (%Zd, %Zd)\n", P.x, P.y);
+      fflush(stdout);
     }
     if (prooftextptr != 0) {
       int prooflen = mpz_sizeinbase(Ni, 10) * 7 + 20;
