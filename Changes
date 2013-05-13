@@ -1,5 +1,11 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.11   ? May 2013
+
+    - Change ECPP to factor all strategy with backtracking.  No difference
+      below 200 digits.  Helps a lot with many 300+ digit numbers.  Certs
+      are identical.
+
 0.10   7 May 2013
 
     - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
