@@ -22,17 +22,11 @@
 
 - ECPP: Perhaps more HCPs/WCPs could be loaded if needed?
 
-- ECPP: The current implementation is FSP, which is fine for ~300 digits
-  and smaller.  Switch to FAS, which is a much better solution for larger
-  numbers.  To do FAS (Factor All Strategy), we want to lighten the factoring
-  on the first couple stages.  Then we go through not doing find_curve, just
-  looking for numbers we can use.  Backtrack as needed.  If we get to the
-  end of i=0, raise the factoring stage number and do it again.  At the end
-  we have a complete q chain, at which time we do find_curve for them all.
-
 - ECPP: Another idea is related to Atkin/Morain's EAS.  When we have a large
   number, we can process more Ds, delaying the downrun.  We then use the
   smallest q we found.  Combine with lightened stage 1 factoring as above.
   This drops our q sizes faster, at the expense of more up-front time.
   I have this running, but for small numbers it doesn't matter much, and for
   large numbers it just highlights how much nicer FAS would be.
+
+- ECPP: with FAS, we're printing the N[i] results backwards.
