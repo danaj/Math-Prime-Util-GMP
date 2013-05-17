@@ -97,6 +97,8 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
     if (cmpr < 0)      return 0;  /* below 2 is composite */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
+  if (mpz_cmp_ui(a, 1) <= 0)
+    croak("Base %ld is invalid", mpz_get_si(a));
   mpz_init_set(nminus1, n);
   mpz_sub_ui(nminus1, nminus1, 1);
   mpz_init_set(x, a);
@@ -324,13 +326,13 @@ int _GMP_is_prime(mpz_t n)
   int prob_prime = _GMP_is_prob_prime(n);
 
   /* We're pretty sure n is a prime since it passed the BPSW test.  Try
-   * 10 random M-R bases to give some extra assurance. */
+   * a few random M-R bases to give some extra assurance. */
   if (prob_prime == 1)
     prob_prime = _GMP_miller_rabin_random(n, 4);
 
   /* For small numbers, try a quick BLS75 n-1 proof. */
   if (prob_prime == 1 && mpz_sizeinbase(n, 2) <= 200)
-    prob_prime = _GMP_primality_bls_nm1(n, 2 /* effort */, 0 /* proof */);
+    prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* proof */);
 
   return prob_prime;
 }
