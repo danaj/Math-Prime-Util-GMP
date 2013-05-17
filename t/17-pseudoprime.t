@@ -4,6 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/is_strong_pseudoprime is_strong_lucas_pseudoprime is_prime/;
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 # pseudoprimes from 2-100k for many bases
 
@@ -60,14 +61,15 @@ foreach my $psrp (keys %large_pseudoprimes) {
 }
 
 
-plan tests => 0 + 7
+plan tests => 0 + 9
                 + 3
                 + 6
                 + $num_pseudoprimes
                 + 1  # mr base 2    2-4k
                 + 9  # mr with large bases
                 + scalar @small_lucas_trials
-               # + $num_large_pseudoprime_tests
+              # + $num_large_pseudoprime_tests
+                + 1*$extra  # Arnault 1994 big Carmichael number
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -76,11 +78,10 @@ eval { is_strong_pseudoprime(2047, undef); };
 like($@, qr/defined/i, "is_strong_pseudoprime with base undef fails");
 eval { is_strong_pseudoprime(2047, ''); };
 like($@, qr/positive/i, "is_strong_pseudoprime with base '' fails");
-# We return 1 for bases 0 and 1 now
-#eval { is_strong_pseudoprime(2047,0); };
-#like($@, qr/>= 2/i, "is_strong_pseudoprime with base 0 fails");
-#eval { is_strong_pseudoprime(2047,1); };
-#like($@, qr/>= 2/i, "is_strong_pseudoprime with base 1 fails");
+eval { is_strong_pseudoprime(2047,0); };
+like($@, qr/invalid/i, "is_strong_pseudoprime with base 0 fails");
+eval { is_strong_pseudoprime(2047,1); };
+like($@, qr/invalid/i, "is_strong_pseudoprime with base 1 fails");
 eval { is_strong_pseudoprime(2047,-7); };
 like($@, qr/positive/i, "is_strong_pseudoprime with base -7 fails");
 eval { is_strong_pseudoprime(undef, 2); };
@@ -150,4 +151,21 @@ for my $n (@small_lucas_trials) {
   } else {
     ok(!is_strong_lucas_pseudoprime($n), "$n is not a prime and not a strong Lucas-Selfridge pseudoprime");
   }
+}
+
+if ($extra) {
+  my $n;
+  # Zhang 2004
+  $n = Math::BigInt->new("9688312712744590973050578123260748216127001625571");
+  is( is_strong_pseudoprime($n, 2..70), 1, "968..571 is spsp(1..70)" );
+  is( is_strong_pseudoprime($n, 71),    0, "968..571 is found composite by base 71" );
+  # Bleichenbacher
+  $n = Math::BigInt->new("68528663395046912244223605902738356719751082784386681071");
+  is( is_strong_pseudoprime($n, 2..100), 1, "685..071 is spsp(1..100)" );
+  is( is_strong_pseudoprime($n, 101),    0, "685..071 is found composite by base 101" );
+  # Arnault 1994, strong pseudoprime to all bases up to 306
+  my $p1 = Math::BigInt->new("29674495668685510550154174642905332730771991799853043350995075531276838753171770199594238596428121188033664754218345562493168782883");
+  $n = $p1* (313 * ($p1-1) + 1) * (353 * ($p1-1) + 1);
+  is( is_strong_pseudoprime($n, 2..306), 1, "Arnault-397 Carmichael is spsp(1..306)" );
+  is( is_strong_pseudoprime($n, 307), 0, "Arnault-397 Carmichael is found composite by base 307" );
 }

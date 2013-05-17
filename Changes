@@ -6,6 +6,9 @@ Revision history for Perl extension Math::Prime::Util::GMP
       below 200 digits.  Helps a lot with many 300+ digit numbers.  Certs
       are identical.
 
+    - Lower is_prime proving effort.  Proves ~30% of 128-bit primes instead
+      of 50%, but runs about 4x faster.
+
 0.10   7 May 2013
 
     - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
