@@ -23,6 +23,8 @@ int _GMP_get_verbose(void) { return _verbose; }
 static gmp_randstate_t _randstate;
 gmp_randstate_t* _GMP_get_randstate(void) { return &_randstate; }
 
+static mpz_t _bgcd;
+
 void _GMP_init(void)
 {
   /* We should  not use this random number system for crypto, so
@@ -32,12 +34,15 @@ void _GMP_init(void)
   gmp_randinit_mt(_randstate);
   gmp_randseed_ui(_randstate, seed);
   prime_iterator_global_startup();
+  mpz_init(_bgcd);
+  _GMP_pn_primorial(_bgcd, 168);   /* mpz_primorial_ui(_bgcd, 1000) */
 }
 
 void _GMP_destroy(void)
 {
   prime_iterator_global_shutdown();
   gmp_randclear(_randstate);
+  mpz_clear(_bgcd);
 }
 
 
@@ -139,12 +144,12 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
 
 int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
 {
-  mpz_t d, U, V, Qkd;
+  mpz_t d, U, V, Qk, T1, T2;
   IV D;
   UV P = 1;
   IV Q;
-  UV s;
-  int rval;
+  UV s, b;
+  int rval = 0;
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -153,102 +158,86 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
     if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
   }
+  mpz_init(T1);
   /* Determine Selfridge D, P, Q parameters */
   {
-    mpz_t t;
     UV D_ui = 5;
     IV sign = 1;
-    mpz_init(t);
     while (1) {
       UV gcd = mpz_gcd_ui(NULL, n, D_ui);
       if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0) {
         D_ui = 0;
         break;
       }
-      mpz_set_si(t, (IV)D_ui * sign);
-      if (mpz_jacobi(t, n) == -1)  break;
+      mpz_set_si(T1, (IV)D_ui * sign);
+      if (mpz_jacobi(T1, n) == -1)  break;
       D_ui += 2;
       sign = -sign;
     }
-    mpz_clear(t);
-    if (D_ui == 0)  return 0;
+    if (D_ui == 0) { mpz_clear(T1); return 0; }
     D = (IV)D_ui * sign;
   }
   Q = (1 - D) / 4;
   if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
   if (D != ((IV)(P*P)) - 4*Q)  croak("incorrect DPQ\n");
-  /* Now start on the lucas sequence */
+  /* Now start on the Lucas sequence */
+  mpz_init(T2);
   mpz_init_set(d, n);
   mpz_add_ui(d, d, 1);
 
   s = mpz_scan1(d, 0);
   mpz_tdiv_q_2exp(d, d, s);
+  b = mpz_sizeinbase(d, 2);
 
   mpz_init_set_ui(U, 1);
   mpz_init_set_ui(V, P);
-  {
-    mpz_t U2m, V2m, Qm, T1, T2;
-    mpz_init_set(U2m, U);
-    mpz_init_set(V2m, V);
-    mpz_init_set_si(Qm, Q);
-    mpz_init_set(Qkd, Qm);
-    mpz_tdiv_q_ui(d, d, 2);
-    mpz_init(T1);
-    mpz_init(T2);
-    while (mpz_sgn(d) > 0) {
-      if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Qm=%Zd\n", U, V, Qm);
-      mpz_mul(T1, U2m, V2m);
-      mpz_mod(U2m, T1, n);
-      mpz_mul(T1, V2m, V2m);
-      mpz_submul_ui(T1, Qm, 2);
-      mpz_mod(V2m, T1, n);
-      if (_verbose>3) gmp_printf("  l  U2m=%Zd  V2m=%Zd\n", U2m, V2m);
-      mpz_mul(T1, Qm, Qm); mpz_mod(Qm, T1, n);
-      if (mpz_odd_p(d)) {
-        /* Save T1 and T2 for later operations in this block */
-        mpz_mul(T1, U2m, V);
-        mpz_mul(T2, U2m, U);
-        mpz_mul_si(T2, T2, D);
-        if (_verbose>3) gmp_printf("      T1 %Zd  T2 %Zd\n", T1, T2);
-        /* U */
-        mpz_mul(U, U, V2m);
-        mpz_add(U, U, T1);
-        if (mpz_odd_p(U)) mpz_add(U, U, n);
-        mpz_fdiv_q_ui(U, U, 2);
-        mpz_mod(U, U, n);
-        /* V */
-        mpz_mul(V, V, V2m);
-        mpz_add(V, V, T2);
-        if (mpz_odd_p(V)) mpz_add(V, V, n);
-        mpz_fdiv_q_ui(T1, V, 2);
-        mpz_mod(V, T1, n);
-        /* Qkd */
-        mpz_mul(T1, Qkd, Qm);
-        mpz_mod(Qkd, T1, n);
-      }
-      mpz_tdiv_q_ui(d, d, 2);
+  mpz_init_set_si(Qk, Q);
+
+  if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
+  while (b > 1) {
+    mpz_mulmod(U, U, V, n, T1);     /* U2k = Uk * Vk */
+    mpz_mul(T1, V, V);
+    mpz_submul_ui(T1, Qk, 2);
+    mpz_mod(V, T1, n);              /* V2k = Vk^2 - 2 Q^k */
+    mpz_mulmod(Qk, Qk, Qk, n, Qk);  /* Q2k = Qk^2 */
+    b--;
+    if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd  Q2k=%Zd\n", U, V, Qk);
+    if (mpz_tstbit(d, b-1)) {
+      mpz_mul_si(T1, U, D);
+      /* U  (P is assumed to be 1) */
+      mpz_add(T2, U, V);
+      if (mpz_odd_p(T2)) mpz_add(T2, T2, n);
+      mpz_divexact_ui(U, T2, 2);
+      mpz_mod(U, U, n);
+      /* V  (P is assumed to be 1) */
+      mpz_add(T2, T1, V);
+      if (mpz_odd_p(T2)) mpz_add(T2, T2, n);
+      mpz_divexact_ui(V, T2, 2);
+      mpz_mod(V, V, n);
+      /* Qk */
+      mpz_mul_si(T2, Qk, Q);
+      mpz_mod(Qk, T2, n);
     }
-    mpz_clear(U2m); mpz_clear(V2m); mpz_clear(Qm); mpz_clear(T1); mpz_clear(T2);
+    if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
   }
-  rval = 0;
-  if (_verbose>3) gmp_printf("l0 U=%Zd  V=%Zd\n", U, V);
+
   if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
-    s = 0;
-  }
-  /* Powers of V */
-  while (s--) {
-    mpz_mul(V, V, V);
-    mpz_submul_ui(V, Qkd, 2);
-    mpz_mod(V, V, n);
-    if (mpz_sgn(V) == 0) {
-      rval = 1;
-      break;
+  } else {
+    while (s--) {
+      mpz_mul(T1, V, V);
+      mpz_submul_ui(T1, Qk, 2);
+      mpz_mod(V, T1, n);
+      if (mpz_sgn(V) == 0) {
+        rval = 1;
+        break;
+      }
+      if (s)
+        mpz_mulmod(Qk, Qk, Qk, n, T1);
     }
-    if (s)
-      mpz_powm_ui(Qkd, Qkd, 2, n);
   }
-  mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(Qkd);
+  mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(Qk);
+  mpz_clear(T1); mpz_clear(T2);
   return rval;
 }
 
@@ -301,10 +290,33 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 
 int _GMP_is_prob_prime(mpz_t n)
 {
-  if (_GMP_trial_factor(n, 2, 400))
-    return 0;
-  if (mpz_cmp_ui(n, 400*400) <= 0)
+  /*  Step 1: Look for small divisors.  This is done purely for performance.
+   *          It is *not* a requirement for the BPSW test.
+   */
+
+  /* If less than 1009, make trial factor handle it. */
+  if (mpz_cmp_ui(n, 1008) <= 0)
+    return _GMP_trial_factor(n, 2, 997) ? 0 : 2;
+  /* Check for tiny divisors (GMP can do these really fast) */
+  if ( mpz_even_p(n)
+    || mpz_divisible_ui_p(n, 3)
+    || mpz_divisible_ui_p(n, 5) ) return 0;
+  /* Do a big GCD with all primes < 1009 */
+  {
+    mpz_t t;
+    int r;
+    mpz_init(t);
+    mpz_gcd(t, n, _bgcd);
+    r = mpz_cmp_ui(t, 1);
+    mpz_clear(t);
+    if (r != 0)
+      return 0;
+  }
+  /* No divisors under 1009 */
+  if (mpz_cmp_ui(n, 1009*1009) < 0)
     return 2;
+
+  /*  Step 2: The BPSW test.  psp base 2 and slpsp. */
 
   /* Miller Rabin with base 2 */
   if (_GMP_miller_rabin_ui(n, 2) == 0)
