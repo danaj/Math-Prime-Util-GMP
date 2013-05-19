@@ -448,13 +448,13 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     }
     if (!success && effort >= 5) {
       UV i;
-      UV B1 = 10000;
+      UV ecm_B1 = 10000;
       UV curves = 10;
       if (_GMP_is_prob_prime(m)) croak("Internal error in BLS75\n");
       for (i = 1; i < 18; i++) {
         if ((4+i) > (UV)effort) break;
-        B1 *= 2;
-        success = _GMP_ECM_FACTOR(m, f, B1, curves);
+        ecm_B1 *= 2;
+        success = _GMP_ECM_FACTOR(m, f, ecm_B1, curves);
         if (success) break;
       }
     }
@@ -537,7 +537,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     if (theorem7) {
       proofptr += gmp_sprintf(proofptr, " N-1 T7 :");
       proofptr += gmp_sprintf(proofptr, " %lu %Zd %Zd :",
-                       B1, fstack[--fsp], mstack[--msp]);
+                       (unsigned long)B1, fstack[--fsp], mstack[--msp]);
        mpz_clear(fstack[fsp]);  mpz_clear(mstack[msp]);
     } else {
       proofptr += gmp_sprintf(proofptr, " N-1 T5 :");

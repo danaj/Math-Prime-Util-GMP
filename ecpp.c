@@ -79,6 +79,7 @@ int verbose = 2;
 static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs)
 {
   int success, sfaci;
+  UV B1;
 
   /* Use this so we don't modify their input value */
   mpz_set(n, inputn);
@@ -106,11 +107,11 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     if (_GMP_is_prob_prime(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
 
     success = 0;
+    B1 = 300 + 3 * mpz_sizeinbase(n, 2);
     if (stage >= 1) {
       /* Push harder for big numbers.  (1) to avoid backtracking too much, and
        * (2) keep poly degree down to save time in root finding later. */
       /* Alternate:  UV B1 = (mpz_sizeinbase(n, 2) > 1200) ? 6000 : 3000; */
-      UV B1 = 300 + 3 * mpz_sizeinbase(n, 2);
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -123,13 +124,13 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     }
     if (stage > 1 && !success) {
       if (stage == 2) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 10000, 200000);
+        if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 5*20*B1);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
       } else if (stage == 3) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 40000, 800000);
+        if (!success) success = _GMP_pminus1_factor(n, f, 25*B1, 25*20*B1);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 500, 4);
       } else if (stage == 4) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 100000, 5000000);
+        if (!success) success = _GMP_pminus1_factor(n, f, 200*B1, 200*20*B1);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 1000, 10);
       } else if (stage >= 5) {
         UV B = 8000 * (stage-4) * (stage-4) * (stage-4);
@@ -712,6 +713,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   nsfacs = 0;
   result = 1;
   for (fstage = 1; fstage < 20; fstage++) {
+    if (verbose && fstage == 3) gmp_printf("Working hard on: %Zd\n", N);
     result = ecpp_down(0, N, fstage, dlist, sfacs, &nsfacs, prooftextptr);
     if (result != 1)
       break;
@@ -907,7 +909,7 @@ int _GMP_ecpp_fps(mpz_t N, char** prooftextptr)
             mpz_set(dmqlist[k].q, q);
           } else if (facresult == -1) {
             if (verbose > 1) {
-              UV qdigits = mpz_sizeinbase(q, 10);
+              unsigned long qdigits = mpz_sizeinbase(q, 10);
               if (mpz_cmp(dmqlist[k].q,q) != 0)
                 printf("  q reduced (%lu digits)\n", qdigits);
               else

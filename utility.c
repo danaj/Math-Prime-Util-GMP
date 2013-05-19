@@ -896,6 +896,10 @@ UV* poly_class_degrees(void)
   UV* dlist;
   UV d, i, max_degree, p;
 
+  for (i = 1; i < NUM_CLASS_POLYS; i++)
+    if (_class_poly_data[i].D < _class_poly_data[i-1].D)
+      croak("Problem with data file, out of order at D=%d\n", (int)_class_poly_data[i].D);
+
   New(0, dlist, NUM_CLASS_POLYS+1, UV);
   /* Inefficient */
   max_degree = 0;
