@@ -1,6 +1,6 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.11   ? May 2013
+0.11  20 May 2013
 
     - is_prob_prime is faster at finding composites.
 
@@ -12,8 +12,8 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - Lower is_prime proving effort.  Proves ~30% of 128-bit primes instead
       of 50%, but runs about 4x faster.
 
-    - Change ECPP to factor all strategy with backtracking.  No difference
-      below 200 digits.  Helps a lot with many 300+ digit numbers.  Certs
+    - Change ECPP to factor all strategy with backtracking.  Not much
+      difference below 200 digits, but a big help after that.  Certificates
       are identical.
 
 0.10   7 May 2013
