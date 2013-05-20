@@ -36,6 +36,10 @@ static void validate_string_number(const char* f, const char* s)
   }
 }
 
+#define VALIDATE_AND_SET(func, var, str) \
+  validate_string_number(func " (" #var ")", str); \
+  mpz_init_set_str(var, str, 10);
+
 static const unsigned short primes_small[] =
   {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
    101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
@@ -194,6 +198,26 @@ is_ecpp_prime(IN char* strn)
   OUTPUT:
     RETVAL
 
+int
+_validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx, IN char* strpy, IN char* strm, IN char* strq)
+  PREINIT:
+    mpz_t a, n, px, py, m, q, t1, t2;
+  CODE:
+    VALIDATE_AND_SET("_validate_ecpp_curve", a, stra);
+    /* ignore b */
+    VALIDATE_AND_SET("_validate_ecpp_curve", n, strn);
+    VALIDATE_AND_SET("_validate_ecpp_curve", px, strpx);
+    VALIDATE_AND_SET("_validate_ecpp_curve", py, strpy);
+    VALIDATE_AND_SET("_validate_ecpp_curve", m, strm);
+    VALIDATE_AND_SET("_validate_ecpp_curve", q, strq);
+    mpz_init(t1);  mpz_init(t2);
+    RETVAL = (ecpp_check_point(px, py, m, q, a, n, t1, t2) == 2) ? 1 : 0;
+    mpz_clear(t1); mpz_clear(t2);
+    mpz_clear(a); mpz_clear(n); mpz_clear(px); mpz_clear(py);
+    mpz_clear(m); mpz_clear(q);
+  OUTPUT:
+    RETVAL
+
 
 #define XPUSH_MPZ(n) \
   { \
@@ -216,8 +240,7 @@ next_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("next_prime (n)", strn);
-    mpz_init_set_str(n, strn, 10);
+    VALIDATE_AND_SET("next_prime", n, strn);
 
     _GMP_next_prime(n);
 
@@ -229,8 +252,7 @@ prev_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("prev_prime (n)", strn);
-    mpz_init_set_str(n, strn, 10);
+    VALIDATE_AND_SET("prev_prime", n, strn);
 
     _GMP_prev_prime(n);
 
@@ -243,10 +265,8 @@ prime_count(IN char* strlow, IN char* strhigh)
   PREINIT:
     mpz_t low, high, count;
   PPCODE:
-    validate_string_number("prime_count (low)", strlow);
-    validate_string_number("prime_count (high)", strhigh);
-    mpz_init_set_str(low, strlow, 10);
-    mpz_init_set_str(high, strhigh, 10);
+    VALIDATE_AND_SET("prime_count", low, strlow);
+    VALIDATE_AND_SET("prime_count", high, strhigh);
     mpz_init_set_ui(count, 0);
 
     if (mpz_cmp(low, high) <= 0) {
@@ -282,8 +302,7 @@ primorial(IN char* strn)
   PREINIT:
     mpz_t prim, n;
   PPCODE:
-    validate_string_number("primorial (n)", strn);
-    mpz_init_set_str(n, strn, 10);
+    VALIDATE_AND_SET("primorial", n, strn);
     mpz_init(prim);
     _GMP_primorial(prim, n);
     XPUSH_MPZ(prim);
@@ -306,10 +325,8 @@ _GMP_trial_primes(IN char* strlow, IN char* strhigh)
     mpz_t low, high;
     AV* av = newAV();
   CODE:
-    validate_string_number("trial_primes (low)", strlow);
-    validate_string_number("trial_primes (high)", strhigh);
-    mpz_init_set_str(low, strlow, 10);
-    mpz_init_set_str(high, strhigh, 10);
+    VALIDATE_AND_SET("trial_primes", low, strlow);
+    VALIDATE_AND_SET("trial_primes", high, strhigh);
 
     if (mpz_cmp(low, high) <= 0) {
       mpz_t curprime;
@@ -456,8 +473,7 @@ qs_factor(IN char* strn)
     mpz_t n;
   PPCODE:
     /* Returns multiple factors, so do this separately */
-    validate_string_number("qs_factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
+    VALIDATE_AND_SET("qs_factor", n, strn);
     if (mpz_cmp_ui(n, 3) <= 0) {
       XPUSH_MPZ(n);
     } else {
@@ -483,8 +499,7 @@ _GMP_factor(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_string_number("factor (n)", strn);
-    mpz_init_set_str(n, strn, 10);
+    VALIDATE_AND_SET("factor", n, strn);
     if (mpz_cmp_ui(n, 4) < 0) {
       XPUSH_MPZ(n);
     } else {

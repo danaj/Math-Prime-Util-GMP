@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.10';
+  $Math::Prime::Util::GMP::VERSION = '0.11';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -199,7 +199,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.10
+Version 0.11
 
 
 =head1 SYNOPSIS
@@ -214,7 +214,7 @@ Version 0.10
   # These return 0 for composite, 2 for prime, and 1 for probably prime
   # Numbers under 2^64 will return 0 or 2.
   # is_prob_prime does a BPSW primality test for numbers > 2^64
-  # is_prime adds a quick test to try to prove the result
+  # is_prime adds some MR tests and a quick test to try to prove the result
   # is_provable_prime will spend a lot of effort on proving primality
 
   say "$n is probably prime"    if is_prob_prime($n);
@@ -307,7 +307,7 @@ indicates "probably prime" then a small number of Miller-Rabin tests
 with random bases are performed.  For numbers under 200 bits, a quick
 BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
 if the result cannot be quickly determined, and results in approximately
-50% success rate at 128-bits.
+30% success rate at 128-bits.
 
 The result is that many numbers will return back 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through more
@@ -324,8 +324,8 @@ taken to return either 0 or 2 for all numbers.
 
 The current method first uses BPSW and a small number of Miller-Rabin
 tests with random bases to weed out composites and provide a deterministic
-answer for tiny numbers (under C<2^64>).  We then try a quick
-BLS75 n-1 test.  If that test is taking too long, then ECPP is used.
+answer for tiny numbers (under C<2^64>).  A quick BLS75 C<n-1> test is
+attempted, followed by ECPP.
 
 The time required for primes of different input sizes on a circa-2009
 workstation averages about C<3ms> for 30-digits, C<8ms> for 40-digit,
@@ -440,12 +440,12 @@ ECPP primality test.  This is the Atkin-Morain Elliptic Curve Primality
 Proving algorithm.  It is the fastest primality proving method in
 Math::Prime::Util.
 
-The implementation here uses the "factor and prove" strategy (FPS), which
-is good for numbers up to about 300 digits, and then starts getting bogged
-down in factoring.  A limited set of 477 precalculated discriminants are
-used, and for proving larger inputs having more helps a lot.  A future
-implementation will switch to the "factor all" strategy (FAS) which should
-improve performance greatly for 400+ digit numbers.
+This implementation uses a "factor all strategy" (FAS) with backtracking.
+A limited set of about 500 precalculated discriminants are used, which works
+well for inputs up to 300 digits, and for many inputs up to one thousand
+digits.  Having a larger set will help with large numbers (a set of 2650
+is available on github in the C<xt/> directory).  A future implementation
+may include code to generate class polynomials as needed.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
 

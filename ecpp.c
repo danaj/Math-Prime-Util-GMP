@@ -394,8 +394,8 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
 }
 
 /* Returns 0 (composite), 1 (didn't find a point), 2 (found point) */
-static int check_point(mpz_t x, mpz_t y, mpz_t m, mpz_t q, mpz_t a, mpz_t N,
-                       mpz_t t, mpz_t t2)
+int ecpp_check_point(mpz_t x, mpz_t y, mpz_t m, mpz_t q, mpz_t a, mpz_t N,
+                     mpz_t t, mpz_t t2)
 {
   struct ec_affine_point P, P1, P2;
   int result = 1;
@@ -474,7 +474,7 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
         update_ab(a, b, D, g, N);
       npoints++;
       select_point(x, y,  a, b, N, t, t2);
-      result = check_point(x, y, m, q, a, N, t, t2);
+      result = ecpp_check_point(x, y, m, q, a, N, t, t2);
     }
   }
   if (verbose && npoints > 10)
