@@ -16,8 +16,8 @@
  *
  * A set of fixed discriminants are used, rather than calculating them as
  * needed.  Having a way to calculate values as needed would be a big help.
- * In the interests of space for the MPU package, I've chosen 477 values which
- * compile into about 30k of data.  This is about 1/5 of the entire code size
+ * In the interests of space for the MPU package, I've chosen ~500 values which
+ * compile into about 35k of data.  This is about 1/5 of the entire code size
  * for the MPU package.  The github repository includes a alternate set of 2650
  * discriminants that compile to 1.2MB.  This would be helpful if proving
  * 300+ digit numbers is a regular occurance.
@@ -30,23 +30,22 @@
  * the GMP-ECM factoring package, which is much faster than my N-1 and ECM.
  * I have not yet measured what this would do.
  *
- * If your goal is primality proofs for very large numbers, use PRIMO.  It's
+ * If your goal is primality proofs for very large numbers, use Primo.  It's
  * free, it is really fast, it is widely used, it can process batch results,
  * and it makes independently verifiable certificates.  If you want proofs
  * for "small" numbers (~300 digits) then this software should work well.
  * It also allows tinkering with the program as desired.
  *
- * Benchmarks.  All but the ones indicated are using the small (477 values)
- * discriminant set.  Times are on a single core of a 4.2GHz i7-3930K (a
- * fast machine), from the command line using Perl, averaged across multiple
- * runs.
+ * Benchmarks.  These are using the small (500 values) class polynomial set.
+ * Times are on a single core of a 4.2GHz i7-3930K (a fast machine), from
+ * the command line using Perl, averaged across multiple runs.
  *
- *    10**49+9        0.006s
- *    10**100+267     0.05s
- *    2**511+111      0.12s
- *    2**1023+1155    2.4s
+ *    10**49+9        0.007s
+ *    10**100+267     0.04s
+ *    2**511+111      0.10s
+ *    2**1023+1155    2.1s
  *    2**2067+131    72s
- *    10**1000+453  8 minutes
+ *    10**1000+453  9 minutes
  *
  * Thanks to H. Cohen, R. Crandall & C. Pomerance, and H. Riesel for their
  * text books.  Thanks to the authors of open source software who allow me

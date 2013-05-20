@@ -3,7 +3,7 @@
  * Normally I would just have this on, but then we'd produce certificates
  * that Math::Prime::Util 0.26 couldn't understand. :(
  */
-#define BLS_THEOREM7 1
+#define BLS_THEOREM7 0
 
 #include <stdio.h>
 #include <stdlib.h>
