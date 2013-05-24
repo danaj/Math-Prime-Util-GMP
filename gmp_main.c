@@ -166,15 +166,14 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     while (1) {
       UV gcd = mpz_gcd_ui(NULL, n, D_ui);
       if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0) {
-        D_ui = 0;
-        break;
+        mpz_clear(T1);
+        return 0;
       }
       mpz_set_si(T1, (IV)D_ui * sign);
       if (mpz_jacobi(T1, n) == -1)  break;
       D_ui += 2;
       sign = -sign;
     }
-    if (D_ui == 0) { mpz_clear(T1); return 0; }
     D = (IV)D_ui * sign;
   }
   Q = (1 - D) / 4;
@@ -182,16 +181,14 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   if (D != ((IV)(P*P)) - 4*Q)  croak("incorrect DPQ\n");
   /* Now start on the Lucas sequence */
   mpz_init(T2);
-  mpz_init_set(d, n);
-  mpz_add_ui(d, d, 1);
+  mpz_init_set_ui(U, 1);
+  mpz_init_set_ui(V, P);
+  mpz_init_set_si(Qk, Q);
+  mpz_init_set(d, n);   mpz_add_ui(d, d, 1);
 
   s = mpz_scan1(d, 0);
   mpz_tdiv_q_2exp(d, d, s);
   b = mpz_sizeinbase(d, 2);
-
-  mpz_init_set_ui(U, 1);
-  mpz_init_set_ui(V, P);
-  mpz_init_set_si(Qk, Q);
 
   if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
   while (b > 1) {
@@ -199,27 +196,27 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     mpz_mul(T1, V, V);
     mpz_submul_ui(T1, Qk, 2);
     mpz_mod(V, T1, n);              /* V2k = Vk^2 - 2 Q^k */
-    mpz_mulmod(Qk, Qk, Qk, n, Qk);  /* Q2k = Qk^2 */
+    mpz_mul(Qk, Qk, Qk);            /* Q2k = Qk^2 */
     b--;
     if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd  Q2k=%Zd\n", U, V, Qk);
-    if (mpz_tstbit(d, b-1)) {
-      mpz_mul_si(T1, U, D);
+    if (mpz_tstbit(d, b-1)) { /* No mods in here */
+      mpz_mul_si(T2, U, D);
       /* U  (P is assumed to be 1) */
-      mpz_add(T2, U, V);
-      if (mpz_odd_p(T2)) mpz_add(T2, T2, n);
-      mpz_divexact_ui(U, T2, 2);
-      mpz_mod(U, U, n);
+      mpz_add(T1, U, V);
+      if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
+      mpz_fdiv_q_2exp(U, T1, 1);
       /* V  (P is assumed to be 1) */
-      mpz_add(T2, T1, V);
-      if (mpz_odd_p(T2)) mpz_add(T2, T2, n);
-      mpz_divexact_ui(V, T2, 2);
-      mpz_mod(V, V, n);
+      mpz_add(T1, T2, V);
+      if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
+      mpz_fdiv_q_2exp(V, T1, 1);
       /* Qk */
-      mpz_mul_si(T2, Qk, Q);
-      mpz_mod(Qk, T2, n);
+      mpz_mul_si(Qk, Qk, Q);
     }
+    mpz_mod(Qk, Qk, n);
     if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
   }
+  mpz_mod(U, U, n);
+  mpz_mod(V, V, n);
 
   if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
@@ -277,6 +274,26 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
  * The extra M-R tests in is_prime start actually costing something after
  * 1000 bits or so.  Primality proving will get quite a bit slower as the
  * number of bits increases.
+ *
+ * What are these extra M-R tests getting us?  From Rabin-Monier, with random
+ * bases we should have p <= 4^-t.  So one extra test gives us p = 0.25, and
+ * four tests gives us p = 0.00390625.  Hence a 0.4% chance that a composite
+ * will pass the tests.  But for larger k (bits in n), this estimate is very
+ * conservative.  See Damgård, Landrock, and Pomerance, 1993.  Also remember
+ * that BPSW is correct for k <= 64, so k will always be > 64 for this case.
+ * Given a k and t, show probabilities:
+ *   perl -E 'my ($k,$t)=(256,2);  say 4**(-$t);
+ *     my $p1 = $k*$k*4**(2.0-sqrt($k));  say $p1**$t;
+ *     if (($t == 2 && $k >= 88) || ($t >= 3 && $k >= 21 && $t <= $k/9)) {
+ *        my $p2 = $k**1.5 * 2**$t * $t**-.5 * 4**(2.0-sqrt($t*$k));  say $p2;
+ *     }'
+ * For a 256-bit input, we get:
+ *   1 test:  p < 0.000244140625
+ *   2 tests: p < 0.00000000441533
+ *   3 tests: p < 0.0000000000062550875
+ *   4 tests: p < 0.0000000000000035527137
+ *
+ * It's even more extreme as k goes higher.
  */
 
 int _GMP_is_prob_prime(mpz_t n)
@@ -326,15 +343,27 @@ int _GMP_is_prob_prime(mpz_t n)
 
 int _GMP_is_prime(mpz_t n)
 {
+  UV nbits = mpz_sizeinbase(n, 2);
   int prob_prime = _GMP_is_prob_prime(n);
 
   /* We're pretty sure n is a prime since it passed the BPSW test.  Try
-   * a few random M-R bases to give some extra assurance. */
-  if (prob_prime == 1)
-    prob_prime = _GMP_miller_rabin_random(n, 4);
+   * a few random M-R bases to give some extra assurance.  See discussion
+   * above about number of tests.  Assuming we are choosing uniformly random
+   * bases, the caller cannot predict our random numbers (not guaranteed!),
+   * and the caller is not choosing from a subset of worst case inputs,
+   * then there is less than a 1 in 595,000 chance that a composite will pass
+   * our extra tests. */
+  
+  if (prob_prime == 1) {
+    UV ntests;
+    if      (nbits <  80) ntests = 5;  /* p < .00000168 */
+    else if (nbits < 115) ntests = 4;  /* p < .00000156 */
+    else if (nbits < 200) ntests = 3;  /* p < .00000060 */
+    else                  ntests = 2;  /* p < .00000012 */
+    prob_prime = _GMP_miller_rabin_random(n, ntests);
 
   /* For small numbers, try a quick BLS75 n-1 proof. */
-  if (prob_prime == 1 && mpz_sizeinbase(n, 2) <= 200)
+  if (prob_prime == 1 && nbits <= 200)
     prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* proof */);
 
   return prob_prime;
@@ -347,7 +376,7 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   /* The primality proving algorithms tend to be VERY slow for composites,
    * so run a few more MR tests. */
   if (prob_prime == 1)
-    prob_prime = _GMP_miller_rabin_random(n, 4);
+    prob_prime = _GMP_miller_rabin_random(n, 2);
 
   /* We can choose a primality proving algorithm:
    *   AKS    _GMP_is_aks_prime       really slow, don't bother
