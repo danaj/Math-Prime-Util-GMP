@@ -299,8 +299,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 int _GMP_is_prob_prime(mpz_t n)
 {
   /*  Step 1: Look for small divisors.  This is done purely for performance.
-   *          It is *not* a requirement for the BPSW test.
-   */
+   *          It is *not* a requirement for the BPSW test. */
 
   /* If less than 1009, make trial factor handle it. */
   if (mpz_cmp_ui(n, 1008) <= 0)
@@ -361,6 +360,7 @@ int _GMP_is_prime(mpz_t n)
     else if (nbits < 200) ntests = 3;  /* p < .00000060 */
     else                  ntests = 2;  /* p < .00000012 */
     prob_prime = _GMP_miller_rabin_random(n, ntests);
+  }
 
   /* For small numbers, try a quick BLS75 n-1 proof. */
   if (prob_prime == 1 && nbits <= 200)
