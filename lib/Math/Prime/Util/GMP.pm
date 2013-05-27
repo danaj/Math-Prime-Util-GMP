@@ -291,6 +291,11 @@ pseudoprime has been found, so it is extremely likely to be prime.
 While we believe (Pomerance 1984) that an infinite number of counterexamples
 exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
+In more detail, this implements the strong BPSW test as outlined in Baillie
+and Wagstaff (1980), using the method A (Selfridge) parameters and the strong
+Fermat PRP test and the strong Lucas PRP test.  Using Jan Feitsma's psp-2
+database, this has been verified to produce no false results under C<2^64>.
+
 
 =head2 is_prime
 

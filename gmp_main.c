@@ -142,6 +142,17 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   return rval;
 }
 
+/* This code was verified against Feitsma's psps-below-2-to-64.txt file.
+ * is_strong_pseudoprime reduced it from 118,968,378 to 31,894,014.
+ * is_strong_lucas_pseudoprime reduced from 31,894,014 to 0.
+ * The test suite should check that it generates the correct pseudoprimes.
+ *
+ * It implements the Strong BPSW test as specified by Baillie and Wagstaff,
+ * 1980, page 1401.  It uses method A parameters (Selfridge).
+ *
+ * Testing on my x86_64 machine, it is over 35% faster than T.R. Nicely's
+ * strong Lucas implementation, and over 40% faster than David Cleaver's.
+ */
 int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
 {
   mpz_t d, U, V, Qk, T1, T2;
@@ -191,6 +202,7 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   b = mpz_sizeinbase(d, 2);
 
   if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
+  /* We assume P = 1, Q != 1. */
   while (b > 1) {
     mpz_mulmod(U, U, V, n, T1);     /* U2k = Uk * Vk */
     mpz_mul(T1, V, V);
@@ -201,15 +213,15 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
     if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd  Q2k=%Zd\n", U, V, Qk);
     if (mpz_tstbit(d, b-1)) { /* No mods in here */
       mpz_mul_si(T2, U, D);
-      /* U  (P is assumed to be 1) */
+                                  /* U:  U2k+1 = (P*U2k + V2k)/2 */
       mpz_add(T1, U, V);
       if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
       mpz_fdiv_q_2exp(U, T1, 1);
-      /* V  (P is assumed to be 1) */
+                                  /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
       mpz_add(T1, T2, V);
       if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
       mpz_fdiv_q_2exp(V, T1, 1);
-      /* Qk */
+                                  /* Qk:  Qk+1 = Qk * Q */
       mpz_mul_si(Qk, Qk, Q);
     }
     mpz_mod(Qk, Qk, n);

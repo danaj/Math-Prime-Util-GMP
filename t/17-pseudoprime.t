@@ -43,7 +43,9 @@ my $num_pseudoprimes = 0;
 foreach my $ppref (values %pseudoprimes) {
   $num_pseudoprimes += scalar @$ppref;
 }
-my @small_lucas_trials = (2, 9, 16, 100, 102, 2047, 2048, 5781, 9000, 14381);
+
+# 323 and 377 are Lucas pseudoprimes, but not strong Lucas pseudoprimes
+my @small_lucas_trials = (2, 9, 16, 100, 102, 323, 377, 2047, 2048, 5781, 9000, 14381);
 
 my %large_pseudoprimes = (
    '75792980677' => [ qw/2/ ],
