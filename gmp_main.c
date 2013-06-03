@@ -144,16 +144,19 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
 
 /* This code was verified against Feitsma's psps-below-2-to-64.txt file.
  * is_strong_pseudoprime reduced it from 118,968,378 to 31,894,014.
- * is_strong_lucas_pseudoprime reduced from 31,894,014 to 0.
- * The test suite should check that it generates the correct pseudoprimes.
+ * all three variations of the Lucas test reduce it to 0.
+ * The test suite should check that they generate the correct pseudoprimes.
  *
- * It implements the Strong BPSW test as specified by Baillie and Wagstaff,
- * 1980, page 1401.  It uses method A parameters (Selfridge).
+ * The standard and strong versions use the method A (Selfridge) parameters,
+ * while the extra strong version uses the parameters from Grantham (2000).
  *
- * Testing on my x86_64 machine, it is over 35% faster than T.R. Nicely's
- * strong Lucas implementation, and over 40% faster than David Cleaver's.
+ * Using the strong version, we can implement the strong BPSW test as
+ * specified by Baillie and Wagstaff, 1980, page 1401.
+ *
+ * Testing on my x86_64 machine, the strong Lucas code is over 35% faster than
+ * T.R. Nicely's implementation, and over 40% faster than David Cleaver's.
  */
-int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
+int _GMP_is_lucas_pseudoprime(mpz_t n, int do_strong)
 {
   mpz_t d, U, V, Qk, T1, T2;
   IV D;
@@ -198,7 +201,8 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   mpz_init_set(d, n);   mpz_add_ui(d, d, 1);
 
   s = mpz_scan1(d, 0);
-  mpz_tdiv_q_2exp(d, d, s);
+  if (do_strong)
+    mpz_tdiv_q_2exp(d, d, s);
   b = mpz_sizeinbase(d, 2);
 
   if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
@@ -230,6 +234,9 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   mpz_mod(U, U, n);
   mpz_mod(V, V, n);
 
+  if (!do_strong)
+    return (mpz_sgn(U) == 0);
+
   if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
   } else {
@@ -249,6 +256,94 @@ int _GMP_is_strong_lucas_pseudoprime(mpz_t n)
   mpz_clear(T1); mpz_clear(T2);
   return rval;
 }
+
+int _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n)
+{
+  mpz_t d, U, V, T1;
+  UV D, P, Q, s, b;
+  int rval = 0;
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
+  }
+  /* Determine parameters (Q=1) */
+  mpz_init(T1);
+  P = 3;
+  Q = 1;
+  while (1) {
+    UV gcd;
+    D = P*P - 4;
+    mpz_set_ui(T1, D);
+    gcd = mpz_gcd_ui(NULL, n, D);
+    if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0) {
+      mpz_clear(T1);
+      return 0;
+    }
+    if (mpz_jacobi(T1, n) == -1)  break;
+    P++;
+  }
+  if (_verbose>3) gmp_printf("N: %Zd  D: %lu  P: %lu  Q: %ld\n", n, D, P, Q);
+  if (D != (P*P - 4*Q))  croak("incorrect DPQ\n");
+  /* Now start on the Lucas sequence */
+  mpz_init_set_ui(U, 1);
+  mpz_init_set_ui(V, P);
+  mpz_init_set(d, n);   mpz_add_ui(d, d, 1);
+
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+  b = mpz_sizeinbase(d, 2);
+
+  if (_verbose>3) gmp_printf("U=%Zd  V=%Zd\n", U, V);
+  /* We assume P != 1, Q == 1. */
+  while (b > 1) {
+    mpz_mulmod(U, U, V, n, T1);     /* U2k = Uk * Vk */
+    mpz_mul(V, V, V);
+    mpz_sub_ui(V, V, 2);
+    mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
+    b--;
+    if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd\n", U, V);
+    if (mpz_tstbit(d, b-1)) { /* No mods in here */
+      mpz_mul_si(T1, U, D);
+                                  /* U:  U2k+1 = (P*U2k + V2k)/2 */
+      mpz_mul_ui(U, U, P);
+      mpz_add(U, U, V);
+      if (mpz_odd_p(U)) mpz_add(U, U, n);
+      mpz_fdiv_q_2exp(U, U, 1);
+                                  /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
+      mpz_mul_ui(V, V, P);
+      mpz_add(V, V, T1);
+      if (mpz_odd_p(V)) mpz_add(V, V, n);
+      mpz_fdiv_q_2exp(V, V, 1);
+    }
+    if (_verbose>3) gmp_printf("U=%Zd  V=%Zd\n", U, V);
+  }
+  mpz_mod(U, U, n);
+  mpz_mod(V, V, n);
+
+  mpz_sub_ui(T1, n, 2);
+  if (mpz_sgn(U) == 0 && (mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, T1) == 0)) {
+    rval = 1;
+  } else if (mpz_sgn(V) == 0) {
+    rval = 1;
+  } else {
+    while (s--) {
+      mpz_mul(V, V, V);
+      mpz_sub_ui(V, V, 2);
+      mpz_mod(V, V, n);
+      if (mpz_sgn(V) == 0) {
+        rval = 1;
+        break;
+      }
+    }
+  }
+  mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(T1);
+  return rval;
+}
+
 
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
@@ -342,7 +437,7 @@ int _GMP_is_prob_prime(mpz_t n)
     return 0;
 
   /* Strong Lucas-Selfridge */
-  if (_GMP_is_strong_lucas_pseudoprime(n) == 0)
+  if (_GMP_is_lucas_pseudoprime(n, 1 /*strong*/) == 0)
     return 0;
 
   /* BPSW is deterministic below 2^64 */

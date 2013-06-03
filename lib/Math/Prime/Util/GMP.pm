@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.11';
+  $Math::Prime::Util::GMP::VERSION = '0.12';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -20,7 +20,9 @@ our @EXPORT_OK = qw(
                      is_nminus1_prime
                      is_ecpp_prime
                      is_strong_pseudoprime
+                     is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
+                     is_extra_strong_lucas_pseudoprime
                      primes
                      next_prime
                      prev_prime
@@ -199,7 +201,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.11
+Version 0.12
 
 
 =head1 SYNOPSIS
@@ -293,7 +295,7 @@ exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
 In more detail, this implements the strong BPSW test as outlined in Baillie
 and Wagstaff (1980), using the method A (Selfridge) parameters and the strong
-Fermat PRP test and the strong Lucas PRP test.  Using Jan Feitsma's psp-2
+Fermat PRP test and the strong Lucas PRP test.  Using Jan Feitsma's PSP-2
 database, this has been verified to produce no false results under C<2^64>.
 
 
@@ -402,13 +404,19 @@ other implementations including L<Math::Primality>'s C<is_strong_pseudoprime>
 function.
 
 
+=head2 is_lucas_pseudoprime
+
 =head2 is_strong_lucas_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input is a strong
-Lucas pseudoprime using the Selfridge method of choosing D, P, and Q (some
-sources call this a strong Lucas-Selfridge pseudoprime).  This is one half
-of the BPSW primality test (the Miller-Rabin strong pseudoprime test with
-base 2 being the other half).
+=head2 is_extra_strong_lucas_pseudoprime
+
+Takes a positive number as input, and returns 1 if the input is a standard,
+strong, or extra strong Lucas probable prime.  The standard and strong methods
+use the Selfridge method of choosing D, P, and Q (some sources call this
+a standard or strong Lucas-Selfridge probable prime).  This is one half
+of the BPSW primality test (the Miller-Rabin strong probable prime test with
+base 2 being the other half).  The canonical BPSW test uses the strong Lucas
+test with Selfridge parameters.
 
 
 =head2 is_aks_prime

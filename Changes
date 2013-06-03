@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.12  ?? ?? 2013
+
+    - add standard and extra strong Lucas probable prime tests.
+
 0.11  20 May 2013
 
     - is_prob_prime is faster at finding composites.
