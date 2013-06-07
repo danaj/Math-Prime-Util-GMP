@@ -25,7 +25,7 @@
  * This version uses the FAS "factor all strategy", meaning it first constructs
  * the entire factor chain, with backtracking if necessary, then will do the
  * elliptic curve proof as it recurses back.
- * 
+ *
  * Another across-the-board performance improvement could be had by linking in
  * the GMP-ECM factoring package, which is much faster than my N-1 and ECM.
  * I have not yet measured what this would do.
@@ -60,19 +60,15 @@
 #include <math.h>
 #include <gmp.h>
 
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
+#include "ptypes.h"
 #include "ecpp.h"
-#include "gmp_main.h"
+#include "gmp_main.h"  /* is_prob_prime, pminus1_factor, miller_rabin_random */
 #include "ecm.h"
 #include "utility.h"
 #include "prime_iterator.h"
 #include "bls75.h"
 
 #undef USE_NM1
-int verbose = 2;
 #define MAX_SFACS 1000
 
 static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs)
@@ -284,7 +280,8 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   UV degree;
   long dT, i, nroots;
   int poly_type;
-  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+  gmp_randstate_t* p_randstate = get_randstate();
+  int verbose = get_verbose_level();
 
   if (D == -3 || D == -4) {
     *roots = 0;
@@ -365,7 +362,7 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
                          mpz_t t, mpz_t t2)
 {
   mpz_t Q, t3, t4;
-  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+  gmp_randstate_t* p_randstate = get_randstate();
 
   mpz_init(Q); mpz_init(t3); mpz_init(t4);
   mpz_set_ui(y, 0);
@@ -449,6 +446,7 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
   long nroots, npoints, i, rooti, unity, result;
   mpz_t g, t, t2;
   mpz_t* roots = 0;
+  int verbose = get_verbose_level();
 
   /* Step 1: Get the roots of the Hilbert class polynomial. */
   nroots = find_roots(D, N, &roots);
@@ -543,8 +541,8 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
   mpz_t a, b, u, v, m, q, minfactor, mD, t, t2;
   mpz_t mlist[6];
   struct ec_affine_point P;
-  int k, dnum, nidigits, facresult, curveresult, downresult;
-  int stage;
+  int k, dnum, nidigits, facresult, curveresult, downresult, stage;
+  int verbose = get_verbose_level();
 
   nidigits = mpz_sizeinbase(Ni, 10);
 
@@ -606,7 +604,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
       for (k = 0; k < 6; k++) {
         facresult = check_for_factor2(q, mlist[k], minfactor, t, stage, sfacs, nsfacs);
         /* -1 = couldn't find, 0 = no big factors, 1 = found */
-        if (facresult <= 0) 
+        if (facresult <= 0)
           continue;
         mpz_set(m, mlist[k]);
         if (verbose)
@@ -698,6 +696,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   UV* dlist;
   mpz_t* sfacs;
   int i, fstage, result, nsfacs;
+  int verbose = get_verbose_level();
 
   /* We must check gcd(N,6), let's check 2*3*5*7*11*13*17*19*23. */
   if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
@@ -707,7 +706,6 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
     *prooftextptr = 0;
 
   New(0, sfacs, MAX_SFACS, mpz_t);
-  verbose = _GMP_get_verbose();
   dlist = poly_class_degrees();
   nsfacs = 0;
   result = 1;
@@ -754,6 +752,7 @@ int _GMP_ecpp_fps(mpz_t N, char** prooftextptr)
   dmqlist_t *dmqlist;
   char *proofstr, *proofptr;
   size_t proofstr_size;
+  int verbose = get_verbose_level();
 
   /* We must check gcd(N,6), let's check 2*3*5*7*11*13*17*19*23. */
   if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
@@ -769,7 +768,6 @@ int _GMP_ecpp_fps(mpz_t N, char** prooftextptr)
     proofptr = 0;
   }
   proofptr = proofstr;
-  verbose = _GMP_get_verbose();
   mpz_init_set(Ni, N);
   mpz_init(a); mpz_init(b); mpz_init(u); mpz_init(v);
   mpz_init(m); mpz_init(q);
@@ -1002,3 +1000,56 @@ end_ecpp:
 
   return result;
 }
+
+#ifdef STANDALONE_ECPP
+int main(int argc, char **argv)
+{
+  mpz_t n;
+  int isprime;
+  char* cert = 0;
+
+  if (argc < 2) {
+    printf("Usage: %s [-v] <number>\n", argv[0]);
+    exit(1);
+  }
+  _GMP_init();
+  mpz_init(n);
+  if (strcmp(argv[1], "-v") == 0) {
+    set_verbose_level(1);
+    mpz_set_str(n, argv[2], 10);
+  } else {
+    set_verbose_level(0);
+    mpz_set_str(n, argv[1], 10);
+  }
+  gmp_printf("%Zd\n", n);
+
+  isprime = _GMP_is_prob_prime(n);
+  if (isprime == 2) {
+    Newz(0, cert, 4 + mpz_sizeinbase(n, 10), char);
+    gmp_sprintf(cert, "[%Zd]\n", n);
+  }
+
+  /* If isprime = 2 here, that means it's so small it fits in the deterministic
+   * M-R or BPSW range. */
+  if (isprime == 1) {
+    /* Quick n-1 test */
+    isprime = _GMP_primality_bls_nm1(n, 1, &cert);
+    if (isprime == 1)
+      isprime = _GMP_ecpp(n, &cert);
+  }
+
+  if (isprime == 0) {
+    printf("COMPOSITE\n");
+  } else if (isprime == 1) {
+    /* We really shouldn't ever see this. */
+    printf("PROBABLY PRIME\n");
+  } else {
+    printf("PRIME\n");
+    printf("%s", cert);
+  }
+  if (cert != 0)
+    Safefree(cert);
+  _GMP_destroy();
+  return 0;
+}
+#endif

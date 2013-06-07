@@ -14,6 +14,7 @@
 #include "simpqs.h"
 #include "bls75.h"
 #include "ecpp.h"
+#include "utility.h"
 #define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
 
 /* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
@@ -63,6 +64,8 @@ PROTOTYPES: ENABLE
 
 void
 _GMP_set_verbose(IN int v)
+  PPCODE:
+     set_verbose_level(v);
 
 void
 _GMP_init()
@@ -492,7 +495,7 @@ _GMP_factor(IN char* strn)
       do { /* loop over each remaining factor */
         while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
           int success = 0;
-          int o = _GMP_get_verbose();
+          int o = get_verbose_level();
           UV B1 = 5000;
 
           /*
@@ -620,7 +623,7 @@ _GMP_factor(IN char* strn)
           /* Our method of last resort: ECM with high bmax and many curves*/
           if (!success) {
             UV i;
-            if (_GMP_get_verbose()) gmp_printf("starting large ECM on %Zd\n",n);
+            if (get_verbose_level()) gmp_printf("starting large ECM on %Zd\n",n);
             B1 *= 8;
             for (i = 0; i < 10; i++) {
               success = _GMP_ECM_FACTOR(n, f, B1, 100);

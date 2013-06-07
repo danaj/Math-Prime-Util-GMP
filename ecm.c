@@ -5,13 +5,10 @@
 #include <math.h>
 #include <gmp.h>
 
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
+#include "ptypes.h"
 #include "ecm.h"
+#include "utility.h"
 #include "prime_iterator.h"
-#include "gmp_main.h"
 
 #define USE_PRAC
 
@@ -168,7 +165,7 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
   mpz_t a, mk;
   struct ec_affine_point X, Y;
   UV B, curve, q;
-  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+  gmp_randstate_t* p_randstate = get_randstate();
 
   TEST_FOR_2357(n, f);
 
@@ -574,8 +571,8 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
   UV i, curve, q, k;
   UV B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
   int found = 0;
-  gmp_randstate_t* p_randstate = _GMP_get_randstate();
-  int _verbose = _GMP_get_verbose();
+  gmp_randstate_t* p_randstate = get_randstate();
+  int _verbose = get_verbose_level();
 
   TEST_FOR_2357(n, f);
 

@@ -6,22 +6,12 @@
 #include <time.h>
 #include <gmp.h>
 
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
+#include "ptypes.h"
 #include "gmp_main.h"
 #include "prime_iterator.h"
 #include "bls75.h"
 #include "ecpp.h"
 #include "utility.h"
-
-static int _verbose = 0;
-void _GMP_set_verbose(int v) { _verbose = v; }
-int _GMP_get_verbose(void) { return _verbose; }
-
-static gmp_randstate_t _randstate;
-gmp_randstate_t* _GMP_get_randstate(void) { return &_randstate; }
 
 static mpz_t _bgcd;
 
@@ -31,8 +21,7 @@ void _GMP_init(void)
    * using this lousy seed is ok.  We just would like something a
    * bit different every run. */
   unsigned long seed = time(NULL);
-  gmp_randinit_mt(_randstate);
-  gmp_randseed_ui(_randstate, seed);
+  init_randstate(seed);
   prime_iterator_global_startup();
   mpz_init(_bgcd);
   _GMP_pn_primorial(_bgcd, 168);   /* mpz_primorial_ui(_bgcd, 1000) */
@@ -41,7 +30,7 @@ void _GMP_init(void)
 void _GMP_destroy(void)
 {
   prime_iterator_global_shutdown();
-  gmp_randclear(_randstate);
+  clear_randstate();
   mpz_clear(_bgcd);
 }
 
@@ -66,7 +55,7 @@ static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
 
 int _GMP_miller_rabin_random(mpz_t n, UV numbases)
 {
-  gmp_randstate_t* p_randstate = _GMP_get_randstate();
+  gmp_randstate_t* p_randstate = get_randstate();
   mpz_t base;
   UV i;
 
@@ -164,6 +153,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int do_strong)
   IV Q;
   UV s, b;
   int rval = 0;
+  int _verbose = get_verbose_level();
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -262,6 +252,7 @@ int _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n)
   mpz_t d, U, V, T1;
   UV D, P, Q, s, b;
   int rval = 0;
+  int _verbose = get_verbose_level();
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -459,7 +450,7 @@ int _GMP_is_prime(mpz_t n)
    * and the caller is not choosing from a subset of worst case inputs,
    * then there is less than a 1 in 595,000 chance that a composite will pass
    * our extra tests. */
-  
+
   if (prob_prime == 1) {
     UV ntests;
     if      (nbits <  80) ntests = 5;  /* p < .00000168 */
@@ -556,6 +547,7 @@ int _GMP_is_aks_prime(mpz_t n)
   int retval;
   UV i, limit, rlimit, r, a;
   double log2n;
+  int _verbose = get_verbose_level();
   /* PRIME_ITERATOR(iter); */
 
   if (mpz_cmp_ui(n, 4) < 0) {
@@ -892,6 +884,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, savea, t;
   UV q, saveq, j;
+  int _verbose = get_verbose_level();
   PRIME_ITERATOR(iter);
 
   TEST_FOR_2357(n, f);

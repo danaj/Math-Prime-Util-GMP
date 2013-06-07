@@ -1,8 +1,7 @@
 #ifndef MPU_PITERATOR_H
 #define MPU_PITERATOR_H
 
-#include "EXTERN.h"
-#include "perl.h"
+#include "ptypes.h"
 
 typedef struct {
   UV p;

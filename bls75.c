@@ -9,13 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <time.h>
 #include <gmp.h>
 
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
+#include "ptypes.h"
 #include "gmp_main.h"
 #include "prime_iterator.h"
 #include "small_factor.h"

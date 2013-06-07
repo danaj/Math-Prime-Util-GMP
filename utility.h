@@ -2,9 +2,14 @@
 #define MPU_UTILITY_H
 
 #include <gmp.h>
-#ifndef STANDALONE
 #include "ptypes.h"
-#endif
+
+extern int get_verbose_level(void);
+extern void set_verbose_level(int level);
+
+extern gmp_randstate_t* get_randstate(void);
+extern void init_randstate(unsigned long seed);
+extern void clear_randstate(void);
 
 /* tdiv_r is faster, but we'd need to guarantee the input is positive */
 #define mpz_mulmod(r, a, b, n, t)  \

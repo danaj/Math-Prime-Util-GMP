@@ -7,31 +7,23 @@
 #include <stdlib.h>
 #include <gmp.h>
 
-#ifdef STANDALONE
-  typedef unsigned long UV;
-  typedef   signed long IV;
-  #define INLINE
-  #define UV_MAX ULONG_MAX
-  #define UVCONST(x) ((unsigned long)x##UL)
-  #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
-  #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
-  #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
-  #define Safefree(mem)             free((void*)mem)
-  #define PRIME_ITERATOR(i) mpz_t i; mpz_init_set_ui(i, 2)
-  /*
-  static UV prime_iterator_next(mpz_t *iter) { mpz_nextprime(*iter, *iter); return mpz_get_ui(*iter); }
-  static void prime_iterator_destroy(mpz_t *iter) { mpz_clear(*iter); }
-  static void prime_iterator_setprime(mpz_t *iter, UV n) {mpz_set_ui(*iter, n);}
-  static int prime_iterator_isprime(mpz_t *iter, UV n) {int isp; mpz_t t; mpz_init_set_ui(t, n); isp = mpz_probab_prime_p(t, 10); mpz_clear(t); return isp;}
-  */
-#else
-  #include "EXTERN.h"
-  #include "perl.h"
-  #include "XSUB.h"
-#endif
+#include "ptypes.h"
 
 /* includes mpz_mulmod(r, a, b, n, temp) */
 #include "utility.h"
+
+static int _verbose = 0;
+int get_verbose_level(void) { return _verbose; }
+void set_verbose_level(int level) { _verbose = level; }
+
+static gmp_randstate_t _randstate;
+gmp_randstate_t* get_randstate(void) { return &_randstate; }
+void init_randstate(unsigned long seed) {
+  gmp_randinit_mt(_randstate);
+  gmp_randseed_ui(_randstate, seed);
+}
+void clear_randstate(void) {  gmp_randclear(_randstate);  }
+
 
 int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
 {

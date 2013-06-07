@@ -4,15 +4,12 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern void _GMP_set_verbose(int v);
-extern int  _GMP_get_verbose(void);
-extern gmp_randstate_t*  _GMP_get_randstate(void);
-
 extern void _GMP_init(void);
 extern void _GMP_destroy(void);
 
 extern int  _GMP_miller_rabin(mpz_t n, mpz_t a);
-extern int  _GMP_is_strong_lucas_pseudoprime(mpz_t n);
+extern int  _GMP_is_lucas_pseudoprime(mpz_t n, int dostrong);
+extern int  _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n);
 extern int  _GMP_miller_rabin_random(mpz_t n, UV numbases);
 
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);

@@ -53,7 +53,7 @@
 #include <math.h>
 #include <gmp.h>
 
-#ifdef STANDALONE
+#ifdef STANDALONE_SIMPQS
   typedef unsigned long UV;
   typedef   signed long IV;
   #define INLINE
@@ -69,16 +69,11 @@
   static void prime_iterator_setprime(mpz_t *iter, UV n) {mpz_set_ui(*iter, n);}
   /* static int prime_iterator_isprime(mpz_t *iter, UV n) {int isp; mpz_t t; mpz_init_set_ui(t, n); isp = mpz_probab_prime_p(t, 10); mpz_clear(t); return isp;} */
   static int _verbose = 0;
-  static int _GMP_get_verbose(void) { return _verbose; }
+  static int get_verbose_level(void) { return _verbose; }
 #else
   #include "ptypes.h"
   #include "simpqs.h"
   #include "prime_iterator.h"
-  #include "gmp_main.h"
-
-  #include "EXTERN.h"
-  #include "perl.h"
-  #include "XSUB.h"
 #endif
 
 #include "utility.h"
@@ -675,7 +670,7 @@ static void evaluateSieve(
                        CHECK_EXPONENT(exponent, k);
                        PRINT_FB(exponent, k);
                        if (exponent)
-                         for (ii = 0; ii < exponent; ii++)
+                         for (ii = 0; ii < (long)exponent; ii++)
                            set_relation(relations, relsFound, ++numfactors, k);
                        if (exponent & 1)
                          insertEntry(m,relsFound,k);
@@ -686,7 +681,7 @@ static void evaluateSieve(
                     mpz_set_ui(temp,factorBase[k]);
                     exponent = mpz_remove(res,res,temp);
                     PRINT_FB(exponent, k);
-                    for (ii = 0; ii < exponent; ii++)
+                    for (ii = 0; ii < (long)exponent; ii++)
                       set_relation(relations, relsFound, ++numfactors, k);
                     if (exponent & 1)
                       insertEntry(m,relsFound,k);
@@ -707,7 +702,7 @@ static void evaluateSieve(
                        CHECK_EXPONENT(exponent, k);
                        PRINT_FB(exponent, k);
                        if (exponent)
-                         for (ii = 0; ii < exponent; ii++)
+                         for (ii = 0; ii < (long)exponent; ii++)
                            set_relation(relations, relsFound, ++numfactors, k);
                        if (exponent & 1)
                          insertEntry(m,relsFound,k);
@@ -749,7 +744,7 @@ static void evaluateSieve(
 #ifdef RELPRINT
                     printf("....R\n");
 #endif
-                    for (ii = 0; ii<firstprime; ii++)
+                    for (ii = 0; ii < (long)firstprime; ii++)
                     {
                        int jj;
                        for (jj = 0; jj < exponents[ii]; jj++)
@@ -1051,7 +1046,7 @@ static int mainRoutine(
     mpz_t          * sqrts;
     matrix_t m;
 
-    verbose = _GMP_get_verbose();
+    verbose = get_verbose_level();
     s = mpz_sizeinbase(n,2)/28+1;
 
     New(  0, exponents, firstprime, int );
@@ -1421,7 +1416,7 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
 {
   unsigned long numPrimes, Mdiv2, multiplier, decdigits, relSought;
   int result = 0;
-  int verbose = _GMP_get_verbose();
+  int verbose = get_verbose_level();
 
   mpz_set(farray[0], n);
   decdigits = mpz_sizeinbase(n,10); /* often 1 too big */
@@ -1506,7 +1501,7 @@ int _GMP_simpqs(mpz_t n, mpz_t* farray)
   return result;
 }
 
-#ifdef STANDALONE
+#ifdef STANDALONE_SIMPQS
 /*===========================================================================
    Main Program:
 

@@ -40,6 +40,10 @@ Math::BigInt::GMP or Math::GMPz then this module should have no issues.
   Ubuntu:     sudo apt-get install libgmp3 libgmp3-dev
   Cygwin:     install gmp, libgmp-devel, libgmp3
 
+If you would like to make a standalone executable for ECPP:
+
+  gcc -O3 -DSTANDALONE -DSTANDALONE_ECPP ecpp.c bls75.c ecm.c simpqs.c \
+       prime_iterator.c gmp_main.c small_factor.c utility.c -lgmp -lm
 
 DEPENDENCIES
 
