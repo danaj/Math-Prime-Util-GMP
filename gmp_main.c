@@ -224,10 +224,9 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int do_strong)
   mpz_mod(U, U, n);
   mpz_mod(V, V, n);
 
-  if (!do_strong)
-    return (mpz_sgn(U) == 0);
-
-  if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
+  if (!do_strong) {
+    rval = (mpz_sgn(U) == 0);
+  } else if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
     rval = 1;
   } else {
     while (s--) {
