@@ -7,12 +7,12 @@
  * the same terms as the Perl 5 programming language system itself.
  *
  * This file is part of the Math::Prime::Util Perl module.  It is not too hard
- * to build this as a standalone program.
+ * to build this as a standalone program (see the README file).
  *
  * This is pretty good for numbers less than 500 digits.  It is many orders
  * of magnitude faster than the contemporary GMP-ECPP.  It is far, far slower
- * than PRIMO.  I suspect it is substantially slower than the 10-20 year old
- * work of François Morain.
+ * than PRIMO.  I suspect it is slower than the 10-20 year old work of
+ * François Morain.
  *
  * A set of fixed discriminants are used, rather than calculating them as
  * needed.  Having a way to calculate values as needed would be a big help.
@@ -52,6 +52,9 @@
  * to compare and contrast (GMP-ECM, GMP-ECPP).  Thanks to the authors of GMP.
  * Thanks to Schoof, Goldwasser, Kilian, Atkin, Morain, Lenstra, etc. for all
  * the math and publications.  Thanks to Gauss, Euler, et al.
+ *
+ * The ECM code in ecm.c leverages early GMP-ECM work by Phil Zimmerman, as
+ * well as all the articles of Montgomery, Bosma, Lentra, Cohen, and others.  
  */
 
 #include <stdio.h>
@@ -70,6 +73,10 @@
 
 #undef USE_NM1
 #define MAX_SFACS 1000
+
+#ifdef USE_LIBECM
+ #include <ecm.h>
+#endif
 
 static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs)
 {
@@ -107,7 +114,22 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
       /* Push harder for big numbers.  (1) to avoid backtracking too much, and
        * (2) keep poly degree down to save time in root finding later. */
       /* Alternate:  UV B1 = (mpz_sizeinbase(n, 2) > 1200) ? 6000 : 3000; */
+#ifdef USE_LIBECM
+      /* TODO: Tune stage 1 (PM1?) */
+      /* TODO: LIBECM in other stages */
+      if (!success) {
+        ecm_params params;
+        ecm_init(params);
+        params->method = ECM_ECM;
+        mpz_set_ui(params->B2, 10*B1);
+        mpz_set_ui(params->sigma, 0);
+        success = ecm_factor(f, n, B1/4, params);
+        ecm_clear(params);
+        if (mpz_cmp(f, n) == 0)  success = 0;
+      }
+#else
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
+#endif
     }
     /* Try any factors found in previous stage 2+ calls */
     while (!success && sfaci < *nsfacs) {
@@ -553,8 +575,44 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
     if (verbose) printf("%*sN[%d] (%d dig)  PRIME\n", i, "", i, nidigits);
     return 2;
   }
+  downresult = 0;
 
-  /* TODO: n-1 here */
+#ifdef USE_NM1
+    /* Try a simple n-1 test if the number is small enough to give it a decent
+     * chance of success.
+     *
+     * For not-big numbers, effort 1 is nearly free, 2 is very fast, 3 is ok.
+     * For effort 2, it is about 50% at 128 bits, 25% at 160, 10% at 190. */
+    {
+      UV log2ni = mpz_sizeinbase(Ni, 2);
+      int effort = (log2ni <= 128) ? 2
+                 : (log2ni <= 256) ? 1
+                 :                   0;
+      if (effort > 0) {
+        char* nm1_proof = 0;
+        /* -1 = composite, 0 = dunno, 1 = proved prime */
+        k = _GMP_primality_bls_nm1(Ni, effort, &nm1_proof);
+        if (k == 2) {
+          if (prooftextptr != 0 && nm1_proof != 0) {
+            char *proofstr;
+            int myprooflen = strlen(nm1_proof);
+            int curprooflen = (*prooftextptr == 0) ? 0 : strlen(*prooftextptr);
+            Newz(0, proofstr, myprooflen + curprooflen + 1, char);
+            (void) strcat(proofstr, nm1_proof);
+            if (*prooftextptr) {
+              strcat(proofstr + myprooflen, *prooftextptr);
+              Safefree(*prooftextptr);
+            }
+            *prooftextptr = proofstr;
+          }
+        }
+        if (nm1_proof != 0)
+          Safefree(nm1_proof);
+        if (k != 1)
+          return k;
+      }
+    }
+#endif
 
   if (verbose) {
     printf("%*sN[%d] (%d dig)", i, "", i, nidigits);
@@ -570,7 +628,6 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
   mpz_init(P.x);mpz_init(P.y);
   for (k = 0; k < 6; k++)
     mpz_init(mlist[k]);
-  downresult = 0;
 
   /* Any factors q found must be strictly > minfactor.
    * See Atkin and Morain, 1992, section 6.4 */
@@ -590,6 +647,13 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
       /* Make sure we can get a class polynomial for this D. */
       poly_degree = poly_class_poly(D, NULL, &poly_type);
       if (poly_degree == 0)  continue;
+      /* We'll save time in the long run by not looking at big polys once
+       * we've found a good path from the start.  TODO: Needs more tuning. */
+      if (i >  2 && facstage == 1 && poly_degree > 24)  break;
+      if (i >  3 && facstage == 1 && poly_degree > 16)  break;
+      if (i >  4 && facstage == 1 && poly_degree > 12)  break;
+      if (i >  8 && facstage == 1 && poly_degree > 10)  break;
+      if (i > 16 && facstage == 1 && poly_degree >  8)  break;
       mpz_set_si(mD, D);
       /* (D/N) must be 1, and we have to have a u,v solution */
       if (mpz_jacobi(mD, Ni) != 1)
@@ -1005,22 +1069,31 @@ end_ecpp:
 int main(int argc, char **argv)
 {
   mpz_t n;
-  int isprime;
+  int isprime, i, do_printcert;
   char* cert = 0;
 
   if (argc < 2) {
-    printf("Usage: %s [-v] <number>\n", argv[0]);
+    printf("Usage: %s [-v] [-V] [-c] <number>\n", argv[0]);
     exit(1);
   }
   _GMP_init();
   mpz_init(n);
-  if (strcmp(argv[1], "-v") == 0) {
-    set_verbose_level(1);
-    mpz_set_str(n, argv[2], 10);
-  } else {
-    set_verbose_level(0);
-    mpz_set_str(n, argv[1], 10);
+  set_verbose_level(0);
+  do_printcert = 0;
+
+  for (i = 1; i < (argc-1); i++) {
+    if (strcmp(argv[i], "-v") == 0) {
+      set_verbose_level(1);
+    } else if (strcmp(argv[i], "-V") == 0) {
+      set_verbose_level(2);
+    } else if (strcmp(argv[i], "-c") == 0) {
+      do_printcert = 1;
+    } else {
+      printf("Unknown option: %s\n", argv[i]);
+      exit(2);
+    }
   }
+  mpz_set_str(n, argv[i], 10);
   gmp_printf("%Zd\n", n);
 
   isprime = _GMP_is_prob_prime(n);
@@ -1045,7 +1118,8 @@ int main(int argc, char **argv)
     printf("PROBABLY PRIME\n");
   } else {
     printf("PRIME\n");
-    printf("%s", cert);
+    if (do_printcert)
+      printf("%s", cert);
   }
   if (cert != 0)
     Safefree(cert);

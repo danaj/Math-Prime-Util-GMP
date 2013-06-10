@@ -30,3 +30,20 @@
   large numbers it just highlights how much nicer FAS would be.
 
 - ECPP: with FAS, we're printing the N[i] results backwards.
+
+- Makefile for standalone ECPP
+
+- Better output for standalone ECPP.
+
+- Convert ECPP output (prooftext or reverse NabmqP output) to Primo format.
+  Looks like that isn't possible without completely changing our method of
+  choosing curves and points.  Primo uses (type 3):
+    A, B, T where these are usually numbers smaller than ~30
+    L = (T^3 + AT + B) % N
+    A = (A * L^2) mod N
+    B = (B * L^3) mod N
+    X = TL mod N
+    Y = L^2 mod N
+  Type 4 uses a single paameter J instead of A and B.  The calculations for
+  curve and point selection could be modified to do this style perhaps.  It
+  would definitely be a change from the Cohen or Crandall/Pomerance methods.
