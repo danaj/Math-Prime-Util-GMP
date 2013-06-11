@@ -6,6 +6,8 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Rearrange C code to allow standalone build of ECPP.
 
+    - Minor speedups for ECPP.
+
 0.11  20 May 2013
 
     - is_prob_prime is faster at finding composites.

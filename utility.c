@@ -804,7 +804,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
 
 
 /* Algorithm 1.6.1 from Cohen, minus step 1. */
-void polyz_roots_modp(mpz_t** roots, long *nroots,
+void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
                       mpz_t *pP, long dP, mpz_t NMOD,
                       gmp_randstate_t* p_randstate)
 {
@@ -821,19 +821,22 @@ void polyz_roots_modp(mpz_t** roots, long *nroots,
   for (i = 0; i < dP; i++)
     mpz_init((*roots)[i]);
 
+  if (maxroots > dP || maxroots == 0)
+    maxroots = dP;
+
   /* Do degree 1 or 2 explicitly */
   if (dP == 1) {
     polyz_root_deg1( (*roots)[0], pP, NMOD );
     *nroots = 1;
     return;
   }
-  if (dP == 2) {
+  if (dP == 2 && maxroots >= 2) {
     polyz_root_deg2( (*roots)[0], (*roots)[1], pP, NMOD );
     *nroots = 2;
     return;
   }
 
-  polyz_roots(*roots, nroots, dP, pP, dP, NMOD, p_randstate);
+  polyz_roots(*roots, nroots, maxroots, pP, dP, NMOD, p_randstate);
   /* This could be just really bad luck.  Let the caller handle it. */
   /* if (*nroots == 0) croak("failed to find roots\n"); */
 

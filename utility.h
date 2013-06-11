@@ -46,7 +46,7 @@ extern void polyz_root_deg1(mpz_t root, mpz_t* pn, mpz_t NMOD);
 extern void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD);
 
 /* Find roots of a polynomial, slightly modified. */
-extern void polyz_roots_modp(mpz_t** roots, long *nroots,
+extern void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
                              mpz_t *pP, long dP, mpz_t NMOD,
                              gmp_randstate_t* p_randstate);
 

@@ -303,7 +303,6 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   long dT, i, nroots;
   int poly_type;
   gmp_randstate_t* p_randstate = get_randstate();
-  int verbose = get_verbose_level();
 
   if (D == -3 || D == -4) {
     *roots = 0;
@@ -317,7 +316,8 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   dT = degree;
   polyz_mod(T, T, &dT, N);
 
-  polyz_roots_modp(roots, &nroots,  T, dT, N, p_randstate);
+  /* Don't bother getting more than 4 roots */
+  polyz_roots_modp(roots, &nroots,  4, T, dT, N, p_randstate);
   if (nroots == 0) {
     gmp_printf("N = %Zd\n", N);
     croak("Failed to find roots for D = %ld\n", D);
@@ -325,8 +325,10 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   for (i = 0; i <= dT; i++)
     mpz_clear(T[i]);
   Safefree(T);
-  if (verbose && nroots != dT)
+#if 0
+  if (nroots != dT && get_verbose_level())
     printf("  found %ld roots of the %ld degree poly\n", nroots, dT);
+#endif
 
   /* Convert Weber roots to Hilbert roots */
   if (poly_type == 2)
@@ -1066,63 +1068,91 @@ end_ecpp:
 }
 
 #ifdef STANDALONE_ECPP
+static void dieusage(char* prog) {
+  printf("ECPP-DJ version 1.0.  Dana Jacobsen\n\n");
+  printf("Usage: %s [options] <number>\n\n", prog);
+  printf("Options:\n");
+  printf("   -v     set verbose\n");
+  printf("   -V     set extra verbose\n");
+  printf("   -c     print certificate\n");
+  printf("   -nm1   use n-1 proof only\n");
+  printf("   -aks   use AKS for proof\n");
+  printf("   -help  this message\n");
+  exit(1);
+}
+
 int main(int argc, char **argv)
 {
   mpz_t n;
   int isprime, i, do_printcert;
+  int do_nminus1 = 0;
+  int do_aks = 0;
   char* cert = 0;
 
-  if (argc < 2) {
-    printf("Usage: %s [-v] [-V] [-c] <number>\n", argv[0]);
-    exit(1);
-  }
+  if (argc < 2) dieusage(argv[0]);
   _GMP_init();
   mpz_init(n);
   set_verbose_level(0);
   do_printcert = 0;
 
-  for (i = 1; i < (argc-1); i++) {
-    if (strcmp(argv[i], "-v") == 0) {
-      set_verbose_level(1);
-    } else if (strcmp(argv[i], "-V") == 0) {
-      set_verbose_level(2);
-    } else if (strcmp(argv[i], "-c") == 0) {
-      do_printcert = 1;
-    } else {
-      printf("Unknown option: %s\n", argv[i]);
-      exit(2);
+  /* Braindead hacky option parsing */
+  for (i = 1; i < argc; i++) {
+    if (argv[i][0] == '-') {
+      if (strcmp(argv[i], "-v") == 0) {
+        set_verbose_level(1);
+      } else if (strcmp(argv[i], "-V") == 0) {
+        set_verbose_level(2);
+      } else if (strcmp(argv[i], "-c") == 0) {
+        do_printcert = 1;
+      } else if (strcmp(argv[i], "-nm1") == 0) {
+        do_nminus1 = 1;
+      } else if (strcmp(argv[i], "-aks") == 0) {
+        do_aks = 1;
+      } else if (strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "--help") == 0) {
+        dieusage(argv[0]);
+      } else {
+        printf("Unknown option: %s\n\n", argv[i]);
+        dieusage(argv[0]);
+      }
+      continue;
     }
-  }
-  mpz_set_str(n, argv[i], 10);
-  gmp_printf("%Zd\n", n);
+    mpz_set_str(n, argv[i], 10);
+    gmp_printf("%Zd\n", n);
 
-  isprime = _GMP_is_prob_prime(n);
-  if (isprime == 2) {
-    Newz(0, cert, 4 + mpz_sizeinbase(n, 10), char);
-    gmp_sprintf(cert, "[%Zd]\n", n);
-  }
+    isprime = _GMP_is_prob_prime(n);
+    /* If isprime = 2 here, that means it's so small it fits in the
+     * deterministic M-R or BPSW range. */
+    if (isprime == 2) {
+      Newz(0, cert, 4 + mpz_sizeinbase(n, 10), char);
+      gmp_sprintf(cert, "[%Zd]\n", n);
+    } else if (isprime == 1) {
+      if (do_nminus1) {
+        isprime = _GMP_primality_bls_nm1(n, 100, &cert);
+      } else if (do_aks) {
+        isprime = _GMP_is_aks_prime(n);
+        do_printcert = 0;
+      } else {
+        /* Quick n-1 test */
+        isprime = _GMP_primality_bls_nm1(n, 1, &cert);
+        if (isprime == 1)
+          isprime = _GMP_ecpp(n, &cert);
+      }
+    }
 
-  /* If isprime = 2 here, that means it's so small it fits in the deterministic
-   * M-R or BPSW range. */
-  if (isprime == 1) {
-    /* Quick n-1 test */
-    isprime = _GMP_primality_bls_nm1(n, 1, &cert);
-    if (isprime == 1)
-      isprime = _GMP_ecpp(n, &cert);
+    if (isprime == 0) {
+      printf("COMPOSITE\n");
+    } else if (isprime == 1) {
+      /* We really shouldn't ever see this. */
+      printf("PROBABLY PRIME\n");
+    } else {
+      printf("PRIME\n");
+      if (do_printcert)
+        printf("%s", cert);
+    }
+    if (cert != 0)
+      Safefree(cert);
   }
-
-  if (isprime == 0) {
-    printf("COMPOSITE\n");
-  } else if (isprime == 1) {
-    /* We really shouldn't ever see this. */
-    printf("PROBABLY PRIME\n");
-  } else {
-    printf("PRIME\n");
-    if (do_printcert)
-      printf("%s", cert);
-  }
-  if (cert != 0)
-    Safefree(cert);
+  mpz_clear(n);
   _GMP_destroy();
   return 0;
 }
