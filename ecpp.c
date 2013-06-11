@@ -607,6 +607,8 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
             }
             *prooftextptr = proofstr;
           }
+          if (verbose)
+            printf("%*sN[%d] (%d dig)  PRIME (n-1)\n", i, "", i, nidigits);
         }
         if (nm1_proof != 0)
           Safefree(nm1_proof);
