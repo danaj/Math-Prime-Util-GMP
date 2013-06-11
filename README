@@ -41,14 +41,15 @@ Math::BigInt::GMP or Math::GMPz then this module should have no issues.
   Cygwin:     install gmp, libgmp-devel, libgmp3
 
 
-If you would like to make a standalone executable for ECPP:
+If you would like to make a standalone executable for ECPP, the easiest method
+is to run the xt/create-standalone.sh script, which will create a standalone/
+directory with Makefile and README.  You should make sure you have the large
+discrimiment set (https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/).
+You may also simply compile it with:
 
   gcc -O3 -fomit-frame-pointer -DSTANDALONE -DSTANDALONE_ECPP ecpp.c bls75.c \
        ecm.c simpqs.c prime_iterator.c gmp_main.c small_factor.c utility.c \
-       -o ecpp-dj -lgmp -lm
-
-I recommend you get the large discriminent set from:
-  https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/
+       -lgmp -lm  -o ecpp-dj
 
 
 DEPENDENCIES

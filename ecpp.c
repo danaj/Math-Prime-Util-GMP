@@ -651,11 +651,13 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
       if (poly_degree == 0)  continue;
       /* We'll save time in the long run by not looking at big polys once
        * we've found a good path from the start.  TODO: Needs more tuning. */
-      if (i >  2 && facstage == 1 && poly_degree > 24)  break;
-      if (i >  3 && facstage == 1 && poly_degree > 16)  break;
-      if (i >  4 && facstage == 1 && poly_degree > 12)  break;
-      if (i >  8 && facstage == 1 && poly_degree > 10)  break;
-      if (i > 16 && facstage == 1 && poly_degree >  8)  break;
+      if (facstage == 1) {
+        if (i >  2 && poly_degree > 24)  break;
+        if (i >  3 && poly_degree > 16)  break;
+        if (i >  4 && nidigits < 800 && poly_degree > 12)  break;
+        if (i >  8 && nidigits < 700 && poly_degree > 10)  break;
+        if (i > 16 && nidigits < 600 && poly_degree >  8)  break;
+      }
       mpz_set_si(mD, D);
       /* (D/N) must be 1, and we have to have a u,v solution */
       if (mpz_jacobi(mD, Ni) != 1)
