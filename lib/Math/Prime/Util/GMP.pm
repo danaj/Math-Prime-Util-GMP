@@ -627,7 +627,7 @@ C<p-1> method.  The resulting array will contain either two factors (it
 succeeded) or the original number (no factor was found).  In either case,
 multiplying @factors yields the original input.  An optional first stage
 smoothness factor (B1) may be given as the second parameter.  This will be
-the smoothness limit B1 for for the first stage, and will use C<10*B1> for
+the smoothness limit B1 for the first stage, and will use C<10*B1> for
 the second stage limit B2.  If a third parameter is given, it will be used
 as the second stage limit B2.
 Factoring will stop when the input is a prime, one factor has been found, or
