@@ -31,8 +31,6 @@
 
 - ECPP: with FAS, we're printing the N[i] results backwards.
 
-- Makefile for standalone ECPP
-
 - Better output for standalone ECPP.
 
 - Convert ECPP output (prooftext or reverse NabmqP output) to Primo format.
@@ -44,6 +42,6 @@
     B = (B * L^3) mod N
     X = TL mod N
     Y = L^2 mod N
-  Type 4 uses a single paameter J instead of A and B.  The calculations for
+  Type 4 uses a single parameter J instead of A and B.  The calculations for
   curve and point selection could be modified to do this style perhaps.  It
   would definitely be a change from the Cohen or Crandall/Pomerance methods.

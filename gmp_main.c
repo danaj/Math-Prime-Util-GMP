@@ -933,9 +933,8 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_mul_ui(t, t, k);        /* Accumulate powers for a */
     if ( (j++ % 32) == 0) {
       mpz_powm(a, a, t, n);     /* a=a^(k1*k2*k3*...) mod n */
-      if ( !mpz_sgn(a) )
-        goto end_fail;
-      mpz_sub_ui(t, a, 1);
+      if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
+      else             mpz_sub_ui(t, n, 1);
       mpz_gcd(f, t, n);         /* f = gcd(a-1, n) */
       mpz_set_ui(t, 1);
       if (mpz_cmp(f, n) == 0)
@@ -948,9 +947,8 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     q = prime_iterator_next(&iter);
   }
   mpz_powm(a, a, t, n);
-  if ( !mpz_sgn(a) )
-    goto end_fail;
-  mpz_sub_ui(t, a, 1);
+  if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
+  else             mpz_sub_ui(t, n, 1);
   mpz_gcd(f, t, n);
   if (mpz_cmp(f, n) == 0) {
     /* We found multiple factors.  Loop one at a time. */
@@ -974,13 +972,13 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     goto end_success;
 
   /* STAGE 2
-   * See Montgomery 1987, p249-250 for what one _should_ do.
    * This is the standard continuation which replaces the powmods in stage 1
-   * with two mulmods, with a GCD every 64 primess (no backtracking
-   * implemented).  This is quite a bit faster than stage 1.
+   * with two mulmods, with a GCD every 64 primes (no backtracking).
+   * This is quite a bit faster than stage 1.
+   * See Montgomery 1987, p250-253 for possible optimizations.
    * We quickly precalculate a few of the prime gaps, and lazily cache others
    * up to a gap of 222.  That's enough for a B2 value of 189 million.  We
-   * still work above that, we just won't cache the value.
+   * still work above that, we just won't cache the value for big gaps.
    */
   if (B2 > B1) {
     mpz_t b, bm, bmdiff;
@@ -995,7 +993,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_powm_ui(bmdiff, bm, 2, n);
     mpz_init_set(precomp_bm[0], bmdiff);
     is_precomp[0] = 1;
-    for (j = 1; j < 20; j++) {
+    for (j = 1; j < 22; j++) {
       mpz_mul(bmdiff, bmdiff, bm);
       mpz_mul(bmdiff, bmdiff, bm);
       mpz_tdiv_r(bmdiff, bmdiff, n);
@@ -1005,27 +1003,28 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 
     mpz_powm_ui(a, a, q, n );
 
-    j = 1;
+    j = 31;
     while (q <= B2) {
-      UV lastq = q;
-      UV qdiff;
+      UV lastq, qdiff;
 
+      lastq = q;
       q = prime_iterator_next(&iter);
       qdiff = (q - lastq) / 2 - 1;
-      if (qdiff >= 111) {
-        mpz_powm_ui(bmdiff, bm, q-lastq, n);  /* Big gap */
-      } else if (is_precomp[qdiff]) {
-        mpz_set(bmdiff, precomp_bm[qdiff]);
-      } else {
+
+      if (qdiff < 111 && is_precomp[qdiff]) {
+        mpz_mul(t, a, precomp_bm[qdiff]);
+      } else if (qdiff < 111) {
         mpz_powm_ui(bmdiff, bm, q-lastq, n);
         mpz_init_set(precomp_bm[qdiff], bmdiff);
         is_precomp[qdiff] = 1;
+        mpz_mul(t, a, bmdiff);
+      } else {
+        mpz_powm_ui(bmdiff, bm, q-lastq, n);  /* Big gap */
+        mpz_mul(t, a, bmdiff);
       }
-      mpz_mul(t, a, bmdiff);
       mpz_tdiv_r(a, t, n);
-      if ( !mpz_sgn(a) )
-        break;
-      mpz_sub_ui(t, a, 1);
+      if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
+      else             mpz_sub_ui(t, n, 1);
       mpz_mul(b, b, t);
       if ((j % 2) == 0)           /* put off mods a little */
         mpz_tdiv_r(b, b, n);
