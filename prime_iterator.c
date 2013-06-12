@@ -21,7 +21,7 @@ static const unsigned char prevwheel30[30] = {
    29, 29,  1,  1,  1,  1,  1,  1,  7,  7,  7,  7, 11, 11, 13,
    13, 13, 13, 17, 17, 19, 19, 19, 19, 23, 23, 23, 23, 23, 23 };
 
-static UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
+static INLINE UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
 {
   UV d, m;
   if (p < segment_start) return 0;
@@ -38,7 +38,7 @@ static UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, U
   } while (sieve[d] & masktab30[m]);
   return (segment_start + d*30 + m);
 }
-static int is_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
+static INLINE int is_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
 {
   UV d, m, mtab;
   if (p < segment_start) return -1;

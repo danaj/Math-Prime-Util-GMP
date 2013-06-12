@@ -1,12 +1,12 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.12  ?? ?? 2013
+0.12  12 June 2013
 
     - add standard and extra strong Lucas probable prime tests.
 
     - Rearrange C code to allow standalone build of ECPP.
 
-    - Minor speedups for ECPP.
+    - Speedups for ECPP.
 
 0.11  20 May 2013
 
