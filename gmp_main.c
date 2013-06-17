@@ -334,6 +334,90 @@ int _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n)
   return rval;
 }
 
+/* Paul Underwood's Frobenius test.  Code derived from Paul Underwood. */
+int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
+{
+  mpz_t temp1, temp2, result, multiplier, n_plus_1, na, x, a, b;
+  UV len;
+  IV bit;
+  int rval = 0;
+  int _verbose = get_verbose_level();
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
+  }
+
+  mpz_init(temp1); mpz_init(temp2); mpz_init(result); mpz_init(multiplier);
+  mpz_init(n_plus_1), mpz_init(na);
+  mpz_init_set_ui(x, 0);
+  mpz_init_set_ui(a, 1);
+  mpz_init_set_ui(b, 2);
+
+  mpz_add_ui(n_plus_1, n, 1);
+  len = mpz_sizeinbase(n_plus_1, 2);
+  mpz_set_si(temp1, -1);
+  while (mpz_jacobi( temp1, n ) != -1 ) {
+    mpz_add_ui( x, x, 1 );
+    mpz_mul( temp1, x, x );
+    mpz_sub_ui( temp1, temp1, 4 );
+  }
+  mpz_add( temp1, x, x );
+  mpz_add_ui( temp1, temp1, 5 );
+  mpz_mod( result, temp1, n );
+  if (mpz_sgn(x) == 0) {
+    for (bit = len-2; bit >= 0; bit--) {
+      mpz_add( temp2, b, b );
+      mpz_mul( na, a, temp2 );
+      mpz_add( temp1, b, a );
+      mpz_sub( temp2, b, a );
+      mpz_mul( b, temp1, temp2 );
+      mpz_mod( b, b, n );
+      mpz_mod( a, na, n );
+      if ( mpz_tstbit(n_plus_1, bit) ) {
+        mpz_mul_ui( temp1, a, 2 );
+        mpz_add( na, temp1, b );
+        mpz_add( temp1, b, b );
+        mpz_sub( b, temp1, a );
+        mpz_set( a, na );
+      }
+    }
+  } else {
+    mpz_add_ui( multiplier, x, 2 );
+    for (bit = len-2; bit >= 0; bit--) {
+      mpz_mul( temp1, a, x );
+      mpz_add( temp2, b, b );
+      mpz_add( temp1, temp1, temp2 );
+      mpz_mul( na, a, temp1 );
+      mpz_add( temp1, b, a );
+      mpz_sub( temp2, b, a );
+      mpz_mul( b, temp1, temp2 );
+      mpz_mod( b, b, n );
+      mpz_mod( a, na, n );
+      if ( mpz_tstbit(n_plus_1, bit) ) {
+        mpz_mul( temp1, a, multiplier );
+        mpz_add( na, temp1, b );
+        mpz_add( temp1, b, b );
+        mpz_sub( b, temp1, a );
+        mpz_set( a, na );
+      }
+    }
+  }
+  mpz_mod(a, a, n);
+  mpz_mod(b, b, n);
+
+  if ( mpz_cmp_ui(a, 0) == 0 && mpz_cmp(b, result) == 0 )
+    rval = 1;
+  if (_verbose>1) gmp_printf("%Zd is %s with x = %Zd\n", n, (rval) ? "probably prime" : "composite", x);
+
+  mpz_clear(temp1); mpz_clear(temp2); mpz_clear(result); mpz_clear(multiplier);
+  mpz_clear(n_plus_1), mpz_clear(na); mpz_clear(x); mpz_clear(a); mpz_clear(b);
+  return rval;
+}
+
 
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)

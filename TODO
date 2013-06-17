@@ -45,3 +45,5 @@
   Type 4 uses a single parameter J instead of A and B.  The calculations for
   curve and point selection could be modified to do this style perhaps.  It
   would definitely be a change from the Cohen or Crandall/Pomerance methods.
+
+- FU test is in XS, add to lib.

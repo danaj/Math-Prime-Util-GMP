@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.13  xx June 2013
+
+    - Add is_frobenius_underwood_pseudoprime to core.
+
 0.12  12 June 2013
 
     - add standard and extra strong Lucas probable prime tests.

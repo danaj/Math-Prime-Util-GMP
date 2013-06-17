@@ -972,6 +972,12 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
       unsigned char signcount = (*s++) & 0xFF;
       unsigned char sign = signcount >> 7;
       unsigned char count = signcount & 0x7F;
+      if (count == 127) {
+        do {
+          signcount = (*s++) & 0xFF;
+          count += signcount;
+        } while (signcount == 127);
+      }
       mpz_set_ui(t, 0);
       while (count-- > 0) {
         mpz_mul_2exp(t, t, 8);
