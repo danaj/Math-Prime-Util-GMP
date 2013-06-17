@@ -78,6 +78,11 @@
  #include <ecm.h>
 #endif
 
+static int _gcdinit = 0;
+static mpz_t _gcd_small;
+static mpz_t _gcd_large;
+static mpz_t _lcm_small;
+
 static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs)
 {
   int success, sfaci;
@@ -88,8 +93,9 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
 
   if (mpz_cmp(n, fmin) <= 0) return 0;
 
+#if 0
   {
-    /* Alternate trial division: */
+    /* Straightforward trial division up to 3000. */
     PRIME_ITERATOR(iter);
     UV tf;
     UV const trial_limit = 3000;
@@ -100,6 +106,44 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     }
     prime_iterator_destroy(&iter);
   }
+#else
+  /* Utilize GMP's fast gcd algorithms.  Trial to 224737 with two gcds. */
+  if (!_gcdinit) {
+    mpz_init(_gcd_small);
+    mpz_init(_gcd_large);
+    _GMP_pn_primorial(_gcd_small,  3000);
+    _GMP_pn_primorial(_gcd_large, 20000);
+    mpz_divexact(_gcd_large, _gcd_large, _gcd_small);
+    /* mpz_init(_lcm_small);
+    _GMP_lcm_of_consecutive_integers(200, _lcm_small); */
+    _gcdinit = 1;
+  }
+  mpz_tdiv_q_2exp(n, n, mpz_scan1(n, 0));
+  while (mpz_divisible_ui_p(n, 3))  mpz_divexact_ui(n, n, 3);
+  while (mpz_divisible_ui_p(n, 5))  mpz_divexact_ui(n, n, 5);
+  mpz_gcd(f, n, _gcd_small);
+  while (mpz_cmp_ui(f, 1) > 0) {
+    mpz_divexact(n, n, f);
+    mpz_gcd(f, n, _gcd_small);
+  }
+  mpz_gcd(f, n, _gcd_large);
+  while (mpz_cmp_ui(f, 1) > 0) {
+    mpz_divexact(n, n, f);
+    mpz_gcd(f, n, _gcd_large);
+  }
+  /* Quick stage 1 n-1 using a single big powm + gcd. */
+  if (0) {
+    mpz_set_ui(f, 2);
+    mpz_powm(f, f, _lcm_small, n);
+    mpz_sub_ui(f, f, 1);
+    mpz_gcd(f, f, n);
+    if (mpz_cmp_ui(f, 1) != 0 && mpz_cmp(f, n) != 0) {
+      mpz_divexact(n, n, f);
+      if (mpz_cmp(f, n) > 0)
+        mpz_set(n, f);
+    }
+  }
+#endif
 
   sfaci = 0;
   success = 1;
@@ -129,6 +173,7 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
       }
 #else
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
+      /* if (!success && mpz_sizeinbase(n,2) < 600) success = _GMP_pbrent_factor(n, f, mpz_sizeinbase(n,2), 512); */
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -653,7 +698,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
       if (poly_degree == 0)  continue;
       /* We'll save time in the long run by not looking at big polys once
        * we've found a good path from the start.  TODO: Needs more tuning. */
-      if (facstage == 1) {
+      if (0 && facstage == 1) {
         if (i >  2 && poly_degree > 24)  break;
         if (i >  3 && poly_degree > 16)  break;
         if (i >  4 && nidigits < 800 && poly_degree > 12)  break;
