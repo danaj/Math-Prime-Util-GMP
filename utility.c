@@ -498,13 +498,13 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 
   /* Create big integers p and p2 from px and py, with padding */
   {
-    for (i = 0; i <= dx; i++) {
+    for (i = 0; i <= (UV)dx; i++) {
       mpz_mul_2exp(p, p, bits);
       mpz_add(p, p, px[dx-i]);
     }
   }
   if (px != py) {
-    for (i = 0; i <= dy; i++) {
+    for (i = 0; i <= (UV)dy; i++) {
       mpz_mul_2exp(p2, p2, bits);
       mpz_add(p2, p2, py[dy-i]);
     }

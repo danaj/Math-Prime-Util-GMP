@@ -125,9 +125,9 @@ is_lucas_pseudoprime(IN char* strn)
     switch (ix) {
       case 0:  RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
       case 1:  RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
-      case 2:  RETVAL = _GMP_is_extra_strong_lucas_pseudoprime(n); break;
+      case 2:  RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
       case 3:  RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
-      default: break;
+      default: RETVAL = 0; break;
     }
     mpz_clear(n);
   OUTPUT:

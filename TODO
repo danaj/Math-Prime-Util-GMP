@@ -47,3 +47,5 @@
   would definitely be a change from the Cohen or Crandall/Pomerance methods.
 
 - FU test is in XS, add to lib.
+
+- Lucas sequence is in XS, add to lib.

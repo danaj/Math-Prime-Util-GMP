@@ -131,6 +131,117 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
   return rval;
 }
 
+/* Returns Lucas sequence  U_k mod n and V_k mod n  defined by P,Q */
+void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
+                    mpz_t Qk, mpz_t t)
+{
+  UV b = mpz_sizeinbase(k, 2);
+  IV D = P*P - 4*Q;
+
+  MPUassert( mpz_cmp_ui(n, 2) >= 0, "lucas_seq: n is less than 2" );
+  MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucas_seq: k is negative" );
+  MPUassert( P >= 0 && mpz_cmp_si(n, P) >= 0, "lucas_seq: P is out of range" );
+  MPUassert( mpz_cmp_si(n, Q) >= 0, "lucas_seq: Q is out of range" );
+  MPUassert( D != 0, "lucas_seq: D is zero" );
+
+  if (mpz_cmp_ui(k, 0) <= 0) {
+    mpz_set_ui(U, 0);
+    mpz_set_ui(V, 2);
+    return;
+  }
+  mpz_set_ui(U, 1);
+  mpz_set_si(V, P);
+
+  if (Q == 1) {
+    while (b > 1) {
+      mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
+      mpz_mul(V, V, V);
+      mpz_sub_ui(V, V, 2);
+      mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
+      b--;
+      if (mpz_tstbit(k, b-1)) {
+        mpz_mul_si(t, U, D);
+                                    /* U:  U2k+1 = (P*U2k + V2k)/2 */
+        mpz_mul_si(U, U, P);
+        mpz_add(U, U, V);
+        if (mpz_odd_p(U)) mpz_add(U, U, n);
+        mpz_fdiv_q_2exp(U, U, 1);
+                                    /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
+        mpz_mul_si(V, V, P);
+        mpz_add(V, V, t);
+        if (mpz_odd_p(V)) mpz_add(V, V, n);
+        mpz_fdiv_q_2exp(V, V, 1);
+      }
+    }
+  } else {
+    mpz_set_si(Qk, Q);
+    while (b > 1) {
+      mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
+      mpz_mul(V, V, V);
+      mpz_submul_ui(V, Qk, 2);
+      mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
+      mpz_mul(Qk, Qk, Qk);            /* Q2k = Qk^2 */
+      b--;
+      if (mpz_tstbit(k, b-1)) {
+        mpz_mul_si(t, U, D);
+                                    /* U:  U2k+1 = (P*U2k + V2k)/2 */
+        mpz_mul_si(U, U, P);
+        mpz_add(U, U, V);
+        if (mpz_odd_p(U)) mpz_add(U, U, n);
+        mpz_fdiv_q_2exp(U, U, 1);
+                                    /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
+        mpz_mul_si(V, V, P);
+        mpz_add(V, V, t);
+        if (mpz_odd_p(V)) mpz_add(V, V, n);
+        mpz_fdiv_q_2exp(V, V, 1);
+
+        mpz_mul_si(Qk, Qk, Q);
+      }
+      mpz_mod(Qk, Qk, n);
+    }
+  }
+  mpz_mod(U, U, n);
+  mpz_mod(V, V, n);
+}
+
+static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
+{
+  UV D_ui = 5;
+  IV sign = 1;
+  while (1) {
+    UV gcd = mpz_gcd_ui(NULL, n, D_ui);
+    if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0)
+      return 0;
+    mpz_set_si(t, (IV)D_ui * sign);
+    if (mpz_jacobi(t, n) == -1)  break;
+    D_ui += 2;
+    sign = -sign;
+  }
+  *P = 1;
+  *Q = (1 - (IV)D_ui * sign) / 4;
+  return 1;
+}
+
+static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t)
+{
+  IV tP = 3;
+  while (1) {
+    UV gcd;
+    IV D = tP*tP - 4;
+    mpz_set_ui(t, D);
+    gcd = mpz_gcd_ui(NULL, n, D);
+    if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0)
+      return 0;
+    if (mpz_jacobi(t, n) == -1)  break;
+    tP++;
+  }
+  *P = tP;
+  *Q = 1;
+  return 1;
+}
+
+
+
 /* This code was verified against Feitsma's psps-below-2-to-64.txt file.
  * is_strong_pseudoprime reduced it from 118,968,378 to 31,894,014.
  * all three variations of the Lucas test reduce it to 0.
@@ -145,14 +256,12 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
  * Testing on my x86_64 machine, the strong Lucas code is over 35% faster than
  * T.R. Nicely's implementation, and over 40% faster than David Cleaver's.
  */
-int _GMP_is_lucas_pseudoprime(mpz_t n, int do_strong)
+int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
 {
-  mpz_t d, U, V, Qk, T1, T2;
-  IV D;
-  UV P = 1;
-  IV Q;
-  UV s, b;
-  int rval = 0;
+  mpz_t d, U, V, Qk, t;
+  IV P, Q;
+  UV s = 0;
+  int rval;
   int _verbose = get_verbose_level();
 
   {
@@ -162,177 +271,67 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int do_strong)
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
     if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
   }
-  mpz_init(T1);
-  /* Determine Selfridge D, P, Q parameters */
-  {
-    UV D_ui = 5;
-    IV sign = 1;
-    while (1) {
-      UV gcd = mpz_gcd_ui(NULL, n, D_ui);
-      if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0) {
-        mpz_clear(T1);
-        return 0;
-      }
-      mpz_set_si(T1, (IV)D_ui * sign);
-      if (mpz_jacobi(T1, n) == -1)  break;
-      D_ui += 2;
-      sign = -sign;
-    }
-    D = (IV)D_ui * sign;
-  }
-  Q = (1 - D) / 4;
-  if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, D, P, Q);
-  if (D != ((IV)(P*P)) - 4*Q)  croak("incorrect DPQ\n");
-  /* Now start on the Lucas sequence */
-  mpz_init(T2);
-  mpz_init_set_ui(U, 1);
-  mpz_init_set_ui(V, P);
-  mpz_init_set_si(Qk, Q);
-  mpz_init_set(d, n);   mpz_add_ui(d, d, 1);
 
-  s = mpz_scan1(d, 0);
-  if (do_strong)
+  mpz_init(t);
+  rval = (strength < 2) ? lucas_selfridge_params(&P, &Q, n, t)
+                        : lucas_extrastrong_params(&P, &Q, n, t);
+  if (!rval) {
+    mpz_clear(t);
+    return 0;
+  }
+  if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, P*P-4*Q, P, Q);
+
+  mpz_init(U);  mpz_init(V);  mpz_init(Qk);
+  mpz_init_set(d, n);
+  mpz_add_ui(d, d, 1);
+
+  if (strength > 0) {
+    s = mpz_scan1(d, 0);
     mpz_tdiv_q_2exp(d, d, s);
-  b = mpz_sizeinbase(d, 2);
-
-  if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
-  /* We assume P = 1, Q != 1. */
-  while (b > 1) {
-    mpz_mulmod(U, U, V, n, T1);     /* U2k = Uk * Vk */
-    mpz_mul(T1, V, V);
-    mpz_submul_ui(T1, Qk, 2);
-    mpz_mod(V, T1, n);              /* V2k = Vk^2 - 2 Q^k */
-    mpz_mul(Qk, Qk, Qk);            /* Q2k = Qk^2 */
-    b--;
-    if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd  Q2k=%Zd\n", U, V, Qk);
-    if (mpz_tstbit(d, b-1)) { /* No mods in here */
-      mpz_mul_si(T2, U, D);
-                                  /* U:  U2k+1 = (P*U2k + V2k)/2 */
-      mpz_add(T1, U, V);
-      if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
-      mpz_fdiv_q_2exp(U, T1, 1);
-                                  /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
-      mpz_add(T1, T2, V);
-      if (mpz_odd_p(T1)) mpz_add(T1, T1, n);
-      mpz_fdiv_q_2exp(V, T1, 1);
-                                  /* Qk:  Qk+1 = Qk * Q */
-      mpz_mul_si(Qk, Qk, Q);
-    }
-    mpz_mod(Qk, Qk, n);
-    if (_verbose>3) gmp_printf("U=%Zd  V=%Zd  Q=%Zd\n", U, V, Qk);
   }
-  mpz_mod(U, U, n);
-  mpz_mod(V, V, n);
 
-  if (!do_strong) {
+  _GMP_lucas_seq(U, V, n, P, Q, d, Qk, t);
+  mpz_clear(d);
+
+  rval = 0;
+  if (strength == 0) {
+    /* Standard checks U_{n+1} = 0 mod n. */
     rval = (mpz_sgn(U) == 0);
-  } else if ( (mpz_sgn(U) == 0) || (mpz_sgn(V) == 0) ) {
-    rval = 1;
   } else {
-    while (s--) {
-      mpz_mul(T1, V, V);
-      mpz_submul_ui(T1, Qk, 2);
-      mpz_mod(V, T1, n);
-      if (mpz_sgn(V) == 0) {
-        rval = 1;
-        break;
+    mpz_sub_ui(t, n, 2);
+    if ( mpz_sgn(U) == 0 &&
+         (strength == 1 || mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, t) == 0) ) {
+      rval = 1;
+    } else if (mpz_sgn(V) == 0) {
+      rval = 1;
+    } else if (strength == 1) {
+      while (s--) {
+        mpz_mul(t, V, V);
+        mpz_submul_ui(t, Qk, 2);
+        mpz_mod(V, t, n);
+        if (mpz_sgn(V) == 0) {
+          rval = 1;
+          break;
+        }
+        if (s)
+          mpz_mulmod(Qk, Qk, Qk, n, t);
       }
-      if (s)
-        mpz_mulmod(Qk, Qk, Qk, n, T1);
-    }
-  }
-  mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(Qk);
-  mpz_clear(T1); mpz_clear(T2);
-  return rval;
-}
-
-int _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n)
-{
-  mpz_t d, U, V, T1;
-  UV D, P, Q, s, b;
-  int rval = 0;
-  int _verbose = get_verbose_level();
-
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
-    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
-  }
-  /* Determine parameters (Q=1) */
-  mpz_init(T1);
-  P = 3;
-  Q = 1;
-  while (1) {
-    UV gcd;
-    D = P*P - 4;
-    mpz_set_ui(T1, D);
-    gcd = mpz_gcd_ui(NULL, n, D);
-    if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0) {
-      mpz_clear(T1);
-      return 0;
-    }
-    if (mpz_jacobi(T1, n) == -1)  break;
-    P++;
-  }
-  if (_verbose>3) gmp_printf("N: %Zd  D: %lu  P: %lu  Q: %ld\n", n, D, P, Q);
-  if (D != (P*P - 4*Q))  croak("incorrect DPQ\n");
-  /* Now start on the Lucas sequence */
-  mpz_init_set_ui(U, 1);
-  mpz_init_set_ui(V, P);
-  mpz_init_set(d, n);   mpz_add_ui(d, d, 1);
-
-  s = mpz_scan1(d, 0);
-  mpz_tdiv_q_2exp(d, d, s);
-  b = mpz_sizeinbase(d, 2);
-
-  if (_verbose>3) gmp_printf("U=%Zd  V=%Zd\n", U, V);
-  /* We assume P != 1, Q == 1. */
-  while (b > 1) {
-    mpz_mulmod(U, U, V, n, T1);     /* U2k = Uk * Vk */
-    mpz_mul(V, V, V);
-    mpz_sub_ui(V, V, 2);
-    mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
-    b--;
-    if (_verbose>3) gmp_printf("U2k=%Zd  V2k=%Zd\n", U, V);
-    if (mpz_tstbit(d, b-1)) { /* No mods in here */
-      mpz_mul_si(T1, U, D);
-                                  /* U:  U2k+1 = (P*U2k + V2k)/2 */
-      mpz_mul_ui(U, U, P);
-      mpz_add(U, U, V);
-      if (mpz_odd_p(U)) mpz_add(U, U, n);
-      mpz_fdiv_q_2exp(U, U, 1);
-                                  /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
-      mpz_mul_ui(V, V, P);
-      mpz_add(V, V, T1);
-      if (mpz_odd_p(V)) mpz_add(V, V, n);
-      mpz_fdiv_q_2exp(V, V, 1);
-    }
-    if (_verbose>3) gmp_printf("U=%Zd  V=%Zd\n", U, V);
-  }
-  mpz_mod(U, U, n);
-  mpz_mod(V, V, n);
-
-  mpz_sub_ui(T1, n, 2);
-  if (mpz_sgn(U) == 0 && (mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, T1) == 0)) {
-    rval = 1;
-  } else if (mpz_sgn(V) == 0) {
-    rval = 1;
-  } else {
-    while (s--) {
-      mpz_mul(V, V, V);
-      mpz_sub_ui(V, V, 2);
-      mpz_mod(V, V, n);
-      if (mpz_sgn(V) == 0) {
-        rval = 1;
-        break;
+    } else {
+      while (s--) {
+        mpz_mul(V, V, V);
+        mpz_sub_ui(V, V, 2);
+        mpz_mod(V, V, n);
+        if (mpz_sgn(V) == 0) {
+          rval = 1;
+          break;
+        }
       }
     }
   }
-  mpz_clear(d); mpz_clear(U); mpz_clear(V); mpz_clear(T1);
+  mpz_clear(Qk); mpz_clear(V); mpz_clear(U); mpz_clear(t);
   return rval;
 }
+
 
 /* Paul Underwood's Frobenius test.  Code derived from Paul Underwood. */
 int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)

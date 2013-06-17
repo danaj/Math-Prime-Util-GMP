@@ -13,6 +13,9 @@ extern int  _GMP_is_extra_strong_lucas_pseudoprime(mpz_t n);
 extern int  _GMP_is_frobenius_underwood_pseudoprime(mpz_t n);
 extern int  _GMP_miller_rabin_random(mpz_t n, UV numbases);
 
+extern void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
+                           mpz_t Qk, mpz_t t);
+
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 
 extern int  _GMP_is_prime(mpz_t n);
