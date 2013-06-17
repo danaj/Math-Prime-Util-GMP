@@ -84,6 +84,86 @@
  * these tests on numbers that are very probably prime.
  */
 
+
+static int try_factor(mpz_t f, mpz_t n, int effort)
+{
+  int success = 0;
+
+  if (!success)  success = _GMP_power_factor(n, f);
+
+  if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>2)) < 0) {
+    UV ui_n = mpz_get_ui(n);
+    UV ui_factors[2];
+    if (!mpz_cmp_ui(n, ui_n)) {
+      success = racing_squfof_factor(ui_n, ui_factors, 200000)-1;
+      if (success)
+        mpz_set_ui(f, ui_factors[0]);
+    }
+  }
+
+  if (effort >= 1) {
+    if (!success)  success = _GMP_pminus1_factor(n, f, 100, 1000);
+    if (!success)  success = _GMP_pminus1_factor(n, f, 1000, 10000);
+  }
+
+  if (!success && effort == 2) {
+    UV log2n = mpz_sizeinbase(n, 2);
+    UV brent_rounds = (log2n <= 64) ? 100000 : 100000 / (log2n-63);
+    int final_B2 = 1000 * (150-(int)log2n);
+    if (log2n < 70) brent_rounds *= 3;
+    if (!success && log2n < 80)  success = _GMP_ECM_FACTOR(n, f, 150, 5);
+    if (!success)  success = _GMP_pbrent_factor(n, f, 3, brent_rounds);
+    if (!success && final_B2 > 10000)  success = _GMP_pminus1_factor(n, f, 10000, final_B2);
+  }
+
+  if (!success && effort >= 3) {
+    if (!success)  success = _GMP_pminus1_factor(n, f, 10000, 200000);
+    if (!success)  success = _GMP_ECM_FACTOR(n, f, 500, 30);
+    if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 20);
+  }
+
+  return success;
+}
+static int try_factor2(mpz_t f, mpz_t n, int effort)
+{
+  int success = 0;
+
+  if (!success && effort >= 4) {
+    if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 4000000);
+    if (!success)  success = _GMP_ECM_FACTOR(n, f, 10000, 10);
+  }
+  if (!success && effort >= 5) {
+    UV i;
+    UV ecm_B1 = 10000;
+    UV curves = 10;
+    if (_GMP_is_prob_prime(n)) croak("Internal error in BLS75\n");
+    for (i = 1; i < 18 && !success; i++) {
+      if ((4+i) > (UV)effort) break;
+      ecm_B1 *= 2;
+      success = _GMP_ECM_FACTOR(n, f, ecm_B1, curves);
+    }
+  }
+  return success;
+}
+
+/* F*R = n, F is factored part, R is remainder */
+static void small_factor(mpz_t F, mpz_t R, UV B1)
+{
+  PRIME_ITERATOR(iter);
+  UV tf;
+  for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
+    if (mpz_cmp_ui(R, tf*tf) < 0) break;
+    if (mpz_divisible_ui_p(R, tf)) {
+      do {
+        mpz_mul_ui(F, F, tf);
+        mpz_divexact_ui(R, R, tf);
+      } while (mpz_divisible_ui_p(R, tf));
+    }
+  }
+  prime_iterator_destroy(&iter);
+}
+
+
 /* FIXME:
  *   (1) too much repetitious overhead code in these
  *   (2) way too much copy/paste between Pocklington and BLS
@@ -253,7 +333,7 @@ static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
 {
   mpz_mul(t, A, B);
   mpz_add_ui(t, t, 1);
-  if (mpz_cmp(t, n) != 0) croak("BLS75:  A*B != n\n");
+  if (mpz_cmp(t, n) != 0) croak("BLS75:  A*B != n-1\n");
 
   mpz_mul_ui(t, A, 2);
   mpz_tdiv_qr(s, r, B, t);
@@ -364,53 +444,13 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     /* pop a component off the stack */
     mpz_set(m, mstack[--msp]); mpz_clear(mstack[msp]);
 
-    /* Try to factor it without trying too hard */
-    if (!success)  success = _GMP_power_factor(m, f);
+    success = try_factor(f, m, effort);
 
-    if (!success && mpz_cmp_ui(m, (unsigned long)(UV_MAX>>2)) < 0) {
-      UV ui_m = mpz_get_ui(m);
-      UV ui_factors[2];
-      if (!mpz_cmp_ui(m, ui_m)) {
-        success = racing_squfof_factor(ui_m, ui_factors, 200000)-1;
-        if (success)
-          mpz_set_ui(f, ui_factors[0]);
-      }
-    }
-    if (effort >= 1) {
-      if (!success)  success = _GMP_pminus1_factor(m, f, 100, 1000);
-      if (!success)  success = _GMP_pminus1_factor(m, f, 1000, 10000);
-    }
-    if (!success && effort == 2) {
-      /* These keep the time in the realm of 2ms per input number, which
-       * means they adjust for size.  Success varies by size:
-       *   99% of  70-bit inputs
-       *   90% of  90-bit inputs
-       *   58% of 120-bit inputs
-       *   25% of 160-bit inputs
-       *   10% of 190-bit inputs
-       */
-      UV log2m = mpz_sizeinbase(m, 2);
-      UV brent_rounds = (log2m <= 64) ? 100000 : 100000 / (log2m-63);
-      int final_B2 = 1000 * (150-(int)log2m);
-      if (log2m < 70) brent_rounds *= 3;
-      if (!success && log2m < 80)  success = _GMP_ECM_FACTOR(m, f, 150, 5);
-      if (!success)  success = _GMP_pbrent_factor(m, f, 3, brent_rounds);
-      if (!success && final_B2 > 10000)  success = _GMP_pminus1_factor(m, f, 10000, final_B2);
-    }
-    if (!success && effort >= 3) {
-      if (!success)  success = _GMP_pminus1_factor(m, f, 10000, 200000);
-      if (!success)  success = _GMP_ECM_FACTOR(m, f, 500, 30);
-      if (!success)  success = _GMP_ECM_FACTOR(m, f, 2000, 20);
-    }
     if (!success && effort >= 5) {
       /* The factor isn't trivial, but our size is relatively small.  QS. */
       if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,10)<55) {
         INNER_QS_FACTOR(m, _GMP_primality_bls_nm1);
       }
-    }
-    if (!success && effort >= 4) {
-      if (!success)  success = _GMP_pminus1_factor(m, f, 200000, 4000000);
-      if (!success)  success = _GMP_ECM_FACTOR(m, f, 10000, 10);
     }
 #if BLS_THEOREM7
     /* Could we exit now if B1 was larger? */
@@ -442,18 +482,9 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
         INNER_QS_FACTOR(m, _GMP_primality_bls_nm1);
       }
     }
-    if (!success && effort >= 5) {
-      UV i;
-      UV ecm_B1 = 10000;
-      UV curves = 10;
-      if (_GMP_is_prob_prime(m)) croak("Internal error in BLS75\n");
-      for (i = 1; i < 18; i++) {
-        if ((4+i) > (UV)effort) break;
-        ecm_B1 *= 2;
-        success = _GMP_ECM_FACTOR(m, f, ecm_B1, curves);
-        if (success) break;
-      }
-    }
+    if (!success)
+      success = try_factor2(f, m, effort);
+
     /* If we couldn't factor m and the stack is empty, we've failed. */
     if ( (!success) && (msp == 0) )
       break;
@@ -572,4 +603,223 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   if (success < 0) return 0;
   if (success > 0) return 2;
   return 1;
+}
+
+
+
+/* Given an n where we're factored n-1 down to p, check BLS theorem 3 */
+int _GMP_primality_bls_3(mpz_t n, mpz_t p, UV* reta)
+{
+  mpz_t nm1, m, t, t2;
+  int rval = 0;
+
+  if (reta) *reta = 0;
+  if (mpz_cmp_ui(n, 2) <= 0 || mpz_even_p(n) || mpz_even_p(p))
+    return 0;                 /* n is <= 2, n is even, or p is even */
+  if (!_GMP_is_prob_prime(p))
+    return 0;                 /* p is not a probable prime */
+
+  mpz_init(nm1);  mpz_init(m);  mpz_init(t);  mpz_init(t2);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_divexact(m, nm1, p);
+  mpz_mul(t, m, p);
+  if (mpz_cmp(nm1, t) != 0)
+    goto end_bls3;           /* m*p != n+1 */
+
+  mpz_mul_ui(t, p, 2);
+  mpz_add_ui(t, t, 1);
+  mpz_sqrt(t2, n);
+  if (mpz_cmp(t, t2) <= 0)
+    goto end_bls3;           /* 2p+1 <= sqrt(n) */
+
+  {
+    /* N-1 = mp, p is an odd probable prime, and 2p+1 > sqrt(n).
+     * Now find an 'a' where a^(n-1)/2 = -1 mod n, a^(m/2) != -1 mod n. */
+    PRIME_ITERATOR(iter);
+    UV const alimit = 1000;
+    UV a;
+    for (a = 2; a <= alimit; a = prime_iterator_next(&iter)) {
+      mpz_set_ui(t2, a);
+      mpz_divexact_ui(t, m, 2);
+      mpz_powm(t, t2, t, n);       /* a^(m/2) mod n */
+      if (mpz_cmp(t, nm1) == 0)
+        continue;
+      mpz_divexact_ui(t, nm1, 2);
+      mpz_powm(t, t2, t, n);       /* a^((n-1)/2) mod n */
+      if (mpz_cmp(t, nm1) != 0)
+        continue;
+      rval = 1;
+      if (reta) *reta = a;
+      break;
+    }
+    prime_iterator_destroy(&iter);
+  }
+
+end_bls3:
+  mpz_clear(nm1);  mpz_clear(m);  mpz_clear(t);  mpz_clear(t2);
+  return rval;
+}
+
+/* Given an n where we're factored n+1 down to q, check BLS theorem 15 */
+int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* discriminant)
+{
+  mpz_t np1, m, t, t2;
+  int rval = 0;
+
+  if (discriminant) *discriminant = 0;
+  if (mpz_cmp_ui(n, 2) <= 0 || mpz_even_p(n) || mpz_even_p(q))
+    return 0;                 /* n is <= 2, n is even, or q is even */
+  if (!_GMP_is_prob_prime(q))
+    return 0;                 /* q is not a probable prime */
+
+  mpz_init(np1);  mpz_init(m);  mpz_init(t);  mpz_init(t2);
+  mpz_add_ui(np1, n, 1);
+  mpz_divexact(m, np1, q);
+  mpz_mul(t, m, q);
+  if (mpz_cmp(np1, t) != 0)
+    goto end_bls15;           /* m*q != n+1 */
+
+  mpz_mul_ui(t, q, 2);
+  mpz_sub_ui(t, t, 1);
+  mpz_sqrt(t2, n);
+  if (mpz_cmp(t, t2) <= 0)
+    goto end_bls15;           /* 2q-1 <= sqrt(n) */
+
+  {
+    /* N+1 = mq, q is an odd probable prime, and 2q-1 > sqrt(n).
+     * Now find a Lucas sequence V_k with discriminant D s.t. D/N = -1
+     * where N divides V_(N+1)/2 and N does not divide V_m/2. */
+    IV d, p, q;
+    mpz_t U, V, k;
+
+    q = 2;
+    mpz_init(U);  mpz_init(V);  mpz_init(k);
+
+    /* Primo gave me the idea of this p/q selection method */
+    for (q = 2; q < 1000; q++) {
+      p = (q % 2) ? 2 : 1;
+      d = p*p - 4*q;
+      mpz_set_si(t, d);
+      if (mpz_jacobi(t, n) != -1)
+        continue;
+      /* we have a d/p/q where d = -1.  Check the Lucas sequences. */
+      mpz_divexact_ui(k, m, 2);
+      _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
+      if (mpz_sgn(V) != 0) {
+        mpz_divexact_ui(k, np1, 2);
+        _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
+        if (mpz_sgn(V) == 0) {
+          rval = 1;
+          if (discriminant) *discriminant = d;
+          break;
+        }
+      }
+    }
+    mpz_clear(U);  mpz_clear(V);  mpz_clear(k);
+  }
+
+end_bls15:
+  mpz_clear(np1);  mpz_clear(m);  mpz_clear(t);  mpz_clear(t2);
+  return rval;
+}
+
+/* Given an n, try using BLS75 theorem 15, N+1 = mq.
+ * Note: this does _not_ prove n is prime!  If it returns 1, then we have
+ * found a q/D that satisfy theorem 15, but we leave proving q for the caller.
+ */
+int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* discriminant)
+{
+  mpz_t np1, m, f, sqrtn, t;
+  int success = 1;
+  UV B1 = 2000;
+
+  /* We need to do this for BLS */
+  if (mpz_even_p(n)) return 0;
+
+  mpz_init(np1);  mpz_init(m);  mpz_init(f);  mpz_init(sqrtn);  mpz_init(t);
+  mpz_add_ui(np1, n, 1);
+  mpz_set_ui(m, 1);
+  mpz_set(q, np1);
+  mpz_sqrt(sqrtn, n);
+
+  small_factor(m, q, B1);
+
+  while (success) {
+    success = 0;
+    mpz_mul_ui(t, q, 2);
+    mpz_sub_ui(t, t, 1);
+    if (mpz_cmp(t, sqrtn) <= 0)
+      break;
+    if (_GMP_is_prob_prime(q)) {
+      success = 1;
+      break;
+    }
+    success = try_factor(f, q, effort);
+    if (!success)
+      success = try_factor2(f, q, effort);
+    if (success) {
+      mpz_divexact(q, q, f);
+      if (mpz_cmp(q, f) < 0) { mpz_set(t, q); mpz_set(q, f); mpz_set(f, t); }
+      mpz_mul(m, m, f);
+    }
+  }
+
+  if (success)
+    success = _GMP_primality_bls_15(n, q, discriminant);
+
+  mpz_clear(np1);
+  mpz_clear(m);
+  mpz_clear(f);
+  mpz_clear(sqrtn);
+  mpz_clear(t);
+  return success;
+}
+
+/* Given an n, try using BLS75 theorem 3, N-1 = mp. */
+int _GMP_primality_bls_nm1_split(mpz_t n, int effort, mpz_t p, UV *reta)
+{
+  mpz_t nm1, m, f, sqrtn, t;
+  int success = 1;
+  UV B1 = 2000;
+
+  /* We need to do this for BLS */
+  if (mpz_even_p(n)) return 0;
+
+  mpz_init(nm1);  mpz_init(m);  mpz_init(f);  mpz_init(sqrtn);  mpz_init(t);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_set_ui(m, 1);
+  mpz_set(p, nm1);
+  mpz_sqrt(sqrtn, n);
+
+  small_factor(m, p, B1);
+
+  while (success) {
+    success = 0;
+    mpz_mul_ui(t, p, 2);
+    mpz_add_ui(t, t, 1);
+    if (mpz_cmp(t, sqrtn) <= 0)
+      break;
+    if (_GMP_is_prob_prime(p)) {
+      success = 1;
+      break;
+    }
+    success = try_factor(f, p, effort);
+    if (!success)
+      success = try_factor2(f, p, effort);
+    if (success) {
+      mpz_divexact(p, p, f);
+      if (mpz_cmp(p, f) < 0) { mpz_set(t, p); mpz_set(p, f); mpz_set(f, t); }
+      mpz_mul(m, m, f);
+    }
+  }
+
+  if (success)
+    success = _GMP_primality_bls_3(n, p, reta);
+
+  mpz_clear(nm1);
+  mpz_clear(m);
+  mpz_clear(f);
+  mpz_clear(sqrtn);
+  mpz_clear(t);
+  return success;
 }

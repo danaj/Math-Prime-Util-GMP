@@ -54,7 +54,7 @@
  * the math and publications.  Thanks to Gauss, Euler, et al.
  *
  * The ECM code in ecm.c leverages early GMP-ECM work by Phil Zimmerman, as
- * well as all the articles of Montgomery, Bosma, Lentra, Cohen, and others.  
+ * well as all the articles of Montgomery, Bosma, Lentra, Cohen, and others.
  */
 
 #include <stdio.h>
@@ -623,6 +623,51 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, UV* dlist, mpz_t* sfacs, int
     return 2;
   }
   downresult = 0;
+
+#if 0
+  /* Use n-1 and n+1 tests (BLS75 theorem 3 and 15) */
+  {
+    mpz_t n1, minfactor, t;
+    UV a;
+    IV D;
+    mpz_init(q); mpz_init(n1); mpz_init(minfactor); mpz_init(t);
+
+    mpz_sub_ui(n1, Ni, 1);
+    mpz_sqrt(minfactor, Ni);
+    mpz_sub_ui(minfactor, minfactor, 1);
+    mpz_tdiv_q_2exp(minfactor, minfactor, 1);
+
+    if ( check_for_factor2(q, n1, minfactor, t, facstage, sfacs, nsfacs) &&
+         _GMP_primality_bls_3(Ni, q, &a) ) {
+      gmp_printf("n-1: down from %Zd to %Zd\n", Ni, q);
+      downresult = ecpp_down(i+1, q, 1, dlist, sfacs, nsfacs, prooftextptr);
+      if (downresult != 1) {
+        mpz_clear(q); mpz_clear(n1); mpz_clear(minfactor); mpz_clear(t);
+        if (downresult == 0) goto end_down;
+        /* TODO: insert proof */
+        return downresult;
+      }
+    }
+
+    mpz_add_ui(n1, Ni, 1);
+    mpz_sqrt(minfactor, Ni);
+    mpz_add_ui(minfactor, minfactor, 1);
+    mpz_tdiv_q_2exp(minfactor, minfactor, 1);
+
+    if ( check_for_factor2(q, n1, minfactor, t, facstage, sfacs, nsfacs) &&
+         _GMP_primality_bls_15(Ni, q, &D) ) {
+      gmp_printf("n+1: down from %Zd to %Zd\n", Ni, q);
+      downresult = ecpp_down(i+1, q, 1, dlist, sfacs, nsfacs, prooftextptr);
+      if (downresult != 1) {
+        mpz_clear(q); mpz_clear(n1); mpz_clear(minfactor); mpz_clear(t);
+        if (downresult == 0) goto end_down;
+        /* TODO: insert proof */
+        return downresult;
+      }
+    }
+    mpz_clear(q); mpz_clear(n1); mpz_clear(minfactor); mpz_clear(t);
+  }
+#endif
 
 #ifdef USE_NM1
     /* Try a simple n-1 test if the number is small enough to give it a decent
