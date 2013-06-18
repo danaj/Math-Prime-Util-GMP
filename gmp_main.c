@@ -32,6 +32,7 @@ void _GMP_destroy(void)
   prime_iterator_global_shutdown();
   clear_randstate();
   mpz_clear(_bgcd);
+  destroy_ecpp_gcds();
 }
 
 

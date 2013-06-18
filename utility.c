@@ -994,17 +994,19 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
   }
 }
 
-UV* poly_class_degrees(void)
+IV* poly_class_degrees(int insert_1s)
 {
-  UV* dlist;
+  IV* dlist;
   UV i;
   int degree_offset[256] = {0};
+  int poffset = insert_1s ? 2 : 0;
 
   for (i = 1; i < NUM_CLASS_POLYS; i++)
     if (_class_poly_data[i].D < _class_poly_data[i-1].D)
       croak("Problem with data file, out of order at D=%d\n", (int)_class_poly_data[i].D);
 
-  New(0, dlist, NUM_CLASS_POLYS+1, UV);
+  New(0, dlist, poffset + NUM_CLASS_POLYS + 1, IV);
+  dlist += poffset;
   /* init degree_offset to total number of this degree */
   for (i = 0; i < NUM_CLASS_POLYS; i++)
     degree_offset[_class_poly_data[i].degree]++;
@@ -1018,5 +1020,11 @@ UV* poly_class_degrees(void)
   }
   /* Null terminate */
   dlist[NUM_CLASS_POLYS] = 0;
+  dlist -= poffset;
+  /* Add -1 and +1 if asked */
+  if (insert_1s) {
+    dlist[0] = -1;
+    dlist[1] =  1;
+  }
   return dlist;
 }

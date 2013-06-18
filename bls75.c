@@ -648,7 +648,7 @@ int _GMP_primality_bls_3(mpz_t n, mpz_t p, UV* reta)
       mpz_powm(t, t2, t, n);       /* a^((n-1)/2) mod n */
       if (mpz_cmp(t, nm1) != 0)
         continue;
-      rval = 1;
+      rval = 2;
       if (reta) *reta = a;
       break;
     }
@@ -709,7 +709,7 @@ int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* discriminant)
         mpz_divexact_ui(k, np1, 2);
         _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
         if (mpz_sgn(V) == 0) {
-          rval = 1;
+          rval = 2;
           if (discriminant) *discriminant = d;
           break;
         }

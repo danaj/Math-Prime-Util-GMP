@@ -130,6 +130,12 @@ sub is_provable_prime_with_cert {
     } elsif ($part =~ /(\d+) : ECPP : (\d+) (\d+) (\d+) (\d+) \((\d+):(\d+)\)\s*$/) {
       my($fn, $a, $b, $m, $q, $px, $py) = ($1, $2, $3, $4, $5, $6, $7);
       push @ecpp, [$fn, $a, $b, $m, $q, [$px, $py]];
+    } elsif ($part =~ /(\d+) : BLS3 : (\d+) (\d+)\s*$/) {
+      my($fn, $q, $a) = ($1, $2, $3);
+      push @ecpp, [$fn, 'BLS3', $q, $a];
+    } elsif ($part =~ /(\d+) : BLS15 : (\d+) (-?\d+)\s*$/) {
+      my($fn, $q, $d) = ($1, $2, $3);
+      push @ecpp, [$fn, 'BLS15', $q, $d];
     } else {
       croak "is_provable_prime: Parsing error on '$part'\n";
     }
