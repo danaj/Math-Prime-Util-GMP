@@ -232,6 +232,7 @@ Version 0.12
   # Miller-Rabin and strong Lucas-Selfridge pseudoprime tests
   say "$n is a prime or spsp-2/7/61" if is_strong_pseudoprime($n, 2, 7, 61);
   say "$n is a prime or slpsp"       if is_strong_lucas_pseudoprime($n);
+  say "$n is a prime or eslpsp"      if is_extra_strong_lucas_pseudoprime($n);
 
   # Return array reference to primes in a range.
   my $aref = primes( 10 ** 200, 10 ** 200 + 10000 );
@@ -423,6 +424,15 @@ a standard or strong Lucas-Selfridge probable prime).  This is one half
 of the BPSW primality test (the Miller-Rabin strong probable prime test with
 base 2 being the other half).  The canonical BPSW test uses the strong Lucas
 test with Selfridge parameters.
+
+=head2 is_frobenius_underwood_pseudoprime
+
+Takes a positive number as input, and returns 1 if the input passes the minimal
+lambda+2 test (see Underwood 2012 "Quadratice Compositeness Tests"), where
+C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  The computational cost for this
+is typically a little higher than a BPSW test, but the relative costs vary
+somewhat with C<n>.  There are no known counterexamples, but this is not a
+well studied test.
 
 
 =head2 is_aks_prime
