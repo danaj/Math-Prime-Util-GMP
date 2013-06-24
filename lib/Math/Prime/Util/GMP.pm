@@ -516,7 +516,7 @@ input is C<2> or lower.
 
   my($U, $V, $Qk) = lucas_sequence($n, $P, $Q, $k)
 
-Computes C<U_k>, C<V_k>, and C<Q_k> for the Lucas seqence defined by
+Computes C<U_k>, C<V_k>, and C<Q_k> for the Lucas sequence defined by
 C<P>,C<Q>, modulo C<n>.  The modular Lucas sequence is used in a
 number of primality tests and proofs.
 
