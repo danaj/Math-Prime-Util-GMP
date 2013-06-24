@@ -335,6 +335,22 @@ _GMP_trial_primes(IN char* strlow, IN char* strhigh)
   OUTPUT:
     RETVAL
 
+void
+lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
+  PREINIT:
+    mpz_t U, V, Qk, n, k, t;
+  PPCODE:
+    VALIDATE_AND_SET("lucas_sequence", n, strn);
+    VALIDATE_AND_SET("lucas_sequence", k, strk);
+    mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(t);
+
+    _GMP_lucas_seq(U, V, n, P, Q, k, Qk, t);
+    XPUSH_MPZ(U);
+    XPUSH_MPZ(V);
+    XPUSH_MPZ(Qk);
+
+    mpz_clear(n);  mpz_clear(k);
+    mpz_clear(U);  mpz_clear(V);  mpz_clear(Qk);  mpz_clear(t);
 
 
 #define SIMPLE_FACTOR_START(name) \

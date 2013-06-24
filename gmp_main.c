@@ -155,6 +155,7 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   }
   mpz_set_ui(U, 1);
   mpz_set_si(V, P);
+  mpz_set_si(Qk, Q);
 
   if (Q == 1) {
     while (b > 1) {
@@ -178,7 +179,6 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
       }
     }
   } else {
-    mpz_set_si(Qk, Q);
     while (b > 1) {
       mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
       mpz_mul(V, V, V);
@@ -443,7 +443,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   /* Skip forward to the next prime >= from_n */
   while (f < from_n)
     f = prime_iterator_next(&iter);
-  
+
   for (; f <= to_n; f = prime_iterator_next(&iter)) {
     if (small_n && mpz_cmp_ui(n, f*f) < 0) break;
     if (mpz_divisible_ui_p(n, f)) { prime_iterator_destroy(&iter); return f; }

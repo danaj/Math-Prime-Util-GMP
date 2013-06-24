@@ -2,7 +2,9 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
 0.13  xx June 2013
 
-    - Add is_frobenius_underwood_pseudoprime to core.
+    - Added:
+        is_frobenius_underwood_pseudoprime
+        lucas_sequence
 
     - Added more trial division to is_prob_prime for big (100+ digit)
       numbers.  This is a significant speedup for next_prime in many cases.

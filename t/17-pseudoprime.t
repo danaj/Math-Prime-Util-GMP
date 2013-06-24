@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_strong_pseudoprime is_strong_lucas_pseudoprime is_prime/;
+use Math::Prime::Util::GMP qw/is_strong_pseudoprime is_strong_lucas_pseudoprime is_prime lucas_sequence/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 # pseudoprimes from 2-100k for many bases
@@ -62,6 +62,17 @@ foreach my $psrp (keys %large_pseudoprimes) {
   $num_large_pseudoprime_tests += scalar @{$large_pseudoprimes{$psrp}};
 }
 
+my %lucas_sequences = (
+  "323 1 1 324" => [0,2,1],
+  "323 4 1 324" => [170,308,1],
+  "323 4 5 324" => [194,156,115],
+  "323 3 1 324" => [0,2,1],
+  "323 3 1  81" => [0,287,1],
+  "323 5 -1 81" => [153,195,322],
+  "49001 25 117 24501" => [20933,18744,19141],
+  "18971 10001 -1 4743" => [5866,14421,18970],
+);
+
 
 plan tests => 0 + 9
                 + 3
@@ -70,6 +81,7 @@ plan tests => 0 + 9
                 + 1  # mr base 2    2-4k
                 + 9  # mr with large bases
                 + scalar @small_lucas_trials
+                + scalar(keys %lucas_sequences)
               # + $num_large_pseudoprime_tests
                 + 6*$extra  # Large Carmichael numbers
                 + 0;
@@ -153,6 +165,11 @@ for my $n (@small_lucas_trials) {
   } else {
     ok(!is_strong_lucas_pseudoprime($n), "$n is not a prime and not a strong Lucas-Selfridge pseudoprime");
   }
+}
+
+while (my($params, $expect) = each (%lucas_sequences)) {
+  my ($n, $p, $q, $k) = split(' ', $params);
+  is_deeply( [lucas_sequence($n,$p,$q,$k)], $expect, "Lucas sequence $params" );
 }
 
 if ($extra) {

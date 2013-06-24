@@ -24,6 +24,7 @@ our @EXPORT_OK = qw(
                      is_strong_lucas_pseudoprime
                      is_extra_strong_lucas_pseudoprime
                      is_frobenius_underwood_pseudoprime
+                     lucas_sequence
                      primes
                      next_prime
                      prev_prime
@@ -509,6 +510,23 @@ Returns the next prime greater than the input number.
 
 Returns the prime smaller than the input number.  0 is returned if the
 input is C<2> or lower.
+
+
+=head2 lucas_sequence
+
+  my($U, $V, $Qk) = lucas_sequence($n, $P, $Q, $k)
+
+Computes C<U_k>, C<V_k>, and C<Q_k> for the Lucas seqence defined by
+C<P>,C<Q>, modulo C<n>.  The modular Lucas sequence is used in a
+number of primality tests and proofs.
+
+The following conditions must hold:
+  - C<< D = P*P - 4*Q  !=  0 >>
+  - C<< P > 0 >>
+  - C<< P < n >>
+  - C<< Q < n >>
+  - C<< k >= 0 >>
+  - C<< n >= 2 >>
 
 
 =head2 primorial
