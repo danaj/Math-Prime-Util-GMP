@@ -4,6 +4,12 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Add is_frobenius_underwood_pseudoprime to core.
 
+    - Added more trial division to is_prob_prime for big (100+ digit)
+      numbers.  This is a significant speedup for next_prime in many cases.
+      Pari/gp 2.6.0  nextprime(10^4000)    19 minutes
+      MPU:GMP 0.12   next_prime(10**4000)  15 minutes
+      MPU:GMP 0.13   next_prime(10**4000)   8 minutes
+
 0.12  12 June 2013
 
     - add standard and extra strong Lucas probable prime tests.

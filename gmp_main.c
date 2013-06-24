@@ -14,6 +14,9 @@
 #include "utility.h"
 
 static mpz_t _bgcd;
+#define BGCD_PRIMES      168
+#define BGCD_LASTPRIME   997
+#define BGCD_NEXTPRIME  1009
 
 void _GMP_init(void)
 {
@@ -24,7 +27,7 @@ void _GMP_init(void)
   init_randstate(seed);
   prime_iterator_global_startup();
   mpz_init(_bgcd);
-  _GMP_pn_primorial(_bgcd, 168);   /* mpz_primorial_ui(_bgcd, 1000) */
+  _GMP_pn_primorial(_bgcd, BGCD_PRIMES);   /* mpz_primorial_ui(_bgcd, 1000) */
 }
 
 void _GMP_destroy(void)
@@ -423,7 +426,7 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
   int small_n = 0;
-  UV f;
+  UV f = 2;
   PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
@@ -437,7 +440,11 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   if (mpz_cmp_ui(n, to_n*to_n) < 0)
     small_n = 1;
 
-  for (f = 2; f <= to_n; f = prime_iterator_next(&iter)) {
+  /* Skip forward to the next prime >= from_n */
+  while (f < from_n)
+    f = prime_iterator_next(&iter);
+  
+  for (; f <= to_n; f = prime_iterator_next(&iter)) {
     if (small_n && mpz_cmp_ui(n, f*f) < 0) break;
     if (mpz_divisible_ui_p(n, f)) { prime_iterator_destroy(&iter); return f; }
   }
@@ -479,12 +486,14 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 
 int _GMP_is_prob_prime(mpz_t n)
 {
+  UV log2n;
   /*  Step 1: Look for small divisors.  This is done purely for performance.
    *          It is *not* a requirement for the BPSW test. */
 
   /* If less than 1009, make trial factor handle it. */
-  if (mpz_cmp_ui(n, 1008) <= 0)
-    return _GMP_trial_factor(n, 2, 997) ? 0 : 2;
+  if (mpz_cmp_ui(n, BGCD_NEXTPRIME) < 0)
+    return _GMP_trial_factor(n, 2, BGCD_LASTPRIME) ? 0 : 2;
+
   /* Check for tiny divisors (GMP can do these really fast) */
   if ( mpz_even_p(n)
     || mpz_divisible_ui_p(n, 3)
@@ -501,8 +510,14 @@ int _GMP_is_prob_prime(mpz_t n)
       return 0;
   }
   /* No divisors under 1009 */
-  if (mpz_cmp_ui(n, 1009*1009) < 0)
+  if (mpz_cmp_ui(n, BGCD_NEXTPRIME*BGCD_NEXTPRIME) < 0)
     return 2;
+
+  /* For very large numbers, it's worth our time to do more trial division.
+   * This is a 1.3 - 2x speedup for big next_prime, for instance. */
+  log2n = mpz_sizeinbase(n,2);
+  if (log2n > 300 && _GMP_trial_factor(n, BGCD_LASTPRIME, log2n*50))
+    return 0;
 
   /*  Step 2: The BPSW test.  psp base 2 and slpsp. */
 

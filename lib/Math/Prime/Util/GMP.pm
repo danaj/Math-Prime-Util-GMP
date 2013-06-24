@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(
                      is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
                      is_extra_strong_lucas_pseudoprime
+                     is_frobenius_underwood_pseudoprime
                      primes
                      next_prime
                      prev_prime
@@ -428,11 +429,10 @@ test with Selfridge parameters.
 =head2 is_frobenius_underwood_pseudoprime
 
 Takes a positive number as input, and returns 1 if the input passes the minimal
-lambda+2 test (see Underwood 2012 "Quadratice Compositeness Tests"), where
+lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"), where
 C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  The computational cost for this
-is typically a little higher than a BPSW test, but the relative costs vary
-somewhat with C<n>.  There are no known counterexamples, but this is not a
-well studied test.
+is between the cost of 2 and 3 strong pseudoprime tests.  There are no known
+counterexamples, but this is not a well studied test.
 
 
 =head2 is_aks_prime
