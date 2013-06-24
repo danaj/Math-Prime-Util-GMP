@@ -660,33 +660,34 @@ end_bls3:
   return rval;
 }
 
-/* Given an n where we're factored n+1 down to q, check BLS theorem 15 */
-int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* discriminant)
+/* Given an n where we're factored n+1 down to f, check BLS theorem 15 */
+int _GMP_primality_bls_15(mpz_t n, mpz_t f, IV* lp, IV* lq)
 {
   mpz_t np1, m, t, t2;
   int rval = 0;
 
-  if (discriminant) *discriminant = 0;
-  if (mpz_cmp_ui(n, 2) <= 0 || mpz_even_p(n) || mpz_even_p(q))
-    return 0;                 /* n is <= 2, n is even, or q is even */
-  if (!_GMP_is_prob_prime(q))
-    return 0;                 /* q is not a probable prime */
+  if (lp) *lp = 0;
+  if (lq) *lq = 0;
+  if (mpz_cmp_ui(n, 2) <= 0 || mpz_even_p(n) || mpz_even_p(f))
+    return 0;                 /* n is <= 2, n is even, or f is even */
+  if (!_GMP_is_prob_prime(f))
+    return 0;                 /* f is not a probable prime */
 
   mpz_init(np1);  mpz_init(m);  mpz_init(t);  mpz_init(t2);
   mpz_add_ui(np1, n, 1);
-  mpz_divexact(m, np1, q);
-  mpz_mul(t, m, q);
+  mpz_divexact(m, np1, f);
+  mpz_mul(t, m, f);
   if (mpz_cmp(np1, t) != 0)
-    goto end_bls15;           /* m*q != n+1 */
+    goto end_bls15;           /* m*f != n+1 */
 
-  mpz_mul_ui(t, q, 2);
+  mpz_mul_ui(t, f, 2);
   mpz_sub_ui(t, t, 1);
   mpz_sqrt(t2, n);
   if (mpz_cmp(t, t2) <= 0)
-    goto end_bls15;           /* 2q-1 <= sqrt(n) */
+    goto end_bls15;           /* 2f-1 <= sqrt(n) */
 
   {
-    /* N+1 = mq, q is an odd probable prime, and 2q-1 > sqrt(n).
+    /* N+1 = mf, f is an odd probable prime, and 2f-1 > sqrt(n).
      * Now find a Lucas sequence V_k with discriminant D s.t. D/N = -1
      * where N divides V_(N+1)/2 and N does not divide V_m/2. */
     IV d, p, q;
@@ -710,7 +711,8 @@ int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* discriminant)
         _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
         if (mpz_sgn(V) == 0) {
           rval = 2;
-          if (discriminant) *discriminant = d;
+          if (lp) *lp = p;
+          if (lq) *lq = q;
           break;
         }
       }
@@ -727,7 +729,7 @@ end_bls15:
  * Note: this does _not_ prove n is prime!  If it returns 1, then we have
  * found a q/D that satisfy theorem 15, but we leave proving q for the caller.
  */
-int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* discriminant)
+int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* lp, IV* lq)
 {
   mpz_t np1, m, f, sqrtn, t;
   int success = 1;
@@ -765,7 +767,7 @@ int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* discriminant)
   }
 
   if (success)
-    success = _GMP_primality_bls_15(n, q, discriminant);
+    success = _GMP_primality_bls_15(n, q, lp, lq);
 
   mpz_clear(np1);
   mpz_clear(m);

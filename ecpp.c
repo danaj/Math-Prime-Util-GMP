@@ -625,7 +625,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
   mpz_t a, b, u, v, m, q, minfactor, sqrtn, mD, t, t2;
   mpz_t mlist[6];
   UV nm1a;
-  IV np1d;
+  IV np1lp, np1lq;
   struct ec_affine_point P;
   int k, dnum, nidigits, facresult, curveresult, downresult, stage, D;
   int verbose = get_verbose_level();
@@ -728,7 +728,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
         }
         if (verbose)
           { printf("%*sN[%d] (%d dig) n-1", i, "", i, nidigits); fflush(stdout); }
-        curveresult = _GMP_primality_bls_15(Ni, q, &np1d);
+        curveresult = _GMP_primality_bls_15(Ni, q, &np1lp, &np1lq);
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if ( ! curveresult ) {
           /* This ought not happen */
@@ -823,7 +823,8 @@ end_down:
       } else if (D == -1) {
         gmp_printf("N[%lu] = %Zd\n", (unsigned long) i, Ni);
         gmp_printf("q = %Zd\n", q);
-        gmp_printf("d = %ld\n", (signed long) np1d);
+        gmp_printf("lp = %ld\n", (signed long) np1lp);
+        gmp_printf("lq = %ld\n", (signed long) np1lq);
         fflush(stdout);
       } else {
         gmp_printf("N[%lu] = %Zd\n", (unsigned long) i, Ni);
@@ -847,7 +848,7 @@ end_down:
       if (D == 1) {
         proofptr += gmp_sprintf(proofptr, "%Zd : BLS3 : %Zd %"UVuf"\n", Ni, q, nm1a);
       } else if (D == -1) {
-        proofptr += gmp_sprintf(proofptr, "%Zd : BLS15 : %Zd %"IVdf"\n", Ni, q, np1d);
+        proofptr += gmp_sprintf(proofptr, "%Zd : BLS15 : %Zd %"IVdf" %"IVdf"\n", Ni, q, np1lp, np1lq);
       } else {
         proofptr += gmp_sprintf(proofptr, "%Zd : ECPP : ", Ni);
         proofptr += gmp_sprintf(proofptr, "%Zd %Zd %Zd %Zd (%Zd:%Zd)\n",

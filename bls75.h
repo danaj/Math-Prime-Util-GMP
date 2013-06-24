@@ -15,13 +15,13 @@
 /* Check BLS75 theorem  3 conditions */
 extern int _GMP_primality_bls_3(mpz_t n, mpz_t p, UV* a);
 /* Check BLS75 theorem 15 conditions */
-extern int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* discriminant);
+extern int _GMP_primality_bls_15(mpz_t n, mpz_t q, IV* lp, IV* lq);
 
 /* These will try to factor and check the theorem conditions. */
 /* BLS75 theorem  3, you must verify q for a proof */
 extern int _GMP_primality_bls_nm1_split(mpz_t n, int effort, mpz_t q, UV* a);
 /* BLS75 theorem 15, you must verify q for a proof */
-extern int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* D);
+extern int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* lp, IV* lq);
 
 /* This does a complete recursive proof */
 /* BLS75 theorem 5/7 complete proof */
