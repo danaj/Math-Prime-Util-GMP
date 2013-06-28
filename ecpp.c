@@ -163,12 +163,13 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
   sfaci = 0;
   success = 1;
   while (success) {
+    UV nsize = mpz_sizeinbase(n, 2);
 
     if (mpz_cmp(n, fmin) <= 0) return 0;
     if (_GMP_is_prob_prime(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
 
     success = 0;
-    B1 = 300 + 3 * mpz_sizeinbase(n, 2);
+    B1 = 300 + 3 * nsize;
     if (stage >= 1) {
       /* Push harder for big numbers.  (1) to avoid backtracking too much, and
        * (2) keep poly degree down to save time in root finding later. */
@@ -188,7 +189,8 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
       }
 #else
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
-      /* if (!success && mpz_sizeinbase(n,2) < 600) success = _GMP_pbrent_factor(n, f, mpz_sizeinbase(n,2), 512); */
+      if (!success) success = _GMP_pplus1_factor(n, f, 0, 40);
+      if (!success && nsize<600) success = _GMP_pbrent_factor(n, f, nsize, 512);
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -202,6 +204,7 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     if (stage > 1 && !success) {
       if (stage == 2) {
         if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 5*20*B1);
+        if (!success) success = _GMP_pplus1_factor(n, f, 0, 800);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
       } else if (stage == 3) {
         if (!success) success = _GMP_pminus1_factor(n, f, 25*B1, 25*20*B1);
