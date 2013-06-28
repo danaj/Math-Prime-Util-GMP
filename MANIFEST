@@ -42,5 +42,6 @@ t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
 xt/create-standalone.sh
+xt/calculate-mr-probs.pl
 examples/bench-mp-psrp.pl
 .travis.yml

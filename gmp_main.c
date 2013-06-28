@@ -463,25 +463,20 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
  * 1000 bits or so.  Primality proving will get quite a bit slower as the
  * number of bits increases.
  *
- * What are these extra M-R tests getting us?  From Rabin-Monier, with random
- * bases we should have p <= 4^-t.  So one extra test gives us p = 0.25, and
- * four tests gives us p = 0.00390625.  Hence a 0.4% chance that a composite
- * will pass the tests.  But for larger k (bits in n), this estimate is very
- * conservative.  See Damgård, Landrock, and Pomerance, 1993.  Also remember
- * that BPSW is correct for k <= 64, so k will always be > 64 for this case.
- * Given a k and t, show probabilities:
- *   perl -E 'my ($k,$t)=(256,2);  say 4**(-$t);
- *     my $p1 = $k*$k*4**(2.0-sqrt($k));  say $p1**$t;
- *     if (($t == 2 && $k >= 88) || ($t >= 3 && $k >= 21 && $t <= $k/9)) {
- *        my $p2 = $k**1.5 * 2**$t * $t**-.5 * 4**(2.0-sqrt($t*$k));  say $p2;
- *     }'
+ * What are these extra M-R tests getting us?  The primary reference is
+ * Damgård, Landrock, and Pomerance, 1993.  From Rabin-Monier, with random
+ * bases we have p <= 4^-t.  So one extra test gives us p = 0.25, and four
+ * tests gives us p = 0.00390625.  But for larger k (bits in n) this is very
+ * conservative.  Since the value has passed BPSW, we are only interested in
+ * k > 64.  See the calculate-mr-probs.pl script in the xt/ directory.
  * For a 256-bit input, we get:
  *   1 test:  p < 0.000244140625
  *   2 tests: p < 0.00000000441533
  *   3 tests: p < 0.0000000000062550875
- *   4 tests: p < 0.0000000000000035527137
+ *   4 tests: p < 0.000000000000028421709
  *
- * It's even more extreme as k goes higher.
+ * It's even more extreme as k goes higher.  Also recall that this is the
+ * probability once we've somehow found a BPSW pseudoprime.
  */
 
 int _GMP_is_prob_prime(mpz_t n)
@@ -544,19 +539,37 @@ int _GMP_is_prime(mpz_t n)
   /* We're pretty sure n is a prime since it passed the BPSW test.  Try
    * a few random M-R bases to give some extra assurance.  See discussion
    * above about number of tests.  Assuming we are choosing uniformly random
-   * bases, the caller cannot predict our random numbers (not guaranteed!),
-   * and the caller is not choosing from a subset of worst case inputs,
+   * bases and the caller cannot predict our random numbers (not guaranteed!),
    * then there is less than a 1 in 595,000 chance that a composite will pass
    * our extra tests. */
 
   if (prob_prime == 1) {
     UV ntests;
     if      (nbits <  80) ntests = 5;  /* p < .00000168 */
-    else if (nbits < 115) ntests = 4;  /* p < .00000156 */
-    else if (nbits < 200) ntests = 3;  /* p < .00000060 */
-    else                  ntests = 2;  /* p < .00000012 */
+    else if (nbits < 105) ntests = 4;  /* p < .00000156 */
+    else if (nbits < 160) ntests = 3;  /* p < .00000164 */
+    else if (nbits < 413) ntests = 2;  /* p < .00000156 */
+    else                  ntests = 1;  /* p < .00000159 */
     prob_prime = _GMP_miller_rabin_random(n, ntests);
   }
+
+  /* Using Damgård, Landrock, and Pomerance, we get upper bounds:
+   * k <=  64      p = 0
+   * k <   80      p < 7.53e-08
+   * k <  105      p < 3.97e-08
+   * k <  160      p < 1.68e-08
+   * k >= 160      p < 2.57e-09
+   * This (1) pretends the SPSP-2 is included in the random tests, (2) doesn't
+   * take into account the trial division, (3) ignores the observed
+   * SPSP-2 / Strong Lucas anti-correlation that makes the BPSW test so
+   * useful.  Hence these numbers are still extremely conservative.
+   *
+   * For an idea of how conservative we are being, we have now exceeded the
+   * tests used in Mathematica, Maple, Pari, and SAGE.  Note: Pari pre-2.3
+   * used just M-R tests.  Pari 2.3+ uses BPSW with no extra M-R checks for
+   * is_pseudoprime, but isprime uses APRCL which, being a proof, could only
+   * output a pseudoprime through a coding error.
+   */
 
   /* For small numbers, try a quick BLS75 n-1 proof. */
   if (prob_prime == 1 && nbits <= 200)
@@ -1159,6 +1172,68 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     if (_verbose>2) gmp_printf("# p-1: no factor\n");
     mpz_set(f, n);
     return 0;
+}
+
+int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1)
+{
+  UV i, b;
+  mpz_t P, U, V;
+
+  TEST_FOR_2357(n, f);
+  if (B1 < 7) return 0;
+
+  mpz_init_set_ui(P, P0);
+  mpz_init(U);
+  mpz_init(V);
+
+  /* Montgomery 1987 */
+  if (P0 == 0) {
+    mpz_set_ui(P, 7);
+    if (mpz_invert(P, P, n)) {
+      mpz_mul_ui(P, P, 2);
+      mpz_mod(P, P, n);
+    } else {
+      mpz_set_ui(P, 5);
+      if (mpz_invert(P, P, n)) {
+        mpz_mul_ui(P, P, 6);
+        mpz_mod(P, P, n);
+      }
+    }
+  }
+
+  mpz_set(U, P);
+  for (i = 1; i < B1; i++) {
+    { UV v = i; b = 1; while (v >>= 1) b++; }
+    mpz_mul(V, P, P);
+    mpz_sub_ui(V, V, 2);
+    mpz_tdiv_r(V, V, n);
+    while (b > 1) {
+      b--;
+      if ( (i >> (b-1)) & UVCONST(1) ) {
+        mpz_mul(U, U,V);
+        mpz_sub(U, U, P);
+        mpz_mul(V, V, V);
+        mpz_sub_ui(V, V, 2);
+      } else {
+        mpz_mul(V, U, V);
+        mpz_sub(V, V, P);
+        mpz_mul(U, U, U);
+        mpz_sub_ui(U, U, 2);
+      }
+      mpz_tdiv_r(U, U, n);
+      mpz_tdiv_r(V, V, n);
+    }
+    mpz_set(P, U);
+    mpz_sub_ui(f, U, 2);
+    mpz_gcd(f, f, n);
+    if (mpz_cmp_ui(f, 1) != 0 && mpz_cmp(f, n) != 0) {
+      mpz_clear(P);  mpz_clear(U);  mpz_clear(V);
+      return 1;
+    }
+  }
+  mpz_clear(P);  mpz_clear(U);  mpz_clear(V);
+  mpz_set(f, n);
+  return 0;
 }
 
 int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)

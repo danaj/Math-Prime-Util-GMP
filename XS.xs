@@ -367,7 +367,7 @@ lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
       else if (_GMP_is_prob_prime(n)) { XPUSH_MPZ(n); } \
       else { \
         mpz_t f; \
-        int success; \
+        int success = 0; \
         mpz_init(f);
 
 #define SIMPLE_FACTOR_END \
@@ -421,6 +421,15 @@ pminus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
   PPCODE:
     SIMPLE_FACTOR_START("pminus1_factor");
     success = _GMP_pminus1_factor(n, f, B1, (B2 == 0) ? B1*10 : B2);
+    SIMPLE_FACTOR_END;
+
+void
+pplus1_factor(IN char* strn, IN UV B1 = 5000000)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    SIMPLE_FACTOR_START("pplus1_factor");
+    if (!success) success = _GMP_pplus1_factor(n, f,  0, B1);
     SIMPLE_FACTOR_END;
 
 void
