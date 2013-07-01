@@ -85,14 +85,16 @@ static mpz_t _gcd_large;
 static mpz_t _lcm_small;
 
 void init_ecpp_gcds(void) {
-  mpz_init(_gcd_small);
-  mpz_init(_gcd_large);
-  _GMP_pn_primorial(_gcd_small,  3000);
-  _GMP_pn_primorial(_gcd_large, 20000);
-  mpz_divexact(_gcd_large, _gcd_large, _gcd_small);
-  mpz_init(_lcm_small);
-  _GMP_lcm_of_consecutive_integers(300, _lcm_small);
-  _gcdinit = 1;
+  if (_gcdinit == 0) {
+    mpz_init(_gcd_small);
+    mpz_init(_gcd_large);
+    _GMP_pn_primorial(_gcd_small,  3000);
+    _GMP_pn_primorial(_gcd_large, 20000);
+    mpz_divexact(_gcd_large, _gcd_large, _gcd_small);
+    mpz_init(_lcm_small);
+    _GMP_lcm_of_consecutive_integers(300, _lcm_small);
+    _gcdinit = 1;
+  }
 }
 
 void destroy_ecpp_gcds(void) {
