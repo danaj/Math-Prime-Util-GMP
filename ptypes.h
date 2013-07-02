@@ -15,6 +15,7 @@
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   #define UVuf "lu"
+  #define IVdf "ld"
   #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
   #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
   #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))

@@ -192,7 +192,7 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
 #else
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
       if (!success) success = _GMP_pplus1_factor(n, f, 0, 40);
-      if (!success && nsize<600) success = _GMP_pbrent_factor(n, f, nsize, 512);
+      if (!success && nsize<500) success = _GMP_pbrent_factor(n, f, nsize, 512);
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -746,7 +746,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
       }
 
       if ( (-D % 4) != 3 && (-D % 16) != 4 && (-D % 16) != 8 )
-        croak("Invalid discriminant '%ld' in list\n", D);
+        croak("Invalid discriminant '%d' in list\n", D);
       /* D must also be squarefree in odd divisors, but assume it. */
       /* Make sure we can get a class polynomial for this D. */
       poly_degree = poly_class_poly(D, NULL, &poly_type);
@@ -821,45 +821,59 @@ end_down:
   if (downresult == 2) {
     if (verbose > 1) {
       if (D == 1) {
-        gmp_printf("N[%lu] = %Zd\n", (unsigned long) i, Ni);
-        gmp_printf("q = %Zd\n", q);
-        gmp_printf("a = %lu\n", (unsigned long) nm1a);
+        gmp_printf("\n");
+        gmp_printf("Type BLS3\n");
+        gmp_printf("N  %Zd\n", Ni);
+        gmp_printf("Q  %Zd\n", q);
+        gmp_printf("A  %lu\n", (unsigned long) nm1a);
+        gmp_printf("\n");
         fflush(stdout);
       } else if (D == -1) {
-        gmp_printf("N[%lu] = %Zd\n", (unsigned long) i, Ni);
-        gmp_printf("q = %Zd\n", q);
-        gmp_printf("lp = %ld\n", (signed long) np1lp);
-        gmp_printf("lq = %ld\n", (signed long) np1lq);
+        gmp_printf("\n");
+        gmp_printf("Type BLS15\n");
+        gmp_printf("N  %Zd\n", Ni);
+        gmp_printf("Q  %Zd\n", q);
+        gmp_printf("LP %ld\n", (signed long) np1lp);
+        gmp_printf("LQ %ld\n", (signed long) np1lq);
+        gmp_printf("\n");
         fflush(stdout);
       } else {
-        gmp_printf("N[%lu] = %Zd\n", (unsigned long) i, Ni);
-        gmp_printf("a = %Zd\n", a);
-        gmp_printf("b = %Zd\n", b);
-        gmp_printf("m = %Zd\n", m);
-        gmp_printf("q = %Zd\n", q);
-        gmp_printf("P = (%Zd, %Zd)\n", P.x, P.y);
+        gmp_printf("\n");
+        gmp_printf("Type ECPP\n");
+        gmp_printf("N  %Zd\n", Ni);
+        gmp_printf("A  %Zd\n", a);
+        gmp_printf("B  %Zd\n", b);
+        gmp_printf("M  %Zd\n", m);
+        gmp_printf("Q  %Zd\n", q);
+        gmp_printf("X  %Zd\n", P.x);
+        gmp_printf("Y  %Zd\n", P.y);
+        gmp_printf("\n");
         fflush(stdout);
       }
     }
     /* Prepend our proof to anything that exists. */
     if (prooftextptr != 0) {
       char *proofstr, *proofptr;
-      int myprooflen = mpz_sizeinbase(Ni, 10) * 7 + 20;
       int curprooflen = (*prooftextptr == 0) ? 0 : strlen(*prooftextptr);
 
-      New(0, proofstr, myprooflen + curprooflen + 1, char);
-      proofptr = proofstr;
-
       if (D == 1) {
-        proofptr += gmp_sprintf(proofptr, "%Zd : BLS3 : %Zd %"UVuf"\n", Ni, q, nm1a);
+        int myprooflen = 20 + 2*(4 + mpz_sizeinbase(Ni, 10)) + 1*21;
+        New(0, proofstr, myprooflen + curprooflen + 1, char);
+        proofptr = proofstr;
+        proofptr += gmp_sprintf(proofptr, "Type BLS3\nN  %Zd\nQ  %Zd\nA  %"UVuf"\n", Ni, q, nm1a);
       } else if (D == -1) {
-        proofptr += gmp_sprintf(proofptr, "%Zd : BLS15 : %Zd %"IVdf" %"IVdf"\n", Ni, q, np1lp, np1lq);
+        int myprooflen = 20 + 2*(4 + mpz_sizeinbase(Ni, 10)) + 2*21;
+        New(0, proofstr, myprooflen + curprooflen + 1, char);
+        proofptr = proofstr;
+        proofptr += gmp_sprintf(proofptr, "Type BLS15\nN  %Zd\nQ  %Zd\nLP %"IVdf"\nLQ %"IVdf"\n", Ni, q, np1lp, np1lq);
       } else {
-        proofptr += gmp_sprintf(proofptr, "%Zd : ECPP : ", Ni);
-        proofptr += gmp_sprintf(proofptr, "%Zd %Zd %Zd %Zd (%Zd:%Zd)\n",
-                                          a, b, m, q, P.x, P.y);
+        int myprooflen = 20 + 7*(4 + mpz_sizeinbase(Ni, 10)) + 0;
+        New(0, proofstr, myprooflen + curprooflen + 1, char);
+        proofptr = proofstr;
+        proofptr += gmp_sprintf(proofptr, "Type ECPP\nN  %Zd\nA  %Zd\nB  %Zd\nM  %Zd\nQ  %Zd\nX  %Zd\nY  %Zd\n", Ni, a, b, m, q, P.x, P.y);
       }
       if (*prooftextptr) {
+        proofptr += gmp_sprintf(proofptr, "\n");
         strcat(proofptr, *prooftextptr);
         Safefree(*prooftextptr);
       }
@@ -1245,14 +1259,14 @@ int main(int argc, char **argv)
       continue;
     }
     mpz_set_str(n, argv[i], 10);
-    gmp_printf("%Zd\n", n);
+    /* gmp_printf("%Zd\n", n); */
 
     isprime = _GMP_is_prob_prime(n);
     /* If isprime = 2 here, that means it's so small it fits in the
      * deterministic M-R or BPSW range. */
     if (isprime == 2) {
-      Newz(0, cert, 4 + mpz_sizeinbase(n, 10), char);
-      gmp_sprintf(cert, "[%Zd]\n", n);
+      Newz(0, cert, 20 + mpz_sizeinbase(n, 10), char);
+      gmp_sprintf(cert, "Type Small\nN  %Zd\n", n);
     } else if (isprime == 1) {
       if (do_nminus1) {
         isprime = _GMP_primality_bls_nm1(n, 100, &cert);
@@ -1274,8 +1288,16 @@ int main(int argc, char **argv)
       printf("PROBABLY PRIME\n");
     } else {
       printf("PRIME\n");
-      if (do_printcert)
+      if (do_printcert) {
+        gmp_printf("[MPU - Primality Certificate]\n");
+        gmp_printf("Version 1.0\n");
+        gmp_printf("Base 10\n");
+        gmp_printf("\n");
+        gmp_printf("Proof for:\n");
+        gmp_printf("N %Zd\n", n);
+        gmp_printf("\n");
         printf("%s", cert);
+      }
     }
     if (cert != 0)
       Safefree(cert);

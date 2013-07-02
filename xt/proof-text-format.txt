@@ -1,0 +1,235 @@
+[MPU - Primality Certificate]
+Version 1.0
+# We allow base 10 and base 62
+Base 10
+
+# This is the N value we're proving.
+Proof for:
+N 3138550867693340381917894711603833208051177722232017256453
+
+
+# The following types allow a simple chain:
+#    Pocklington
+#    BLS3
+#    BLS15
+#    ECPP
+#    Small
+# These could result in a tree:
+#    Lucas
+#    BLS5
+#    BLS7
+
+
+Type Lucas
+N     10384593717069655257060992658440473
+Q[1]  2
+Q[2]  3
+Q[3]  13
+Q[4]  379
+Q[5]  87820459687010818424506060639
+A     41
+
+# Note: All factors of N-1 are listed
+# verify: A > 1 and A < N
+# verify: N-1 has only factors Q (to some multiplicity).
+# verify: A^(N-1) mod N = 1
+# verify for each Q:
+#   Q > 0 and Q < N
+#   A^((N-1)/Q) mod N != 1
+# Then N is prime if each Q is prime.
+
+
+Type Pocklington
+N  10384593717069655257060992658440473
+Q  87820459687010818424506060639
+A  2
+
+# Note: This is Primo type 1
+# verify: Q divides N-1
+# let: M = (N-1)/Q
+# verify: M is even, M > 0, M < Q, M*Q+1 = N, A > 1
+# verify: A^(N-1) mod N = 1
+# verify: gcd(A^M - 1, N) = 1
+# Then N is prime if Q is prime.
+
+
+Type BLS3
+N  10384593717069655257060992658440473
+Q  87820459687010818424506060639
+A  2
+
+# Verify: Q odd, Q > 2, Q divides N-1
+# Let: M = (N-1)/Q
+# Verify: MQ + 1 = N, M > 0, 2Q+1 > sqrt(n)
+# Verify A^((N-1)/2) mod N = N-1 
+# Verify A^(M/2) mod N != N-1
+# Then N is prime if Q is prime.
+
+
+Type BLS15
+N  10384593717069655257060992658440473
+Q  39635853881945249072751880375727
+LP 1
+LQ 14
+
+# Note: This is Primo type 2
+# Verify: Q odd, Q > 2, Q divides N-1
+# Let: M = (N+1)/Q
+# Verify: MQ - 1 = N, M > 0, 2Q-1 > sqrt(n)
+# Let: D = LP*LP - 4*LQ
+# Verify Jacobi(D,N) = -1
+# Verify V_{m/2} mod N != 0
+# Verify V_{(N+1)/2} mod N == 0
+# Then N is prime if Q is prime.
+
+
+Type BLS5
+N  10384593717069655257060992658440473
+Q[1]  87820459687010818424506060639
+Q[2]  379
+Q[3]  13
+Q[4]  3
+Q[5]  2
+A[1]  2
+A[2]  2
+A[3]  2
+A[4]  19
+A[5]  5
+
+# Note: This also covers generalized Pocklington
+# Note: We have to have N-1 factored to (N/2)^1/3
+# Verify for each i:
+#   Q[i] > 1, Q[i] < N
+#   A[i] > 1, A[i] < N
+#   Q[i] divides n-1
+# Let: F = product of all Qs
+# Let: R = N/F
+# Verify: F is even
+# Verify: gcd(F, R) = 1
+# Let: s = integer    part of R / 2*F
+# Let: r = fractional part of R / 2*F
+# Let: P = (F+1) * (2*F*F + (r-1)*F + 1)
+# Verify: n < P
+# Note: The next condition is trivially met if F >= R,
+#       as is the case with Pocklington.
+# Let: rt = r^2 - 8s
+# Verify: s = 0   OR  rt not a perfect square [e.g. floor(sqrt(rt))^2 != rt]
+# For each i:
+#   Verify: A[i]^(N-1) mod N = 1
+#   Verify: gcd(A[i]^((N-1)/Q[i])-1, N) = 1
+# Then N is prime if each Q is prime.
+
+Type BLS7
+N  10384593717069655257060992658440473
+Q[1]  87820459687010818424506060639
+Q[2]  379
+Q[3]  13
+Q[4]  3
+Q[5]  2
+A[1]  2
+A[2]  2
+A[3]  2
+A[4]  19
+A[5]  5
+B  10000
+AR 2
+
+# Verify for each i:
+#   Q[i] > 1, Q[i] < N
+#   A[i] > 1, A[i] < N
+#   Q[i] divides n-1
+# Let: F = product of all Qs
+# Let: R = N/F
+# Verify: F is even
+# Verify: gcd(F, R) = 1
+# Verify: F has no factors smaller than B (this may be time consuming)
+# Let: s = integer    part of R / 2*F
+# Let: r = fractional part of R / 2*F
+# Let: P = (F*B+1) * (2*F*F + (r-B)*F + 1)
+# Verify: n < P
+# Let: rt = r^2 - 8s
+# Verify: s = 0   OR  rt not a perfect square [e.g. floor(sqrt(rt))^2 != rt]
+# For each i:
+#   Verify: A[i]^(N-1) mod N = 1
+#   Verify: gcd(A[i]^((N-1)/Q[i])-1, N) = 1
+# Verify: AR^(N-1) mod N = 1
+# Verify: gcd(AR^((N-1)/R)-1, N) = 1
+# Then N is prime if each Q is prime.
+
+
+Type ECPP
+N  10384593717069655257060992658440473
+A  0
+B  10384593717069655257060992658440432
+M  10384593717069655452756816068330887
+Q  5993497855483635306095323
+X  1359475440
+Y  10082088253583065961418240390837705
+
+# Generic ECPP / AKGM block
+# Verify: N > 0                                # Primo b
+# Verify: gcd(N, 6) = 1                        # Primo a
+# Verify: gcd(4*a^3 + 27*b^2, N) = 1           # Primo i
+# Verify: Y^2 mod N = X^3 + A*X + B mod N      # Primo j
+# Verify: M >= N - 2*sqrt(N) + 1               # Primo g
+# Verify: M <= N + 2*sqrt(N) + 1               # Primo h
+# Verify: Q > (N^(1/4)+1)^2                    # Primo f
+# Verify: Q < N                                # Primo e
+# Verify: M != Q
+# Verify: Q divides M
+# Let POINT = (M/Q) * EC(A,B,N,X,Y)
+# Verify: POINT is not the identity            # Primo k
+# Let POINT = Q * POINT   (or M * EC(A,B,N,X,Y))
+# Verify: POINT is the identity                # Primo l
+# Then N is prime if Q is prime.
+
+# EC(A,B,N,X,Y) defines the elliptic curve Y^2 = X^3 + A*X + B, mod N
+# with operations defined in affine coordinates.
+
+Type ECPP-3
+N  10384593717069655257060992658440473
+S
+R
+A  0
+B  10384593717069655257060992658440432
+T
+# Verify: |A| <= N/2
+# Verify: |B| <= N/2
+# Verify: T >= 0
+# Verify: T < N
+# Let: L = (T^3 + A*T + B) mod N
+# Let: A = (A * L^2) mod N
+# Let: B = (B * L^3) mod N
+# Let: X = (T*L) mod N
+# Let: Y = (L^2) mod N
+# Let: Q = R
+# Let: M = R*S
+# Continue as type ECPP.
+
+Type ECPP-4
+N  10384593717069655257060992658440473
+S
+R
+J
+T
+# Verify: |J| <= N/2
+# Verify: T >= 0
+# Verify: T < N
+# Let: A = 3 * J * (1728 - J)
+# Let: B = 2 * J * (1728 - J)^2
+# Let: L = (T^3 + A*T + B) mod N
+# Let: A = (A * L^2) mod N
+# Let: B = (B * L^3) mod N
+# Let: X = (T*L) mod N
+# Let: Y = (L^2) mod N
+# Let: Q = R
+# Let: M = R*S
+# Continue as type ECPP.
+
+# ....
+
+Type Small
+N  5791
+
+# Verify: N < 2^64
+# Verify: N is prime using BPSW or deterministic M-R tests

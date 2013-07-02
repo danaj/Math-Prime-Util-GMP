@@ -15,7 +15,8 @@ our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
                      is_provable_prime
-                     is_provable_prime_with_cert
+                     is_provable_prime_with_tcert
+                     is_provable_prime_with_ncert
                      is_aks_prime
                      is_nminus1_prime
                      is_ecpp_prime
@@ -91,67 +92,68 @@ sub is_provable_prime {
   return _is_provable_prime($n);
 }
 
-sub is_provable_prime_with_cert {
+sub is_provable_prime_with_tcert {
   my ($n) = @_;
-  my @composite = (0, []);
+  my @composite = (0, '');
   return @composite if $n < 2;
 
   my ($result, $text) = _is_provable_prime($n, 1);
+  $text =~ s/\n$//;
   return @composite if $result == 0;
-  return ($result, [$n]) if !defined $text || $text eq '';
+  return ($result, '') if $result != 2;
+  $text = "Type Small\n$n\n" if !defined $text || $text eq '';
+  return ($result, $text);
+}
 
-  my %parts;
-  my @ecpp;
-  foreach my $part (split(/\n/, $text)) {
-    if ($part =~ /^(\d+) : N-1 T5 : (.*) : (.*)$/) {
-      my($fn, $fstr, $astr) = ($1, $2, $3);
-      my @f = split(/ /, $fstr);
-      my @a = split(/ /, $astr);
-      # Sort f values after linking with associated a.
-      my @fa = sort {$a->[0] <=> $b->[0]}
-               map { [$f[$_],$a[$_]] }
-               0 .. $#f;
-      @f = map { defined $parts{$_} ? $parts{$_} : $_ }
-           map { $_->[0] } @fa;
-      @a = map { $_->[1] } @fa;
-      $parts{$fn} = [$fn, "n-1", [@f], [@a]];
-    } elsif ($part =~ /^(\d+) : N-1 T7 : (.*) : (.*) : (.*)$/) {
-      my($fn, $t7str, $fstr, $astr) = ($1, $2, $3, $4);
-      my @t7 = split(/ /, $t7str);
-      my @f = split(/ /, $fstr);
-      my @a = split(/ /, $astr);
-      # Sort f values after linking with associated a.
-      my @fa = sort {$a->[0] <=> $b->[0]}
-               map { [$f[$_],$a[$_]] }
-               0 .. $#f;
-      @f = map { defined $parts{$_} ? $parts{$_} : $_ }
-           map { $_->[0] } @fa;
-      @a = map { $_->[1] } @fa;
-      # Theorem 7: supply ["B", B1, B, a]
-      $parts{$fn} = [$fn, "n-1", ["B", @t7], [@f], [@a]];
-    } elsif ($part =~ /(\d+) : ECPP : (\d+) (\d+) (\d+) (\d+) \((\d+):(\d+)\)\s*$/) {
-      my($fn, $a, $b, $m, $q, $px, $py) = ($1, $2, $3, $4, $5, $6, $7);
-      push @ecpp, [$fn, $a, $b, $m, $q, [$px, $py]];
-    } elsif ($part =~ /(\d+) : BLS3 : (\d+) (\d+)\s*$/) {
-      my($fn, $q, $a) = ($1, $2, $3);
-      push @ecpp, [$fn, 'BLS3', $q, $a];
-    } elsif ($part =~ /(\d+) : BLS15 : (\d+) (-?\d+)\s*$/) {
-      my($fn, $q, $d) = ($1, $2, $3);
-      push @ecpp, [$fn, 'BLS15', $q, $d];
+sub is_provable_prime_with_ncert {
+  my ($n) = @_;
+  my ($result, $text) = is_provable_prime_with_tcert($n);
+  return ($result, []) unless $result == 2;
+
+  # TODO: This is much more complicated than it should be.
+  #print "===$text===\n";
+  my @c = grep { /\S/ }         # Remove blank lines
+          map { s/#.*$//; $_ }  # Remove comments
+          split(/\n/, $text);   # Split on newlines
+  #print "==@c==\n";
+  while (@c) {
+    my $type = shift @c;
+    if ($type !~ /^Type (.*)/) {
+      croak "is_provable_prime: Parsing error on '$type'\n";
+    }
+    $type = $1;
+    if ($type eq 'BLS5') {
+      warn "Type BLS5\n";
+      my($n, @q, @a);
+      croak "is_provable_prime: Not enough fields for BLS5\n" unless @c >= 3;
+      my $nstr = shift @c;
+      croak "is_provable_prime: parse error '$nstr'\n" unless $nstr =~ /^N\s*(\d+)/;
+      $n = $1;
+      warn "N $n\n";
+      while (@c) {
+        my $qstr = shift @c;
+        if ($qstr =~ /^Q\[\d+\]\s*(\d+)/) {
+          push @q, $1;
+        } else {
+          unshift @c, $qstr;
+          last;
+        }
+      }
+      while (@c) {
+        my $astr = shift @c;
+        if ($astr =~ /^A\[\d+\]\s*(\d+)/) {
+          push @a, $1;
+        } else {
+          unshift @c, $astr;
+          last;
+        }
+      }
+      croak "is_provable_prime: no Q?\n" unless @q >= 1;
+      croak "is_provable_prime: mismatched Q and A\n" unless @q == @a;
     } else {
-      croak "is_provable_prime: Parsing error on '$part'\n";
+      croak "is_provable_prime: Unknown type: '$type'\n";
     }
   }
-  my @cert;
-  if (scalar @ecpp > 0) {
-    my @cert = ($n, "ECPP", @ecpp);
-    # Check to see if the last q was proven via n-1
-    my $lastq = $ecpp[-1]->[4];
-    $ecpp[-1]->[4] = $parts{$lastq} if defined $parts{$lastq};
-    return ($result, [@cert]);
-  }
-  return @composite if !defined $parts{$n};
-  return ($result, $parts{$n});
 }
 
 sub factor {
@@ -359,21 +361,26 @@ L</is_provable_prime_with_cert> method.
 Takes a positive number as input and returns back an array with two elements.
 The result will be one of:
 
-  (0, [])      The input is composite.
+  (0, '')      The input is composite.
 
-  (1, [])      The input is probably prime but we could not prove it.
+  (1, '')      The input is probably prime but we could not prove it.
                This is a failure in our ability to factor some necessary
                element in a reasonable time, not a significant proof
-               failure.
+               failure (in other words, it remains a probable prime).
 
-  (2, [cert] ) The input is prime, and the certificate contains all the
+  (2, '...')   The input is prime, and the certificate contains all the
                information necessary to verify this.
 
-The certificate can be run through the L<Math::Prime::Util/verify_prime>
-function of L<Math::Prime::Util> for verification.  The current implementation
-will return either certificates of either "n-1" type, "ECPP" type, or a
-mix of the two (e.g. ECPP ended with n-1 for the final number).
+The certificate is a text representation containing all the necessary
+information to verify the primality of the input in a reasonable time.
+The result can be run through L<Math::Prime::Util/verify_prime> for
+verification.  Proof types used include:
 
+  ECPP
+  BLS3
+  BLS15
+  BLS5
+  Small
 
 =head2 is_strong_pseudoprime
 
