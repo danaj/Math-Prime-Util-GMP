@@ -115,7 +115,9 @@ is_lucas_pseudoprime(IN char* strn)
   ALIAS:
     is_strong_lucas_pseudoprime = 1
     is_extra_strong_lucas_pseudoprime = 2
-    is_frobenius_underwood_pseudoprime = 3
+    is_almost_extra_strong_lucas_pseudoprime = 3
+    is_pari_lucas_pseudoprime = 4
+    is_frobenius_underwood_pseudoprime = 5
   PREINIT:
     mpz_t n;
   CODE:
@@ -123,11 +125,13 @@ is_lucas_pseudoprime(IN char* strn)
       croak("Parameter '%s' must be a positive integer\n", strn);
     PRIMALITY_START("is_lucas_pseudoprime", 1);
     switch (ix) {
-      case 0:  RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
-      case 1:  RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
-      case 2:  RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
-      case 3:  RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
-      default: RETVAL = 0; break;
+      case 0: RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
+      case 1: RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
+      case 2: RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
+      case 3: RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n,1);break;
+      case 4: RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n,2);break;
+      case 5: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
+      default:RETVAL = 0; break;
     }
     mpz_clear(n);
   OUTPUT:

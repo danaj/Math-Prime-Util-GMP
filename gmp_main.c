@@ -226,8 +226,9 @@ static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
   return 1;
 }
 
-static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t)
+static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t, UV inc)
 {
+  if (inc < 1)  croak("Invalid lucas paramater increment: %"UVuf"\n", inc);
   IV tP = 3;
   while (1) {
     UV gcd;
@@ -237,10 +238,10 @@ static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t)
     if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0)
       return 0;
     if (mpz_jacobi(t, n) == -1)  break;
-    tP++;
+    tP += inc;
   }
-  *P = tP;
-  *Q = 1;
+  if (P) *P = tP;
+  if (Q) *Q = 1;
   return 1;
 }
 
@@ -278,7 +279,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
 
   mpz_init(t);
   rval = (strength < 2) ? lucas_selfridge_params(&P, &Q, n, t)
-                        : lucas_extrastrong_params(&P, &Q, n, t);
+                        : lucas_extrastrong_params(&P, &Q, n, t, 1);
   if (!rval) {
     mpz_clear(t);
     return 0;
@@ -341,6 +342,94 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
   return rval;
 }
 
+/* Pari's clever method.  It's an extra-strong Lucas test, but without
+ * computing U_d.  This makes it faster, but yields more pseudoprimes.
+ *
+ * increment:  1 for Baillie OEIS, 2 for Pari.
+ *
+ * With increment = 1, these results will be a subset of the extra-strong
+ * Lucas pseudoprimes.  With increment = 2, we produce Pari's results (we've
+ * added the necessary GCD with D so we produce somewhat fewer).
+ */
+int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
+{
+  mpz_t d, U, V, t;
+  UV P, s;
+  int rval;
+  int _verbose = get_verbose_level();
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
+  }
+
+  mpz_init(t);
+  if (! lucas_extrastrong_params(&P, 0, n, t, increment) ) {
+    mpz_clear(t);
+    return 0;
+  }
+
+  mpz_init(U);  mpz_init(V);
+  mpz_init_set(d, n);
+  mpz_add_ui(d, d, 1);
+
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+
+  /* Calculate V_d */
+  {
+    UV b = mpz_sizeinbase(d, 2);
+    mpz_set_ui(U, P);
+    mpz_set_ui(V, P*P-2);
+
+    while (b > 1) {
+      b--;
+      if (mpz_tstbit(d, b-1)) {
+        mpz_mul(U, U, V);
+        mpz_sub_ui(U, U, P);
+        mpz_mod(U, U, n);
+
+        mpz_mul(V, V, V);
+        mpz_sub_ui(V, V, 2);
+        mpz_mod(V, V, n);
+      } else {
+        mpz_mul(V, U, V);
+        mpz_sub_ui(V, V, P);
+        mpz_mod(V, V, n);
+
+        mpz_mul(U, U, U);
+        mpz_sub_ui(U, U, 2);
+        mpz_mod(U, U, n);
+      }
+    }
+    mpz_set(V, U);   /* U is now V_d.  Put in V to avoid confusion. */
+  }
+  mpz_clear(d);
+
+  rval = 0;
+  mpz_sub_ui(t, n, 2);
+  if ( mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, t) == 0 ) {
+    rval = 1;
+  } else {
+    s--;  /* The extra strong test tests r < s-1 instead of r < s */
+    while (s--) {
+      if (mpz_sgn(V) == 0) {
+        rval = 1;
+        break;
+      }
+      if (s) {
+        mpz_mul(V, V, V);
+        mpz_sub_ui(V, V, 2);
+        mpz_mod(V, V, n);
+      }
+    }
+  }
+  mpz_clear(V); mpz_clear(U); mpz_clear(t);
+  return rval;
+}
 
 /* Paul Underwood's Frobenius test.  Code derived from Paul Underwood. */
 int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
