@@ -252,7 +252,7 @@ static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t)
  * The test suite should check that they generate the correct pseudoprimes.
  *
  * The standard and strong versions use the method A (Selfridge) parameters,
- * while the extra strong version uses the parameters from Grantham (2000).
+ * while the extra strong version uses Baillie's parameters from OEIS A217719.
  *
  * Using the strong version, we can implement the strong BPSW test as
  * specified by Baillie and Wagstaff, 1980, page 1401.
@@ -301,33 +301,38 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
   if (strength == 0) {
     /* Standard checks U_{n+1} = 0 mod n. */
     rval = (mpz_sgn(U) == 0);
-  } else {
-    mpz_sub_ui(t, n, 2);
-    if ( mpz_sgn(U) == 0 &&
-         (strength == 1 || mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, t) == 0) ) {
+  } else if (strength == 1) {
+    if (mpz_sgn(U) == 0) {
       rval = 1;
-    } else if (mpz_sgn(V) == 0) {
-      rval = 1;
-    } else if (strength == 1) {
+    } else {
       while (s--) {
-        mpz_mul(t, V, V);
-        mpz_submul_ui(t, Qk, 2);
-        mpz_mod(V, t, n);
         if (mpz_sgn(V) == 0) {
           rval = 1;
           break;
         }
-        if (s)
+        if (s) {
+          mpz_mul(V, V, V);
+          mpz_submul_ui(V, Qk, 2);
+          mpz_mod(V, V, n);
           mpz_mulmod(Qk, Qk, Qk, n, t);
+        }
       }
+    }
+  } else {
+    mpz_sub_ui(t, n, 2);
+    if ( mpz_sgn(U) == 0 && (mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, t) == 0) ) {
+      rval = 1;
     } else {
+      s--;  /* The extra strong test tests r < s-1 instead of r < s */
       while (s--) {
-        mpz_mul(V, V, V);
-        mpz_sub_ui(V, V, 2);
-        mpz_mod(V, V, n);
         if (mpz_sgn(V) == 0) {
           rval = 1;
           break;
+        }
+        if (s) {
+          mpz_mul(V, V, V);
+          mpz_sub_ui(V, V, 2);
+          mpz_mod(V, V, n);
         }
       }
     }
