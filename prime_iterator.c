@@ -320,15 +320,14 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
 /*                            Prime iterator                                 */
 /*****************************************************************************/
 
-/* These sizes are a tradeoff.  Primary size probably should be 2-4x bigger,
- * but I'd prefer to keep their initial memory use low, as they may never use
- * this.  We could allocate the primary sieve dynamically, except it'd make
- * us go through heck to safely handle threads, like MPU does.  The segment
- * size is enough for 8176*30 = 245280 numbers at a time, which is fine.  We
- * could even drop it down to 2k or 4k if we wanted.
+/* These sizes are a tradeoff.  For better memory use I think 16k,4k is good.
+ * For performance, 32k,16k or 64k,16k is better.  To avoid threading hell,
+ * this is just decided statically.  At 24k,16k we handle 736800 numbers in
+ * the primary sieve and won't redo for segments until after 5*10^11.  Each
+ * segment will store a range of 30*(16384-16) = 491040 numbers.
  */
-#define PRIMARY_SIZE (16384-16)
-#define SEGMENT_SIZE (8192-16)
+#define PRIMARY_SIZE (24576-16)
+#define SEGMENT_SIZE (16384-16)
 static const unsigned char* primary_sieve = 0;
 static const UV primary_limit = (30 * PRIMARY_SIZE)-1;
 
@@ -399,10 +398,8 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
 
 UV prime_iterator_next(prime_iterator *iter)
 {
-  UV lod, hid;
+  UV lod, hid, seg_beg, seg_end;
   const unsigned char* sieve = iter->segment_mem;
-  UV seg_beg = iter->segment_start;
-  UV seg_end = iter->segment_start + 30*iter->segment_bytes - 1;
   UV n = iter->p;
 
   if (n < 11) {
@@ -427,6 +424,8 @@ UV prime_iterator_next(prime_iterator *iter)
 
   /* Current segment */
   if (sieve != 0) {
+    seg_beg = iter->segment_start;
+    seg_end = iter->segment_start + 30*iter->segment_bytes - 1;
     n = next_prime_in_segment(sieve, seg_beg, iter->segment_bytes, iter->p);
     if (n > 0) {
       iter->p = n;
