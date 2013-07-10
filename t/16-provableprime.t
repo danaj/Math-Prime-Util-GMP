@@ -11,7 +11,7 @@ plan tests => 0 + 6
                 + 43
                 + 34
                 + 2
-                + 4   # _with_cert
+                + 6   # _with_cert
                 + 3   # AKS, N-1, ECPP
                 + 0;
 
@@ -88,28 +88,79 @@ foreach my $n (
 is(is_provable_prime('340282366920938463463374607431768211507'), 2, "is_prime(2**128+51) = 2");
 is(is_provable_prime('340282366920938463463374607431768211621'), 2, "is_provable_prime(2**128+165) == 2");
 
-is_deeply([is_provable_prime_with_cert(0)], [0, []], "is_provable_prime_with_cert(0)");
-is_deeply([is_provable_prime_with_cert(2)], [2, [2]], "is_provable_prime_with_cert(2)");
-is_deeply([is_provable_prime_with_cert(96953)], [2, [96953]], "is_provable_prime_with_cert(96953)");
-# We need to ensure this is the only possible return set for n.
-is_deeply([is_provable_prime_with_cert("848301847013166693538593241183")],
- [2, ["848301847013166693538593241183", "n-1",
-      [2,3,11,13,12697,["77868535196553293845507", "n-1",
-                        [2,3,7,["1854012742775078424893", "n-1",
-                                [2,179,1091,"2373421880872807"],
-                                [2, 2, 2, 2] ] ],
-                        [2, 2, 2, 2] ] ],
-      [3, 3, 3, 2, 2, 2]
-     ]
- ],
- "is_provable_prime_with_cert(848301847013166693538593241183)");
-# These are nice and simple, but we could get different results back depending
-# on which factors got found first.
-#is_deeply([is_provable_prime_with_cert("316912650057057350374175801351")], [2, ["316912650057057350374175801351","n-1",[2, 5, 443, 487, 1451], [7, 2, 2, 2, 2]]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
-#is_deeply([is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453")], [2, ["3138550867693340381917894711603833208051177722232017256453","n-1",[2, 3, 19, 43, 379, 87211, 5419, 119827], [2, 2, 2, 2, 2, 2, 2, 2],]], "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+is_deeply( [is_provable_prime_with_cert(0)],
+           [0, ''],
+           "is_provable_prime_with_cert(0)");
+is_deeply( [is_provable_prime_with_cert(2)],
+           [2, "Type Small\n2"],
+           "is_provable_prime_with_cert(2)");
+is_deeply( [is_provable_prime_with_cert(96953)],
+           [2, "Type Small\n96953"],
+           "is_provable_prime_with_cert(96953)");
+
+my $proof;
+$proof = <<EOPROOF;
+Type BLS5
+N  848301847013166693538593241183
+Q[1]  77868535196553293845507
+A[1]  2
+
+Type BLS5
+N  77868535196553293845507
+Q[1]  1854012742775078424893
+A[1]  2
+
+Type BLS5
+N  1854012742775078424893
+Q[1]  2373421880872807
+A[1]  2
+EOPROOF
+$proof =~ s/\n$//;
+is_deeply( [is_provable_prime_with_cert("848301847013166693538593241183")],
+           [2, $proof],
+           "is_provable_prime_with_cert(848301847013166693538593241183)");
+
+$proof = <<EOPROOF;
+Type BLS5
+N  316912650057057350374175801351
+Q[1]  1451
+Q[2]  487
+Q[3]  443
+Q[4]  5
+A[1]  2
+A[2]  2
+A[3]  2
+A[4]  2
+EOPROOF
+$proof =~ s/\n$//;
+is_deeply( [is_provable_prime_with_cert("316912650057057350374175801351")],
+           [2, $proof],
+           "is_provable_prime_with_cert(316912650057057350374175801351)");
+
+$proof = <<EOPROOF;
+Type BLS5
+N  3138550867693340381917894711603833208051177722232017256453
+Q[1]  119827
+Q[2]  87211
+Q[3]  5419
+Q[4]  379
+Q[5]  43
+Q[6]  19
+A[1]  2
+A[2]  2
+A[3]  2
+A[4]  2
+A[5]  2
+A[6]  2
+EOPROOF
+$proof =~ s/\n$//;
+is_deeply( [is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453")],
+           [2, $proof],
+           "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+
 
 # Individual routines
-# AKS.  Sigh, so freaking slow.
+# AKS.  Sigh, so freaking slow.  2/3 of the time for the whole suite is here.
 ok( is_aks_prime(74017), "is_aks_prime(74017)" );
 
 # BLS75 n-1

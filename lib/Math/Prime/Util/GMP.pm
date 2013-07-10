@@ -15,8 +15,7 @@ our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
                      is_provable_prime
-                     is_provable_prime_with_tcert
-                     is_provable_prime_with_ncert
+                     is_provable_prime_with_cert
                      is_aks_prime
                      is_nminus1_prime
                      is_ecpp_prime
@@ -92,68 +91,17 @@ sub is_provable_prime {
   return _is_provable_prime($n);
 }
 
-sub is_provable_prime_with_tcert {
+sub is_provable_prime_with_cert {
   my ($n) = @_;
   my @composite = (0, '');
   return @composite if $n < 2;
 
   my ($result, $text) = _is_provable_prime($n, 1);
-  $text =~ s/\n$//;
   return @composite if $result == 0;
   return ($result, '') if $result != 2;
   $text = "Type Small\n$n\n" if !defined $text || $text eq '';
+  $text =~ s/\n$//;
   return ($result, $text);
-}
-
-sub is_provable_prime_with_ncert {
-  my ($n) = @_;
-  my ($result, $text) = is_provable_prime_with_tcert($n);
-  return ($result, []) unless $result == 2;
-
-  # TODO: This is much more complicated than it should be.
-  #print "===$text===\n";
-  my @c = grep { /\S/ }         # Remove blank lines
-          map { s/#.*$//; $_ }  # Remove comments
-          split(/\n/, $text);   # Split on newlines
-  #print "==@c==\n";
-  while (@c) {
-    my $type = shift @c;
-    if ($type !~ /^Type (.*)/) {
-      croak "is_provable_prime: Parsing error on '$type'\n";
-    }
-    $type = $1;
-    if ($type eq 'BLS5') {
-      warn "Type BLS5\n";
-      my($n, @q, @a);
-      croak "is_provable_prime: Not enough fields for BLS5\n" unless @c >= 3;
-      my $nstr = shift @c;
-      croak "is_provable_prime: parse error '$nstr'\n" unless $nstr =~ /^N\s*(\d+)/;
-      $n = $1;
-      warn "N $n\n";
-      while (@c) {
-        my $qstr = shift @c;
-        if ($qstr =~ /^Q\[\d+\]\s*(\d+)/) {
-          push @q, $1;
-        } else {
-          unshift @c, $qstr;
-          last;
-        }
-      }
-      while (@c) {
-        my $astr = shift @c;
-        if ($astr =~ /^A\[\d+\]\s*(\d+)/) {
-          push @a, $1;
-        } else {
-          unshift @c, $astr;
-          last;
-        }
-      }
-      croak "is_provable_prime: no Q?\n" unless @q >= 1;
-      croak "is_provable_prime: mismatched Q and A\n" unless @q == @a;
-    } else {
-      croak "is_provable_prime: Unknown type: '$type'\n";
-    }
-  }
 }
 
 sub factor {
@@ -282,6 +230,12 @@ strings (for bigints).  L<Math::Prime::Util> tries to reconvert
 all strings back into the callers bigint type if possible, which makes it more
 convenient for calculations.
 
+The various C<is_*_pseudoprime> tests are more appropriately called
+C<is_*_probable_prime> or C<is_*_prp>.  They return 1 if the input is a
+probable prime based on their test.  The naming convention is historical
+and follows Pari and some other math packages.  The modern definition of
+pseudoprime is a I<composite> that passes the test, rather than any number.
+
 
 =head1 FUNCTIONS
 
@@ -293,21 +247,23 @@ convenient for calculations.
 Takes a positive number as input and returns back either 0 (composite),
 2 (definitely prime), or 1 (probably prime).
 
-For inputs below C<2^64> a deterministic test is performed, so the possible
-return values are 0 (composite) or 2 (definitely prime).
+For inputs below C<2^64> the test is deterministic, so the possible return
+values are 0 (composite) or 2 (definitely prime).
 
 For inputs above C<2^64>, a probabilistic test is performed.  Only 0 (composite)
-and 1 (probably prime) are returned.  The current implementation uses a strong
-Baillie-PSW test.  There is a possibility that composites may be returned
-marked prime, but since the test was published in 1980, not a single BPSW
-pseudoprime has been found, so it is extremely likely to be prime.
+and 1 (probably prime) are returned.  The current implementation uses the
+Baillie-PSW (BPSW) test.  There is a possibility that composites may be
+returned marked prime, but since the test was published in 1980, not a
+single BPSW pseudoprime has been found, so it is extremely likely to be prime.
 While we believe (Pomerance 1984) that an infinite number of counterexamples
 exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
 
-In more detail, this implements the strong BPSW test as outlined in Baillie
-and Wagstaff (1980), using the method A (Selfridge) parameters and the strong
-Fermat PRP test and the strong Lucas PRP test.  Using Jan Feitsma's PSP-2
-database, this has been verified to produce no false results under C<2^64>.
+In more detail, we are using the extra-strong Lucas test (Grantham 2000)
+using the Baillie parameter selection method (see OEIS A217719).  Previous
+versions of this module used the strong Lucas test with Selfridge parameters,
+but the extra-strong version produces fewer pseudoprimes while running
+1.2 - 1.5x faster.  It is slightly stronger than the test used in
+L<Pari|http://pari.math.u-bordeaux.fr/faq.html#primetest>.
 
 
 =head2 is_prime
@@ -346,8 +302,8 @@ answer for tiny numbers (under C<2^64>).  A quick BLS75 C<n-1> test is
 attempted, followed by ECPP.
 
 The time required for primes of different input sizes on a circa-2009
-workstation averages about C<3ms> for 30-digits, C<8ms> for 40-digit,
-C<30ms> for 60-digit, C<75ms> for 80-digit, C<200ms> for 100-digit,
+workstation averages about C<3ms> for 30-digits, C<5ms> for 40-digit,
+C<20ms> for 60-digit, C<50ms> for 80-digit, C<100ms> for 100-digit,
 C<2s> for 200-digit, and 400-digit inputs about a minute.
 Expect a lot of time variation for larger inputs.  You can see progress
 indication if verbose is turned on (some at level 1, and a lot at level 2).
@@ -389,7 +345,8 @@ verification.  Proof types used include:
 
 Takes a positive number as input and one or more bases.  Returns 1 if the
 input is a prime or a strong pseudoprime to all of the bases, and 0 if not.
-The base must be a positive integer.
+The base must be a positive integer.  This is often called the Miller-Rabin
+test.
 
 If 0 is returned, then the number really is a composite.  If 1 is returned,
 then it is either a prime or a strong pseudoprime to all the given bases.
@@ -411,7 +368,9 @@ tests (e.g. the strong BPSW test) or deterministic results for numbers less
 than some verified limit (e.g. Jaeschke showed in 1993 that no more than three
 selected bases are required to give correct primality test results for any
 32-bit number).  Given the small chances of passing multiple bases, there
-are some math packages that just use multiple MR tests for primality testing.
+are some math packages that just use multiple MR tests for primality testing,
+though in the late 1980s to mid 1990s almost all serious software switched
+to using the BPSW test.
 
 Even numbers other than 2 will always return 0 (composite).  While the
 algorithm works with even input, most sources define it only on odd input.
@@ -424,23 +383,66 @@ function.
 
 =head2 is_strong_lucas_pseudoprime
 
+Takes a positive number as input, and returns 1 if the input is a standard
+or strong Lucas probable prime.  The Selfridge method of choosing D, P, and
+Q are used (some sources call this a Lucas-Selfridge test).  This is one
+half of the BPSW primality test (the Miller-Rabin strong probable prime test
+with base 2 being the other half).  The canonical BPSW test (page 1401 of
+Baillie and Wagstaff (1980)) uses the strong Lucas test with Selfridge
+parameters, but in practice a variety of Lucas tests with different
+parameters are used by tests calling themselves BPSW.
+
+
 =head2 is_extra_strong_lucas_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input is a standard,
-strong, or extra strong Lucas probable prime.  The standard and strong methods
-use the Selfridge method of choosing D, P, and Q (some sources call this
-a standard or strong Lucas-Selfridge probable prime).  This is one half
-of the BPSW primality test (the Miller-Rabin strong probable prime test with
-base 2 being the other half).  The canonical BPSW test uses the strong Lucas
-test with Selfridge parameters.
+Takes a positive number as input, and returns 1 if the input is an
+extra-strong Lucas probable prime.  This is defined in Grantham (2000),
+and is a slightly more stringent test than the strong Lucas test, though
+because different parameters are used the pseudoprimes are not a subset.
+As expected by the extra conditions, the number of pseudoprimes is less
+than 2/3 that of the strong Lucas-Selfridge test.
+Runtime performance is 1.2 to 1.5x faster than the strong Lucas test.
+
+The parameters are selected using the the Baillie-OEIS method:
+
+  P = 3;
+  Q = 1;
+  while ( jacobi( P*P-4, n ) != -1 )
+    P += 1;
+
+
+=head2 is_almost_extra_strong_lucas_pseudoprime
+
+Takes a positive number as input and returns 1 if the input is an "almost"
+extra-strong Lucas probable prime.  This is the classic extra-strong Lucas
+test but without calculating the U sequence.  This makes it very fast,
+although as the input increases in size the time converges to the conventional
+extra-strong implementation:  at 30 digits this routine is about 15% faster,
+at 300 digits it is only 2% faster.
+
+An optional second argument (must be between 1 and 65535) indicates the
+increment amount for P parameter selection.  The default value of one yields
+the method described in L</is_extra_strong_lucas_pseudoprime>.  A value of
+2 yields the method used in
+L<Pari|http://pari.math.u-bordeaux.fr/faq.html#primetest>.
+
+Because the C<U = 0> condition is ignored, this produces about 5% more
+pseudoprimes than the extra-strong Lucas test.  However this is still only
+66% of the number produced by the strong Lucas-Selfridge test.  No BPSW
+counterexamples have been found with any of the Lucas tests described.
+
 
 =head2 is_frobenius_underwood_pseudoprime
 
 Takes a positive number as input, and returns 1 if the input passes the minimal
 lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"), where
-C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  The computational cost for this
-is between the cost of 2 and 3 strong pseudoprime tests.  There are no known
+C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  There are no known
 counterexamples, but this is not a well studied test.
+
+The computational cost is about 2.4x the cost of a strong pseudoprime test
+(this will vary somewhat with platform and input size).  It is typically a
+little slower than an extra-strong Lucas test, and faster than a strong
+Lucas test.
 
 
 =head2 is_aks_prime
@@ -688,6 +690,20 @@ implementations I have seen (many of which are written assuming native
 precision inputs), but slower than Ben Buhrow's code used in earlier
 versions of L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close
 to the speed of the version included with modern GMP-ECM.
+
+
+=head2 pplus1_factor
+
+  my @factors = pplus1_factor($n);
+
+Given a positive number input, tries to discover a factor using Williams'
+C<p+1> method.  The resulting array will contain either two factors (it
+succeeded) or the original number (no factor was found).  In either case,
+multiplying @factors yields the original input.  An optional first stage
+smoothness factor (B1) may be given as the second parameter.  This will be
+the smoothness limit B1 for the first stage.
+Factoring will stop when the input is a prime, one factor has been found, or
+the algorithm fails to find a factor with the given smoothness.
 
 
 

@@ -353,7 +353,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
  */
 int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
 {
-  mpz_t d, U, V, t;
+  mpz_t d, V, W, t;
   UV P, s;
   int rval;
   int _verbose = get_verbose_level();
@@ -372,9 +372,8 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
     return 0;
   }
 
-  mpz_init(U);  mpz_init(V);
-  mpz_init_set(d, n);
-  mpz_add_ui(d, d, 1);
+  mpz_init(d);
+  mpz_add_ui(d, n, 1);
 
   s = mpz_scan1(d, 0);
   mpz_tdiv_q_2exp(d, d, s);
@@ -382,30 +381,28 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   /* Calculate V_d */
   {
     UV b = mpz_sizeinbase(d, 2);
-    mpz_set_ui(U, P);
-    mpz_set_ui(V, P*P-2);
+    mpz_init_set_ui(V, P);
+    mpz_init_set_ui(W, P*P-2);   /* V = V_{k}, W = V_{k+1} */
 
     while (b > 1) {
       b--;
       if (mpz_tstbit(d, b-1)) {
-        mpz_mul(U, U, V);
-        mpz_sub_ui(U, U, P);
-        mpz_mod(U, U, n);
+        mpz_mul(V, V, W);
+        mpz_sub_ui(V, V, P);
+
+        mpz_mul(W, W, W);
+        mpz_sub_ui(W, W, 2);
+      } else {
+        mpz_mul(W, V, W);
+        mpz_sub_ui(W, W, P);
 
         mpz_mul(V, V, V);
         mpz_sub_ui(V, V, 2);
-        mpz_mod(V, V, n);
-      } else {
-        mpz_mul(V, U, V);
-        mpz_sub_ui(V, V, P);
-        mpz_mod(V, V, n);
-
-        mpz_mul(U, U, U);
-        mpz_sub_ui(U, U, 2);
-        mpz_mod(U, U, n);
       }
+      mpz_mod(V, V, n);
+      mpz_mod(W, W, n);
     }
-    mpz_set(V, U);   /* U is now V_d.  Put in V to avoid confusion. */
+    mpz_clear(W);
   }
   mpz_clear(d);
 
@@ -427,7 +424,7 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
       }
     }
   }
-  mpz_clear(V); mpz_clear(U); mpz_clear(t);
+  mpz_clear(V); mpz_clear(t);
   return rval;
 }
 
@@ -614,8 +611,8 @@ int _GMP_is_prob_prime(mpz_t n)
   if (_GMP_miller_rabin_ui(n, 2) == 0)
     return 0;
 
-  /* Strong Lucas-Selfridge */
-  if (_GMP_is_lucas_pseudoprime(n, 1 /*strong*/) == 0)
+  /* Extra-Strong Lucas test */
+  if (_GMP_is_lucas_pseudoprime(n, 2 /*extra strong*/) == 0)
     return 0;
 
   /* BPSW is deterministic below 2^64 */
@@ -676,10 +673,9 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
   int prob_prime = _GMP_is_prob_prime(n);
 
-  /* The primality proving algorithms tend to be VERY slow for composites,
-   * so run a few more MR tests. */
+  /* Run one more M-R test, just in case. */
   if (prob_prime == 1)
-    prob_prime = _GMP_miller_rabin_random(n, 2);
+    prob_prime = _GMP_miller_rabin_random(n, 1);
 
   /* We can choose a primality proving algorithm:
    *   AKS    _GMP_is_aks_prime       really slow, don't bother
@@ -1304,7 +1300,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1)
     while (b > 1) {
       b--;
       if ( (i >> (b-1)) & UVCONST(1) ) {
-        mpz_mul(U, U,V);
+        mpz_mul(U, U, V);
         mpz_sub(U, U, P);
         mpz_mul(V, V, V);
         mpz_sub_ui(V, V, 2);
@@ -1314,8 +1310,8 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1)
         mpz_mul(U, U, U);
         mpz_sub_ui(U, U, 2);
       }
-      mpz_tdiv_r(U, U, n);
-      mpz_tdiv_r(V, V, n);
+      mpz_mod(U, U, n);
+      mpz_mod(V, V, n);
     }
     mpz_set(P, U);
     mpz_sub_ui(f, U, 2);

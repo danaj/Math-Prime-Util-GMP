@@ -115,9 +115,7 @@ is_lucas_pseudoprime(IN char* strn)
   ALIAS:
     is_strong_lucas_pseudoprime = 1
     is_extra_strong_lucas_pseudoprime = 2
-    is_almost_extra_strong_lucas_pseudoprime = 3
-    is_pari_lucas_pseudoprime = 4
-    is_frobenius_underwood_pseudoprime = 5
+    is_frobenius_underwood_pseudoprime = 3
   PREINIT:
     mpz_t n;
   CODE:
@@ -128,14 +126,28 @@ is_lucas_pseudoprime(IN char* strn)
       case 0: RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
       case 1: RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
       case 2: RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
-      case 3: RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n,1);break;
-      case 4: RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n,2);break;
-      case 5: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
+      case 3: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
       default:RETVAL = 0; break;
     }
     mpz_clear(n);
   OUTPUT:
     RETVAL
+
+int
+is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    if ((strn != 0) && (strn[0] == '-') )
+      croak("Parameter '%s' must be a positive integer\n", strn);
+    if (increment == 0 || increment > 65535)
+      croak("Increment parameter must be >0 and < 65536");
+    PRIMALITY_START("is_almost_extra_strong_lucas_pseudoprime", 1);
+    RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n, increment);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 
 int
 is_prime(IN char* strn)
