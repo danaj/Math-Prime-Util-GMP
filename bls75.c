@@ -432,6 +432,18 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     mpz_clear(mstack[msp]);
   msp = 0;
 
+  /* Sort factors found from largest to smallest. */
+  {
+    int i, j;
+    for (i = 1; i < fsp; i++) {
+      for (j = i; j > 0 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--) {
+        mpz_set(t, fstack[j-1]);
+        mpz_set(fstack[j-1], fstack[j]);
+        mpz_set(fstack[j], t);
+      }
+    }
+  }
+
   /* Shrink to smallest set and verify conditions. */
   if (success > 0) {
     int i;
