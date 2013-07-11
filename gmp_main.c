@@ -210,37 +210,47 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 
 static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 {
-  UV D_ui = 5;
-  IV sign = 1;
+  IV D = 5;
+  UV Dui = (UV) D;
   while (1) {
-    UV gcd = mpz_gcd_ui(NULL, n, D_ui);
+    UV gcd = mpz_gcd_ui(NULL, n, Dui);
     if ((gcd > 1) && mpz_cmp_ui(n, gcd) != 0)
       return 0;
-    mpz_set_si(t, (IV)D_ui * sign);
-    if (mpz_jacobi(t, n) == -1)  break;
-    D_ui += 2;
-    sign = -sign;
+    mpz_set_si(t, D);
+    if (mpz_jacobi(t, n) == -1)
+      break;
+    if (Dui == 21 && mpz_perfect_square_p(n))
+      return 0;
+    Dui += 2;
+    D = (D > 0)  ?  -Dui  :  Dui;
+    if (Dui > 1000000)
+      croak("lucas_selfridge_params: D exceeded 1e6");
   }
-  *P = 1;
-  *Q = (1 - (IV)D_ui * sign) / 4;
+  if (P) *P = 1;
+  if (Q) *Q = (1 - D) / 4;
   return 1;
 }
 
-static int lucas_extrastrong_params(IV*P, IV* Q, mpz_t n, mpz_t t, UV inc)
+static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
 {
-  if (inc < 1)  croak("Invalid lucas paramater increment: %"UVuf"\n", inc);
-  IV tP = 3;
+  if (inc < 1 || inc > 256)
+    croak("Invalid lucas paramater increment: %"UVuf"\n", inc);
+  UV tP = 3;
   while (1) {
-    UV gcd;
-    IV D = tP*tP - 4;
-    mpz_set_ui(t, D);
-    gcd = mpz_gcd_ui(NULL, n, D);
+    UV D = tP*tP - 4;
+    UV gcd = mpz_gcd_ui(NULL, n, D);
     if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0)
       return 0;
-    if (mpz_jacobi(t, n) == -1)  break;
+    mpz_set_ui(t, D);
+    if (mpz_jacobi(t, n) == -1)
+      break;
+    if (tP == (3+20*inc) && mpz_perfect_square_p(n))
+      return 0;
     tP += inc;
+    if (tP > 65535)
+      croak("lucas_extrastrong_params: P exceeded 65535");
   }
-  if (P) *P = tP;
+  if (P) *P = (IV)tP;
   if (Q) *Q = 1;
   return 1;
 }
@@ -274,7 +284,6 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
     if (cmpr == 0)     return 1;  /* 2 is prime */
     if (cmpr < 0)      return 0;  /* below 2 is composite */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
   }
 
   mpz_init(t);
@@ -356,20 +365,22 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   mpz_t d, V, W, t;
   UV P, s;
   int rval;
-  int _verbose = get_verbose_level();
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
     if (cmpr < 0)      return 0;  /* below 2 is composite */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-    if (mpz_perfect_square_p(n)) return 0;  /* n perfect square is composite */
   }
 
   mpz_init(t);
-  if (! lucas_extrastrong_params(&P, 0, n, t, increment) ) {
-    mpz_clear(t);
-    return 0;
+  {
+    IV PP;
+    if (! lucas_extrastrong_params(&PP, 0, n, t, increment) ) {
+      mpz_clear(t);
+      return 0;
+    }
+    P = (UV) PP;
   }
 
   mpz_init(d);

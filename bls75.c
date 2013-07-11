@@ -512,7 +512,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     char *proofstr, *proofptr;
     int curprooflen = (*prooftextptr == 0) ? 0 : strlen(*prooftextptr);
     int myprooflen = (5 + mpz_sizeinbase(n, 10)) * (2 + fsp + msp) + 200;
-    
+
     if (fsp != msp) croak("Different f and a counts\n");
     New(0, proofstr, myprooflen + curprooflen + 1, char);
     proofptr = proofstr;

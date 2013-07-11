@@ -1,16 +1,32 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.13  xx June 2013
+0.13  xx July 2013
 
-    - Added:
-        is_frobenius_underwood_pseudoprime
+    - is_prob_prime now uses the extra-strong Lucas test instead of the
+      strong Lucas test.  This gives better performance.  is_prime and
+      is_provable_prime also incorporate the change.
+
+    - Added functions:
         lucas_sequence
+        is_almost_extra_strong_lucas_pseudoprime
+        is_frobenius_underwood_pseudoprime
+        pplus1_factor
+
+    - is_provable_prime_with_cert now returns a text certificate rather
+      than a multidimensional Perl array.
 
     - Added more trial division to is_prob_prime for big (100+ digit)
       numbers.  This is a significant speedup for next_prime in many cases.
       Pari/gp 2.6.0  nextprime(10^4000)    19 minutes
       MPU:GMP 0.12   next_prime(10**4000)  15 minutes
       MPU:GMP 0.13   next_prime(10**4000)   8 minutes
+
+    - ECPP now tries partial n-1 and n+1 proofs (BLS theorem 3 / 15) at each
+      step, and adds a couple additional quick factoring tests.  This mainly
+      helps lower the time variability with large inputs.
+
+    - ECPP returns a text certificate, so standalone ECPP certificates should
+      be much easier to parse.
 
 0.12  12 June 2013
 

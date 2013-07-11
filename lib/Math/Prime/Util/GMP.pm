@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(
                      is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
                      is_extra_strong_lucas_pseudoprime
+                     is_almost_extra_strong_lucas_pseudoprime
                      is_frobenius_underwood_pseudoprime
                      lucas_sequence
                      primes
@@ -32,6 +33,7 @@ our @EXPORT_OK = qw(
                      prho_factor
                      pbrent_factor
                      pminus1_factor
+                     pplus1_factor
                      holf_factor
                      squfof_factor
                      ecm_factor
@@ -420,7 +422,7 @@ although as the input increases in size the time converges to the conventional
 extra-strong implementation:  at 30 digits this routine is about 15% faster,
 at 300 digits it is only 2% faster.
 
-An optional second argument (must be between 1 and 65535) indicates the
+An optional second argument (must be between 1 and 255) indicates the
 increment amount for P parameter selection.  The default value of one yields
 the method described in L</is_extra_strong_lucas_pseudoprime>.  A value of
 2 yields the method used in
@@ -510,7 +512,8 @@ may use a multi-segmented sieve when appropriate.
 
   $n = next_prime($n);
 
-Returns the next prime greater than the input number.
+Returns the next prime greater than the input number.  The function
+L</is_prob_prime> is used to determine when a prime is found.
 
 
 =head2 prev_prime
@@ -518,7 +521,8 @@ Returns the next prime greater than the input number.
   $n = prev_prime($n);
 
 Returns the prime smaller than the input number.  0 is returned if the
-input is C<2> or lower.
+input is C<2> or lower.  The function L</is_prob_prime> is used to
+determine when a prime is found.
 
 
 =head2 lucas_sequence
