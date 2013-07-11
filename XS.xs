@@ -440,12 +440,13 @@ pminus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
     SIMPLE_FACTOR_END;
 
 void
-pplus1_factor(IN char* strn, IN UV B1 = 5000000)
+pplus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
   PREINIT:
     mpz_t n;
   PPCODE:
     SIMPLE_FACTOR_START("pplus1_factor");
-    if (!success) success = _GMP_pplus1_factor(n, f,  0, B1);
+    success = _GMP_pplus1_factor(n, f, 0, B1, (B2 == 0) ? B1*10 : B2);
+    /* if (!success) success = _GMP_pplus1_factor(n, f, 1, B1, (B2 == 0) ? B1*10 : B2); */
     SIMPLE_FACTOR_END;
 
 void

@@ -8,8 +8,8 @@ use Math::Prime::Util::GMP qw/factor is_prime/;
 plan tests => 0 + 56
                 + 22
                 + 2
-                + 5
-                + 6*7
+                + 6    # individual tets for factoring methods
+                + 7*7  # factor extra tests
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -116,6 +116,8 @@ Math::Prime::Util::GMP::_GMP_set_verbose(4);
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "p-1 factors 22095311209999409685885162322219" );
 Math::Prime::Util::GMP::_GMP_set_verbose(0);
 
+is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pplus1_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "p+1 factors 22095311209999409685885162322219" );
+
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::ecm_factor('16049407357301026788959025956634678743968244330856613525782006075043') ], [qw/99151111 161868154531329727500068314480456792299263740280798402004613/], "ECM factors p8*p60" );
 
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "QS factors 22095311209999409685885162322219" );
@@ -130,6 +132,7 @@ is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('231130420537
 extra_factor_test("prho_factor",   sub {Math::Prime::Util::GMP::prho_factor(shift)});
 extra_factor_test("pbrent_factor", sub {Math::Prime::Util::GMP::pbrent_factor(shift)});
 extra_factor_test("pminus1_factor",sub {Math::Prime::Util::GMP::pminus1_factor(shift)});
+extra_factor_test("pplus1_factor", sub {Math::Prime::Util::GMP::pplus1_factor(shift)});
 extra_factor_test("holf_factor",   sub {Math::Prime::Util::GMP::holf_factor(shift)});
 extra_factor_test("squfof_factor", sub {Math::Prime::Util::GMP::squfof_factor(shift)});
 extra_factor_test("ecm_factor",    sub {Math::Prime::Util::GMP::ecm_factor(shift)});

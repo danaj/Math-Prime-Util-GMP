@@ -1275,17 +1275,52 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     return 0;
 }
 
-int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1)
+static void pp1_pow(mpz_t X, mpz_t Y, unsigned long exp, mpz_t n)
 {
-  UV i, b;
-  mpz_t P, U, V;
+  mpz_t x0;
+  unsigned long bit;
+  {
+    unsigned long v = exp;
+    unsigned long b = 1;
+    while (v >>= 1) b++;
+    bit = 1UL << (b-2);
+  }
+  mpz_init_set(x0, X);
+  mpz_mul(Y, X, X);
+  mpz_sub_ui(Y, Y, 2);
+  mpz_tdiv_r(Y, Y, n);
+  while (bit) {
+    if ( exp & bit ) {
+      mpz_mul(X, X, Y);
+      mpz_sub(X, X, x0);
+      mpz_mul(Y, Y, Y);
+      mpz_sub_ui(Y, Y, 2);
+    } else {
+      mpz_mul(Y, X, Y);
+      mpz_sub(Y, Y, x0);
+      mpz_mul(X, X, X);
+      mpz_sub_ui(X, X, 2);
+    }
+    mpz_mod(X, X, n);
+    mpz_mod(Y, Y, n);
+    bit >>= 1;
+  }
+  mpz_clear(x0);
+}
+
+int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
+{
+  UV j, q, saveq, sqrtB1;
+  mpz_t P, X, Y, saveX;
+  PRIME_ITERATOR(iter);
 
   TEST_FOR_2357(n, f);
   if (B1 < 7) return 0;
 
   mpz_init_set_ui(P, P0);
-  mpz_init(U);
-  mpz_init(V);
+  mpz_init(X);
+  mpz_init(Y);
+  mpz_init(saveX);
 
   /* Montgomery 1987 */
   if (P0 == 0) {
@@ -1293,48 +1328,80 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1)
     if (mpz_invert(P, P, n)) {
       mpz_mul_ui(P, P, 2);
       mpz_mod(P, P, n);
-    } else {
-      mpz_set_ui(P, 5);
-      if (mpz_invert(P, P, n)) {
-        mpz_mul_ui(P, P, 6);
-        mpz_mod(P, P, n);
-      }
+    } else
+      P0 = 1;
+  }
+  if (P0 == 1) {
+    mpz_set_ui(P, 5);
+    if (mpz_invert(P, P, n)) {
+      mpz_mul_ui(P, P, 6);
+      mpz_mod(P, P, n);
+    } else
+      P0 = 2;
+  }
+  if (P0 == 2) {
+    mpz_set_ui(P, 11);
+    if (mpz_invert(P, P, n)) {
+      mpz_mul_ui(P, P, 23);
+      mpz_mod(P, P, n);
     }
   }
 
-  mpz_set(U, P);
-  for (i = 1; i < B1; i++) {
-    { UV v = i; b = 1; while (v >>= 1) b++; }
-    mpz_mul(V, P, P);
-    mpz_sub_ui(V, V, 2);
-    mpz_tdiv_r(V, V, n);
-    while (b > 1) {
-      b--;
-      if ( (i >> (b-1)) & UVCONST(1) ) {
-        mpz_mul(U, U, V);
-        mpz_sub(U, U, P);
-        mpz_mul(V, V, V);
-        mpz_sub_ui(V, V, 2);
-      } else {
-        mpz_mul(V, U, V);
-        mpz_sub(V, V, P);
-        mpz_mul(U, U, U);
-        mpz_sub_ui(U, U, 2);
-      }
-      mpz_mod(U, U, n);
-      mpz_mod(V, V, n);
+  mpz_set(X, P);
+  sqrtB1 = (UV) sqrt(B1);
+  j = 15;
+  q = 2;
+  saveq = q;
+  mpz_set(saveX, X);
+  while (q <= B1) {
+    UV k = q;
+    if (q < sqrtB1) {
+      UV kmin = B1/q;
+      while (k <= kmin)
+        k *= q;
     }
-    mpz_set(P, U);
-    mpz_sub_ui(f, U, 2);
-    mpz_gcd(f, f, n);
-    if (mpz_cmp_ui(f, 1) != 0 && mpz_cmp(f, n) != 0) {
-      mpz_clear(P);  mpz_clear(U);  mpz_clear(V);
-      return 1;
+    pp1_pow(X, Y, k, n);
+    if ( (j++ % 32) == 0) {
+      mpz_sub_ui(f, X, 2);
+      if (mpz_sgn(f) == 0)        break;
+      mpz_gcd(f, f, n);
+      if (mpz_cmp(f, n) == 0)     break;
+      if (mpz_cmp_ui(f, 1) > 0)   goto end_success;
+      saveq = q;
+      mpz_set(saveX, X);
+    }
+    q = prime_iterator_next(&iter);
+  }
+  mpz_sub_ui(f, X, 2);
+  mpz_gcd(f, f, n);
+  if (mpz_cmp_ui(X, 2) == 0 || mpz_cmp(f, n) == 0) {
+    /* Backtrack */
+    prime_iterator_setprime(&iter, saveq);
+    mpz_set(X, saveX);
+    for (q = saveq; q <= B1; q = prime_iterator_next(&iter)) {
+      UV k = q;
+      if (q < sqrtB1) {
+        UV kmin = B1/q;
+        while (k <= kmin)
+          k *= q;
+      }
+      pp1_pow(X, Y, k, n);
+      mpz_sub_ui(f, X, 2);
+      if (mpz_sgn(f) == 0)        goto end_fail;
+      mpz_gcd(f, f, n);
+      if (mpz_cmp(f, n) == 0)     break;
+      if (mpz_cmp_ui(f, 1) > 0)   goto end_success;
     }
   }
-  mpz_clear(P);  mpz_clear(U);  mpz_clear(V);
-  mpz_set(f, n);
-  return 0;
+  if ( (mpz_cmp_ui(f, 1) > 0) && (mpz_cmp(f, n) != 0) )
+    goto end_success;
+  /* TODO: stage 2 */
+  end_fail:
+    mpz_set(f,n);
+  end_success:
+    prime_iterator_destroy(&iter);
+    mpz_clear(P);  mpz_clear(X);  mpz_clear(Y);  mpz_clear(saveX);
+    return (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0);
 }
 
 int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
