@@ -190,7 +190,7 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
         if (mpz_cmp(f, n) == 0)  success = 0;
       }
 #else
-      if (!success) success = _GMP_pminus1_factor(n, f, B1, 10*B1);
+      if (!success) success = _GMP_pminus1_factor(n, f, B1, 8*B1);
       if (!success) success = _GMP_pplus1_factor(n, f, 0, 40);
       if (!success && nsize<500) success = _GMP_pbrent_factor(n, f, nsize, 512);
 #endif
@@ -1287,7 +1287,6 @@ int main(int argc, char **argv)
       /* We really shouldn't ever see this. */
       printf("PROBABLY PRIME\n");
     } else {
-      printf("PRIME\n");
       if (do_printcert) {
         gmp_printf("[MPU - Primality Certificate]\n");
         gmp_printf("Version 1.0\n");
@@ -1297,6 +1296,8 @@ int main(int argc, char **argv)
         gmp_printf("N %Zd\n", n);
         gmp_printf("\n");
         printf("%s", cert);
+      } else {
+        printf("PRIME\n");
       }
     }
     if (cert != 0)

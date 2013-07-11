@@ -31,8 +31,6 @@
 
 - ECPP: with FAS, we're printing the N[i] results backwards.
 
-- Better output for standalone ECPP.
-
 - Convert ECPP output (prooftext or reverse NabmqP output) to Primo format.
   Looks like that isn't possible without completely changing our method of
   choosing curves and points.  Primo uses (type 3):
@@ -46,10 +44,4 @@
   curve and point selection could be modified to do this style perhaps.  It
   would definitely be a change from the Cohen or Crandall/Pomerance methods.
 
-- FU test is in XS, add to lib.
-
-- Lucas sequence is in XS, add to lib.
-
-- With BLS3 and BLS15 added, proofs are a mess.  Write up some documentation
-  on a flat file format.  Make our proof text output that, then construct a
-  parser.
+- Write verifier for our format as well as Primo and GMP-ECPP.
