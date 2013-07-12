@@ -3,7 +3,15 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_strong_pseudoprime is_strong_lucas_pseudoprime is_prime lucas_sequence primes/;
+use Math::Prime::Util::GMP qw/
+   is_strong_pseudoprime
+   is_lucas_pseudoprime
+   is_strong_lucas_pseudoprime
+   is_extra_strong_lucas_pseudoprime
+   is_almost_extra_strong_lucas_pseudoprime
+   is_prime
+   lucas_sequence
+   primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 # pseudoprimes from 2-100k for many bases
@@ -37,7 +45,11 @@ my %pseudoprimes = (
  1795265022 => [ qw/1795265023 1797174457 1797741901 1804469753 1807751977 1808043283 1808205701 1813675681 1816462201 1817936371 1819050257/ ],
  3046413974 => [ qw/3046413975 3048698683 3051199817 3068572849 3069705673 3070556233 3079010071 3089940811 3090723901 3109299161 3110951251 3113625601/ ],
  3613982119 => [ qw/3626488471 3630467017 3643480501 3651840727 3653628247 3654142177 3672033223 3672036061 3675774019 3687246109 3690036017 3720856369/ ],
- lucas      => [ qw/5459 5777 10877 16109 18971 22499 24569 25199 40309 58519 75077 97439/ ],
+ lucas      => [ qw/323 377 1159 1829 3827 5459 5777 9071 9179 10877 11419 11663 13919 14839 16109 16211 18407 18971 19043/ ],
+ slucas     => [ qw/5459 5777 10877 16109 18971 22499 24569 25199 40309 58519 75077 97439 100127 113573 115639 130139/ ],
+ eslucas    => [ qw/989 3239 5777 10877 27971 29681 30739 31631 39059 72389 73919 75077 100127 113573 125249 137549 137801 153931 155819/ ],
+ aeslucas1  => [ qw/989 3239 5777 10469 10877 27971 29681 30739 31631 39059 72389 73919 75077 100127 113573 125249 137549 137801 153931 154697 155819/ ],
+ aeslucas2  => [ qw/3239 4531 5777 10877 12209 21899 31631 31831 32129 34481 36079 37949 47849 50959 51641 62479 73919 75077 97109 100127 108679 113573 116899 154697 161027/ ],
 );
 my $num_pseudoprimes = 0;
 foreach my $ppref (values %pseudoprimes) {
@@ -123,8 +135,15 @@ is( is_strong_lucas_pseudoprime(3), 1, "slpsp(3) shortcut prime");
 # Check that each strong pseudoprime base b makes it through MR with that base
 while (my($base, $ppref) = each (%pseudoprimes)) {
   foreach my $p (@$ppref) {
-    if ($base eq 'lucas') {
+    if       ($base =~ /^aeslucas(\d+)/) {
+      my $inc = $1;
+      ok(is_almost_extra_strong_lucas_pseudoprime($p,$inc), "$p is an almost extra strong Lucas pseudoprime (increment $inc)");
+    } elsif ($base eq 'eslucas') {
+      ok(is_extra_strong_lucas_pseudoprime($p), "$p is an extra strong Lucas pseudoprime");
+    } elsif ($base eq 'slucas') {
       ok(is_strong_lucas_pseudoprime($p), "$p is a strong Lucas-Selfridge pseudoprime");
+    } elsif ($base eq 'lucas') {
+      ok(is_lucas_pseudoprime($p), "$p is a Lucas-Selfridge pseudoprime");
     } else {
       ok(is_strong_pseudoprime($p, $base), "Pseudoprime (base $base) $p passes MR");
     }

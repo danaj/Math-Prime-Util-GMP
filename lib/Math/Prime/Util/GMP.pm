@@ -426,7 +426,7 @@ With the current implementations, there is little reason to prefer this unless
 trying to reproduce specific results.  The extra-strong implementation has been
 optimized to use similar features, removing most of the performance advantage.
 
-An optional second argument (must be between 1 and 255) indicates the
+An optional second argument (must be between 1 and 256) indicates the
 increment amount for P parameter selection.  The default value of one yields
 the method described in L</is_extra_strong_lucas_pseudoprime>.  A value of
 2 yields the method used in
