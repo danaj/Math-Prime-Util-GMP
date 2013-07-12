@@ -158,24 +158,46 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   mpz_set_si(Qk, Q);
 
   if (Q == 1) {
-    while (b > 1) {
-      mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
-      mpz_mul(V, V, V);
-      mpz_sub_ui(V, V, 2);
-      mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
-      b--;
-      if (mpz_tstbit(k, b-1)) {
-        mpz_mul_si(t, U, D);
-                                    /* U:  U2k+1 = (P*U2k + V2k)/2 */
-        mpz_mul_si(U, U, P);
-        mpz_add(U, U, V);
-        if (mpz_odd_p(U)) mpz_add(U, U, n);
-        mpz_fdiv_q_2exp(U, U, 1);
-                                    /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
-        mpz_mul_si(V, V, P);
-        mpz_add(V, V, t);
-        if (mpz_odd_p(V)) mpz_add(V, V, n);
-        mpz_fdiv_q_2exp(V, V, 1);
+    /* Use the fast V method if possible.  Much faster with small n. */
+    mpz_set_si(t, P*P-4);
+    if (P > 2 && mpz_invert(t, t, n)) {
+      /* Compute V_k and V_{k+1}, then computer U_k from them. */
+      mpz_set_si(V, P);
+      mpz_init_set_si(U, P*P-2);
+      while (b > 1) {
+        b--;
+        if (mpz_tstbit(k, b-1)) {
+          mpz_mul(V, V, U);  mpz_sub_ui(V, V, P);  mpz_mod(V, V, n);
+          mpz_mul(U, U, U);  mpz_sub_ui(U, U, 2);  mpz_mod(U, U, n);
+        } else {
+          mpz_mul(U, V, U);  mpz_sub_ui(U, U, P);  mpz_mod(U, U, n);
+          mpz_mul(V, V, V);  mpz_sub_ui(V, V, 2);  mpz_mod(V, V, n);
+        }
+      }
+      mpz_mul_ui(U, U, 2);
+      mpz_submul_ui(U, V, P);
+      mpz_mul(U, U, t);
+    } else {
+      /* Fast computation of U_k and V_k, specific to Q = 1 */
+      while (b > 1) {
+        mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
+        mpz_mul(V, V, V);
+        mpz_sub_ui(V, V, 2);
+        mpz_mod(V, V, n);               /* V2k = Vk^2 - 2 Q^k */
+        b--;
+        if (mpz_tstbit(k, b-1)) {
+          mpz_mul_si(t, U, D);
+                                      /* U:  U2k+1 = (P*U2k + V2k)/2 */
+          mpz_mul_si(U, U, P);
+          mpz_add(U, U, V);
+          if (mpz_odd_p(U)) mpz_add(U, U, n);
+          mpz_fdiv_q_2exp(U, U, 1);
+                                      /* V:  V2k+1 = (D*U2k + P*V2k)/2 */
+          mpz_mul_si(V, V, P);
+          mpz_add(V, V, t);
+          if (mpz_odd_p(V)) mpz_add(V, V, n);
+          mpz_fdiv_q_2exp(V, V, 1);
+        }
       }
     }
   } else {

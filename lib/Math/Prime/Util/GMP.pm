@@ -371,8 +371,8 @@ than some verified limit (e.g. Jaeschke showed in 1993 that no more than three
 selected bases are required to give correct primality test results for any
 32-bit number).  Given the small chances of passing multiple bases, there
 are some math packages that just use multiple MR tests for primality testing,
-though in the late 1980s to mid 1990s almost all serious software switched
-to using the BPSW test.
+though in the early 1990s almost all serious software switched to using the
+BPSW test.
 
 Even numbers other than 2 will always return 0 (composite).  While the
 algorithm works with even input, most sources define it only on odd input.
@@ -422,6 +422,10 @@ although as the input increases in size the time converges to the conventional
 extra-strong implementation:  at 30 digits this routine is about 15% faster,
 at 300 digits it is only 2% faster.
 
+With the current implementations, there is little reason to prefer this unless
+trying to reproduce specific results.  The extra-strong implementation has been
+optimized to use similar features, removing most of the performance advantage.
+
 An optional second argument (must be between 1 and 255) indicates the
 increment amount for P parameter selection.  The default value of one yields
 the method described in L</is_extra_strong_lucas_pseudoprime>.  A value of
@@ -441,7 +445,7 @@ lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"), where
 C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  There are no known
 counterexamples, but this is not a well studied test.
 
-The computational cost is about 2.4x the cost of a strong pseudoprime test
+The computational cost is about 2.5x the cost of a strong pseudoprime test
 (this will vary somewhat with platform and input size).  It is typically a
 little slower than an extra-strong Lucas test, and faster than a strong
 Lucas test.
@@ -848,6 +852,8 @@ programs.  If you have 1000+ digit numbers to prove, you want to use this.
 
 =item Robert Baillie and Samuel S. Wagstaff, Jr., "Lucas Pseudoprimes", Mathematics of Computation, v35 n152, October 1980, pp 1391-1417.  L<http://mpqs.free.fr/LucasPseudoprimes.pdf>
 
+=item Jon Grantham, "Frobenius Pseudoprimes", Mathematics of Computation, v70 n234, March 2000, pp 873-891.  L<http://www.ams.org/journals/mcom/2001-70-234/S0025-5718-00-01197-2/>
+
 =item John Brillhart, D. H. Lehmer, and J. L. Selfridge, "New Primality Criteria and Factorizations of 2^m +/- 1", Mathematics of Computation, v29, n130, Apr 1975, pp 620-647.  L<http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf>
 
 =item Richard P. Brent, "An improved Monte Carlo factorization algorithm", BIT 20, 1980, pp. 176-184.  L<http://www.cs.ox.ac.uk/people/richard.brent/pd/rpb051i.pdf>
@@ -866,7 +872,7 @@ programs.  If you have 1000+ digit numbers to prove, you want to use this.
 
 =item A.O.L. Atkin and F. Morain, "Elliptic Curves and primality proving", Mathematics of Computation, v61, 1993, pages 29-68.  L<http://www.ams.org/journals/mcom/1993-61-203/S0025-5718-1993-1199989-X/>
 
-=item R.G.E. Pinch, "Some Primality Testing Algorithms", June 1993.  Describes the primality testing methods used by many CAS systems and how most were compromised.  Gives recommendations for primality testing APIs.
+=item R.G.E. Pinch, "Some Primality Testing Algorithms", June 1993.  Describes the primality testing methods used by many CAS systems and how most were compromised.  Gives recommendations for primality testing APIs.  L<http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.33.4409>
 
 =back
 
