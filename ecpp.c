@@ -9,43 +9,32 @@
  * This file is part of the Math::Prime::Util Perl module.  It is not too hard
  * to build this as a standalone program (see the README file).
  *
- * This is pretty good for numbers less than 500 digits.  It is many orders
+ * This is pretty good for numbers less than 800 digits.  It is many orders
  * of magnitude faster than the contemporary GMP-ECPP.  It is far, far slower
- * than PRIMO.  I suspect it is slower than the 10-20 year old work of
- * François Morain.
+ * than PRIMO for numbers over 300 digits (it's a bit faster below that).  It
+ * is missing optimizations that were in François Morain's 10-20 year old work.
  *
  * A set of fixed discriminants are used, rather than calculating them as
  * needed.  Having a way to calculate values as needed would be a big help.
  * In the interests of space for the MPU package, I've chosen ~500 values which
  * compile into about 35k of data.  This is about 1/5 of the entire code size
- * for the MPU package.  The github repository includes a alternate set of 2650
- * discriminants that compile to 1.2MB.  This would be helpful if proving
+ * for the MPU package.  The github repository includes a alternate set of 2679
+ * discriminants that compile to 1.3MB.  This would be helpful if proving
  * 300+ digit numbers is a regular occurance.
  *
  * This version uses the FAS "factor all strategy", meaning it first constructs
  * the entire factor chain, with backtracking if necessary, then will do the
  * elliptic curve proof as it recurses back.
  *
- * Another across-the-board performance improvement could be had by linking in
- * the GMP-ECM factoring package, which is much faster than my N-1 and ECM.
- * I have not yet measured what this would do.
- *
  * If your goal is primality proofs for very large numbers, use Primo.  It's
  * free, it is really fast, it is widely used, it can process batch results,
- * and it makes independently verifiable certificates.  If you want proofs
- * for "small" numbers (~300 digits) then this software should work well.
- * It also allows tinkering with the program as desired.
+ * and it makes independently verifiable certificates.  This software also
+ * makes certificates in a described format, works well under 800 or so digits,
+ * and is open source.
  *
- * Benchmarks.  These are using the small (500 values) class polynomial set.
- * Times are on a single core of a 4.2GHz i7-3930K (a fast machine), from
- * the command line using Perl, averaged across multiple runs.
- *
- *    10**49+9        0.007s
- *    10**100+267     0.04s
- *    2**511+111      0.10s
- *    2**1023+1155    2.1s
- *    2**2067+131    72s
- *    10**1000+453  9 minutes
+ * There are other proof methods, such as the open source APR-CL code from
+ * WraithX.  For numbers over 1000 digits, the APR-CL implementation will
+ * likely be faster than this, though does not produce a certificate.
  *
  * Thanks to H. Cohen, R. Crandall & C. Pomerance, and H. Riesel for their
  * text books.  Thanks to the authors of open source software who allow me
@@ -53,8 +42,9 @@
  * Thanks to Schoof, Goldwasser, Kilian, Atkin, Morain, Lenstra, etc. for all
  * the math and publications.  Thanks to Gauss, Euler, et al.
  *
- * The ECM code in ecm.c leverages early GMP-ECM work by Phil Zimmerman, as
- * well as all the articles of Montgomery, Bosma, Lentra, Cohen, and others.
+ * The ECM code in ecm.c was heavily influenced by early GMP-ECM work by Phil
+ * Zimmerman, as well as all the articles of Montgomery, Bosma, Lentra,
+ * Cohen, and others.
  */
 
 #include <stdio.h>
@@ -76,6 +66,11 @@
 
 #ifdef USE_LIBECM
  #include <ecm.h>
+#endif
+
+#ifdef USE_APRCL
+ #include "mpz_aprcl.h"
+ #include "mpz_aprcl.c"
 #endif
 
 /*********** big primorials and lcm for divisibility tests  **********/
@@ -1232,6 +1227,8 @@ int main(int argc, char **argv)
   int isprime, i, do_printcert;
   int do_nminus1 = 0;
   int do_aks = 0;
+  int do_aprcl = 0;
+  int do_bpsw = 0;
   char* cert = 0;
 
   if (argc < 2) dieusage(argv[0]);
@@ -1253,6 +1250,10 @@ int main(int argc, char **argv)
         do_nminus1 = 1;
       } else if (strcmp(argv[i], "-aks") == 0) {
         do_aks = 1;
+      } else if (strcmp(argv[i], "-aprcl") == 0) {
+        do_aprcl = 1;
+      } else if (strcmp(argv[i], "-bpsw") == 0) {
+        do_bpsw = 1;
       } else if (strcmp(argv[i], "-help") == 0 || strcmp(argv[i], "--help") == 0) {
         dieusage(argv[0]);
       } else {
@@ -1271,11 +1272,21 @@ int main(int argc, char **argv)
       Newz(0, cert, 20 + mpz_sizeinbase(n, 10), char);
       gmp_sprintf(cert, "Type Small\nN  %Zd\n", n);
     } else if (isprime == 1) {
-      if (do_nminus1) {
+      if (do_bpsw) {
+        /* Done */
+      } else if (do_nminus1) {
         isprime = _GMP_primality_bls_nm1(n, 100, &cert);
       } else if (do_aks) {
-        isprime = _GMP_is_aks_prime(n);
+        isprime = 2 * _GMP_is_aks_prime(n);
         do_printcert = 0;
+      } else if (do_aprcl) {
+#ifdef USE_APRCL
+        /* int i; for (i = 0; i < 10000; i++) */
+        isprime = mpz_aprtcle(n, get_verbose_level());
+        do_printcert = 0;
+#else
+        croak("Compiled without USE_APRCL.  Sorry.");
+#endif
       } else {
         /* Quick n-1 test */
         isprime = _GMP_primality_bls_nm1(n, 1, &cert);
@@ -1284,6 +1295,7 @@ int main(int argc, char **argv)
       }
     }
 
+    /* printf("(%d digit) ", (int)mpz_sizeinbase(n, 10)); */
     if (isprime == 0) {
       printf("COMPOSITE\n");
     } else if (isprime == 1) {

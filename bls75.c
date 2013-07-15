@@ -432,11 +432,11 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     mpz_clear(mstack[msp]);
   msp = 0;
 
-  /* Sort factors found from largest to smallest. */
+  /* Sort factors found from largest to smallest, but 2 must be at start. */
   {
     int i, j;
-    for (i = 1; i < fsp; i++) {
-      for (j = i; j > 0 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--) {
+    for (i = 2; i < fsp; i++) {
+      for (j = i; j > 1 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--) {
         mpz_set(t, fstack[j-1]);
         mpz_set(fstack[j-1], fstack[j]);
         mpz_set(fstack[j], t);
@@ -460,6 +460,9 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     /* Delete any extra factors */
     while (i < fsp)
       mpz_clear(fstack[--fsp]);
+    /* Verify Q[0] = 2 */
+    if (mpz_cmp_ui(fstack[0], 2) != 0)
+      croak("Internal error: 2 not at start of fstack");
     /* Verify conditions */
     success = 0;
     if (bls_theorem5_limit(n, A, B, t, m, r, s)) {
@@ -517,10 +520,14 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     New(0, proofstr, myprooflen + curprooflen + 1, char);
     proofptr = proofstr;
     proofptr += gmp_sprintf(proofptr, "Type BLS5\nN  %Zd\n", n);
-    for (i = 0; i < fsp; i++)
-      proofptr += gmp_sprintf(proofptr, "Q[%d]  %Zd\n", i+1, fstack[i]);
+    /* Q[0] is always 2 */
+    for (i = 1; i < fsp; i++)
+      proofptr += gmp_sprintf(proofptr, "Q[%d]  %Zd\n", i, fstack[i]);
+    /* A[i] only printed if not 2 */
     for (i = 0; i < msp; i++)
-      proofptr += gmp_sprintf(proofptr, "A[%d]  %Zd\n", i+1, mstack[i]);
+      if (mpz_cmp_ui(mstack[i], 2) != 0)
+        proofptr += gmp_sprintf(proofptr, "A[%d]  %Zd\n", i, mstack[i]);
+    proofptr += gmp_sprintf(proofptr, "----\n");
     /* Set or prepend */
     if (*prooftextptr) {
       proofptr += gmp_sprintf(proofptr, "\n");

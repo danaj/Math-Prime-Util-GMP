@@ -73,7 +73,7 @@ LP 1
 LQ 14
 
 # Note: This is Primo type 2
-# Verify: Q odd, Q > 2, Q divides N-1
+# Verify: Q odd, Q > 2, Q divides N+1
 # Let: M = (N+1)/Q
 # Verify: MQ - 1 = N, M > 0, 2Q-1 > sqrt(n)
 # Let: D = LP*LP - 4*LQ
@@ -89,21 +89,23 @@ Q[1]  87820459687010818424506060639
 Q[2]  379
 Q[3]  13
 Q[4]  3
-Q[5]  2
-A[1]  2
-A[2]  2
-A[3]  2
+A[0]  5
 A[4]  19
-A[5]  5
+----
 
 # Note: This also covers generalized Pocklington
 # Note: We have to have N-1 factored to (N/2)^1/3
-# Verify for each i:
-#   Q[i] > 1, Q[i] < N
-#   A[i] > 1, A[i] < N
-#   Q[i] divides n-1
-# Let: F = product of all Qs
-# Let: R = N/F
+# Note: A line starting with - is required at the end.
+# Verify: N > 2, N odd
+# For each i (0-max):
+#   Q[0] = 2                       # 2 is always a factor of n-1
+#   A[i] = 2 unless specified
+#   Verify: Q[i] > 1, Q[i] < N-1
+#   Verify: A[i] > 1, A[i] < N
+#   Verify: Q[i] divides N-1
+# Let: F = N-1 divided by each Q[i] with multiplicity
+#      (i.e. if Q[i] evenly divides N-1 3 times, then divide it out 3 times)
+# Let: R = (N-1)/F
 # Verify: F is even
 # Verify: gcd(F, R) = 1
 # Let: s = integer    part of R / 2*F
