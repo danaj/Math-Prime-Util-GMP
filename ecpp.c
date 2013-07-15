@@ -753,11 +753,11 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
        * we've found a good path from the start.  TODO: Needs more tuning. */
       if (stage == 0 && i >= 0 && poly_degree > 2) break;
       if (facstage == 1) {
-        if (i >  2 && poly_degree > 24)  break;
-        if (i >  3 && poly_degree > 16)  break;
-        if (i >  4 && nidigits < 800 && poly_degree > 12)  break;
-        if (i >  8 && nidigits < 700 && poly_degree > 10)  break;
-        if (i > 16 && nidigits < 600 && poly_degree >  8)  break;
+        if (i >  2 && nidigits < 1200 && poly_degree > 24)  break;
+        if (i >  3 && nidigits < 1000 && poly_degree > 16)  break;
+        if (i >  4 && nidigits <  800 && poly_degree > 12)  break;
+        if (i >  8 && nidigits <  700 && poly_degree > 10)  break;
+        if (i > 16 && nidigits <  600 && poly_degree >  8)  break;
       }
       mpz_set_si(mD, D);
       /* (D/N) must be 1, and we have to have a u,v solution */
