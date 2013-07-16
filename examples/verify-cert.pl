@@ -241,7 +241,7 @@ sub _ecpp_conditions {
 
   # Now verify the elliptic curve
   my $correct_point = 0;
-  if (0 && prime_get_config->{'gmp'} && defined &Math::Prime::Util::GMP::_validate_ecpp_curve) {
+  if (prime_get_config->{'gmp'} && defined &Math::Prime::Util::GMP::_validate_ecpp_curve) {
     $correct_point = Math::Prime::Util::GMP::_validate_ecpp_curve($a, $b, $n, $x, $y, $m, $q);
   } else {
     if (!defined $Math::Prime::Util::ECAffinePoint::VERSION) {
