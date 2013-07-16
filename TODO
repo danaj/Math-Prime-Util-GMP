@@ -45,3 +45,11 @@
   would definitely be a change from the Cohen or Crandall/Pomerance methods.
 
 - Write verifier for our format as well as Primo and GMP-ECPP.
+
+- Use http://echidna.maths.usyd.edu.au/echidna/dbs/index.html to possibly
+  convert some Hilbert polys to Weber.  E.g.
+    15, 23, 39, 87
+    111, 159, 183, 231, 255, 303, 327, 399, 447, 471, 519, 543, 591, 615,
+    663, 687, 759, 807, 831, 879, 903, 951, 1023, 1047, 1095, 1119, 1167,
+    1239, 1263, 1311, 1335, 1383, 1407, 1455, 1479, 1527, 1551, 1623, 1695,
+    1743, 1767, 1887, 1983, 2055, 2127, 2247, 2487, 3063, 3543, 3567

@@ -30,11 +30,13 @@ Q[5]  87820459687010818424506060639
 A     41
 
 # Note: All factors of N-1 are listed
-# verify: A > 1 and A < N
-# verify: N-1 has only factors Q (to some multiplicity).
-# verify: A^(N-1) mod N = 1
-# verify for each Q:
-#   Q > 0 and Q < N
+# Verify: A > 1 and A < N
+# Verify: N-1 has only factors Q (to some multiplicity).
+# Verify: A^(N-1) mod N = 1
+# Verify for each Q:
+#   Q > 0
+#   Q < N-1
+#   Q divides N-1
 #   A^((N-1)/Q) mod N != 1
 # Then N is prime if each Q is prime.
 
@@ -44,12 +46,16 @@ N  10384593717069655257060992658440473
 Q  87820459687010818424506060639
 A  2
 
-# Note: This is Primo type 1
+# Note: This is Primo type 1 ( prevR->N, R->Q, S->M, B->A )
 # verify: Q divides N-1
 # let: M = (N-1)/Q
-# verify: M is even, M > 0, M < Q, M*Q+1 = N, A > 1
-# verify: A^(N-1) mod N = 1
-# verify: gcd(A^M - 1, N) = 1
+# Verify: M is even                            # Primo a
+# Verify: M > 0                                # Primo b
+# Verify: M < Q                                # Primo c
+# Verify: MQ+1 = N                             # Primo d
+# Verify: A > 1                                # Primo e
+# Verify: A^(N-1) mod N = 1                    # Primo f
+# Verify: gcd(A^M - 1, N) = 1                  # Primo g
 # Then N is prime if Q is prime.
 
 
@@ -58,9 +64,14 @@ N  10384593717069655257060992658440473
 Q  87820459687010818424506060639
 A  2
 
-# Verify: Q odd, Q > 2, Q divides N-1
+# Note: This is similar to Pocklington, but Q can be smaller.
+# Verify: Q odd
+# Verify: Q > 2
+# Verify: Q divides N-1
 # Let: M = (N-1)/Q
-# Verify: MQ + 1 = N, M > 0, 2Q+1 > sqrt(n)
+# Verify: MQ+1 = N
+# Verify: M > 0
+# Verify: 2Q+1 > sqrt(N)
 # Verify A^((N-1)/2) mod N = N-1 
 # Verify A^(M/2) mod N != N-1
 # Then N is prime if Q is prime.
@@ -72,14 +83,24 @@ Q  39635853881945249072751880375727
 LP 1
 LQ 14
 
-# Note: This is Primo type 2
-# Verify: Q odd, Q > 2, Q divides N+1
+# Note: Primo type 2 can map to this, though this allows Q to be
+#       smaller.  ( prevR->N, R->Q, S->M, Q->(LP,LQ) )
+#       Primo condition a is implied by Q odd
+#       Primo condition c is stricter than required by BLS15.
+#       Primo conditions e and f relate to the Lucas code
+#       Primo condition g is not required
+# Verify: Q is odd
+# Verify: Q > 2
+# Verify: Q divides N+1
 # Let: M = (N+1)/Q
-# Verify: MQ - 1 = N, M > 0, 2Q-1 > sqrt(n)
+# Verify: MQ-1 = N                             # Primo d
+# Verify: M > 0                                # Primo b
+# Verify: 2Q-1 > sqrt(N)                       # Primo c (less strict)
 # Let: D = LP*LP - 4*LQ
-# Verify Jacobi(D,N) = -1
-# Verify V_{m/2} mod N != 0
-# Verify V_{(N+1)/2} mod N == 0
+# Verify: D != 0
+# Verify Jacobi(D,N) = -1                      # Primo h
+# Verify V_{m/2} mod N != 0                    # Primo j
+# Verify V_{(N+1)/2} mod N == 0                # Primo i
 # Then N is prime if Q is prime.
 
 
@@ -188,7 +209,7 @@ Y  10082088253583065961418240390837705
 # EC(A,B,N,X,Y) defines the elliptic curve Y^2 = X^3 + A*X + B, mod N
 # with operations defined in affine coordinates.
 
-Type ECPP-3
+Type ECPP3
 N  10384593717069655257060992658440473
 S
 R
@@ -208,7 +229,7 @@ T
 # Let: M = R*S
 # Continue as type ECPP.
 
-Type ECPP-4
+Type ECPP4
 N  10384593717069655257060992658440473
 S
 R

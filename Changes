@@ -28,6 +28,10 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - ECPP returns a text certificate, so standalone ECPP certificates should
       be much easier to parse.
 
+    - Scripts in examples directory:
+        convert-primo-cert.pl    convert a Primo certificate to MPU format.
+        verify-cert.pl           Verify a certificate.
+
 0.12  12 June 2013
 
     - add standard and extra strong Lucas probable prime tests.
