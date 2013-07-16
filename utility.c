@@ -947,7 +947,7 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
   UV UD = -D;
   { /* Binary search for the poly with this D */
     UV lo = 0;
-    UV hi = NUM_CLASS_POLYS-1;
+    UV hi = NUM_CLASS_POLYS;
     while (lo < hi) {
       UV mid = (lo+hi)/2;
       if (_class_poly_data[mid].D <= UD) { lo = mid+1; }

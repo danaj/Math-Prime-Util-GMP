@@ -1117,7 +1117,7 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, savea, t;
-  UV q, saveq, j;
+  UV q, saveq, j, sqrtB1;
   int _verbose = get_verbose_level();
   PRIME_ITERATOR(iter);
 
@@ -1151,7 +1151,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
    * up with multiple factors between GCDs, so we allow backtracking.  This
    * could also be added to stage 2, but it's far less likely to happen there.
    */
-  j = 1;
+  j = 15;
   mpz_set_ui(a, 2);
   mpz_set_ui(savea, 2);
   saveq = 2;
@@ -1159,12 +1159,14 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
    * the current one ended up going to 0. */
   q = 2;
   mpz_set_ui(t, 1);
+  sqrtB1 = (UV) sqrt(B1);
   while (q <= B1) {
-    UV k, kmin;
-    k = q;
-    kmin = B1/q;
-    while (k <= kmin)
-      k *= q;
+    UV k = q;
+    if (q <= sqrtB1) {
+      UV kmin = B1/q;
+      while (k <= kmin)
+        k *= q;
+    }
     mpz_mul_ui(t, t, k);        /* Accumulate powers for a */
     if ( (j++ % 32) == 0) {
       mpz_powm(a, a, t, n);     /* a=a^(k1*k2*k3*...) mod n */
@@ -1191,9 +1193,11 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_set(a, savea);
     for (q = saveq; q <= B1; q = prime_iterator_next(&iter)) {
       UV k = q;
-      UV kmin = B1/q;
-      while (k <= kmin)
-        k *= q;
+      if (q <= sqrtB1) {
+        UV kmin = B1/q;
+        while (k <= kmin)
+          k *= q;
+      }
       mpz_powm_ui(a, a, k, n );
       mpz_sub_ui(t, a, 1);
       mpz_gcd(f, t, n);
@@ -1333,57 +1337,55 @@ static void pp1_pow(mpz_t X, mpz_t Y, unsigned long exp, mpz_t n)
 int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
 {
   UV j, q, saveq, sqrtB1;
-  mpz_t P, X, Y, saveX;
+  mpz_t X, Y, saveX;
   PRIME_ITERATOR(iter);
 
   TEST_FOR_2357(n, f);
   if (B1 < 7) return 0;
 
-  mpz_init_set_ui(P, P0);
-  mpz_init(X);
+  mpz_init_set_ui(X, P0);
   mpz_init(Y);
   mpz_init(saveX);
 
   /* Montgomery 1987 */
   if (P0 == 0) {
-    mpz_set_ui(P, 7);
-    if (mpz_invert(P, P, n)) {
-      mpz_mul_ui(P, P, 2);
-      mpz_mod(P, P, n);
+    mpz_set_ui(X, 7);
+    if (mpz_invert(X, X, n)) {
+      mpz_mul_ui(X, X, 2);
+      mpz_mod(X, X, n);
     } else
       P0 = 1;
   }
   if (P0 == 1) {
-    mpz_set_ui(P, 5);
-    if (mpz_invert(P, P, n)) {
-      mpz_mul_ui(P, P, 6);
-      mpz_mod(P, P, n);
+    mpz_set_ui(X, 5);
+    if (mpz_invert(X, X, n)) {
+      mpz_mul_ui(X, X, 6);
+      mpz_mod(X, X, n);
     } else
       P0 = 2;
   }
   if (P0 == 2) {
-    mpz_set_ui(P, 11);
-    if (mpz_invert(P, P, n)) {
-      mpz_mul_ui(P, P, 23);
-      mpz_mod(P, P, n);
+    mpz_set_ui(X, 11);
+    if (mpz_invert(X, X, n)) {
+      mpz_mul_ui(X, X, 23);
+      mpz_mod(X, X, n);
     }
   }
 
-  mpz_set(X, P);
   sqrtB1 = (UV) sqrt(B1);
-  j = 15;
+  j = 8;
   q = 2;
   saveq = q;
   mpz_set(saveX, X);
   while (q <= B1) {
     UV k = q;
-    if (q < sqrtB1) {
+    if (q <= sqrtB1) {
       UV kmin = B1/q;
       while (k <= kmin)
         k *= q;
     }
     pp1_pow(X, Y, k, n);
-    if ( (j++ % 32) == 0) {
+    if ( (j++ % 16) == 0) {
       mpz_sub_ui(f, X, 2);
       if (mpz_sgn(f) == 0)        break;
       mpz_gcd(f, f, n);
@@ -1402,7 +1404,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
     mpz_set(X, saveX);
     for (q = saveq; q <= B1; q = prime_iterator_next(&iter)) {
       UV k = q;
-      if (q < sqrtB1) {
+      if (q <= sqrtB1) {
         UV kmin = B1/q;
         while (k <= kmin)
           k *= q;
@@ -1422,7 +1424,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
     mpz_set(f,n);
   end_success:
     prime_iterator_destroy(&iter);
-    mpz_clear(P);  mpz_clear(X);  mpz_clear(Y);  mpz_clear(saveX);
+    mpz_clear(X);  mpz_clear(Y);  mpz_clear(saveX);
     return (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0);
 }
 

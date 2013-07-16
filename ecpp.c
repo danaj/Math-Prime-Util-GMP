@@ -18,9 +18,9 @@
  * needed.  Having a way to calculate values as needed would be a big help.
  * In the interests of space for the MPU package, I've chosen ~500 values which
  * compile into about 35k of data.  This is about 1/5 of the entire code size
- * for the MPU package.  The github repository includes a alternate set of 2679
- * discriminants that compile to 1.3MB.  This would be helpful if proving
- * 300+ digit numbers is a regular occurance.
+ * for the MPU package.  The github repository includes a alternate set of 2889
+ * discriminants that compile to 1.6MB.  This is recommended if proving 300+
+ * digit numbers is a regular occurance.
  *
  * This version uses the FAS "factor all strategy", meaning it first constructs
  * the entire factor chain, with backtracking if necessary, then will do the
@@ -102,7 +102,7 @@ void destroy_ecpp_gcds(void) {
 
 
 
-static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs)
+static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs, int degree)
 {
   int success, sfaci;
   UV B1;
@@ -167,10 +167,10 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
 
     success = 0;
     B1 = 300 + 3 * nsize;
+    if (degree <= 2) B1 += nsize; /* D1 & D2 are cheap to prove.  Encourage. */
+    if (degree <= 0) B1 += nsize; /* N-1 and N+1 are really cheap. */
+    if (degree > 20 && stage <= 1) B1 -= nsize; /* Less time on big polys. */
     if (stage >= 1) {
-      /* Push harder for big numbers.  (1) to avoid backtracking too much, and
-       * (2) keep poly degree down to save time in root finding later. */
-      /* Alternate:  UV B1 = (mpz_sizeinbase(n, 2) > 1200) ? 6000 : 3000; */
 #ifdef USE_LIBECM
       /* TODO: Tune stage 1 (PM1?) */
       /* TODO: LIBECM in other stages */
@@ -185,9 +185,9 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
         if (mpz_cmp(f, n) == 0)  success = 0;
       }
 #else
-      if (!success) success = _GMP_pminus1_factor(n, f, B1, 8*B1);
+      if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
       if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
-      if (!success && nsize<500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
+      if (!success && nsize<500) success = _GMP_pbrent_factor(n, f, 2, 1024-nsize);
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -200,9 +200,10 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     }
     if (stage > 1 && !success) {
       if (stage == 2) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 5*20*B1);
+        if (!success) success = _GMP_pbrent_factor(n, f, 3, 8192);
+        if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 30*B1);
         /* p+1 with different initial point and searching farther */
-        if (!success) success = _GMP_pplus1_factor(n, f, 1, B1, B1);
+        if (!success) success = _GMP_pplus1_factor(n, f, 1, B1/2, B1/2);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
       } else if (stage == 3) {
         if (!success) success = _GMP_pminus1_factor(n, f, 25*B1, 25*20*B1);
@@ -679,7 +680,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
         mpz_sub_ui(t2, sqrtn, 1);
         mpz_tdiv_q_2exp(t2, t2, 1);    /* t2 = minfactor */
 
-        facresult = check_for_factor2(q, m, t2, t, stage, sfacs, nsfacs);
+        facresult = check_for_factor2(q, m, t2, t, stage, sfacs, nsfacs, 0);
         if (facresult <= 0)
           continue;
         if (verbose)
@@ -713,7 +714,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
         mpz_add_ui(t2, sqrtn, 1);
         mpz_tdiv_q_2exp(t2, t2, 1);    /* t2 = minfactor */
 
-        facresult = check_for_factor2(q, m, t2, t, stage, sfacs, nsfacs);
+        facresult = check_for_factor2(q, m, t2, t, stage, sfacs, nsfacs, 0);
         if (facresult <= 0)
           continue;
         if (verbose)
@@ -753,10 +754,10 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
        * we've found a good path from the start.  TODO: Needs more tuning. */
       if (stage == 0 && i >= 0 && poly_degree > 2) break;
       if (facstage == 1) {
-        if (i >  2 && nidigits < 1200 && poly_degree > 24)  break;
-        if (i >  3 && nidigits < 1000 && poly_degree > 16)  break;
-        if (i >  4 && nidigits <  800 && poly_degree > 12)  break;
-        if (i >  8 && nidigits <  700 && poly_degree > 10)  break;
+        if (i >  2 && nidigits < 1100 && poly_degree > 24)  break;
+        if (i >  3 && nidigits <  950 && poly_degree > 15)  break;
+        if (i >  4 && nidigits <  800 && poly_degree > 11)  break;
+        if (i >  8 && nidigits <  700 && poly_degree >  9)  break;
         if (i > 16 && nidigits <  600 && poly_degree >  8)  break;
       }
       mpz_set_si(mD, D);
@@ -771,7 +772,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
 
       choose_m(mlist, D, u, v, Ni, t, t2);
       for (k = 0; k < 6; k++) {
-        facresult = check_for_factor2(q, mlist[k], minfactor, t, stage, sfacs, nsfacs);
+        facresult = check_for_factor2(q, mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
         /* -1 = couldn't find, 0 = no big factors, 1 = found */
         if (facresult <= 0)
           continue;
@@ -817,7 +818,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, IV* dlist, mpz_t* sfacs, int
 end_down:
 
   if (downresult == 2) {
-    if (verbose > 1) {
+    if (0 && verbose > 1) {
       if (D == 1) {
         gmp_printf("\n");
         gmp_printf("Type BLS3\n");
