@@ -18,6 +18,10 @@ $|++;
 #  2  incorrect or incomplete conditions.  Cannot verify.
 #  3  certificate file cannot be parsed or no number found
 
+# The candidate number is always checked against is_prime first.  That
+# performs an extra-strong Lucas pseudoprime test followed by at least
+# one additional M-R test using a random base.
+
 my $verbose = 2;
 my $quiet;
 my $verb;
@@ -90,7 +94,7 @@ while (<>) {
     if    ($verbose == 1) {  print "N $N";  }
     elsif ($verbose == 2) {  print "$N\n";  }
     if (!is_prime($N)) {
-      print "FAILS BPSW\n" if $verbose;
+      print "COMPOSITE\n" if $verbose;
       exit(1);
     }
     next;
@@ -169,7 +173,7 @@ sub final_verify {
     if (!defined $parts{$q}) {
       # Auto-small: handle small q right here.
       if ($q <= $smallval) {
-        fail "Small q $q doesn't pass BPSW" unless is_prime($q);
+        fail "Small n $q does not pass BPSW" unless is_prime($q);
         next;
       } else {
         error "q value $q has no proof\n";
@@ -389,8 +393,8 @@ sub verify_pock {
 }
 sub verify_small {
   my ($n) = @_;
-  fail "Small value n is > 2^64\n" unless $n <= $smallval;
-  fail "Small value n does not pass BPSW" unless is_prime($n);
+  fail "Small n $n is > 2^64\n" unless $n <= $smallval;
+  fail "Small n $n does not pass BPSW" unless is_prime($n);
   ($n);
 }
 
