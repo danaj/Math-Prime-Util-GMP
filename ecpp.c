@@ -187,7 +187,7 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
 #else
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
       if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
-      if (!success && nsize<500) success = _GMP_pbrent_factor(n, f, 2, 1024-nsize);
+      if (!success && nsize < 500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
@@ -200,12 +200,13 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     }
     if (stage > 1 && !success) {
       if (stage == 2) {
-        if (!success) success = _GMP_pbrent_factor(n, f, 3, 8192);
+        if (!success) success = _GMP_pbrent_factor(n, f, nsize-1, 8192);
         if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 30*B1);
         /* p+1 with different initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 1, B1/2, B1/2);
         if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
       } else if (stage == 3) {
+        if (!success) success = _GMP_pbrent_factor(n, f, nsize+1, 16384);
         if (!success) success = _GMP_pminus1_factor(n, f, 25*B1, 25*20*B1);
         /* p+1 with a third initial point and searching much farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 2, 10*B1, 10*B1);

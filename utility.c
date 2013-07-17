@@ -870,14 +870,22 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   }
 
   if (dh >= 1 && dh < dg) {
-    /* Recurse with h */
-    polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
-
-    if (*nroots < maxroots) {
-      /* q = g/h, and recurse */
+    /* Pick the smaller of the two splits to process first */
+    if (dh <= 2 || dh <= (dg-dh)) {
+      polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
+      if (*nroots < maxroots) {
+        /* q = g/h, and recurse */
+        polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh);
+        polyz_mod(pq, pq, &dq, NMOD);
+        polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
+      }
+    } else {
       polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh);
       polyz_mod(pq, pq, &dq, NMOD);
       polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
+      if (*nroots < maxroots) {
+        polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
+      }
     }
   }
 
