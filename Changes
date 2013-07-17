@@ -30,7 +30,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Scripts in examples directory:
         convert-primo-cert.pl    convert a Primo certificate to MPU format.
-        verify-cert.pl           Verify a certificate.
+        verify-cert.pl           Verify a Primo or MPU certificate.
 
 0.12  12 June 2013
 
