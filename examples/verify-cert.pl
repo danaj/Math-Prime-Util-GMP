@@ -52,41 +52,50 @@ my %proof_funcs = (
 );
 my $smallval = Math::BigInt->new(2)->bpow(64);
 my $step = 1;
+my $base = 10;
 
 while (<>) {
   next if /^\s*#/ or /^\s*$/;  # Skip comments and blank lines
 
   chomp;
 
-  if (defined $N && /^Proof for:/) {
-    # Done with this number, starting the next.
-    print " " x 60, "\r" if $verbose == 2;
-    if (verify_chain($N)) {
-      print "PRIME\n" if $verbose;
-    } else {
-      print "NOT PROVEN\n" if $verbose;
-      exit(2);
-    }
-    undef $N;
-    undef %parts;
+  if (/^\[(\S+) - Primality Certificate\]/) {
+    error "PRIMO certificates must be converted first" if $1 eq 'PRIMO';
+    error "Unknown certificate type: $1" unless $1 eq 'MPU';
+    next;
   }
-
-  if (!defined $N) {
-    if (/^Proof for:/) {
-      ($N) = read_vars('Proof for', qw/N/);
-      if    ($verbose == 1) {  print "N $N";  }
-      elsif ($verbose == 2) {  print "$N\n";  }
-      if (!is_prob_prime($N)) {
-        print "FAILS BPSW\n" if $verbose;
-        exit(1);
+  if (/^Base (\d+)/) {
+    $base = $1;
+    error "Invalid base: $base" unless $base == 10 || $base == 16 || $base == 62;
+    error "Sorry, only base 10 implemented in this version" unless $base == 10;
+    next;
+  }
+  if (/^Proof for:/) {
+    if (defined $N) {
+      # Done with this number, starting the next.
+      print " " x 60, "\r" if $verbose == 2;
+      if (verify_chain($N)) {
+        print "PRIME\n" if $verbose;
+      } else {
+        print "NOT PROVEN\n" if $verbose;
+        exit(2);
       }
-    } elsif (/^Type /) {
-      error("Starting type without telling me the N value!");
+      undef $N;
+      undef %parts;
+      $step = 1;
+    }
+    ($N) = read_vars('Proof for', qw/N/);
+    if    ($verbose == 1) {  print "N $N";  }
+    elsif ($verbose == 2) {  print "$N\n";  }
+    if (!is_prob_prime($N)) {
+      print "FAILS BPSW\n" if $verbose;
+      exit(1);
     }
     next;
   }
 
   if (/^Type (.*?)\s*$/) {
+    error("Starting type without telling me the N value!") unless defined $N;
     my $type = $1;
     $type =~ tr/a-z/A-Z/;
     error("Unknown type: $type") unless defined $proof_funcs{$type};
@@ -225,6 +234,8 @@ sub prove_small {
 }
 sub _ecpp_conditions {
   my ($n, $a, $b, $m, $q, $x, $y) = @_;
+  $a %= $n if $a < 0;
+  $b %= $n if $b < 0;
   fail "ECPP: $n failed N > 0" unless $n > 0;
   fail "ECPP: $n failed gcd(N, 6) = 1" unless Math::BigInt::bgcd($n, 6) == 1;
   fail "ECPP: $n failed gcd(4*a^3 + 27*b^2, N) = 1"

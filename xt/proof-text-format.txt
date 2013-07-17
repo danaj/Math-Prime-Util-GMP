@@ -5,7 +5,7 @@ Base 10
 
 # This is the N value we're proving.
 Proof for:
-N 3138550867693340381917894711603833208051177722232017256453
+N 8087094497428743437627091507362881
 
 
 # The following types allow a simple chain:
@@ -18,70 +18,36 @@ N 3138550867693340381917894711603833208051177722232017256453
 #    Lucas
 #    BLS5
 #    BLS7
+#
+# Types ECPP3 and ECPP4 are from Primo, and can be easily translated into
+# a type ECPP.  We include them here rather than convert because they save
+# quite a bit of space and we may want to generate them ourselves someday.
+#
+# MPU will generate types: BLS3, BLS15, ECPP, BLS5, Small.
+# Primo (converted) will generate types: Pocklington, BLS15, ECPP3, ECPP4.
+# Lucas is included for completeness.
+# I no longer use BLS7 so will probably not include it.
 
+# BLS## stands for theorem ## in the paper:
+#   "New Primality Criteria and Factorizations of 2^m +/- 1" by
+#   Brillhart, Lehmer, and Selfridge, Mathematics of Computation, 1975.
+# which includes 21 theorems related to N-1, N+1, and hybrid primality proofs.
+# The paper is often referred to as BLS75, and is highly recommended reading.
 
-Type Lucas
-N     10384593717069655257060992658440473
-Q[1]  2
-Q[2]  3
-Q[3]  13
-Q[4]  379
-Q[5]  87820459687010818424506060639
-A     41
-
-# Note: All factors of N-1 are listed
-# Verify: A > 1 and A < N
-# Verify: N-1 has only factors Q (to some multiplicity).
-# Verify: A^(N-1) mod N = 1
-# Verify for each Q:
-#   Q > 0
-#   Q < N-1
-#   Q divides N-1
-#   A^((N-1)/Q) mod N != 1
-# Then N is prime if each Q is prime.
-
-
-Type Pocklington
-N  10384593717069655257060992658440473
-Q  87820459687010818424506060639
-A  2
-
-# Note: This is Primo type 1 ( prevR->N, R->Q, S->M, B->A )
-# verify: Q divides N-1
-# let: M = (N-1)/Q
-# Verify: M is even                            # Primo a
-# Verify: M > 0                                # Primo b
-# Verify: M < Q                                # Primo c
-# Verify: MQ+1 = N                             # Primo d
-# Verify: A > 1                                # Primo e
-# Verify: A^(N-1) mod N = 1                    # Primo f
-# Verify: gcd(A^M - 1, N) = 1                  # Primo g
-# Then N is prime if Q is prime.
-
-
-Type BLS3
-N  10384593717069655257060992658440473
-Q  87820459687010818424506060639
-A  2
-
-# Note: This is similar to Pocklington, but Q can be smaller.
-# Verify: Q odd
-# Verify: Q > 2
-# Verify: Q divides N-1
-# Let: M = (N-1)/Q
-# Verify: MQ+1 = N
-# Verify: M > 0
-# Verify: 2Q+1 > sqrt(N)
-# Verify A^((N-1)/2) mod N = N-1 
-# Verify A^(M/2) mod N != N-1
-# Then N is prime if Q is prime.
-
+# I allow N or any Q smaller than 2^64 to implicitly construct a "Small"
+# certificate.  So once we have a Q of <= 2^64, we can run a deterministic
+# test to prove its primality.  One of the many BPSW variants works for this,
+# or 7 M-R tests with bases 2, 325, 9375, 28178, 450775, 9780504, 1795265022.
+# Hence if we have Q values <= 2^64, the verifier needs to do its test, and
+# the certificate can leave out an explicit proof for the Q.  This is done
+# to prevent a few Lucas, BLS5, etc. type tests from creating a swarm of
+# "Small" certificates for each little factor.
 
 Type BLS15
-N  10384593717069655257060992658440473
-Q  39635853881945249072751880375727
+N  8087094497428743437627091507362881
+Q  175806402118016161687545467551367
 LP 1
-LQ 14
+LQ 22
 
 # Note: Primo type 2 can map to this, though this allows Q to be
 #       smaller.  ( prevR->N, R->Q, S->M, Q->(LP,LQ) )
@@ -104,14 +70,61 @@ LQ 14
 # Then N is prime if Q is prime.
 
 
+Type ECPP
+N  175806402118016161687545467551367
+A  96642115784172626892568853507766
+B  111378324928567743759166231879523
+M  175806402118016177622955224562171
+Q  2297612322987260054928384863
+X  3273750212
+Y  82061726986387565872737368000504
+
+# Generic ECPP / AKGM block
+# A and/or B can be -1, so mod them.
+# Let A = A % N
+# Let B = B % N
+# Verify: N > 0                                # Primo b
+# Verify: gcd(N, 6) = 1                        # Primo a
+# Verify: gcd(4*a^3 + 27*b^2, N) = 1           # Primo i
+# Verify: Y^2 mod N = X^3 + A*X + B mod N      # Primo j
+# Verify: M >= N - 2*sqrt(N) + 1               # Primo g
+# Verify: M <= N + 2*sqrt(N) + 1               # Primo h
+# Verify: Q > (N^(1/4)+1)^2                    # Primo f
+# Verify: Q < N                                # Primo e
+# Verify: M != Q
+# Verify: Q divides M
+# Note:  EC(A,B,N,X,Y) defines the elliptic curve Y^2 = X^3 + A*X + B, mod N
+#        with operations defined in affine coordinates.
+# Let POINT = (M/Q) * EC(A,B,N,X,Y)
+# Verify: POINT is not the identity            # Primo k
+# Let POINT = Q * POINT   (or M * EC(A,B,N,X,Y))
+# Verify: POINT is the identity                # Primo l
+# Then N is prime if Q is prime.
+
+
+Type BLS3
+N  2297612322987260054928384863
+Q  16501461106821092981
+A  5
+
+# Note: This is similar to Pocklington, but Q can be smaller.
+# Verify: Q odd
+# Verify: Q > 2
+# Verify: Q divides N-1
+# Let: M = (N-1)/Q
+# Verify: MQ+1 = N
+# Verify: M > 0
+# Verify: 2Q+1 > sqrt(N)
+# Verify A^((N-1)/2) mod N = N-1 
+# Verify A^(M/2) mod N != N-1
+# Then N is prime if Q is prime.
+
+
 Type BLS5
-N  10384593717069655257060992658440473
-Q[1]  87820459687010818424506060639
-Q[2]  379
-Q[3]  13
-Q[4]  3
-A[0]  5
-A[4]  19
+N  8087094497428743437627091507362881
+Q[1]  98277749
+Q[2]  3631
+A[0]  11
 ----
 
 # Note: This also covers generalized Pocklington
@@ -142,20 +155,113 @@ A[4]  19
 #   Verify: gcd(A[i]^((N-1)/Q[i])-1, N) = 1
 # Then N is prime if each Q is prime.
 
-Type BLS7
-N  10384593717069655257060992658440473
-Q[1]  87820459687010818424506060639
-Q[2]  379
+
+Type Lucas
+N     10384593717069655257060992658440473
+Q[1]  2
+Q[2]  3
 Q[3]  13
-Q[4]  3
-Q[5]  2
-A[1]  2
-A[2]  2
-A[3]  2
-A[4]  19
-A[5]  5
-B  10000
-AR 2
+Q[4]  379
+Q[5]  87820459687010818424506060639
+A     41
+
+# Note: All factors of N-1 are listed
+# Verify: A > 1 and A < N
+# Verify: N-1 has only factors Q (to some multiplicity).
+# Verify: A^(N-1) mod N = 1
+# Verify for each Q:
+#   Q > 0
+#   Q < N-1
+#   Q divides N-1
+#   A^((N-1)/Q) mod N != 1
+# Then N is prime if each Q is prime.
+
+
+Type Pocklington
+N  2297612322987260054928384863
+Q  16501461106821092981
+A  5
+
+# Note: This is Primo type 1 ( prevR->N, R->Q, S->M, B->A )
+# verify: Q divides N-1
+# let: M = (N-1)/Q
+# Verify: M is even                            # Primo a
+# Verify: M > 0                                # Primo b
+# Verify: M < Q                                # Primo c
+# Verify: MQ+1 = N                             # Primo d
+# Verify: A > 1                                # Primo e
+# Verify: A^(N-1) mod N = 1                    # Primo f
+# Verify: gcd(A^M - 1, N) = 1                  # Primo g
+# Then N is prime if Q is prime.
+
+
+
+Type ECPP3
+N 33863876771064627047864880693347
+S 8929168182
+R 3792500721324706215857
+A -30
+B 56
+T 0
+
+# Verify: |A| <= N/2
+# Verify: |B| <= N/2
+# Verify: T >= 0
+# Verify: T < N
+# Let: L = (T^3 + A*T + B) mod N
+# Let: A = (A * L^2) mod N
+# Let: B = (B * L^3) mod N
+# Let: X = (T*L) mod N
+# Let: Y = (L^2) mod N
+# Let: Q = R
+# Let: M = R*S
+# Continue as type ECPP.
+
+
+Type ECPP4
+N 346908375519289784739191985209489924762236002832827279935279239073873837063
+S 26591618
+R 13045779144363828659812726897983038292936490633310834005307717308699
+J -4092776160830678382137043215242735918658074999545950247507675196218505248
+T 4
+
+# Verify: |J| <= N/2
+# Verify: T >= 0
+# Verify: T < N
+# Let: A = 3 * J * (1728 - J)
+# Let: B = 2 * J * (1728 - J)^2
+# Let: L = (T^3 + A*T + B) mod N
+# Let: A = (A * L^2) mod N
+# Let: B = (B * L^3) mod N
+# Let: X = (T*L) mod N
+# Let: Y = (L^2) mod N
+# Let: Q = R
+# Let: M = R*S
+# Continue as type ECPP.
+
+
+Type Small
+N  5791
+
+# Verify: N < 2^64
+# Verify: N is prime using BPSW or deterministic M-R tests
+
+
+# Experimental, not used:
+#Type BLS7
+#N  10384593717069655257060992658440473
+#Q[1]  87820459687010818424506060639
+#Q[2]  379
+#Q[3]  13
+#Q[4]  3
+#Q[5]  2
+#A[1]  2
+#A[2]  2
+#A[3]  2
+#A[4]  19
+#A[5]  5
+#B  10000
+#AR 2
 
 # Verify for each i:
 #   Q[i] > 1, Q[i] < N
@@ -180,79 +286,3 @@ AR 2
 # Then N is prime if each Q is prime.
 
 
-Type ECPP
-N  10384593717069655257060992658440473
-A  0
-B  10384593717069655257060992658440432
-M  10384593717069655452756816068330887
-Q  5993497855483635306095323
-X  1359475440
-Y  10082088253583065961418240390837705
-
-# Generic ECPP / AKGM block
-# Verify: N > 0                                # Primo b
-# Verify: gcd(N, 6) = 1                        # Primo a
-# Verify: gcd(4*a^3 + 27*b^2, N) = 1           # Primo i
-# Verify: Y^2 mod N = X^3 + A*X + B mod N      # Primo j
-# Verify: M >= N - 2*sqrt(N) + 1               # Primo g
-# Verify: M <= N + 2*sqrt(N) + 1               # Primo h
-# Verify: Q > (N^(1/4)+1)^2                    # Primo f
-# Verify: Q < N                                # Primo e
-# Verify: M != Q
-# Verify: Q divides M
-# Let POINT = (M/Q) * EC(A,B,N,X,Y)
-# Verify: POINT is not the identity            # Primo k
-# Let POINT = Q * POINT   (or M * EC(A,B,N,X,Y))
-# Verify: POINT is the identity                # Primo l
-# Then N is prime if Q is prime.
-
-# EC(A,B,N,X,Y) defines the elliptic curve Y^2 = X^3 + A*X + B, mod N
-# with operations defined in affine coordinates.
-
-Type ECPP3
-N  10384593717069655257060992658440473
-S
-R
-A  0
-B  10384593717069655257060992658440432
-T
-# Verify: |A| <= N/2
-# Verify: |B| <= N/2
-# Verify: T >= 0
-# Verify: T < N
-# Let: L = (T^3 + A*T + B) mod N
-# Let: A = (A * L^2) mod N
-# Let: B = (B * L^3) mod N
-# Let: X = (T*L) mod N
-# Let: Y = (L^2) mod N
-# Let: Q = R
-# Let: M = R*S
-# Continue as type ECPP.
-
-Type ECPP4
-N  10384593717069655257060992658440473
-S
-R
-J
-T
-# Verify: |J| <= N/2
-# Verify: T >= 0
-# Verify: T < N
-# Let: A = 3 * J * (1728 - J)
-# Let: B = 2 * J * (1728 - J)^2
-# Let: L = (T^3 + A*T + B) mod N
-# Let: A = (A * L^2) mod N
-# Let: B = (B * L^3) mod N
-# Let: X = (T*L) mod N
-# Let: Y = (L^2) mod N
-# Let: Q = R
-# Let: M = R*S
-# Continue as type ECPP.
-
-# ....
-
-Type Small
-N  5791
-
-# Verify: N < 2^64
-# Verify: N is prime using BPSW or deterministic M-R tests

@@ -91,15 +91,22 @@ is(is_provable_prime('340282366920938463463374607431768211621'), 2, "is_provable
 is_deeply( [is_provable_prime_with_cert(0)],
            [0, ''],
            "is_provable_prime_with_cert(0)");
-is_deeply( [is_provable_prime_with_cert(2)],
-           [2, "Type Small\n2"],
-           "is_provable_prime_with_cert(2)");
-is_deeply( [is_provable_prime_with_cert(96953)],
-           [2, "Type Small\n96953"],
-           "is_provable_prime_with_cert(96953)");
+{ my @scert = is_provable_prime_with_cert(2);
+  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\n2\b/,
+     "is_provable_prime_with_cert(2)"); }
+{ my @scert = is_provable_prime_with_cert(96953);
+  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\n96953\b/,
+     "is_provable_prime_with_cert(96953)"); }
 
 my $proof;
 $proof = <<EOPROOF;
+[MPU - Primality Certificate]
+Version 1.0
+Base 10
+
+Proof for:
+N 848301847013166693538593241183
+
 Type BLS5
 N  848301847013166693538593241183
 Q[1]  77868535196553293845507
@@ -122,6 +129,13 @@ is_deeply( [is_provable_prime_with_cert("848301847013166693538593241183")],
            "is_provable_prime_with_cert(848301847013166693538593241183)");
 
 $proof = <<EOPROOF;
+[MPU - Primality Certificate]
+Version 1.0
+Base 10
+
+Proof for:
+N 316912650057057350374175801351
+
 Type BLS5
 N  316912650057057350374175801351
 Q[1]  1451
@@ -137,6 +151,13 @@ is_deeply( [is_provable_prime_with_cert("316912650057057350374175801351")],
            "is_provable_prime_with_cert(316912650057057350374175801351)");
 
 $proof = <<EOPROOF;
+[MPU - Primality Certificate]
+Version 1.0
+Base 10
+
+Proof for:
+N 3138550867693340381917894711603833208051177722232017256453
+
 Type BLS5
 N  3138550867693340381917894711603833208051177722232017256453
 Q[1]  119827

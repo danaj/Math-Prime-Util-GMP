@@ -869,6 +869,9 @@ end_down:
         int myprooflen = 20 + 7*(4 + mpz_sizeinbase(Ni, 10)) + 0;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
         proofptr = proofstr;
+        mpz_sub_ui(t, Ni, 1);
+        if (mpz_cmp(a, t) == 0)  mpz_set_si(a, -1);
+        if (mpz_cmp(b, t) == 0)  mpz_set_si(b, -1);
         proofptr += gmp_sprintf(proofptr, "Type ECPP\nN  %Zd\nA  %Zd\nB  %Zd\nM  %Zd\nQ  %Zd\nX  %Zd\nY  %Zd\n", Ni, a, b, m, q, P.x, P.y);
       }
       if (*prooftextptr) {
