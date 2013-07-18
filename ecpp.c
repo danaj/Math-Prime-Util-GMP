@@ -348,15 +348,21 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
              mpz_sub_ui(t, A, 16);
              break;
     case 7:  if (!mpz_invert(t, r, N)) mpz_set_ui(t, 0);
-             mpz_powm_ui(A, t, 24, N);
+             if ((D % 3) != 0) {
+               mpz_powm_ui(A, t, 24, N);
+             } else {
+               /* TODO: verify this */
+               mpz_powm_ui(A, t, 8, N);
+               mpz_mul_2exp(A, A, 8);
+             }
              mpz_sub_ui(t, A, 16);
              break;
     default: break;
   }
+  /* r = t^3 / A */
   mpz_powm_ui(t, t, 3, N);
-  if (!mpz_invert(A, A, N)) mpz_set_ui(A, 0);
-  mpz_mulmod(r, A, t, N, r);
-
+  if ( ! mpz_divmod(r, t, A, N, r) )
+    mpz_set_ui(r, 0);
   mpz_clear(A);  mpz_clear(t);
 }
 
