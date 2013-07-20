@@ -103,7 +103,7 @@ sub is_provable_prime_with_cert {
   return ($result, '') if $result != 2;
   $text = "Type Small\n$n\n" if !defined $text || $text eq '';
   $text =~ s/\n$//;
-  $text = "[MPU - Primality Certificate]\nVersion 1.0\nBase 10\n\nProof for:\nN $n\n\n$text";
+  $text = "[MPU - Primality Certificate]\nVersion 1.0\n\nProof for:\nN $n\n\n$text";
   return ($result, $text);
 }
 

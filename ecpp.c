@@ -1316,7 +1316,6 @@ int main(int argc, char **argv)
       if (do_printcert) {
         gmp_printf("[MPU - Primality Certificate]\n");
         gmp_printf("Version 1.0\n");
-        gmp_printf("Base 10\n");
         gmp_printf("\n");
         gmp_printf("Proof for:\n");
         gmp_printf("N %Zd\n", n);

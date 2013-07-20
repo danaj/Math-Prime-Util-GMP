@@ -102,7 +102,6 @@ my $proof;
 $proof = <<EOPROOF;
 [MPU - Primality Certificate]
 Version 1.0
-Base 10
 
 Proof for:
 N 848301847013166693538593241183
@@ -131,7 +130,6 @@ is_deeply( [is_provable_prime_with_cert("848301847013166693538593241183")],
 $proof = <<EOPROOF;
 [MPU - Primality Certificate]
 Version 1.0
-Base 10
 
 Proof for:
 N 316912650057057350374175801351
@@ -153,7 +151,6 @@ is_deeply( [is_provable_prime_with_cert("316912650057057350374175801351")],
 $proof = <<EOPROOF;
 [MPU - Primality Certificate]
 Version 1.0
-Base 10
 
 Proof for:
 N 3138550867693340381917894711603833208051177722232017256453

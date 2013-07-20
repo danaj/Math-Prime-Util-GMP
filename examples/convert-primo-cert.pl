@@ -11,7 +11,6 @@ use Math::BigInt try=>"GMP,Pari";
 
 print "[MPU - Primality Certificate]\n";
 print "Version 1.0\n";
-print "Base 10\n";
 print "\n";
 print "# Converted from Primo by convert-primo version 1.0\n";
 print "\n";
