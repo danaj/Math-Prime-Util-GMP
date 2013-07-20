@@ -3,6 +3,7 @@ use warnings;
 use strict;
 use Math::BigInt lib=>"GMP,Pari";
 use Math::Prime::Util qw/:all/;
+use Time::HiRes qw(gettimeofday tv_interval);
 use Getopt::Long;
 $|++;
 
@@ -25,8 +26,10 @@ $|++;
 my $verbose = 2;
 my $quiet;
 my $verb;
+my $timing;
 GetOptions("verbose+" => \$verb,
            "quiet" => \$quiet,
+           "timing" => \$timing,
           ) or die "Error in option parsing\n";
 $verbose = $verb if defined $verb;
 $verbose = 0 if $quiet;
@@ -43,6 +46,7 @@ sub fail ($) {
   exit(2);  # Failed a condition
 }
 
+my $orig_N;
 my $N;
 my %parts;  # Map of "N is prime if Q is prime"
 my %proof_funcs = (
@@ -60,6 +64,7 @@ my $smallval = Math::BigInt->new(2)->bpow(64);
 my $step = 1;
 my $base = 10;
 my $cert_type = 'Unknown';
+my $start_time;
 
 while (<>) {
   next if /^\s*#/ or /^\s*$/;  # Skip comments and blank lines
@@ -91,6 +96,8 @@ while (<>) {
     } else {
       ($N) = read_vars('Proof for', qw/N/);
     }
+    $start_time = [gettimeofday];
+    $orig_N = $N;
     if    ($verbose == 1) {  print "N $N";  }
     elsif ($verbose == 2) {  print "$N\n";  }
     if (!is_prime($N)) {
@@ -158,6 +165,11 @@ if (final_verify($N)) {
 sub final_verify {
   my $n = shift;
   die "Internal error: argument not defined" unless defined $n;
+
+  if ($timing) {
+    my $seconds = tv_interval($start_time);
+    printf "%7.6f seconds for verification of %d digit number\n", $seconds, length($orig_N);
+  }
 
   if ($cert_type eq 'PRIMO') {
     fail "Type 0: $n failed N > 18" unless $n > 18;

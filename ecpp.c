@@ -18,8 +18,8 @@
  * needed.  Having a way to calculate values as needed would be a big help.
  * In the interests of space for the MPU package, I've chosen ~500 values which
  * compile into about 35k of data.  This is about 1/5 of the entire code size
- * for the MPU package.  The github repository includes a alternate set of 2889
- * discriminants that compile to 1.6MB.  This is recommended if proving 300+
+ * for the MPU package.  The github repository includes a alternate set of 3182
+ * discriminants that compile to 2.3MB.  This is recommended if proving 300+
  * digit numbers is a regular occurance.
  *
  * This version uses the FAS "factor all strategy", meaning it first constructs
@@ -201,22 +201,22 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     if (stage > 1 && !success) {
       if (stage == 2) {
         if (!success) success = _GMP_pbrent_factor(n, f, nsize-1, 8192);
-        if (!success) success = _GMP_pminus1_factor(n, f, 5*B1, 30*B1);
+        if (!success) success = _GMP_pminus1_factor(n, f, 6*B1, 60*B1);
         /* p+1 with different initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 1, B1/2, B1/2);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 4);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 3);
       } else if (stage == 3) {
         if (!success) success = _GMP_pbrent_factor(n, f, nsize+1, 16384);
-        if (!success) success = _GMP_pminus1_factor(n, f, 25*B1, 25*20*B1);
-        /* p+1 with a third initial point and searching much farther */
-        if (!success) success = _GMP_pplus1_factor(n, f, 2, 10*B1, 10*B1);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, 500, 4);
+        if (!success) success = _GMP_pminus1_factor(n, f, 60*B1, 600*B1);
+        /* p+1 with a third initial point and searching farther */
+        if (!success) success = _GMP_pplus1_factor(n, f, 2, 1*B1, 1*B1);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/4, 4);
       } else if (stage == 4) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 200*B1, 200*20*B1);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, 1000, 10);
+        if (!success) success = _GMP_pminus1_factor(n, f, 300*B1, 300*20*B1);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/2, 4);
       } else if (stage >= 5) {
-        UV B = 8000 * (stage-4) * (stage-4) * (stage-4);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, B, 5+stage);
+        UV B = B1 * (stage-4) * (stage-4) * (stage-4);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B, 8+stage);
       }
     }
     if (success) {
