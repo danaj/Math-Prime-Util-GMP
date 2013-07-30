@@ -46,4 +46,5 @@ xt/calculate-mr-probs.pl
 examples/bench-mp-psrp.pl
 examples/verify-cert.pl
 examples/convert-primo-cert.pl
+examples/vcert.c
 .travis.yml
