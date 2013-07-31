@@ -29,27 +29,30 @@
   I have this running, but for small numbers it doesn't matter much, and for
   large numbers it just highlights how much nicer FAS would be.
 
-- ECPP: with FAS, we're printing the N[i] results backwards.
+- ECPP: If we are in step M, saying "for this N, if Q is prime then N is
+  prime", and Q comes back from downrun as composite, then we should
+    1: Run more compositeness tests (e.g. frobenius_underwood or some m-rs)
+    2: Continue on trying to find a different Q.
+  This does not automatically mean N is composite (though it would indicate
+  we found a BPSW counterexample).  Make sure we're doing the right thing.
 
-- Convert ECPP output (prooftext or reverse NabmqP output) to Primo format.
-  Looks like that isn't possible without completely changing our method of
-  choosing curves and points.  Primo uses (type 3):
-    A, B, T where these are usually numbers smaller than ~30
-    L = (T^3 + AT + B) % N
-    A = (A * L^2) mod N
-    B = (B * L^3) mod N
-    X = TL mod N
-    Y = L^2 mod N
-  Type 4 uses a single parameter J instead of A and B.  The calculations for
-  curve and point selection could be modified to do this style perhaps.  It
-  would definitely be a change from the Cohen or Crandall/Pomerance methods.
+- ECPP: We could order by H/G like Atkin/Morain:
+    H = degree, G = 2**(_omega(D)-1), H/G is prob
+  I'm dubious here just because this just saves us the modcorn time, and
+  in general we're more worried about the poly degree.  What this might
+  be useful for is to help decide which values in include in a small set.
+  For instance, maybe we should toss the giant-degree Webers in favor of a
+  few of the degree 8 H/G=1 cases:
+    420, 660, 840, 1092, 1155, 1320, 1380, 1428, 1848, 1995, 3003, 3315, 5460
+  or some degree 6 H/G=3 cases:
+    1059,1203,1267,1315,1347,1563,1843,1915,1963,2227,2283,2443,2515,2563,2787
 
-- Write verifier for our format as well as Primo and GMP-ECPP.
+- ECPP: we really need to figure out how to convert more values to Weber, or
+  find another invariant.
 
-- Use http://echidna.maths.usyd.edu.au/echidna/dbs/index.html to possibly
-  convert some Hilbert polys to Weber.  E.g.
-    15, 23, 39, 87
-    111, 159, 183, 231, 255, 303, 327, 399, 447, 471, 519, 543, 591, 615,
-    663, 687, 759, 807, 831, 879, 903, 951, 1023, 1047, 1095, 1119, 1167,
-    1239, 1263, 1311, 1335, 1383, 1407, 1455, 1479, 1527, 1551, 1623, 1695,
-    1743, 1767, 1887, 1983, 2055, 2127, 2247, 2487, 3063, 3543, 3567
+- ECPP: Add a fast BLS5 to downrun?
+
+- Add BLS17 proof.  Merge into BLS5 code since the end is the same.
+
+- More discriminants:
+   http://echidna.maths.usyd.edu.au/echidna/dbs/complex_multiplication1.html

@@ -334,27 +334,32 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
   mpz_init(A);  mpz_init(t);
 
   switch (D % 8) {
-    case 1:  mpz_powm_ui(t, r, 12, N);
+    case 1:  if ((D % 3) != 0)  mpz_powm_ui(t, r, 12, N);
+             else               mpz_powm_ui(t, r,  4, N);
              mpz_mul_ui(A, t, 64);
              mpz_sub_ui(t, A, 16);
              break;
     case 2:
-    case 6:  mpz_powm_ui(t, r, 12, N);
+    case 6:  if ((D % 3) != 0)  mpz_powm_ui(t, r, 12, N);
+             else               mpz_powm_ui(t, r,  4, N);
              mpz_mul_ui(A, t, 64);
              mpz_add_ui(t, A, 16);
              break;
-    case 5:  mpz_powm_ui(t, r, 6, N);
+    case 5:  if ((D % 3) != 0)  mpz_powm_ui(t, r, 6, N);
+             else               mpz_powm_ui(t, r, 2, N);
              mpz_mul_ui(A, t, 64);
              mpz_sub_ui(t, A, 16);
              break;
     case 7:  if (!mpz_invert(t, r, N)) mpz_set_ui(t, 0);
-             if ((D % 3) != 0) {
-               mpz_powm_ui(A, t, 24, N);
-             } else {
-               /* TODO: verify this */
-               mpz_powm_ui(A, t, 8, N);
-               mpz_mul_2exp(A, A, 8);
-             }
+             if ((D % 3) != 0)  mpz_powm_ui(A, t, 24, N);
+             else               mpz_powm_ui(A, t,  8, N);
+             mpz_sub_ui(t, A, 16);
+             break;
+    /* Results in degree 3x Hilbert, so typically not used */
+    case 3:  if (!mpz_invert(t, r, N)) mpz_set_ui(t, 0);
+             if ((D % 3) != 0)  mpz_powm_ui(t, t, 24, N);
+             else               mpz_powm_ui(t, t,  8, N);
+             mpz_mul_2exp(A, t, 12);
              mpz_sub_ui(t, A, 16);
              break;
     default: break;
