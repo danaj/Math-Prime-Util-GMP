@@ -15,6 +15,7 @@
  *   3  there is an error in the certificate.
  *
  * TODO: Allow multiple proofs per input file
+ * TODO: Projective EC for faster operation
  */
 
 #include <stdio.h>
@@ -165,7 +166,7 @@ static void quit_error(const char* msg1, const char* msg2) {
 }
 
 /*****************************************************************************/
-/* EC (affine)                                                              */
+/* EC: affine with point (x,y,1)                                             */
 /*****************************************************************************/
 
 struct ec_affine_point  { mpz_t x, y; };
@@ -306,6 +307,108 @@ static int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point 
 
   return found;
 }
+
+#if 0
+/*****************************************************************************/
+/* EC: projective with point (X,1,Z) (Montgomery)                            */
+/*****************************************************************************/
+
+/* (xout:zout) = (x1:z1) + (x2:z2) */
+static void pec_add3(mpz_t xout, mpz_t zout,
+                     mpz_t x1, mpz_t z1,
+                     mpz_t x2, mpz_t z2,
+                     mpz_t xin, mpz_t zin,
+                     mpz_t n, mpz_t u, mpz_t v, mpz_t w)
+{
+  mpz_sub(u, x2, z2);
+  mpz_add(v, x1, z1);
+  mpz_mulmod(u, u, v, n, w);     /* u = (x2 - z2) * (x1 + z1) % n */
+
+  mpz_add(v, x2, z2);
+  mpz_sub(w, x1, z1);
+  mpz_mulmod(v, v, w, n, v);     /* v = (x2 + z2) * (x1 - z1) % n */
+
+  mpz_add(w, u, v);              /* w = u+v */
+  mpz_sub(v, u, v);              /* v = u-v */
+
+  mpz_mulmod(w, w, w, n, u);     /* w = (u+v)^2 % n */
+  mpz_mulmod(v, v, v, n, u);     /* v = (u-v)^2 % n */
+
+  mpz_set(u, xin);
+  mpz_mulmod(xout, w, zin, n, w);
+  mpz_mulmod(zout, v, u,   n, w);
+  /* 6 mulmods, 6 adds */
+}
+
+/* (x2:z2) = 2(x1:z1) */
+static void pec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1,
+                       mpz_t b, mpz_t n, mpz_t u, mpz_t v, mpz_t w)
+{
+  mpz_add(u, x1, z1);
+  mpz_mulmod(u, u, u, n, w);     /* u = (x1+z1)^2 % n */
+
+  mpz_sub(v, x1, z1);
+  mpz_mulmod(v, v, v, n, w);     /* v = (x1-z1)^2 % n */
+
+  mpz_mulmod(x2, u, v, n, w);    /* x2 = uv % n */
+
+  mpz_sub(w, u, v);              /* w = u-v = 4(x1 * z1) */
+  mpz_mulmod(u, b, w, n, z2);
+  mpz_add(u, u, v);              /* u = (v+b*w) mod n */
+  mpz_mulmod(z2, w, u, n, v);    /* z2 = (w*u) mod n */
+  /* 5 mulmods, 4 adds */
+}
+
+#define NORMALIZE(f, u, v, x, z, n) \
+    mpz_gcdext(f, u, NULL, z, n); \
+    mpz_mulmod(x, x, u, n, v); \
+    mpz_set_ui(z, 1);
+
+static void pec_mult(mpz_t a, mpz_t b, mpz_t k, mpz_t n, mpz_t x, mpz_t z)
+{
+  mpz_t u, v, w, x1, x2, z1, z2, r;
+  int l = -1;
+
+  mpz_init(u); mpz_init(v); mpz_init(w);
+  mpz_init(x1);  mpz_init(x2);  mpz_init(z1);  mpz_init(z2);
+
+  mpz_sub_ui(k, k, 1);
+  mpz_init_set(r, k);
+  while (mpz_cmp_ui(r, 1) > 0) {
+    mpz_tdiv_q_2exp(r, r, 1);
+    l++;
+  }
+  mpz_clear(r);
+
+  //gmp_printf("x is %Zd  z is %Zd  k is %Zd\n", x, z, k);
+  if (mpz_tstbit(k, l)) {
+    pec_double(x2, z2, x, z, b, n, u, v, w);
+    pec_add3(x1, z1, x2, z2, x, z, x, z, n, u, v, w);
+    pec_double(x2, z2, x2, z2, b, n, u, v, w);
+  } else {
+    pec_double(x1, z1, x, z, b, n, u, v, w);
+    pec_add3(x2, z2, x, z, x1, z1, x, z, n, u, v, w);
+  }
+  l--;
+  while (l >= 1) {
+    if (mpz_tstbit(k, l)) {
+      pec_add3(x1, z1, x1, z1, x2, z2, x, z, n, u, v, w);
+      pec_double(x2, z2, x2, z2, b, n, u, v, w);
+    } else {
+      pec_add3(x2, z2, x2, z2, x1, z1, x, z, n, u, v, w);
+      pec_double(x1, z1, x1, z1, b, n, u, v, w);
+    }
+    l--;
+  }
+  if (mpz_tstbit(k, 0)) {
+    pec_double(x, z, x2, z2, b, n, u, v, w);
+  } else {
+    pec_add3(x, z, x2, z2, x1, z1, x, z, n, u, v, w);
+  }
+  mpz_clear(u);  mpz_clear(v);  mpz_clear(w);
+  mpz_clear(x1);  mpz_clear(x2);  mpz_clear(z1);  mpz_clear(z2);
+}
+#endif
 
 /*****************************************************************************/
 /* M-R, Lucas, BPSW                                                          */
@@ -729,6 +832,7 @@ void verify_ecpp(void) {
   if (!mpz_divisible_p(M, Q)) quit_invalid("ECPP", "Q divides M");
 
   {
+#if 1
     struct ec_affine_point P0, P1, P2;
     mpz_init_set(P0.x, X);  mpz_init_set(P0.y, Y);
     mpz_init(P1.x); mpz_init(P1.y);
@@ -749,6 +853,29 @@ void verify_ecpp(void) {
     mpz_clear(P0.x); mpz_clear(P0.y);
     mpz_clear(P1.x); mpz_clear(P1.y);
     mpz_clear(P2.x); mpz_clear(P2.y);
+#else
+    mpz_t PX, PY;
+    mpz_init_set(PX, X);
+    mpz_init_set(PY, Y);
+
+    mpz_set_ui(T1, 1);
+    mpz_invert(PY, Y, N);          /* z = Y/Z, Y=1  =>  Z = 1/z */
+    mpz_mulmod(PX, PY, X, N, T1);  /* x = X/Z       =>  X = Zx  */
+    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+
+    mpz_divexact(T1, M, Q);
+    pec_mult(A, B, T1, N, PX, PY);
+    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+    /* Check that point is not (0,0) */
+    if (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0)
+      quit_invalid("ECPP", "(M/Q) * EC(A,B,N,X,Y) is not identity");
+    mpz_set(T1, Q);
+    pec_mult(A, B, T1, N, PX, PY);
+    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+    /* Check that point is (0, 0) */
+    if (! (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0) )
+      quit_invalid("ECPP", "M * EC(A,B,N,X,Y) is identity");
+#endif
   }
 }
 
