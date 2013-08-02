@@ -1,6 +1,6 @@
 [MPU - Primality Certificate]
 Version 1.0
-# We allow base 10 and base 62
+# We should allow base 10, base 16, and base 62.  Base 10 is the default.
 Base 10
 
 # This is the N value we're proving.
@@ -22,11 +22,13 @@ N 8087094497428743437627091507362881
 # Types ECPP3 and ECPP4 are from Primo, and can be easily translated into
 # a type ECPP.  We include them here rather than convert because they save
 # quite a bit of space and we may want to generate them ourselves someday.
+# I remain dubious about including them, so it is possible they will go away
+# in the format and we'll just have the converter/verifier do the conversion.
 #
 # MPU will generate types: BLS3, BLS15, ECPP, BLS5, Small.
 # Primo (converted) will generate types: Pocklington, BLS15, ECPP3, ECPP4.
 # Lucas is included for completeness.
-# I no longer use BLS7 so will probably not include it.
+# I no longer use BLS7 so will not include it.
 
 # BLS## stands for theorem ## in the paper:
 #   "New Primality Criteria and Factorizations of 2^m +/- 1" by
@@ -204,6 +206,7 @@ A -30
 B 56
 T 0
 
+# From Primo.  Experimental, may go away.
 # Verify: |A| <= N/2
 # Verify: |B| <= N/2
 # Verify: T >= 0
@@ -225,6 +228,7 @@ R 13045779144363828659812726897983038292936490633310834005307717308699
 J -4092776160830678382137043215242735918658074999545950247507675196218505248
 T 4
 
+# From Primo.  Experimental, may go away.
 # Verify: |J| <= N/2
 # Verify: T >= 0
 # Verify: T < N

@@ -326,8 +326,8 @@ sub verify_ecpp {
 }
 sub verify_ecpp3 {
   my ($n, $s, $r, $a, $b, $t) = @_;
-  fail "ECPP3: $n failed |A| <= N/2" unless abs($a) <= $n/2;
-  fail "ECPP3: $n failed |B| <= N/2" unless abs($b) <= $n/2;
+  fail "ECPP3: $n failed |A| <= N/2" unless 2*abs($a) <= $n;
+  fail "ECPP3: $n failed |B| <= N/2" unless 2*abs($b) <= $n;
   fail "ECPP3: $n failed T >= 0" unless $t >= 0;
   fail "ECPP3: $n failed T < N" unless $t < $n;
   my $l = ($t*$t*$t + $a*$t + $b) % $n;
@@ -341,7 +341,7 @@ sub verify_ecpp3 {
 }
 sub verify_ecpp4 {
   my ($n, $s, $r, $j, $t) = @_;
-  fail "ECPP4: $n failed |J| <= N/2" unless abs($j) <= $n/2;
+  fail "ECPP4: $n failed |J| <= N/2" unless 2*abs($j) <= $n;
   fail "ECPP4: $n failed T >= 0" unless $t >= 0;
   fail "ECPP4: $n failed T < N" unless $t < $n;
   my $a = 3 * $j * (1728 - $j);

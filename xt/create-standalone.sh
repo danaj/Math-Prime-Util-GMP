@@ -8,6 +8,8 @@ fi
 cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] small_factor.[ch] utility.[ch] standalone/
+cp -p xt/proof-text-format.txt standalone/
+cp -p examples/verify-cert.pl standalone/
 
 if [ -f xt/class_poly_data_big.h ]
 then
@@ -81,20 +83,22 @@ Lucas-Selfridge test).  We use this to (1) detect composites, and (2) prove
 small numbers.  BPSW has no counterexamples below 2^64, and this implementation
 has been verified against Feitsma's database.
 
-The certificate output needs work.  The format was designed to be parsed by
-a Perl subroutine to turn into a structure defined by Math::Prime::Util.
-The certificate data is similar to that available from GMP-ECM and discussed
-in papers by Atkin and Morian.  While all the Primo validation steps are
-appropriate, it is not possible to turn it into a standard Primo certificate,
-as Primo uses some clever shortcuts to derive a,b,Px,Py from 3 small numbers,
-and we can't generally go backwards.  That is, it is easy to turn a Primo
-certificate into a Math::Prime::Util cert, but we can't turn one of ours
-(or GMP-ECM's) into a Primo file.
+Using the -c option enables certificate generation.  The format is described
+in the file proof-text-format.txt, and a verification program for both this
+format and PRIMO is supplied in verify-cert.pl, though it needs a very new
+version of the Math::Prime::Util module.
 
 Performance is quite good for most sub-1000 digit numbers, but starts getting
-uneven over 500 digits.  Much more work is possible here.  It is many
-thousands of times faster than GMP-ECPP, and millions of times faster than
-AKS.  It offers a viable alternative to APR-CL.  Some areas to concentrate on:
+uneven over 500 digits.  Much more work is possible here.
+
+In my testing, it is much, much faster than GMP-ECPP 2.46.  It is fairly
+similar in speed under ~300 digits to Morain's old 6.4.5a ECPP, but is
+substantially faster for larger numbers.  It is faster than WraithX's APRCL
+to about 1000 digits, then starts getting slower.  Note that APRCL does not
+produce a certificate.  AKS is currently not a viable proof method, being
+millions of times slower than these methods.
+
+Some areas to concentrate on:
 
  1. The polynomials.  We ought to generate Weber polynomials on the fly.  I
     this it still makes a lot of sense to include a fixed set (e.g. all polys
@@ -109,7 +113,7 @@ AKS.  It offers a viable alternative to APR-CL.  Some areas to concentrate on:
     this purpose (let me be clear: for large B1/B2 values, GMP-ECM rocks, but
     in this application with small B1/B2, it ran slower for me).  If you add
     the define USE_LIBECM, then GMP-ECM's ECM is used.  This may or may not
-    be faster, and probably needs tuning.
+    be faster, and needs tuning.
 
     Where using GMP-ECM would really help (I think) is in later factoring
     stages where we're in trouble and need to work hard to find a factor since
@@ -130,7 +134,8 @@ AKS.  It offers a viable alternative to APR-CL.  Some areas to concentrate on:
     so we could recurse down many trees at once.
     - If we have to run ECM, then clearly we can run multiple curves at once.
     - Finally, once we've hit STEP 2 of ecpp_down, we could do curve finding
-    for the entire chain in parallel.
+    for the entire chain in parallel.  This would be especially useful for
+    titanic numbers where this is a large portion of the total time.
 
  4. ecpp_down.  There are a lot of little things here that can have big
     impacts on performance.  For instance the decisions on when to keep
@@ -145,7 +150,8 @@ AKS.  It offers a viable alternative to APR-CL.  Some areas to concentrate on:
  5. The poly root finding takes a long time for large degree polys, and perhaps
     we could speed it up.  There is a little speedup applied, where we exit
     early after finding 4 roots, since we really only need 1.  If we could get
-    polyz_pow_polymod to run faster this would help here in general.
+    polyz_pow_polymod to run faster this would help here in general.  For
+    titanic numbers this becomes a big bottleneck.
 
 
 Note 1: AKS is also included and you can use it via the '-aks' option.
