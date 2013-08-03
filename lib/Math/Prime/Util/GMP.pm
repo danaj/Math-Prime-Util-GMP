@@ -286,7 +286,7 @@ BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
 if the result cannot be quickly determined, and results in approximately
 30% success rate at 128-bits.
 
-The result is that many numbers will return back 2 (definitely prime),
+The result is that many numbers will return 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through more
 tests than L</is_prob_prime> while not taking too long.
 
@@ -332,7 +332,7 @@ The result will be one of:
 
 The certificate is a text representation containing all the necessary
 information to verify the primality of the input in a reasonable time.
-The result can be run through L<Math::Prime::Util/verify_prime> for
+The result can be used with L<Math::Prime::Util/verify_prime> for
 verification.  Proof types used include:
 
   ECPP
@@ -354,7 +354,7 @@ test.
 If 0 is returned, then the number really is a composite.  If 1 is returned,
 then it is either a prime or a strong pseudoprime to all the given bases.
 Given enough distinct bases, the chances become very strong that the number
-number is actually prime.
+is actually prime.
 
 Both the input number and the bases may be big integers.  If base modulo n
 E<lt>= 1 or base modulo n = n-1, then the result will be 1.  This allows the
@@ -372,7 +372,7 @@ than some verified limit (e.g. Jaeschke showed in 1993 that no more than three
 selected bases are required to give correct primality test results for any
 32-bit number).  Given the small chances of passing multiple bases, there
 are some math packages that just use multiple MR tests for primality testing,
-though in the early 1990s almost all serious software switched to using the
+though in the early 1990s almost all serious software switched to the
 BPSW test.
 
 Even numbers other than 2 will always return 0 (composite).  While the
@@ -406,7 +406,7 @@ As expected by the extra conditions, the number of pseudoprimes is less
 than 2/3 that of the strong Lucas-Selfridge test.
 Runtime performance is 1.2 to 1.5x faster than the strong Lucas test.
 
-The parameters are selected using the the Baillie-OEIS method:
+The parameters are selected using the Baillie-OEIS method:
 
   P = 3;
   Q = 1;
@@ -903,7 +903,7 @@ resource to the community.
 
 Jonathan Leto and Bob Kuo, who wrote and distributed the L<Math::Primality>
 module on CPAN.  Their implementation of BPSW provided the motivation I needed
-to get it done in this module and L<Math::Prime::Util>.  I also used their
+to do it in this module and L<Math::Prime::Util>.  I also used their
 module quite a bit for testing against.
 
 Paul Zimmermann's papers and GMP-ECM code were of great value for my projective
