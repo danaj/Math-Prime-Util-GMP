@@ -937,7 +937,7 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
-#define HALF_WORD (UVCONST(1) << (BITS_PER_WORD/2))
+#define HALF_UI_WORD (UVCONST(1) << (sizeof(unsigned long)/2))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV p = 2;
@@ -945,11 +945,11 @@ void _GMP_pn_primorial(mpz_t prim, UV n)
 
   mpz_set_ui(prim, 1);
   while (n > 0) {
-    UV a = 1;
+    unsigned long a = 1;
     do {
       a *= p;
       p = prime_iterator_next(&iter);
-    } while (--n && a < HALF_WORD);
+    } while (--n && (a|(unsigned long)p) < HALF_UI_WORD);
     mpz_mul_ui(prim, prim, a);
   }
   prime_iterator_destroy(&iter);
