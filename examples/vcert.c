@@ -1272,7 +1272,10 @@ void read_vars(const char* vars) {
 
 void parse_top(void)
 {
-  get_line(0);
+  do {
+    if (get_line(1))
+      quit_error("Count not find primality certificate indicator", "");
+  } while (strstr(_line, "Primality Certificate") == 0);
   if (strcmp(_line, "[PRIMO - Primality Certificate]") == 0)
     _format = CERT_PRIMO;
   else if (strcmp(_line, "[MPU - Primality Certificate]") == 0)

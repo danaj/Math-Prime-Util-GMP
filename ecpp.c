@@ -86,6 +86,7 @@ void init_ecpp_gcds(void) {
     _GMP_pn_primorial(_gcd_small,  3000);
     _GMP_pn_primorial(_gcd_large, 20000);
     mpz_divexact(_gcd_large, _gcd_large, _gcd_small);
+    mpz_divexact_ui(_gcd_small, _gcd_small, 2*3*5);
     mpz_init(_lcm_small);
     _GMP_lcm_of_consecutive_integers(300, _lcm_small);
     _gcdinit = 1;
@@ -169,7 +170,8 @@ static int check_for_factor2(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int sta
     B1 = 300 + 3 * nsize;
     if (degree <= 2) B1 += nsize; /* D1 & D2 are cheap to prove.  Encourage. */
     if (degree <= 0) B1 += nsize; /* N-1 and N+1 are really cheap. */
-    if (degree > 20 && stage <= 1) B1 -= nsize; /* Less time on big polys. */
+    if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
+    if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
     if (stage >= 1) {
 #ifdef USE_LIBECM
       /* TODO: Tune stage 1 (PM1?) */
@@ -357,9 +359,13 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
              break;
     /* Results in degree 3x Hilbert, so typically not used */
     case 3:  if (!mpz_invert(t, r, N)) mpz_set_ui(t, 0);
-             if ((D % 3) != 0)  mpz_powm_ui(t, t, 24, N);
-             else               mpz_powm_ui(t, t,  8, N);
-             mpz_mul_2exp(A, t, 12);
+             if ((D % 3) != 0) {
+               mpz_powm_ui(t, t, 24, N);
+               mpz_mul_2exp(A, t, 12);
+             } else {
+               mpz_powm_ui(t, t, 8, N);
+               mpz_mul_2exp(A, t, 4);
+             }
              mpz_sub_ui(t, A, 16);
              break;
     default: break;
@@ -1330,8 +1336,10 @@ int main(int argc, char **argv)
         printf("PRIME\n");
       }
     }
-    if (cert != 0)
+    if (cert != 0) {
       Safefree(cert);
+      cert = 0;
+    }
   }
   mpz_clear(n);
   _GMP_destroy();

@@ -36,23 +36,10 @@
   This does not automatically mean N is composite (though it would indicate
   we found a BPSW counterexample).  Make sure we're doing the right thing.
 
-- ECPP: We could order by H/G like Atkin/Morain:
-    H = degree, G = 2**(_omega(D)-1), H/G is prob
-  I'm dubious here just because this just saves us the modcorn time, and
-  in general we're more worried about the poly degree.  What this might
-  be useful for is to help decide which values in include in a small set.
-  For instance, maybe we should toss the giant-degree Webers in favor of a
-  few of the degree 8 H/G=1 cases:
-    420, 660, 840, 1092, 1155, 1320, 1380, 1428, 1848, 1995, 3003, 3315, 5460
-  or some degree 6 H/G=3 cases:
-    1059,1203,1267,1315,1347,1563,1843,1915,1963,2227,2283,2443,2515,2563,2787
-
-- ECPP: we really need to figure out how to convert more values to Weber, or
-  find another invariant.
+- ECPP: All discriminants with D % 8 != 3 have been converted to Weber.  We're
+  still left with lots of those D values.  Figure out a different invariant
+  that will make smaller polynomials, along with a root conversion.
 
 - ECPP: Add a fast BLS5 to downrun?
 
 - Add BLS17 proof.  Merge into BLS5 code since the end is the same.
-
-- More discriminants:
-   http://echidna.maths.usyd.edu.au/echidna/dbs/complex_multiplication1.html

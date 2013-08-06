@@ -1,6 +1,6 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
-0.13  xx July 2013
+0.13  6 August 2013
 
     - is_prob_prime now uses the extra-strong Lucas test instead of the
       strong Lucas test.  This gives better performance.  is_prime and
@@ -25,12 +25,18 @@ Revision history for Perl extension Math::Prime::Util::GMP
       step, and adds a couple additional quick factoring tests.  This mainly
       helps lower the time variability with large inputs.
 
+    - Updated ECPP polynomials.  Should give better performance with larger
+      inputs.
+
     - ECPP returns a text certificate, so standalone ECPP certificates should
       be much easier to parse.
 
     - Scripts in examples directory:
         convert-primo-cert.pl    convert a Primo certificate to MPU format.
         verify-cert.pl           Verify a Primo or MPU certificate.
+
+    - Program in examples directory:
+        vcert.c
 
 0.12  12 June 2013
 
