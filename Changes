@@ -1,10 +1,10 @@
-Revision history for Perl extension Math::Prime::Util::GMP
+Revision history for Perl module Math::Prime::Util::GMP
 
-0.14  7 August 2013
+0.14 2013-08-07
 
     - Fix small certificates leaving out the "N " for small numbers.
 
-0.13  6 August 2013
+0.13 2013-08-06
 
     [API Changes]
       - Primality proofs now use a text certificate.  This is nicer for
@@ -40,7 +40,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
       - verify-cert.pl           Verify a Primo or MPU certificate.
       - vcert.c                  Verify a Primo or MPU certificate.
 
-0.12  12 June 2013
+0.12 2013-06-12
 
     - add standard and extra strong Lucas probable prime tests.
 
@@ -48,7 +48,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
 
     - Speedups for ECPP.
 
-0.11  20 May 2013
+0.11 2013-05-20
 
     - is_prob_prime is faster at finding composites.
 
@@ -64,7 +64,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
       difference below 200 digits, but a big help after that.  Certificates
       are identical.
 
-0.10   7 May 2013
+0.10 2013-05-07
 
     - ECPP -- a much faster primality prover.  BLS75 n-1 works well to about
       40 digits, then slows down rapidly.  This ECPP implementation is good
@@ -92,11 +92,11 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - Lots of new internal functions to support ECPP, which could be used
       for future projects.
 
-0.09  21 April 2013
+0.09 2013-04-21
 
     - Add primality certificate generation.
 
-0.08   5 April 2013
+0.08 2013-04-05
 
     - Switch to a projective ECM with a stage 2.  Much better results, but
       note that it doesn't build up to B1 like the old version.  This has
@@ -121,7 +121,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
       in is_prime has a higher success rate for all input sizes and is a
       little faster for small numbers.  is_provable_prime is 10-50x faster.
 
-0.07  19 March 2013
+0.07 2013-03-19
 
     - Tiny speedup when passing in bigints.
 
@@ -131,14 +131,14 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - Handle large and small M-R bases just like MPU does -- mod with n,
       then return 1 if base <= 1 or base >= n-1.
 
-0.06  17 December 2012
+0.06 2012-12-17
 
     - Fix 1-byte memory overrun (thanks to CPAN Testers, Solaris, Valgrind).
 
     - Add factoring of small numbers.  Helps a little when the input gets
       reduced enough to fit into a UV.
 
-0.05  15 December 2012
+0.05 2012-12-15
 
     - Add AKS primality test.  Super slow, but nice to have around.
 
@@ -147,7 +147,7 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - Add a small prime iterator, which means _much_ less memory and faster
       operation for big smoothness factors in pminus1 and ecm factoring.
 
-0.04  11 November 2012
+0.04 2012-11-11
 
     - Add simple prime_count function.  It uses next_prime so is terribly slow
       for big ranges.  However it's a lot faster than the PP code when given
@@ -173,13 +173,13 @@ Revision history for Perl extension Math::Prime::Util::GMP
     - add is_provable_prime function that calls BLS with much more aggressive
       factoring.
 
-0.03  16 July 2012
+0.03 2012-07-16
     - XS callable: _lcm_of_consecutive_integers(B)
       which is a better alternative for B! for many factoring algorithms.
     - Fix some minor compile issues.
 
-0.02  15 July 2012
+0.02 2012-07-15
     - Factoring tests assumed 64-bit.  Rewrite.
 
-0.01  15 July 2012
+0.01 2012-07-15
     - Initial release
