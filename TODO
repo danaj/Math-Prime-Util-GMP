@@ -43,3 +43,5 @@
 - ECPP: Add a fast BLS5 to downrun?
 
 - Add BLS17 proof.  Merge into BLS5 code since the end is the same.
+
+- Add tests for proofs, similar to MPU t/23.

@@ -92,10 +92,10 @@ is_deeply( [is_provable_prime_with_cert(0)],
            [0, ''],
            "is_provable_prime_with_cert(0)");
 { my @scert = is_provable_prime_with_cert(2);
-  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\n2\b/,
+  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\nN 2\b/,
      "is_provable_prime_with_cert(2)"); }
 { my @scert = is_provable_prime_with_cert(96953);
-  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\n96953\b/,
+  ok($scert[0] == 2 && $scert[1] =~ /\bType Small\nN 96953\b/,
      "is_provable_prime_with_cert(96953)"); }
 
 my $proof;
