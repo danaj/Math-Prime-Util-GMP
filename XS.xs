@@ -391,8 +391,8 @@ lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
           XPUSHs(sv_2mortal(newSVpv(strn, 0))); \
         } else { \
           mpz_divexact(n, n, f); \
-          XPUSH_MPZ(n); \
           XPUSH_MPZ(f); \
+          XPUSH_MPZ(n); \
         } \
         mpz_clear(f); \
       } \
