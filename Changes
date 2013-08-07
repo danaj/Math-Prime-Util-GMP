@@ -1,5 +1,9 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.15 2013-08
+
+    - Trim ECPP and adjust its heuristics.
+
 0.14 2013-08-07
 
     - Fix small certificates leaving out the "N " for small numbers.
