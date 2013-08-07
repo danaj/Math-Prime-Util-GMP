@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::Prime::Util::GMP
 
+0.14  7 August 2013
+
+    - Fix small certificates leaving out the "N " for small numbers.
+
 0.13  6 August 2013
 
     [API Changes]

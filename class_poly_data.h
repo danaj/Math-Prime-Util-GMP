@@ -10,7 +10,7 @@ struct _class_poly {
 /* Type:  1 = Hilbert, 2 = Weber */
 /*
  * Selection parameters for this small list:
- *   max H*G: 12
+ *   max H/G: 12
  *   max degree 48
  *   max bytes: $H<=5 ? 4096 : $H<=8 ? 184 : $H<=16 ? 112 : 68
  */
