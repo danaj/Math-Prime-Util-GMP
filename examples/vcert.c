@@ -29,6 +29,9 @@
 /* Preliminary definitions                                                   */
 /*****************************************************************************/
 
+/* Projective doesn't work yet */
+#define USE_AFFINE_EC 1
+
 #define RET_PRIME 0
 #define RET_COMPOSITE 1
 #define RET_INVALID 2
@@ -165,6 +168,7 @@ static void quit_error(const char* msg1, const char* msg2) {
   exit(RET_ERROR);
 }
 
+#if USE_AFFINE_EC
 /*****************************************************************************/
 /* EC: affine with point (x,y,1)                                             */
 /*****************************************************************************/
@@ -308,7 +312,8 @@ static int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point 
   return found;
 }
 
-#if 0
+#else
+
 /*****************************************************************************/
 /* EC: projective with point (X,1,Z) (Montgomery)                            */
 /*****************************************************************************/
@@ -408,6 +413,7 @@ static void pec_mult(mpz_t a, mpz_t b, mpz_t k, mpz_t n, mpz_t x, mpz_t z)
   mpz_clear(u);  mpz_clear(v);  mpz_clear(w);
   mpz_clear(x1);  mpz_clear(x2);  mpz_clear(z1);  mpz_clear(z2);
 }
+
 #endif
 
 /*****************************************************************************/
@@ -832,7 +838,7 @@ void verify_ecpp(void) {
   if (!mpz_divisible_p(M, Q)) quit_invalid("ECPP", "Q divides M");
 
   {
-#if 1
+#if USE_AFFINE_EC
     struct ec_affine_point P0, P1, P2;
     mpz_init_set(P0.x, X);  mpz_init_set(P0.y, Y);
     mpz_init(P1.x); mpz_init(P1.y);
@@ -854,29 +860,58 @@ void verify_ecpp(void) {
     mpz_clear(P1.x); mpz_clear(P1.y);
     mpz_clear(P2.x); mpz_clear(P2.y);
 #else
-    /* I believe the issue here is that we have affine values for A and B,
-     * and we need the Montgomery B.  See Okeya et al. 2000 for text. */
-    mpz_t PX, PY;
-    mpz_init_set(PX, X);
-    mpz_init_set(PY, Y);
+    mpz_t PX, PY, PA, PB;
+    mpz_init(PX);  mpz_init(PY);  mpz_init(PA);  mpz_init(PB);
 
-    mpz_set_ui(T1, 1);
-    mpz_invert(PY, Y, N);          /* z = Y/Z, Y=1  =>  Z = 1/z */
-    mpz_mulmod(PX, PY, X, N, T1);  /* x = X/Z       =>  X = Zx  */
-    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+    /* Make Montgomery variables from affine, Zimmermann & Dodson 2006 */
+    /* X = (3x+a)/3b */
+    mpz_mul_ui(T2, B, 3);
+    mpz_invert(T2, T2, N);
+    mpz_mul_ui(PX, X, 3);
+    mpz_add(PX, PX, A);
+    mpz_mul(PX, PX, T2);
+    mpz_mod(PX, PX, N);
+    /* Y = y/b */
+    mpz_invert(T2, B, N);
+    mpz_mul(PY, Y, T2);
+    mpz_mod(PY, PY, N);
+    /* A = (3-a^2) / 3b^2 */
+    mpz_mul(T2, B, B);
+    mpz_mul_ui(T2, T2, 3);
+    mpz_invert(T2, T2, N);
+    mpz_set_ui(PA, 3);
+    mpz_mul(T1, A, A);
+    mpz_sub(PA, PA, T1);
+    mpz_mul(PA, PA, T2);
+    mpz_mod(PA, PA, N);
+    /* B = (2a^3-9a) / 27b^3 */
+    mpz_mul(T2, B, B);
+    mpz_mul(T2, T2, B);
+    mpz_mul_ui(T2, T2, 27);
+    mpz_invert(T2, T2, N);
+    mpz_mul(PB, A, A);
+    mpz_mul(PB, PB, A);
+    mpz_mul_ui(PB, PB, 2);
+    mpz_mul_ui(T1, A, 9);
+    mpz_sub(PB, PB, T1);
+    mpz_mul(PB, PB, T2);
+    mpz_mod(PB, PB, N);
+
+    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
 
     mpz_divexact(T1, M, Q);
-    pec_mult(A, B, T1, N, PX, PY);
-    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+    pec_mult(PA, PB, T1, N, PX, PY);
+    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
     /* Check that point is not (0,0) */
     if (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0)
       quit_invalid("ECPP", "(M/Q) * EC(A,B,N,X,Y) is not identity");
     mpz_set(T1, Q);
-    pec_mult(A, B, T1, N, PX, PY);
-    gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
+    pec_mult(PA, PB, T1, N, PX, PY);
+    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
     /* Check that point is (0, 0) */
     if (! (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0) )
       quit_invalid("ECPP", "M * EC(A,B,N,X,Y) is identity");
+    mpz_clear(PX);  mpz_clear(PY);  mpz_clear(PA);  mpz_clear(PB);
 #endif
   }
 }
