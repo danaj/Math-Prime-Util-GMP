@@ -29,13 +29,6 @@
   I have this running, but for small numbers it doesn't matter much, and for
   large numbers it just highlights how much nicer FAS would be.
 
-- ECPP: If we are in step M, saying "for this N, if Q is prime then N is
-  prime", and Q comes back from downrun as composite, then we should
-    1: Run more compositeness tests (e.g. frobenius_underwood or some m-rs)
-    2: Continue on trying to find a different Q.
-  This does not automatically mean N is composite (though it would indicate
-  we found a BPSW counterexample).  Make sure we're doing the right thing.
-
 - ECPP: All discriminants with D % 8 != 3 have been converted to Weber.  We're
   still left with lots of those D values.  Figure out a different invariant
   that will make smaller polynomials, along with a root conversion.

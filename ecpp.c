@@ -558,14 +558,17 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
 
   nidigits = mpz_sizeinbase(Ni, 10);
 
-  k = _GMP_is_prob_prime(Ni);
-  if (k == 0)  return 0;
-  if (k == 2) {
+  downresult = _GMP_is_prob_prime(Ni);
+  if (downresult == 0)  return 0;
+  if (downresult == 2) {
     /* No need to put anything in the proof */
     if (verbose) printf("%*sN[%d] (%d dig)  PRIME\n", i, "", i, nidigits);
     return 2;
   }
-  downresult = 1;
+  if (i == 0 && facstage == 2 && _GMP_miller_rabin_random(Ni, 2) == 0) {
+    gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", Ni);
+    return 0;
+  }
 
   VERBOSE_PRINT_N(i, nidigits, *pmaxH, facstage);
 
@@ -729,36 +732,16 @@ end_down:
 
   if (downresult == 2) {
     if (0 && verbose > 1) {
+      gmp_printf("\n");
       if (D == 1) {
-        gmp_printf("\n");
-        gmp_printf("Type BLS3\n");
-        gmp_printf("N  %Zd\n", Ni);
-        gmp_printf("Q  %Zd\n", q);
-        gmp_printf("A  %lu\n", (unsigned long) nm1a);
-        gmp_printf("\n");
-        fflush(stdout);
+        gmp_printf("Type BLS3\nN  %Zd\nQ  %Zd\nA  %"UVuf"\n", Ni, q, nm1a);
       } else if (D == -1) {
-        gmp_printf("\n");
-        gmp_printf("Type BLS15\n");
-        gmp_printf("N  %Zd\n", Ni);
-        gmp_printf("Q  %Zd\n", q);
-        gmp_printf("LP %ld\n", (signed long) np1lp);
-        gmp_printf("LQ %ld\n", (signed long) np1lq);
-        gmp_printf("\n");
-        fflush(stdout);
+        gmp_printf("Type BLS15\nN  %Zd\nQ  %Zd\nLP %"IVdf"\nLQ %"IVdf"\n", Ni, q, np1lp, np1lq);
       } else {
-        gmp_printf("\n");
-        gmp_printf("Type ECPP\n");
-        gmp_printf("N  %Zd\n", Ni);
-        gmp_printf("A  %Zd\n", a);
-        gmp_printf("B  %Zd\n", b);
-        gmp_printf("M  %Zd\n", m);
-        gmp_printf("Q  %Zd\n", q);
-        gmp_printf("X  %Zd\n", P.x);
-        gmp_printf("Y  %Zd\n", P.y);
-        gmp_printf("\n");
-        fflush(stdout);
+        gmp_printf("Type ECPP\nN  %Zd\nA  %Zd\nB  %Zd\nM  %Zd\nQ  %Zd\nX  %Zd\nY  %Zd\n", Ni, a, b, m, q, P.x, P.y);
       }
+      gmp_printf("\n");
+      fflush(stdout);
     }
     /* Prepend our proof to anything that exists. */
     if (prooftextptr != 0) {
@@ -790,6 +773,16 @@ end_down:
         Safefree(*prooftextptr);
       }
       *prooftextptr = proofstr;
+    }
+  }
+
+  /* Ni passed BPSW, so it's highly unlikely to be composite */
+  if (downresult == 0) {
+    if (mpz_probab_prime_p(Ni, 2) == 0) {
+      gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", Ni);
+    } else {
+      /* Q was composite, but we don't seem to be. */
+      downresult = 1;
     }
   }
 
