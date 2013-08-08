@@ -674,7 +674,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       choose_m(mlist, D, u, v, Ni, t, t2);
       for (k = 0; k < 6; k++) {
         int maxH = *pmaxH;
-        int minH = (nidigits < 200) ? 4 : (nidigits+49)/50;
+        int minH = (nidigits <= 250) ? 5 : (nidigits+49)/50;
         facresult = check_for_factor(q, mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
         /* -1 = couldn't find, 0 = no big factors, 1 = found */
         if (facresult <= 0)
@@ -686,7 +686,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           maxH = minH-1 + poly_degree;
           if (facstage > 1)              /* We worked hard to get here, */
             maxH = 2*maxH + 10;          /* try hard to make use of it. */
-        } else if (maxH > minH && maxH > (poly_degree+1)) {
+        } else if (maxH > minH && maxH > (poly_degree+2)) {
           maxH--;
         }
         /* Great, now go down. */
