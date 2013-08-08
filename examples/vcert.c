@@ -15,7 +15,7 @@
  *   3  there is an error in the certificate.
  *
  * TODO: Allow multiple proofs per input file
- * TODO: Projective EC for faster operation
+ * TODO: Projective EC for ~4x faster operation
  */
 
 #include <stdio.h>
@@ -38,9 +38,9 @@
 #define CERT_PRIMO   1
 #define CERT_MPU     2
 
-#define MAX_LINE_LEN 30000
-#define MAX_STEPS    3000
-#define MAX_QARRAY   30
+#define MAX_LINE_LEN 60000
+#define MAX_STEPS    20000
+#define MAX_QARRAY   100
 
 typedef unsigned long UV;
 typedef   signed long IV;
@@ -854,6 +854,8 @@ void verify_ecpp(void) {
     mpz_clear(P1.x); mpz_clear(P1.y);
     mpz_clear(P2.x); mpz_clear(P2.y);
 #else
+    /* I believe the issue here is that we have affine values for A and B,
+     * and we need the Montgomery B.  See Okeya et al. 2000 for text. */
     mpz_t PX, PY;
     mpz_init_set(PX, X);
     mpz_init_set(PY, Y);
