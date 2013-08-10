@@ -290,6 +290,16 @@ The result is that many numbers will return 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through more
 tests than L</is_prob_prime> while not taking too long.
 
+For cryptographic key generation, you may want even more testing for
+probable primes (NIST recommends a few more additional M-R tests than
+we perform).  This can be done using additional random bases with
+L</is_strong_pseudoprime>, or a different test such as
+L</is_frobenius_underwood_pseudoprime>.  Even better, use
+L</is_provable_prime> which should be reasonably fast for sizes under
+2048 bits.
+Another possibility is to use L<Math::Prime::Util/random_maurer_prime> which
+constructs a random provable prime.
+
 
 =head2 is_provable_prime
 
