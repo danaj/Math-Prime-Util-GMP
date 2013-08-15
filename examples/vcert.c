@@ -798,7 +798,34 @@ UV trial_factor(mpz_t n, UV from_n, UV to_n)
 /* Proof verification                                                        */
 /*****************************************************************************/
 
-/* ECPP using N, A, B, M, Q, X, Y */
+/* What each of these does is verify:
+ *      Assume Q is prime.
+ *      Then N is prime based on the proof given.
+ * We verify any necessary conditions on Q (e.g. it must be odd, or > 0, etc.
+ * but do not verify Q prime.  That is done in another proof step.
+ */
+
+/* ECPP using N, A, B, M, Q, X, Y
+ *
+ * Atkin, Morain 1992
+ * Page 10, Theorem 5.2:
+ *  "Let N be an integer prime to 6, E an elliptic curve over Z/NZ, together
+ *   with a point P on E and m and s two integers with s | m.  For each prime
+ *   divisor q of s, we put (m/q)P = (x_q : y_q : z_q).  We assume that
+ *   mP = O_E and gcd(z_q,N) = 1 for all q.  Then, if p is a prime divisor
+ *   of N, one has #E(Z/pZ) = 0 mod s."
+ * Page 10, Corollary 5.1:
+ *  "With the same conditions, if s > (N^(1/4) + 1)^2, then N is prime."
+ *
+ * Wikipedia, "Elliptic curve primality testing":
+ *  "Let N be a positive integer, and E be the set which is defined by the
+ *   equation y^2 = x^3 + ax + b (mod N).  Consider E over Z/NZ, use the
+ *   usual addition law on E, and write O for the neutral element on E.
+ *   Let m be an integer.  If there is a prime q which divides m, and is
+ *   greater than (N^(1/4) + 1)^2 and there exists a point P on E such that
+ *   (1) mP = O, (2) (m/q)P is defined and not equal to O, then N is prime."
+ *
+ */
 void verify_ecpp(void) {
   mpz_mod(A, A, N);
   mpz_mod(B, B, N);
@@ -863,39 +890,37 @@ void verify_ecpp(void) {
     mpz_t PX, PY, PA, PB;
     mpz_init(PX);  mpz_init(PY);  mpz_init(PA);  mpz_init(PB);
 
-    /* Make Montgomery variables from affine, Zimmermann & Dodson 2006 */
-    /* X = (3x+a)/3b */
-    mpz_mul_ui(T2, B, 3);
-    mpz_invert(T2, T2, N);
+    /* Make Montgomery variables from affine */
+
+    mpz_add(PB, X, A);
+    mpz_mul(PB, PB, X);
+    mpz_add_ui(PB, PB, 1);
+    mpz_mul(PB, PB, X);
+    mpz_mod(PB, PB, N);
+
+    mpz_mul_ui(T2, PB, 3);
+    mpz_mul(T2, T2, PB);
+    mpz_mod(T2, T2, N);
+    mpz_gcdext(T2, T1, NULL, T2, N); /* T1 = 1/3g^2 */
+    if (mpz_cmp_ui(T2,1) != 0) quit_invalid("ECPP", "Factor found during gcd");
+
     mpz_mul_ui(PX, X, 3);
     mpz_add(PX, PX, A);
-    mpz_mul(PX, PX, T2);
+    mpz_mul(PX, PX, PB);
+    mpz_mul(PX, PX, T1);
     mpz_mod(PX, PX, N);
-    /* Y = y/b */
-    mpz_invert(T2, B, N);
-    mpz_mul(PY, Y, T2);
-    mpz_mod(PY, PY, N);
-    /* A = (3-a^2) / 3b^2 */
-    mpz_mul(T2, B, B);
-    mpz_mul_ui(T2, T2, 3);
-    mpz_invert(T2, T2, N);
-    mpz_set_ui(PA, 3);
-    mpz_mul(T1, A, A);
-    mpz_sub(PA, PA, T1);
-    mpz_mul(PA, PA, T2);
+
+    mpz_set(PY, Y);
+    mpz_mul_ui(PY, PY, 3);
+    mpz_mul(PY, PY, PB);
+    mpz_mul(PY, PY, T1);
+    mpz_mod(PY, PY, N);  /* y = (3gY)/(3g^2) = Y/g */
+
+    mpz_mul(PA, A, A);
+    mpz_sub_ui(PA, PA, 3);
+    mpz_neg(PA, PA);
+    mpz_mul(PA, PA, T1);
     mpz_mod(PA, PA, N);
-    /* B = (2a^3-9a) / 27b^3 */
-    mpz_mul(T2, B, B);
-    mpz_mul(T2, T2, B);
-    mpz_mul_ui(T2, T2, 27);
-    mpz_invert(T2, T2, N);
-    mpz_mul(PB, A, A);
-    mpz_mul(PB, PB, A);
-    mpz_mul_ui(PB, PB, 2);
-    mpz_mul_ui(T1, A, 9);
-    mpz_sub(PB, PB, T1);
-    mpz_mul(PB, PB, T2);
-    mpz_mod(PB, PB, N);
 
     //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
 
@@ -916,7 +941,18 @@ void verify_ecpp(void) {
   }
 }
 
-/* Basic N+1 using N, Q, LP, LQ */
+/* Basic N+1 using N, Q, LP, LQ
+ *
+ * John Brillhart, D.H. Lehmer, J.L. Selfridge,
+ *   "New Primality Criteria and Factorizations of 2^m +/- 1"
+ * Mathematics of Computation, v29, n130, April 1975, pp 620-647.
+ * http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf
+ *
+ * Page 631, Theorem 15:
+ *  "Let N+1 = mq, where q is an odd prime such that 2q-1 > sqrt(N).
+ *   If there exists a Lucas sequence {V_k} of discriminant D with
+ *   (D|N) = -1 for which N|V_{(N+1)/2}, but N∤V_{m/2}, then N is prime."
+ */
 void verify_bls15(void) {
   if (mpz_even_p(Q))            quit_invalid("BLS15", "Q odd");
   if (mpz_cmp_ui(Q, 2) <= 0)    quit_invalid("BLS15", "Q > 2");
@@ -958,7 +994,28 @@ void verify_bls15(void) {
   }
 }
 
-/* Simplistic N-1 using N, Q, A */
+/* Simplistic N-1 using N, Q, A
+ *
+ * Hans Riesel, "Prime Numbers and Computer Methods for Factorization"
+ * page 103-104, Theorem 4.6:
+ *  "Suppose N-1 = R*F = R prod(j=1,n,q_j^{B_j}), with all q_j's distinct
+ *   primes, with GCD(R,F) = 1 and R < F.  If an integer a can be found, s.t.
+ *     GCD(A^((N-1)/q_j)-1,N) = 1 for all j=1..n
+ *   and satisfying
+ *     a^(N-1) = 1 mod N
+ *   then N is a prime."
+ *
+ * Now make the severe restriction that F must be a single prime q.  This then
+ * reduces to the Wikipedia "Pocklington primality test":
+ *  "Let N > 1 be an integer, and suppose there exist numbers a and q such that
+ *   (1) q is prime, q|N-1 and q > sqrt(N)-1
+ *   (2) a^(N-1) = 1 mod N
+ *   (3) gcd(a^((N-1)/q)-1,N) = 1
+ *   Then N is prime."
+ *
+ * Note that BLS75 theorem 3 is similar, but also allows a smaller q.  Also,
+ * BLS75 theorem 5 is a much better method than generalized Pocklington.
+ */
 void verify_pocklington(void)
 {
   mpz_sub_ui(T2, N, 1);
@@ -979,7 +1036,19 @@ void verify_pocklington(void)
   mpz_gcd(T1, T1, N);
   if (mpz_cmp_ui(T1, 1) != 0)   quit_invalid("Pocklington", "gcd(A^M - 1, N) = 1");
 }
-/* Basic N-1 using N, Q, A */
+
+/* Basic N-1 using N, Q, A
+ *
+ * John Brillhart, D.H. Lehmer, J.L. Selfridge,
+ *   "New Primality Criteria and Factorizations of 2^m +/- 1"
+ * Mathematics of Computation, v29, n130, April 1975, pp 620-647.
+ * http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf
+ *
+ * Page 622-623, Theorem 3:
+ *  "Let N-1 = mp, where p is an odd prime such that 2p+1 > sqrt(N).
+ *   If there exists an a for which a^((N-1)/2) = -1 mod N,
+ *   but a^(m/2) != -1 mod N, then N is prime."
+ */
 void verify_bls3(void) {
   if (mpz_even_p(Q))            quit_invalid("BLS3", "Q odd");
   if (mpz_cmp_ui(Q, 2) <= 0)    quit_invalid("BLS3", "Q > 2");
@@ -1003,11 +1072,38 @@ void verify_bls3(void) {
   if (mpz_cmp(T1, T2) == 0)     quit_invalid("BLS3", "A^(M/2) != N-1 mod N");
 }
 
-/* Sophisticated N-1 using N, QARRAY, AARRAY */
+/* Sophisticated N-1 using N, QARRAY, AARRAY
+ *
+ * John Brillhart, D.H. Lehmer, J.L. Selfridge,
+ *   "New Primality Criteria and Factorizations of 2^m +/- 1"
+ * Mathematics of Computation, v29, n130, April 1975, pp 620-647.
+ * http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf
+ *
+ * Page 621-622: "The expression 'N is a psp base a' will be used for a
+ * number N which satisfies the congruence a^(N-1) = 1 mod N, 1 < a < N-1,
+ * i.e., N is a "pseudoprime" base a."
+ * Page 623: "Throughout the rest of this paper the notation N-1 = F_1 R_1
+ * will be used, where F_1 is the even factored portion of N-1, R_1 is > 1,
+ * and (F_1,R_1) = 1."
+ * Page 623: "(I) For each prime p_i dividing F_1 there exists an a_i such
+ * that N is a psp base a_i and (a_i^((N-1)/p_i),N) = 1."
+ * Page 624, Theorem 5.
+ *  "Assume (I) and let m be >= 1.
+ *   When m > 1, assume further that λF_1 + 1 ∤ N for 1 <= λ < m.
+ *   If N < (mF_1 + 1) [2(F_1)^2 + (r-m)F_1 + 1],
+ *   where r and s are defined by R_1 = (N-1)/F_1 = 2(F_1)s + r, 1 <= r < 2F_1,
+ *   then N is prime if and only if s = 0 or r^2 - 8s is not a perfect square.
+ *   r != 0 since R_1 is odd."
+ *
+ * Note that we are using m=1, which is simple for the verifier.
+ *
+ */
 void verify_bls5(int num_qs) {
   int i;
   mpz_t F, R, s, r;
 
+  if (mpz_cmp_ui(N, 2) <= 0)   quit_invalid("BLS5", "N > 2");
+  if (mpz_even_p(N))           quit_invalid("BLS5", "N odd");
   mpz_sub_ui(T2, N, 1);
   mpz_init_set_ui(F, 1);
   mpz_init_set(R, T2);
@@ -1016,7 +1112,7 @@ void verify_bls5(int num_qs) {
     if (mpz_cmp_ui(QARRAY[i], 1 ) <= 0)  quit_invalid("BLS5", "Q > 1");
     if (mpz_cmp(   QARRAY[i], T2) >= 0)  quit_invalid("BLS5", "Q < N-1");
     if (mpz_cmp_ui(AARRAY[i], 1 ) <= 0)  quit_invalid("BLS5", "A > 1");
-    if (mpz_cmp(   AARRAY[i], N ) >= 0)  quit_invalid("BLS5", "A < N");
+    if (mpz_cmp(   AARRAY[i], T2) >= 0)  quit_invalid("BLS5", "A < N-1");
     if (!mpz_divisible_p(T2, QARRAY[i])) quit_invalid("BLS5", "Q divides N-1");
     while (mpz_divisible_p(R, QARRAY[i])) {
       mpz_mul(F, F, QARRAY[i]);
@@ -1024,8 +1120,8 @@ void verify_bls5(int num_qs) {
     }
   }
   mpz_mul(T1, R, F);
-  if (mpz_cmp(T1, T2) != 0) quit_invalid("BLS5", "R == (N-1)/F");
-  if (mpz_odd_p(F))         quit_invalid("BLS5", "F is even");
+  if (mpz_cmp(T1, T2) != 0)    quit_invalid("BLS5", "R == (N-1)/F");
+  if (mpz_odd_p(F))            quit_invalid("BLS5", "F is even");
   mpz_gcd(T1, F, R);
   if (mpz_cmp_ui(T1, 1) != 0)  quit_invalid("BLS5", "gcd(F, R) = 1");
   mpz_mul_ui(T1, F, 2);
@@ -1038,7 +1134,7 @@ void verify_bls5(int num_qs) {
   mpz_add_ui(T1, T1, 1);  /* T1 = 2*F*F + (r-1)*F + 1 */
   mpz_add_ui(T2, F, 1);
   mpz_mul(T1, T1, T2);    /* T1 = (F+1) * (2*F*F + (r-1)*F + 1) */
-  if (mpz_cmp(N, T1) >= 0) quit_invalid("BLS5", "N < P");
+  if (mpz_cmp(N, T1) >= 0) quit_invalid("BLS5", "N < (F+1)(2F^2+(r-1)F+1)");
   if (mpz_sgn(s) != 0) {
     mpz_mul(T2, r, r);
     mpz_submul_ui(T2, s, 8);  /* T2 = r*r - 8*s */
@@ -1058,7 +1154,16 @@ void verify_bls5(int num_qs) {
   }
 }
 
-/* Most basic N-1 using N, QARRAY, A */
+/* Most basic N-1 using N, QARRAY, A
+ *
+ * D.H. Lehmer, "Tests for Primality by the Converse of Fermat's Theorem"
+ * Bull. AMS, v33, n3, 1927, pp 327-340.
+ * http://projecteuclid.org/DPubS?service=UI&version=1.0&verb=Display&handle=euclid.bams/1183492108
+ *
+ * Page 330, Theorem 2:
+ *  "If a^x = 1 mod N for x = N-1, but not for x a quotient of N-1 on
+ *   division by any of its prime factors, then N is a prime."
+ */
 void verify_lucas(int num_qs) {
   int i;
   mpz_sub_ui(T2, N, 1);
