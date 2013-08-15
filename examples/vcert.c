@@ -807,7 +807,10 @@ UV trial_factor(mpz_t n, UV from_n, UV to_n)
 
 /* ECPP using N, A, B, M, Q, X, Y
  *
- * Atkin, Morain 1992
+ * A.O.L. Atkin and F. Morain, "Elliptic Curves and primality proving"
+ * Mathematics of Computation, v61, 1993, pages 29-68.
+ * http://www.ams.org/journals/mcom/1993-61-203/S0025-5718-1993-1199989-X/
+ *
  * Page 10, Theorem 5.2:
  *  "Let N be an integer prime to 6, E an elliptic curve over Z/NZ, together
  *   with a point P on E and m and s two integers with s | m.  For each prime
@@ -817,6 +820,9 @@ UV trial_factor(mpz_t n, UV from_n, UV to_n)
  * Page 10, Corollary 5.1:
  *  "With the same conditions, if s > (N^(1/4) + 1)^2, then N is prime."
  *
+ * Basically this same result is repeated in Crandall and Pomerance 2005,
+ * Theorem 7.6.1 "Goldwasser-Kilian ECPP theorem".
+ *
  * Wikipedia, "Elliptic curve primality testing":
  *  "Let N be a positive integer, and E be the set which is defined by the
  *   equation y^2 = x^3 + ax + b (mod N).  Consider E over Z/NZ, use the
@@ -825,6 +831,8 @@ UV trial_factor(mpz_t n, UV from_n, UV to_n)
  *   greater than (N^(1/4) + 1)^2 and there exists a point P on E such that
  *   (1) mP = O, (2) (m/q)P is defined and not equal to O, then N is prime."
  *
+ * We use the restricted form as stated by Wikipedia, and as used in the
+ * Atkin/Morain ECPP algorithm, where s is a prime.
  */
 void verify_ecpp(void) {
   mpz_mod(A, A, N);
