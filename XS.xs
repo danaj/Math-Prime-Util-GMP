@@ -15,7 +15,9 @@
 #include "bls75.h"
 #include "ecpp.h"
 #include "utility.h"
-#define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
+#define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
+   _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
+
 
 /* Instead of trying to suck in lots of Math::BigInt::GMP and be terribly
  * clever (and brittle), just do all C<->Perl bigints via strings.  It's
@@ -474,13 +476,13 @@ ecm_factor(IN char* strn, IN UV bmax = 0, IN UV ncurves = 100)
   PPCODE:
     SIMPLE_FACTOR_START("ecm_factor");
     if (bmax == 0) {
-                    success = _GMP_ecm_factor_projective(n, f,     1000, 40);
-      if (!success) success = _GMP_ecm_factor_projective(n, f,    10000, 40);
-      if (!success) success = _GMP_ecm_factor_projective(n, f,   100000, 40);
-      if (!success) success = _GMP_ecm_factor_projective(n, f,  1000000, 40);
-      if (!success) success = _GMP_ecm_factor_projective(n, f, 10000000, 100);
+                    success = _GMP_ECM_FACTOR(n, f,     1000, 40);
+      if (!success) success = _GMP_ECM_FACTOR(n, f,    10000, 40);
+      if (!success) success = _GMP_ECM_FACTOR(n, f,   100000, 40);
+      if (!success) success = _GMP_ECM_FACTOR(n, f,  1000000, 40);
+      if (!success) success = _GMP_ECM_FACTOR(n, f, 10000000, 100);
     } else {
-      success = _GMP_ecm_factor_projective(n, f, bmax, ncurves);
+      success = _GMP_ECM_FACTOR(n, f, bmax, ncurves);
     }
     SIMPLE_FACTOR_END;
 

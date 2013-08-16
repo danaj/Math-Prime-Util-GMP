@@ -565,16 +565,17 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   return (found) ? 2 : 0;
 }
 
-int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV ncurves)
+int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
 {
   mpz_t sigma, a, x, z;
   UV i, curve, q, k;
-  UV B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
   int found = 0;
   gmp_randstate_t* p_randstate = get_randstate();
   int _verbose = get_verbose_level();
 
   TEST_FOR_2357(n, f);
+
+  if (B2 < B1)  B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
 
   mpz_init_set(ecn, n);
   mpz_init(x);   mpz_init(z);   mpz_init(a);   mpz_init(b);

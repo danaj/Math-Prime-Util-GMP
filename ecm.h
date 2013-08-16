@@ -11,6 +11,6 @@ extern int ec_affine_multiply(
   mpz_t d);
 
 extern int  _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV BMax, UV ncurves);
-extern int  _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV BMax, UV ncurves);
+extern int  _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves);
 
 #endif

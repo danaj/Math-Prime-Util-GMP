@@ -11,7 +11,8 @@
 #include "small_factor.h"
 #include "simpqs.h"
 #include "ecm.h"
-#define _GMP_ECM_FACTOR _GMP_ecm_factor_projective
+#define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
+   _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 #include "utility.h"
 
 /*
