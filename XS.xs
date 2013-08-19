@@ -102,6 +102,7 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
     if ((strn != 0) && (strn[0] == '-') ) \
       XSRETURN_IV(0); \
     validate_string_number(name " (n)", strn); \
+    /* Handle single digit numbers */ \
     if (strn[1] == 0) { \
       int q_is_prime = 0; \
       switch (strn[0]) { \
@@ -109,6 +110,19 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
                                                 break; \
       } \
       XSRETURN_IV(q_is_prime); \
+    } \
+    /* Test for small multiples while it is still a string */ \
+    { \
+      UV digsum = 0; \
+      int i, slen = strlen(strn); \
+      /* Multiples of 2 and 5 return 0 */ \
+      switch (slen) { \
+        case '0': case '2': case '4': case '5': case '6': case '8': \
+           XSRETURN_IV(0); break; \
+      } \
+      /* Multiples of 3 return 0 */ \
+      for (i = 0; i < slen; i++)  digsum += strn[i]-'0'; \
+      if (digsum % 3 == 0)  XSRETURN_IV(0); \
     } \
     mpz_init_set_str(n, strn, 10);
 
@@ -162,6 +176,7 @@ is_prime(IN char* strn)
     mpz_t n;
     int ret;
   CODE:
+    /* Returns arg for single-dig primes, 0 for multiples of 2, 3, 5, or neg */
     PRIMALITY_START("is_prime", 2);
     switch (ix) {
       case 0: ret = _GMP_is_prime(n); break;
