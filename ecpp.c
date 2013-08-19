@@ -674,7 +674,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       choose_m(mlist, D, u, v, Ni, t, t2);
       for (k = 0; k < 6; k++) {
         int maxH = *pmaxH;
-        int minH = (nidigits <= 250) ? 5 : (nidigits+49)/50;
+        int minH = (nidigits <= 240) ? 6 : (nidigits+39)/40;
         facresult = check_for_factor(q, mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
         /* -1 = couldn't find, 0 = no big factors, 1 = found */
         if (facresult <= 0)
@@ -843,8 +843,11 @@ static void dieusage(char* prog) {
   printf("   -v     set verbose\n");
   printf("   -V     set extra verbose\n");
   printf("   -c     print certificate\n");
-  printf("   -nm1   use n-1 proof only\n");
+  printf("   -nm1   use n-1 proof only (BLS75 theorem 5)\n");
   printf("   -aks   use AKS for proof\n");
+#ifdef USE_APRCL
+  printf("   -aprcl use APR-CL for proof\n");
+#endif
   printf("   -help  this message\n");
   exit(1);
 }
