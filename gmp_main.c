@@ -14,9 +14,12 @@
 #include "utility.h"
 
 static mpz_t _bgcd;
-#define BGCD_PRIMES      168
-#define BGCD_LASTPRIME   997
-#define BGCD_NEXTPRIME  1009
+static mpz_t _bgcd2;
+#define BGCD_PRIMES       168
+#define BGCD_LASTPRIME    997
+#define BGCD_NEXTPRIME   1009
+#define BGCD2_PRIMES     3245
+#define BGCD2_NEXTPRIME 30011
 
 void _GMP_init(void)
 {
@@ -28,6 +31,7 @@ void _GMP_init(void)
   prime_iterator_global_startup();
   mpz_init(_bgcd);
   _GMP_pn_primorial(_bgcd, BGCD_PRIMES);   /* mpz_primorial_ui(_bgcd, 1000) */
+  mpz_init_set_ui(_bgcd2, 0);
 }
 
 void _GMP_destroy(void)
@@ -35,6 +39,7 @@ void _GMP_destroy(void)
   prime_iterator_global_shutdown();
   clear_randstate();
   mpz_clear(_bgcd);
+  mpz_clear(_bgcd2);
   destroy_ecpp_gcds();
 }
 
@@ -605,7 +610,6 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 
 int _GMP_is_prob_prime(mpz_t n)
 {
-  UV log2n;
   /*  Step 1: Look for small divisors.  This is done purely for performance.
    *          It is *not* a requirement for the BPSW test. */
 
@@ -617,26 +621,36 @@ int _GMP_is_prob_prime(mpz_t n)
   if ( mpz_even_p(n)
     || mpz_divisible_ui_p(n, 3)
     || mpz_divisible_ui_p(n, 5) ) return 0;
-  /* Do a big GCD with all primes < 1009 */
+  /* Do a GCD with all primes < 1009 */
   {
+    UV log2n;
     mpz_t t;
-    int r;
     mpz_init(t);
     mpz_gcd(t, n, _bgcd);
-    r = mpz_cmp_ui(t, 1);
-    mpz_clear(t);
-    if (r != 0)
+    if (mpz_cmp_ui(t, 1)) {
+      mpz_clear(t);
       return 0;
+    }
+    /* For large numbers, it's worth our time to do more trial division. */
+    log2n = mpz_sizeinbase(n,2);
+    if (log2n > 200) {
+      /* Create large primorial for doing a gcd (without the small primorial) */
+      if (mpz_sgn(_bgcd2) == 0)  {
+        _GMP_pn_primorial(_bgcd2, BGCD2_PRIMES);
+        mpz_divexact(_bgcd2, _bgcd2, _bgcd);
+      }
+      mpz_gcd(t, n, _bgcd2);
+      if ( mpz_cmp_ui(t, 1) ||
+           (log2n*40 > BGCD2_NEXTPRIME && _GMP_trial_factor(n, BGCD2_NEXTPRIME, log2n*40)) ) {
+        mpz_clear(t);
+        return 0;
+      }
+    }
+    mpz_clear(t);
   }
   /* No divisors under 1009 */
   if (mpz_cmp_ui(n, BGCD_NEXTPRIME*BGCD_NEXTPRIME) < 0)
     return 2;
-
-  /* For very large numbers, it's worth our time to do more trial division.
-   * This is a 1.3 - 2x speedup for big next_prime, for instance. */
-  log2n = mpz_sizeinbase(n,2);
-  if (log2n > 300 && _GMP_trial_factor(n, BGCD_LASTPRIME, log2n*50))
-    return 0;
 
   /*  Step 2: The BPSW test.  psp base 2 and slpsp. */
 
@@ -937,22 +951,38 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
-#define HALF_UI_WORD (UVCONST(1) << (sizeof(unsigned long)/2))
+#define HALF_UI_WORD (UVCONST(1) << (sizeof(unsigned long)*4))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV p = 2;
   PRIME_ITERATOR(iter);
+  mpz_t acc;
+  int k = -20;
 
   mpz_set_ui(prim, 1);
-  while (n > 0) {
-    unsigned long a = 1;
-    do {
-      a *= p;
-      p = prime_iterator_next(&iter);
-    } while (--n && (a|(unsigned long)p) < HALF_UI_WORD);
-    mpz_mul_ui(prim, prim, a);
+  mpz_init_set_ui(acc, 1);
+  while (n >= 2 && p < HALF_UI_WORD) {
+    mpz_mul_ui(acc, acc, p * prime_iterator_next(&iter));
+    p = prime_iterator_next(&iter);
+    n -= 2;
+    if (k++ > 24) {
+      mpz_mul(prim, prim, acc);
+      mpz_set_ui(acc, 1);
+      k = 0;
+    }
+  }
+  while (n-- > 0) {
+    mpz_mul_ui(acc, acc, p);
+    p = prime_iterator_next(&iter);
+    if (k++ > 16) {
+      mpz_mul(prim, prim, acc);
+      mpz_set_ui(acc, 1);
+      k = 0;
+    }
   }
   prime_iterator_destroy(&iter);
+  mpz_mul(prim, prim, acc);
+  mpz_clear(acc);
 }
 void _GMP_primorial(mpz_t prim, mpz_t n)
 {
