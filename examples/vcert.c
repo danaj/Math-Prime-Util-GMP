@@ -1,6 +1,6 @@
 /*
  * Verify Cert
- * version 0.9
+ * version 0.91
  *
  * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
@@ -881,7 +881,6 @@ void verify_ecpp(void) {
     mpz_divexact(T1, M, Q);
     if (ec_affine_multiply(A, T1, N, P0, &P2, T2))
       quit_invalid("ECPP", "Factor found for N");
-    mpz_divexact(T1, M, Q);
     /* Check that P2 is not (0,1) */
     if (mpz_cmp_ui(P2.x, 0) == 0 && mpz_cmp_ui(P2.y, 1) == 0)
       quit_invalid("ECPP", "(M/Q) * EC(A,B,N,X,Y) is not identity");
@@ -898,8 +897,20 @@ void verify_ecpp(void) {
     mpz_t PX, PY, PA, PB;
     mpz_init(PX);  mpz_init(PY);  mpz_init(PA);  mpz_init(PB);
 
-    /* Make Montgomery variables from affine */
+    /* We have A,B,X,Y in affine coordinates, for the curve:
+     *   Y^2 = X^3 + AX + B
+     * and want to turn this into points on a Montgomery curve:
+     *   by^2 = x^3 + ax^2 + x
+     * so we can use the much faster (~4x) multiplication routines.
+     * The inverse of this operation is:
+     *    X = (3x+a)/3b
+     *    Y = y/b
+     *    A = (3-a^2)/(3b^2)
+     *    B = (2a^3-9a)/27b^3
+     * In our case we need to do the harder job of going the other direction.
+     */
 
+    /* Make Montgomery variables from affine (TODO: make this work) */
     mpz_add(PB, X, A);
     mpz_mul(PB, PB, X);
     mpz_add_ui(PB, PB, 1);
@@ -1284,7 +1295,8 @@ void add_chain(mpz_t n, mpz_t q) {
   _num_chains++;
 }
 void free_chains(void) {
-  while (_num_chains-- > 0) {
+  while (_num_chains > 0) {
+    _num_chains--;
     mpz_clear(_chain_n[_num_chains]);
     mpz_clear(_chain_q[_num_chains]);
   }
@@ -1454,7 +1466,8 @@ void parse_top(void)
       }
     }
   }
-  gmp_printf("N: %Zd (%d digits)\n", PROOFN, (int)mpz_sizeinbase(PROOFN, 10));
+  if (!_quiet)
+    gmp_printf("N: %Zd (%d digits)\n", PROOFN, (int)mpz_sizeinbase(PROOFN, 10));
   if (is_prob_prime(PROOFN) == 0)
     quit_composite();
   mpz_set(N, PROOFN);
@@ -1589,7 +1602,7 @@ static void dieusage(const char* prog) {
   printf("Usage: %s [options] <file>\n\n", prog);
   printf("Options:\n");
   printf("   -v     set verbose\n");
-  printf("   -q     set quiet\n");
+  printf("   -q     set quiet (no output, only exit code)\n");
   printf("   -help  this message\n");
   var_free();
   exit(RET_INVALID);
