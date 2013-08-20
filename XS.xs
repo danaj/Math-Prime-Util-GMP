@@ -97,7 +97,7 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
   OUTPUT:
     RETVAL
 
-#define PRIMALITY_START(name, small_retval) \
+#define PRIMALITY_START(name, small_retval, test_small_factors) \
     /* Negative numbers return 0 */ \
     if ((strn != 0) && (strn[0] == '-') ) \
       XSRETURN_IV(0); \
@@ -112,11 +112,11 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
       XSRETURN_IV(q_is_prime); \
     } \
     /* Test for small multiples while it is still a string */ \
-    { \
+    if (test_small_factors) { \
       UV digsum = 0; \
       int i, slen = strlen(strn); \
       /* Multiples of 2 and 5 return 0 */ \
-      switch (slen) { \
+      switch (strn[slen]) { \
         case '0': case '2': case '4': case '5': case '6': case '8': \
            XSRETURN_IV(0); break; \
       } \
@@ -137,7 +137,7 @@ is_lucas_pseudoprime(IN char* strn)
   CODE:
     if ((strn != 0) && (strn[0] == '-') )
       croak("Parameter '%s' must be a positive integer\n", strn);
-    PRIMALITY_START("is_lucas_pseudoprime", 1);
+    PRIMALITY_START("is_lucas_pseudoprime", 1, 0);
     switch (ix) {
       case 0: RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
       case 1: RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
@@ -158,7 +158,7 @@ is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
       croak("Parameter '%s' must be a positive integer\n", strn);
     if (increment == 0 || increment > 65535)
       croak("Increment parameter must be >0 and < 65536");
-    PRIMALITY_START("is_almost_extra_strong_lucas_pseudoprime", 1);
+    PRIMALITY_START("is_almost_extra_strong_lucas_pseudoprime", 1, 0);
     RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n, increment);
     mpz_clear(n);
   OUTPUT:
@@ -177,7 +177,7 @@ is_prime(IN char* strn)
     int ret;
   CODE:
     /* Returns arg for single-dig primes, 0 for multiples of 2, 3, 5, or neg */
-    PRIMALITY_START("is_prime", 2);
+    PRIMALITY_START("is_prime", 2, 1);
     switch (ix) {
       case 0: ret = _GMP_is_prime(n); break;
       case 1: ret = _GMP_is_prob_prime(n); break;
@@ -198,7 +198,7 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
     int result;
     mpz_t n;
   PPCODE:
-    PRIMALITY_START("is_provable_prime", 2);
+    PRIMALITY_START("is_provable_prime", 2, 1);
     if (wantproof == 0) {
       result = _GMP_is_provable_prime(n, 0);
       XPUSHs(sv_2mortal(newSViv( result )));
