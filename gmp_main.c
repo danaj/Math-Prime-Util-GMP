@@ -18,8 +18,8 @@ static mpz_t _bgcd2;
 #define BGCD_PRIMES       168
 #define BGCD_LASTPRIME    997
 #define BGCD_NEXTPRIME   1009
-#define BGCD2_PRIMES     3245
-#define BGCD2_NEXTPRIME 30011
+#define BGCD2_PRIMES     2262
+#define BGCD2_NEXTPRIME 20011
 
 void _GMP_init(void)
 {
@@ -554,31 +554,113 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
-  int small_n = 0;
-  UV f = 2;
+  size_t log2n = mpz_sizeinbase(n, 2);
+  UV p;
   PRIME_ITERATOR(iter);
 
   if (mpz_cmp_ui(n, 4) < 0) {
-    return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;   /* 0,1 => 1   2,3 => 0 */
+    prime_iterator_destroy(&iter);
+    return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;  /* 0,1 => 1   2,3 => 0 */
   }
-  if ( (from_n <= 2) && mpz_even_p(n) )   return 2;
+  if ((from_n <= 2) && (to_n >= 2) && mpz_even_p(n)           )
+    { prime_iterator_destroy(&iter);  return 2; }
+  if ((from_n <= 3) && (to_n >= 3) && mpz_divisible_ui_p(n, 3))
+    { prime_iterator_destroy(&iter);  return 3; }
+  if ((from_n <= 5) && (to_n >= 5) && mpz_divisible_ui_p(n, 5))
+    { prime_iterator_destroy(&iter);  return 5; }
 
+  if (from_n < 7)
+    from_n = 7;
   if (from_n > to_n)
-    croak("GMP_trial_factor from > to: %"UVuf" - %"UVuf, from_n, to_n);
+    { prime_iterator_destroy(&iter);  return 0; }
+  /* p will be the next prime >= from_n */
+  prime_iterator_setprime(&iter, from_n-1);
+  p = prime_iterator_next(&iter);
 
-  if (mpz_cmp_ui(n, to_n*to_n) < 0)
-    small_n = 1;
-
-  /* Skip forward to the next prime >= from_n */
-  while (f < from_n)
-    f = prime_iterator_next(&iter);
-
-  for (; f <= to_n; f = prime_iterator_next(&iter)) {
-    if (small_n && mpz_cmp_ui(n, f*f) < 0) break;
-    if (mpz_divisible_ui_p(n, f)) { prime_iterator_destroy(&iter); return f; }
+  /* All native math if n fits in an unsigned long */
+  if (log2n <= sizeof(unsigned long)*8) {
+    unsigned long un = mpz_get_ui(n);
+    unsigned long sqrtn = (unsigned long) sqrt((double)un);
+    while (sqrtn*sqrtn > un) sqrtn--;
+    while ((sqrtn+1)*(sqrtn+1) <= un)  sqrtn++;
+    if (to_n > sqrtn)
+      to_n = sqrtn;
+    while (p <= to_n) {
+      if ((un % p) == 0)
+        break;
+      p = prime_iterator_next(&iter);
+    }
+    prime_iterator_destroy(&iter);
+    return (p <= to_n) ? p : 0;
   }
-  prime_iterator_destroy(&iter);
-  return 0;
+
+  /* Simple search for early portions */
+  {
+    UV small_to = (to_n > 5000) ? 5000 : to_n;
+    while (p <= small_to) {
+      if (mpz_divisible_ui_p(n, p))
+        break;
+      p = prime_iterator_next(&iter);
+    }
+    if (p <= small_to || p > to_n) {
+      prime_iterator_destroy(&iter);
+      return (p <= small_to) ? p : 0;
+    }
+  }
+
+  /* Simple fixed-height treesieve.
+   * Credit to Jens K Andersen for writing up the generic algorithm.
+   * This is much faster than simple divisibility for really big numbers.
+   * Note that this version is fixed height so doesn't do justice to
+   * the idea if one is sieving very deep.  I am interested in controlling
+   * memory use, and our numbers are typically not so huge.
+   * TODO: It ought to be another layer deep.
+   */
+  {
+    int i, j, found = 0;
+    unsigned long xn[8*128];  /* max leafsize of 128 */
+    mpz_t x200[8], r200[8], x400[4], r400[4], x800[2], r800[2], x1600, r1600;
+    const int leafsize = (log2n < 1000) ? 16 : (log2n < 5000) ? 32 : (log2n < 10000) ? 64 : 128;
+
+    for (i = 0; i < 8; i++) { mpz_init(x200[i]); mpz_init(r200[i]); }
+    for (i = 0; i < 4; i++) { mpz_init(x400[i]); mpz_init(r400[i]); }
+    for (i = 0; i < 2; i++) { mpz_init(x800[i]); mpz_init(r800[i]); }
+    mpz_init(x1600); mpz_init(r1600);
+
+    while (!found && p <= to_n) {
+      for (i = 0; i < 8; i++) {
+        mpz_set_ui(x200[i], 1);
+        for (j = 0; j < leafsize; j++) {
+          xn[i*leafsize+j] = p;
+          mpz_mul_ui(x200[i], x200[i], xn[i*leafsize+j]);
+          p = prime_iterator_next(&iter);
+        }
+      }
+      for (i = 0; i < 4; i++)
+        mpz_mul(x400[i], x200[2*i+0], x200[2*i+1]);
+      for (i = 0; i < 2; i++)
+        mpz_mul(x800[i], x400[2*i+0], x400[2*i+1]);
+      mpz_mul(x1600, x800[0], x800[1]);
+      mpz_tdiv_r(r1600, n, x1600);
+      for (i = 0; i < 2; i++)
+        mpz_tdiv_r(r800[i], r1600, x800[i]);
+      for (i = 0; i < 4; i++)
+        mpz_tdiv_r(r400[i], r800[i>>1], x400[i]);
+      for (i = 0; i < 8; i++)
+        mpz_tdiv_r(r200[i], r400[i>>1], x200[i]);
+      for (i = 0; i < 8*leafsize; i++)
+        if (mpz_tdiv_ui(r200[i/leafsize], xn[i]) == 0)
+          { found = 1; break; }
+    }
+    p = (found) ? xn[i] : 0;
+    for (i = 0; i < 8; i++) { mpz_clear(x200[i]); mpz_clear(r200[i]); }
+    for (i = 0; i < 4; i++) { mpz_clear(x400[i]); mpz_clear(r400[i]); }
+    for (i = 0; i < 2; i++) { mpz_clear(x800[i]); mpz_clear(r800[i]); }
+    mpz_clear(x1600); mpz_clear(r1600);
+    if (p > 0 && !mpz_divisible_ui_p(n, p))
+      croak("incorrect sieve\n");
+  }
+  return p;
 }
 
 /*
@@ -621,38 +703,39 @@ int _GMP_is_prob_prime(mpz_t n)
   if ( mpz_even_p(n)
     || mpz_divisible_ui_p(n, 3)
     || mpz_divisible_ui_p(n, 5) ) return 0;
-  /* Do a GCD with all primes < 1009 */
+
   {
-    UV log2n;
+    UV log2n = mpz_sizeinbase(n,2);
     mpz_t t;
     mpz_init(t);
+
+    /* Do a GCD with all primes < 1009 */
     mpz_gcd(t, n, _bgcd);
-    if (mpz_cmp_ui(t, 1)) {
-      mpz_clear(t);
-      return 0;
-    }
-    /* For large numbers, it's worth our time to do more trial division. */
-    log2n = mpz_sizeinbase(n,2);
-    if (log2n > 200) {
-      /* Create large primorial for doing a gcd (without the small primorial) */
-      if (mpz_sgn(_bgcd2) == 0)  {
+    if (mpz_cmp_ui(t, 1))
+      { mpz_clear(t); return 0; }
+
+    /* No divisors under 1009 */
+    if (mpz_cmp_ui(n, BGCD_NEXTPRIME*BGCD_NEXTPRIME) < 0)
+      return 2;
+
+    /* If we're reasonably large, do a gcd with more primes */
+    if (log2n > 128) {
+      if (mpz_sgn(_bgcd2) == 0) {
         _GMP_pn_primorial(_bgcd2, BGCD2_PRIMES);
         mpz_divexact(_bgcd2, _bgcd2, _bgcd);
       }
       mpz_gcd(t, n, _bgcd2);
-      if ( mpz_cmp_ui(t, 1) ||
-           (log2n*40 > BGCD2_NEXTPRIME && _GMP_trial_factor(n, BGCD2_NEXTPRIME, log2n*40)) ) {
-        mpz_clear(t);
-        return 0;
-      }
+      if (mpz_cmp_ui(t, 1))
+        { mpz_clear(t); return 0; }
     }
+    /* Do more trial division if we think we should */
+    if (log2n > 2000)
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 80*mpz_sizeinbase(n,2)))
+        { mpz_clear(t); return 0; }
     mpz_clear(t);
   }
-  /* No divisors under 1009 */
-  if (mpz_cmp_ui(n, BGCD_NEXTPRIME*BGCD_NEXTPRIME) < 0)
-    return 2;
 
-  /*  Step 2: The BPSW test.  psp base 2 and slpsp. */
+  /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
 
   /* Miller Rabin with base 2 */
   if (_GMP_miller_rabin_ui(n, 2) == 0)

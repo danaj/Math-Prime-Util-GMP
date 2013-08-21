@@ -4,6 +4,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Trim ECPP and adjust its heuristics.
 
+    - Limited version of treesieve to improve trial factor.  This helps
+      a lot when doing is_prob_prime on very large (e.g. 50k+ digit) inputs.
+
 0.14 2013-08-07
 
     - Fix small certificates leaving out the "N " for small numbers.
