@@ -612,53 +612,61 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
    * Credit to Jens K Andersen for writing up the generic algorithm.
    * This is much faster than simple divisibility for really big numbers.
    * Note that this version is fixed height so doesn't do justice to
-   * the idea if one is sieving very deep.  I am interested in controlling
+   * the idea if one is sieving very deep.  I am concerned about controlling
    * memory use, and our numbers are typically not so huge.
-   * TODO: It ought to be another layer deep.
+   * TODO: One more layer
    */
   {
-    int i, j, found = 0;
-    unsigned long xn[8*128];  /* max leafsize of 128 */
-    mpz_t x200[8], r200[8], x400[4], r400[4], x800[2], r800[2], x1600, r1600;
-    const int leafsize = (log2n < 1000) ? 16 : (log2n < 5000) ? 32 : (log2n < 10000) ? 64 : 128;
+    int i, j;
+    UV found = 0;
+    unsigned long xn[16*128];  /* max leafsize of 128 */
+    mpz_t x02[16], x04[8], x08[4], x16[2], x32, r32, r16, r08, r04, r02;
+    const int leafsize = (log2n < 1000) ? 8 : (log2n < 4000) ? 16 : (log2n < 8000) ? 32 : (log2n < 16000) ? 64 : 128;
 
-    for (i = 0; i < 8; i++) { mpz_init(x200[i]); mpz_init(r200[i]); }
-    for (i = 0; i < 4; i++) { mpz_init(x400[i]); mpz_init(r400[i]); }
-    for (i = 0; i < 2; i++) { mpz_init(x800[i]); mpz_init(r800[i]); }
-    mpz_init(x1600); mpz_init(r1600);
+    for (i = 0; i <16; i++)  mpz_init(x02[i]);
+    for (i = 0; i < 8; i++)  mpz_init(x04[i]);
+    for (i = 0; i < 4; i++)  mpz_init(x08[i]);
+    for (i = 0; i < 2; i++)  mpz_init(x16[i]);
+    mpz_init(x32); mpz_init(r32);
+    mpz_init(r16); mpz_init(r08); mpz_init(r04); mpz_init(r02);
 
     while (!found && p <= to_n) {
-      for (i = 0; i < 8; i++) {
-        mpz_set_ui(x200[i], 1);
+      /* Create 16 x02[i] values, each the product of leafsize primes */
+      for (i = 0; i < 16; i++) {
+        /* Create the leafsize-primes product as 4 products then combine */
+        for (j = 0; j < 4; j++)  mpz_set_ui(x08[j], 1);
         for (j = 0; j < leafsize; j++) {
           xn[i*leafsize+j] = p;
-          mpz_mul_ui(x200[i], x200[i], xn[i*leafsize+j]);
+          mpz_mul_ui(x08[j&3], x08[j&3], xn[i*leafsize+j]);
           p = prime_iterator_next(&iter);
         }
+        mpz_mul(x16[0], x08[0], x08[1]);  mpz_mul(x16[1], x08[2], x08[3]);
+        mpz_mul(x02[i], x16[0], x16[1]);
       }
-      for (i = 0; i < 4; i++)
-        mpz_mul(x400[i], x200[2*i+0], x200[2*i+1]);
-      for (i = 0; i < 2; i++)
-        mpz_mul(x800[i], x400[2*i+0], x400[2*i+1]);
-      mpz_mul(x1600, x800[0], x800[1]);
-      mpz_tdiv_r(r1600, n, x1600);
-      for (i = 0; i < 2; i++)
-        mpz_tdiv_r(r800[i], r1600, x800[i]);
-      for (i = 0; i < 4; i++)
-        mpz_tdiv_r(r400[i], r800[i>>1], x400[i]);
-      for (i = 0; i < 8; i++)
-        mpz_tdiv_r(r200[i], r400[i>>1], x200[i]);
-      for (i = 0; i < 8*leafsize; i++)
-        if (mpz_tdiv_ui(r200[i/leafsize], xn[i]) == 0)
-          { found = 1; break; }
+      for (i = 0; i < 8; i++)  mpz_mul(x04[i], x02[2*i+0], x02[2*i+1]);
+      for (i = 0; i < 4; i++)  mpz_mul(x08[i], x04[2*i+0], x04[2*i+1]);
+      for (i = 0; i < 2; i++)  mpz_mul(x16[i], x08[2*i+0], x08[2*i+1]);
+      mpz_mul(x32, x16[0], x16[1]);
+      mpz_tdiv_r(r32, n, x32);
+      for (i = 0; !found && i < 16; i++) {
+        if ((i & 7) == 0)  mpz_tdiv_r(r16, r32, x16[i>>3]);
+        if ((i & 3) == 0)  mpz_tdiv_r(r08, r16, x08[i>>2]);
+        if ((i & 1) == 0)  mpz_tdiv_r(r04, r08, x04[i>>1]);
+                           mpz_tdiv_r(r02, r04, x02[i]);
+        for (j = 0; j < leafsize; j++)
+          if (mpz_tdiv_ui(r02, xn[i*leafsize+j]) == 0)
+            { found = xn[i*leafsize+j]; break; }
+      }
     }
-    p = (found) ? xn[i] : 0;
-    for (i = 0; i < 8; i++) { mpz_clear(x200[i]); mpz_clear(r200[i]); }
-    for (i = 0; i < 4; i++) { mpz_clear(x400[i]); mpz_clear(r400[i]); }
-    for (i = 0; i < 2; i++) { mpz_clear(x800[i]); mpz_clear(r800[i]); }
-    mpz_clear(x1600); mpz_clear(r1600);
+    p = found;
+    mpz_clear(r16); mpz_clear(r08); mpz_clear(r04); mpz_clear(r02);
+    mpz_clear(x32);  mpz_clear(r32);
+    for (i = 0; i < 2; i++)  mpz_clear(x16[i]);
+    for (i = 0; i < 4; i++)  mpz_clear(x08[i]);
+    for (i = 0; i < 8; i++)  mpz_clear(x04[i]);
+    for (i = 0; i <16; i++)  mpz_clear(x02[i]);
     if (p > 0 && !mpz_divisible_ui_p(n, p))
-      croak("incorrect sieve\n");
+      croak("incorrect trial factor\n");
   }
   return p;
 }
@@ -729,9 +737,13 @@ int _GMP_is_prob_prime(mpz_t n)
         { mpz_clear(t); return 0; }
     }
     /* Do more trial division if we think we should */
-    if (log2n > 2000)
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 80*mpz_sizeinbase(n,2)))
+    if (log2n > 3000) {
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 50*log2n))
         { mpz_clear(t); return 0; }
+    } else if (log2n > 1000) {
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 30*log2n))
+        { mpz_clear(t); return 0; }
+    }
     mpz_clear(t);
   }
 
