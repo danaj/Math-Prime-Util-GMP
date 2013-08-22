@@ -1034,12 +1034,14 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
+#define LAST_DOUBLE_PROD \
+  ((BITS_PER_WORD == 32) ? UVCONST(65521) : UVCONST(4294967291))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV p = 2;
   PRIME_ITERATOR(iter);
 
-  if (n < 1000) {  /* Don't go above 6500 to prevent overflow below */
+  if (n < 800) {  /* Don't go above 6500 to prevent overflow below */
     /* Simple linear multiplication, two at a time */
     mpz_set_ui(prim, 1);
     while (n-- > 0) {
@@ -1054,6 +1056,8 @@ void _GMP_pn_primorial(mpz_t prim, UV n)
     for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
     i = 0;
     while (n-- > 0) {
+      if (p <= LAST_DOUBLE_PROD && n > 0)
+        { p *= prime_iterator_next(&iter); n--; }
       mpz_mul_ui(t[i&15], t[i&15], p);
       p = prime_iterator_next(&iter);
       i++;
