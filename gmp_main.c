@@ -555,19 +555,23 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
   size_t log2n = mpz_sizeinbase(n, 2);
-  UV p;
+  UV p = 0;
   PRIME_ITERATOR(iter);
 
-  if (mpz_cmp_ui(n, 4) < 0) {
+  if (mpz_cmp_ui(n, 6) < 0) {
+    unsigned long un = mpz_get_ui(n);
+    if (un == 1) p = 1;
+    else if (un == 4 && from_n <= 2 && to_n >= 2) p = 2;
     prime_iterator_destroy(&iter);
-    return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;  /* 0,1 => 1   2,3 => 0 */
+    return p;
   }
-  if ((from_n <= 2) && (to_n >= 2) && mpz_even_p(n)           )
-    { prime_iterator_destroy(&iter);  return 2; }
-  if ((from_n <= 3) && (to_n >= 3) && mpz_divisible_ui_p(n, 3))
-    { prime_iterator_destroy(&iter);  return 3; }
-  if ((from_n <= 5) && (to_n >= 5) && mpz_divisible_ui_p(n, 5))
-    { prime_iterator_destroy(&iter);  return 5; }
+  if      (from_n <= 2 && to_n >= 2 && mpz_even_p(n))             p = 2;
+  else if (from_n <= 3 && to_n >= 3 && mpz_divisible_ui_p(n, 3))  p = 3;
+  else if (from_n <= 5 && to_n >= 5 && mpz_divisible_ui_p(n, 5))  p = 5;
+  if (p != 0) {
+    prime_iterator_destroy(&iter);
+    return p;
+  }
 
   if (from_n < 7)
     from_n = 7;
