@@ -172,7 +172,6 @@ is_prime(IN char* strn)
     is_aks_prime = 2
     is_nminus1_prime = 3
     is_ecpp_prime = 4
-    is_strongbpsw_prime = 5
   PREINIT:
     mpz_t n;
     int ret;
@@ -185,7 +184,6 @@ is_prime(IN char* strn)
       case 2: ret = _GMP_is_aks_prime(n); break;
       case 3: ret = _GMP_primality_bls_nm1(n, 100, 0); break;
       case 4: ret = _GMP_ecpp(n, 0); break;
-      case 5: ret = mpz_strongbpsw_prp(n); break;
       default: croak("is_prime: Unknown function alias"); break;
     }
     RETVAL = ret;
@@ -739,26 +737,3 @@ _GMP_factor(IN char* strn)
       mpz_clear(f);
     }
     mpz_clear(n);
-
-void test_psps()
-  PREINIT:
-    FILE *f;
-    unsigned long i;
-    mpz_t n;
-    mpz_t two;
-    int r;
-  CODE:
-    f = fopen("/local/share/spsps-below-2-to-64.txt", "r");
-    if (f == 0) { printf("can't open file\n"); exit(1); }
-    mpz_init(n);
-    mpz_init_set_ui(two, 2);
-    while ((fscanf(f, "%lu", &i)) == 1) {
-      mpz_set_ui(n, i);
-      //r = _GMP_is_prob_prime(n);
-      //r = _GMP_miller_rabin(n, two);
-      r = _GMP_is_lucas_pseudoprime(n, 2);
-      if (r) { printf("%lu\n", i); fflush(stdout); }
-    }
-    mpz_clear(n);
-    mpz_clear(two);
-    fclose(f);
