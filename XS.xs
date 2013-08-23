@@ -392,12 +392,7 @@ lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
     if (mpz_cmp_ui(n, 3) <= 0) { \
       XPUSH_MPZ(n); \
     } else { \
-      /* Skip the trivial division tests */ \
-      /* while (mpz_divisible_ui_p(n, 2)) { mpz_divexact_ui(n, n, 2); XPUSHs(sv_2mortal(newSVuv( 2 ))); } */ \
-      /* while (mpz_divisible_ui_p(n, 3)) { mpz_divexact_ui(n, n, 3); XPUSHs(sv_2mortal(newSVuv( 3 ))); } */ \
-      /* while (mpz_divisible_ui_p(n, 5)) { mpz_divexact_ui(n, n, 5); XPUSHs(sv_2mortal(newSVuv( 5 ))); } */ \
-      if (mpz_cmp_ui(n, 1) == 0) { /* done */ } \
-      else if (_GMP_is_prob_prime(n)) { XPUSH_MPZ(n); } \
+      if (_GMP_is_prob_prime(n)) { XPUSH_MPZ(n); } \
       else { \
         mpz_t f; \
         int success = 0; \
@@ -423,11 +418,20 @@ trial_factor(IN char* strn, IN UV maxn = 0)
     mpz_t n;
     UV factor;
   PPCODE:
-    SIMPLE_FACTOR_START("trial_factor");
-    factor = _GMP_trial_factor(n, 2, (maxn == 0) ? 2147483647 : maxn);
-    mpz_set_ui(f, factor);
-    success = (factor != 0);
-    SIMPLE_FACTOR_END;
+    VALIDATE_AND_SET("trial_factor", n, strn);
+    if (mpz_cmp_ui(n, 3) <= 0) {
+      XPUSH_MPZ(n);
+    } else {
+      factor = _GMP_trial_factor(n, 2, (maxn == 0) ? 2147483647 : maxn);
+      if (factor == 0) {
+        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
+      } else {
+        XPUSHs(sv_2mortal(newSVuv( factor )));
+        mpz_divexact_ui(n, n, factor);
+        XPUSH_MPZ(n);
+      }
+    }
+    mpz_clear(n);
 
 void
 prho_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)

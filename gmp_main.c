@@ -555,19 +555,23 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
   size_t log2n = mpz_sizeinbase(n, 2);
-  UV p;
+  UV p = 0;
   PRIME_ITERATOR(iter);
 
-  if (mpz_cmp_ui(n, 4) < 0) {
+  if (mpz_cmp_ui(n, 6) < 0) {
+    unsigned long un = mpz_get_ui(n);
+    if (un == 1) p = 1;
+    else if (un == 4 && from_n <= 2 && to_n >= 2) p = 2;
     prime_iterator_destroy(&iter);
-    return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;  /* 0,1 => 1   2,3 => 0 */
+    return p;
   }
-  if ((from_n <= 2) && (to_n >= 2) && mpz_even_p(n)           )
-    { prime_iterator_destroy(&iter);  return 2; }
-  if ((from_n <= 3) && (to_n >= 3) && mpz_divisible_ui_p(n, 3))
-    { prime_iterator_destroy(&iter);  return 3; }
-  if ((from_n <= 5) && (to_n >= 5) && mpz_divisible_ui_p(n, 5))
-    { prime_iterator_destroy(&iter);  return 5; }
+  if      (from_n <= 2 && to_n >= 2 && mpz_even_p(n))             p = 2;
+  else if (from_n <= 3 && to_n >= 3 && mpz_divisible_ui_p(n, 3))  p = 3;
+  else if (from_n <= 5 && to_n >= 5 && mpz_divisible_ui_p(n, 5))  p = 5;
+  if (p != 0) {
+    prime_iterator_destroy(&iter);
+    return p;
+  }
 
   if (from_n < 7)
     from_n = 7;
@@ -1046,48 +1050,70 @@ void _GMP_prev_prime(mpz_t n)
   mpz_clear(d);
 }
 
-#define HALF_UI_WORD (UVCONST(1) << (sizeof(unsigned long)*4))
+#define LAST_DOUBLE_PROD \
+  ((BITS_PER_WORD == 32) ? UVCONST(65521) : UVCONST(4294967291))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV p = 2;
   PRIME_ITERATOR(iter);
-  mpz_t acc;
-  int k = -20;
 
-  mpz_set_ui(prim, 1);
-  mpz_init_set_ui(acc, 1);
-  while (n >= 2 && p < HALF_UI_WORD) {
-    mpz_mul_ui(acc, acc, p * prime_iterator_next(&iter));
-    p = prime_iterator_next(&iter);
-    n -= 2;
-    if (k++ > 24) {
-      mpz_mul(prim, prim, acc);
-      mpz_set_ui(acc, 1);
-      k = 0;
+  if (n < 800) {  /* Don't go above 6500 to prevent overflow below */
+    /* Simple linear multiplication, two at a time */
+    mpz_set_ui(prim, 1);
+    while (n-- > 0) {
+      if (n > 0) { p *= prime_iterator_next(&iter); n--; }
+      mpz_mul_ui(prim, prim, p);
+      p = prime_iterator_next(&iter);
     }
-  }
-  while (n-- > 0) {
-    mpz_mul_ui(acc, acc, p);
-    p = prime_iterator_next(&iter);
-    if (k++ > 16) {
-      mpz_mul(prim, prim, acc);
-      mpz_set_ui(acc, 1);
-      k = 0;
+  } else {
+    /* Shallow product tree, ~10x faster for large values */
+    mpz_t t[16];
+    UV i;
+    for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
+    i = 0;
+    while (n-- > 0) {
+      if (p <= LAST_DOUBLE_PROD && n > 0)
+        { p *= prime_iterator_next(&iter); n--; }
+      mpz_mul_ui(t[i&15], t[i&15], p);
+      p = prime_iterator_next(&iter);
+      i++;
     }
+    for (i = 0; i < 8; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    for (i = 0; i < 4; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    for (i = 0; i < 2; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    mpz_mul(prim, t[0], t[1]);
+    for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
-  mpz_mul(prim, prim, acc);
-  mpz_clear(acc);
 }
 void _GMP_primorial(mpz_t prim, mpz_t n)
 {
   UV p = 2;
   PRIME_ITERATOR(iter);
 
-  mpz_set_ui(prim, 1);
-  while (mpz_cmp_ui(n, p) >= 0) {
-    mpz_mul_ui(prim, prim, p);
-    p = prime_iterator_next(&iter);
+  if (mpz_cmp_ui(n, 4000) < 0) {
+    /* Simple linear multiplication, one at a time */
+    mpz_set_ui(prim, 1);
+    while (mpz_cmp_ui(n, p) >= 0) {
+      mpz_mul_ui(prim, prim, p);
+      p = prime_iterator_next(&iter);
+    }
+  } else {
+    /* Shallow product tree, ~10x faster for large values */
+    mpz_t t[16];
+    UV i;
+    for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
+    i = 0;
+    while (mpz_cmp_ui(n, p) >= 0) {
+      mpz_mul_ui(t[i&15], t[i&15], p);
+      p = prime_iterator_next(&iter);
+      i++;
+    }
+    for (i = 0; i < 8; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    for (i = 0; i < 4; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    for (i = 0; i < 2; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+    mpz_mul(prim, t[0], t[1]);
+    for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
 }
@@ -1212,18 +1238,21 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
 
 void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 {
-  UV p, p_power, pmin;
+  UV i, p, p_power, pmin;
+  mpz_t t[8];
   PRIME_ITERATOR(iter);
 
+  /* Create eight sub-products to combine at the end. */
+  for (i = 0; i < 8; i++)  mpz_init_set_ui(t[i], 1);
+  i = 0;
   /* For each prime, multiply m by p^floor(log B / log p), which means
    * raise p to the largest power e such that p^e <= B.
    */
-  mpz_set_ui(m, 1);
   if (B >= 2) {
     p_power = 2;
     while (p_power <= B/2)
       p_power *= 2;
-    mpz_mul_ui(m, m, p_power);
+    mpz_mul_ui(t[i&7], t[i&7], p_power);  i++;
   }
   p = prime_iterator_next(&iter);
   while (p <= B) {
@@ -1233,13 +1262,18 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
     p_power = p*p;
     while (p_power <= pmin)
       p_power *= p;
-    mpz_mul_ui(m, m, p_power);
+    mpz_mul_ui(t[i&7], t[i&7], p_power);  i++;
     p = prime_iterator_next(&iter);
   }
   while (p <= B) {
-    mpz_mul_ui(m, m, p);
+    mpz_mul_ui(t[i&7], t[i&7], p);  i++;
     p = prime_iterator_next(&iter);
   }
+  /* combine the eight sub-products */
+  for (i = 0; i < 4; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+  for (i = 0; i < 2; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
+  mpz_mul(m, t[0], t[1]);
+  for (i = 0; i < 8; i++)  mpz_clear(t[i]);
   prime_iterator_destroy(&iter);
 }
 
