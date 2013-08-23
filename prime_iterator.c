@@ -252,7 +252,7 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
   limit = sqrt((double) endp);
   if (limit*limit < endp) limit++;  /* ceil(sqrt(endp)) */
   /* printf("segment sieve from %"UVuf" to %"UVuf" (aux sieve to %"UVuf")\n", startp, endp, limit); */
-  if ( (prim_sieve != 0) && (prim_limit <= limit) ) {
+  if ( (prim_sieve != 0) && (limit <= prim_limit) ) {
     sieve = prim_sieve;
   } else {
     sieve = sieve_erat30(limit);
