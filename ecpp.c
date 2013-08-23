@@ -837,7 +837,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
 
 #ifdef STANDALONE_ECPP
 static void dieusage(char* prog) {
-  printf("ECPP-DJ version 1.0.  Dana Jacobsen\n\n");
+  printf("ECPP-DJ version 1.02.  Dana Jacobsen\n\n");
   printf("Usage: %s [options] <number>\n\n", prog);
   printf("Options:\n");
   printf("   -v     set verbose\n");

@@ -1,6 +1,6 @@
 /*
  * Verify Cert
- * version 0.91
+ * version 0.92
  *
  * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
@@ -55,7 +55,6 @@ typedef   signed long IV;
 #define BGCD_NEXTPRIME  1009
 
 void GMP_pn_primorial(mpz_t prim, UV n);
-void GMP_primorial(mpz_t prim, mpz_t n);
 UV trial_factor(mpz_t n, UV from_n, UV to_n);
 int miller_rabin_ui(mpz_t n, UV base);
 int miller_rabin(mpz_t n, mpz_t a);
@@ -742,8 +741,9 @@ int is_prob_prime(mpz_t n)
   return 1;
 }
 
-/* The primorial and trial_factor functions should use prime_iterator.
- * mpz_nextprime is horribly slow, so these will be really slow. */
+/* These primorial and trial factor functions are really slow for numerous
+ * reasons, but most of all because mpz_nextprime is dog slow.  We don't
+ * really use them, so don't worry about it too much. */
 void GMP_pn_primorial(mpz_t prim, UV n)
 {
   mpz_t p;
@@ -755,43 +755,37 @@ void GMP_pn_primorial(mpz_t prim, UV n)
   }
   mpz_clear(p);
 }
-void GMP_primorial(mpz_t prim, mpz_t n)
-{
-  mpz_t p;
-  mpz_init_set_ui(p, 2);
-  mpz_set_ui(prim, 1);
-  while (mpz_cmp(n, p) >= 0) {
-    mpz_mul(prim, prim, p);
-    mpz_nextprime(p, p);
-  }
-  mpz_clear(p);
-}
-
-/* This has craptastic performance. */
 UV trial_factor(mpz_t n, UV from_n, UV to_n)
 {
-  mpz_t p, sqrtn;
+  mpz_t p;
+  UV f = 0;
 
-  if (mpz_cmp_ui(n, 4) < 0) {
+  if (mpz_cmp_ui(n, 4) < 0)
     return (mpz_cmp_ui(n, 1) <= 0) ? 1 : 0;   /* 0,1 => 1   2,3 => 0 */
-  }
-  if ( (from_n <= 2) && mpz_even_p(n) )   return 2;
+  
+  if      (from_n <= 2 && to_n >= 2 && mpz_even_p(n)           ) return 2;
+  else if (from_n <= 3 && to_n >= 3 && mpz_divisible_ui_p(n, 3)) return 2;
+  if (from_n < 5)
+    from_n = 5;
+  if (from_n > to_n)
+    return 0;
 
-  if (from_n < 3) from_n = 3;
-  mpz_init_set_ui(p, from_n-1);
-  mpz_nextprime(p, p);
-  mpz_init(sqrtn);
-  mpz_sqrt(sqrtn, n);
-  while (mpz_cmp_ui(p, to_n) <= 0 && mpz_cmp(p, sqrtn) <= 0) {
+  mpz_init(p);
+  mpz_sqrt(p, n);
+  if (mpz_cmp_ui(p, to_n) < 0)
+    to_n = mpz_get_ui(p);      /* limit to_n to sqrtn */
+  mpz_set_ui(p, from_n-1);
+  mpz_nextprime(p, p);         /* Set p to the first prime >= from_n */
+
+  while (mpz_cmp_ui(p, to_n) <= 0) {
     if (mpz_divisible_p(n, p)) {
-      UV f = mpz_get_ui(p);
-      mpz_clear(p);  mpz_clear(sqrtn);
-      return f;
+      f = mpz_get_ui(p);
+      break;
     }
     mpz_nextprime(p, p);
   }
-  mpz_clear(p);  mpz_clear(sqrtn);
-  return 0;
+  mpz_clear(p);
+  return f;
 }
 
 /*****************************************************************************/

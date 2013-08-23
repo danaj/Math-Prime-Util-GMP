@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.14';
+  $Math::Prime::Util::GMP::VERSION = '0.15';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -162,7 +162,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 
 =head1 SYNOPSIS
@@ -708,7 +708,8 @@ a second stage as described in Montgomery 1987.  It is faster than most simple
 implementations I have seen (many of which are written assuming native
 precision inputs), but slower than Ben Buhrow's code used in earlier
 versions of L<yafu|http://sourceforge.net/projects/yafu/>, and nowhere close
-to the speed of the version included with modern GMP-ECM.
+to the speed of the version included with modern GMP-ECM with large B values
+(it is actually quite a bit faster than GMP-ECM with small smoothness values).
 
 
 =head2 pplus1_factor

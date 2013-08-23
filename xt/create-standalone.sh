@@ -10,6 +10,7 @@ cp -p ecpp.[ch] bls75.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] small_factor.[ch] utility.[ch] standalone/
 cp -p xt/proof-text-format.txt standalone/
 cp -p examples/verify-cert.pl standalone/
+cp -p examples/vcert.c standalone/
 
 if [ -f xt/class_poly_data_big.h ]
 then
@@ -35,7 +36,7 @@ cat << 'EOM' > standalone/Makefile
 TARGET = ecpp-dj
 CC = gcc
 DEFINES = -DSTANDALONE -DSTANDALONE_ECPP
-CFLAGS = -O3 -fomit-frame-pointer -Wall $(DEFINES)
+CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o ecm.o prime_iterator.o gmp_main.o small_factor.o utility.o
@@ -43,7 +44,7 @@ HEADERS = ptypes.h class_poly_data.h
 
 .PHONY: default all clean
 
-default: $(TARGET)
+default: $(TARGET) vcert
 all: default
 
 %.o: %.c $(HEADERS)
@@ -52,13 +53,28 @@ all: default
 .PRECIOUS: $(TARGET) $(OBJECTS)
 
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) $(LIBS) -o $@
+	$(CC) $^ $(LIBS) -o $@
+
+vcert: vcert.o
+	$(CC) $^ $(LIBS) -o $@
 
 clean:
 	-rm -f *.o
 
 realclean distclean: clean
-	-rm -f $(TARGET)
+	-rm -f $(TARGET) vcert
+
+TEST1 = 11739771271677308623
+TEST2 = 4101186565771483058393796013015990306873
+TEST3 = 35393208195490503043982975376709535956301978008095654379254570182486977128836509
+TEST4 = 935006864223353238737221824562525122013245238547726726389470209512876196672409305516259055214126542251267716102384835899
+TEST5 = 25433248801892216938808041984973587415848723989586550342338936524369752729114437550630504573611493987544033285909689162724975971196674890122730486522513928304389686931651745712950504486324914805161849
+TEST6 = 2573680634634742684988059303340072157306440549467346842076284472742530915396946888883763105892789439216552015714509042025932647373424612173420639576965158111847090690769199946599158997103042503092467874619182254986407320141886540415645993112415864297822800830675077273949020832529
+TEST7 = 78486079394847604055435555576956934174608411193012702852005077898067152416827867916085811348287925039452604660288164281575615762142839436967539454211418313773408606828156870435997942877890291660063681819004150984589390618763723864929823290896508238464443567850467471302567595768468411539893589800373173121478594085973870600513940448352346668513329311
+TEST8 = 516069211402263086362802849056712149142247708608707602810064116323740967320507238792597022510888972176570219148745538673939283056074749627707686516295450338874349093022059487090007604327705115534233283204877186839852673049019899452650976370088509524263064316558360307931746214148027462933967332118502005274436360122078931230288854613802443446620402918656243749843390157467993315073584216791188709452340255395988925217870997387615378161410168698419453325449311
+
+test: $(TARGET) vcert
+	@for n in $(TEST1) $(TEST2) $(TEST3) $(TEST4) $(TEST5) $(TEST6) $(TEST7) $(TEST8) $(TEST9); do echo -n "$${#n} digits ..."; ./ecpp-dj -c $$n | ./vcert -q -; if [ $$? -eq 0 ]; then echo "Pass"; else echo "FAIL"; fi; done
 EOM
 
 cat << 'EOREADME' > standalone/README
@@ -70,6 +86,12 @@ Dana Jacobsen (dana@acm.org), 2012-2013
 Let me know if you find this software useful, and suggestions, comments, and
 patches are welcome.
 
+INSTALLATION:
+     # See note 3 at the end of this file if you want to enable APRCL.
+     make
+     make test           (optional)
+     ./ecpp-dj -help     (shows usage)
+
 This is a standalone version of the ECPP implemention written for the Perl
 module Math::Prime::Util::GMP in 2013.  This uses a "Factor All" strategy, and
 closely follows the papers by Atkin and Morain.  Most of the utility functions
@@ -78,20 +100,22 @@ Computational Algebraic Number Theory".  Almost all the factoring is done
 with my p-1 implementation.  The ECM factoring and manipulation was heavily
 insipired by GMP-ECM by Phil Zimmerman and many others.
 
-This includes a strong BPSW test (e.g. strong PRP-2 test followed by strong
+This includes a BPSW test (strong PRP-2 test followed by extra strong
 Lucas-Selfridge test).  We use this to (1) detect composites, and (2) prove
 small numbers.  BPSW has no counterexamples below 2^64, and this implementation
 has been verified against Feitsma's database.
 
 Using the -c option enables certificate generation.  The format is described
-in the file proof-text-format.txt, and a verification program for both this
-format and PRIMO is supplied in verify-cert.pl, though it needs a very new
-version of the Math::Prime::Util module.
+in the file proof-text-format.txt.  Two verification programs are supplied:
+  verify-cert.pl  (Perl)
+  vert.c          (C+GMP)
+The Makefile should create the 'vcert' executable for you.  Both programs
+will read both the MPU format and the PRIMO format.
 
 Performance is quite good for most sub-1000 digit numbers, but starts getting
 uneven over 500 digits.  Much more work is possible here.
 
-In my testing, it is much, much faster than GMP-ECPP 2.46.  It is fairly
+In my testing, it is much, much faster than GMP-ECPP 2.49.  It is fairly
 similar in speed under ~300 digits to Morain's old 6.4.5a ECPP, but is
 substantially faster for larger numbers.  It is faster than WraithX's APRCL
 to about 1000 digits, then starts getting slower.  Note that APRCL does not
@@ -101,7 +125,7 @@ millions of times slower than these methods.
 Some areas to concentrate on:
 
  1. The polynomials.  We ought to generate Weber polynomials on the fly.  I
-    this it still makes a lot of sense to include a fixed set (e.g. all polys
+    think it still makes a lot of sense to include a fixed set (e.g. all polys
     of degree 6 or smaller) for speed.  However the lack of polynomials is a
     big issue with titanic numbers, as we run a good chance of not finding an
     easily splitable 'm' value and then get bogged down in factoring.
@@ -124,7 +148,9 @@ Some areas to concentrate on:
 
     Note that this interacts with #1, as if we can efficiently generate polys
     or have a giant set, then we must trade off doing more factoring vs. more
-    polys.
+    polys.  Morain's fastECPP, for example, uses stupendously more
+    discriminants than we do, so factoring isn't a big issue for them.  They
+    have very different polynomials and root finding algorithms however.
 
  3. Parallelism.  Currently the entire code is single threaded.  There are
     many opportunities here.
@@ -163,5 +189,10 @@ Note 2: You can also force use of the BLS75 theorem 5/7 n-1 proof using the
         '-nm1' option.  This is good for up to 70-80 digits or so.  It performs
         similarly to Pari's n-1 implementation (though is presumably very
         different internally).
+
+Note 3: You can also run APRCL.  Get WraithX's code from:
+               http://sourceforge.net/projects/mpzaprcl/
+        , put the files in this directory, then add -DAPRCL to the
+        DEFINES in the Makefile.  The '-aprcl' option will now be available.
 
 EOREADME
