@@ -598,9 +598,10 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     return (p <= to_n) ? p : 0;
   }
 
-  /* Simple search for early portions */
+  /* For numbers under 1200 or so digits, this simple method seems best.
+   * As numbers get larger, the tree sieve becomes faster. */
   {
-    UV small_to = (to_n > 5000) ? 5000 : to_n;
+    UV small_to = (log2n < 4000)  ?  to_n  :  2000;
     while (p <= small_to) {
       if (mpz_divisible_ui_p(n, p))
         break;
@@ -613,65 +614,74 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   }
 
   /* Simple fixed-height treesieve.
-   * Credit to Jens K Andersen for writing up the generic algorithm.
    * This is much faster than simple divisibility for really big numbers.
-   * Note that this version is fixed height so doesn't do justice to
-   * the idea if one is sieving very deep.  I am concerned about controlling
-   * memory use, and our numbers are typically not so huge.
-   * TODO: One more layer
+   * Credit to Jens K Andersen for writing up the generic algorithm.
+   *
+   * For deeper sieving one really should use a complete recursive tree
+   * rather than this fixed-height version.  The advantage of the fixed
+   * height is fixing the memory use.
+   *
+   * Also note that this will search until the first group element is > to_n,
+   * which means we could compare up to 2047 primes farther than the limit.
    */
   {
     int i, j;
     UV found = 0;
-    unsigned long xn[16*128];  /* max leafsize of 128 */
-    mpz_t x02[16], x04[8], x08[4], x16[2], x32, r32, r16, r08, r04, r02;
-    const int leafsize = (log2n < 1000) ? 8 : (log2n < 4000) ? 16 : (log2n < 8000) ? 32 : (log2n < 16000) ? 64 : 128;
+    unsigned long xn[32*64];  /* max leafsize of 64 */
+    mpz_t x0[32], x1[16], x2[8], x3[4], x4[2], x5;
+    mpz_t r5, r4, r3, r2, r1, r0;
+    const int leafsize = (log2n < 2000) ? 8 : (log2n < 40000) ? 16 : (log2n < 80000) ? 32 : 64;
 
-    for (i = 0; i <16; i++)  mpz_init(x02[i]);
-    for (i = 0; i < 8; i++)  mpz_init(x04[i]);
-    for (i = 0; i < 4; i++)  mpz_init(x08[i]);
-    for (i = 0; i < 2; i++)  mpz_init(x16[i]);
-    mpz_init(x32); mpz_init(r32);
-    mpz_init(r16); mpz_init(r08); mpz_init(r04); mpz_init(r02);
+    for (i = 0; i <32; i++)  mpz_init(x0[i]);
+    for (i = 0; i <16; i++)  mpz_init(x1[i]);
+    for (i = 0; i < 8; i++)  mpz_init(x2[i]);
+    for (i = 0; i < 4; i++)  mpz_init(x3[i]);
+    for (i = 0; i < 2; i++)  mpz_init(x4[i]);
+    mpz_init(x5); mpz_init(r5); mpz_init(r4);
+    mpz_init(r3); mpz_init(r2); mpz_init(r1); mpz_init(r0);
 
     while (!found && p <= to_n) {
-      /* Create 16 x02[i] values, each the product of leafsize primes */
-      for (i = 0; i < 16; i++) {
+      /* Create 32 x0[i] values, each the product of leafsize primes */
+      for (i = 0; i < 32; i++) {
         /* Create the leafsize-primes product as 4 products then combine */
-        for (j = 0; j < 4; j++)  mpz_set_ui(x08[j], 1);
+        for (j = 0; j < 4; j++)  mpz_set_ui(x3[j], 1);
         for (j = 0; j < leafsize; j++) {
           xn[i*leafsize+j] = p;
-          mpz_mul_ui(x08[j&3], x08[j&3], xn[i*leafsize+j]);
+          mpz_mul_ui(x3[j&3], x3[j&3], xn[i*leafsize+j]);
           p = prime_iterator_next(&iter);
         }
-        mpz_mul(x16[0], x08[0], x08[1]);  mpz_mul(x16[1], x08[2], x08[3]);
-        mpz_mul(x02[i], x16[0], x16[1]);
+        mpz_mul(x4[0], x3[0], x3[1]);  mpz_mul(x4[1], x3[2], x3[3]);
+        mpz_mul(x0[i], x4[0], x4[1]);
       }
-      for (i = 0; i < 8; i++)  mpz_mul(x04[i], x02[2*i+0], x02[2*i+1]);
-      for (i = 0; i < 4; i++)  mpz_mul(x08[i], x04[2*i+0], x04[2*i+1]);
-      for (i = 0; i < 2; i++)  mpz_mul(x16[i], x08[2*i+0], x08[2*i+1]);
-      mpz_mul(x32, x16[0], x16[1]);
-      mpz_tdiv_r(r32, n, x32);
-      for (i = 0; !found && i < 16; i++) {
-        if ((i & 7) == 0)  mpz_tdiv_r(r16, r32, x16[i>>3]);
-        if ((i & 3) == 0)  mpz_tdiv_r(r08, r16, x08[i>>2]);
-        if ((i & 1) == 0)  mpz_tdiv_r(r04, r08, x04[i>>1]);
-                           mpz_tdiv_r(r02, r04, x02[i]);
+      for (i = 0; i <16; i++)  mpz_mul(x1[i], x0[2*i+0], x0[2*i+1]);
+      for (i = 0; i < 8; i++)  mpz_mul(x2[i], x1[2*i+0], x1[2*i+1]);
+      for (i = 0; i < 4; i++)  mpz_mul(x3[i], x2[2*i+0], x2[2*i+1]);
+      for (i = 0; i < 2; i++)  mpz_mul(x4[i], x3[2*i+0], x3[2*i+1]);
+      mpz_mul(x5, x4[0], x4[1]);
+      mpz_tdiv_r(r5, n, x5);
+      for (i = 0; !found && i < 32; i++) {
+        if ((i &15) == 0)  mpz_tdiv_r(r4, r5, x4[i>>4]);
+        if ((i & 7) == 0)  mpz_tdiv_r(r3, r4, x3[i>>3]);
+        if ((i & 3) == 0)  mpz_tdiv_r(r2, r3, x2[i>>2]);
+        if ((i & 1) == 0)  mpz_tdiv_r(r1, r2, x1[i>>1]);
+                           mpz_tdiv_r(r0, r1, x0[i]);
         for (j = 0; j < leafsize; j++)
-          if (mpz_tdiv_ui(r02, xn[i*leafsize+j]) == 0)
+          if (mpz_tdiv_ui(r0, xn[i*leafsize+j]) == 0)
             { found = xn[i*leafsize+j]; break; }
       }
     }
     p = found;
-    mpz_clear(r16); mpz_clear(r08); mpz_clear(r04); mpz_clear(r02);
-    mpz_clear(x32);  mpz_clear(r32);
-    for (i = 0; i < 2; i++)  mpz_clear(x16[i]);
-    for (i = 0; i < 4; i++)  mpz_clear(x08[i]);
-    for (i = 0; i < 8; i++)  mpz_clear(x04[i]);
-    for (i = 0; i <16; i++)  mpz_clear(x02[i]);
+    mpz_clear(r3); mpz_clear(r2); mpz_clear(r1); mpz_clear(r0);
+    mpz_clear(x5);  mpz_clear(r5); mpz_clear(r4);
+    for (i = 0; i < 2; i++)  mpz_clear(x4[i]);
+    for (i = 0; i < 4; i++)  mpz_clear(x3[i]);
+    for (i = 0; i < 8; i++)  mpz_clear(x2[i]);
+    for (i = 0; i <16; i++)  mpz_clear(x1[i]);
+    for (i = 0; i <32; i++)  mpz_clear(x0[i]);
     if (p > 0 && !mpz_divisible_ui_p(n, p))
       croak("incorrect trial factor\n");
   }
+  prime_iterator_destroy(&iter);
   return p;
 }
 
@@ -728,7 +738,7 @@ int _GMP_is_prob_prime(mpz_t n)
 
     /* No divisors under 1009 */
     if (mpz_cmp_ui(n, BGCD_NEXTPRIME*BGCD_NEXTPRIME) < 0)
-      return 2;
+      { mpz_clear(t); return 2; }
 
     /* If we're reasonably large, do a gcd with more primes */
     if (log2n > 128) {
@@ -740,15 +750,13 @@ int _GMP_is_prob_prime(mpz_t n)
       if (mpz_cmp_ui(t, 1))
         { mpz_clear(t); return 0; }
     }
+    mpz_clear(t);
     /* Do more trial division if we think we should */
     if (log2n > 3000) {
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 50*log2n))
-        { mpz_clear(t); return 0; }
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 60*log2n))  return 0;
     } else if (log2n > 1000) {
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 30*log2n))
-        { mpz_clear(t); return 0; }
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 30*log2n))  return 0;
     }
-    mpz_clear(t);
   }
 
   /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
