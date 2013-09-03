@@ -5,6 +5,8 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/is_prime is_prob_prime/;
 
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
+
 plan tests => 0 + 6
                 + 5
                 + 5
@@ -14,6 +16,7 @@ plan tests => 0 + 6
                 + 16
                 + 15
                 + 28
+                + 1 * $extra
                 + 0;
 
 # Some of these tests were inspired by Math::Primality's tests
@@ -55,3 +58,10 @@ map { ok(is_prob_prime($_)==2, "Primegap end $_ is prime" ) }
   qw/5 11 29 97 127 541 907 1151 1361 9587 15727 19661 31469 156007 360749
      370373 492227 1349651 1357333 2010881 4652507 17051887 20831533 47326913
      122164969 189695893 191913031 10726905041/;
+
+if ($extra) {
+  # Test tree sieve
+  my $n = '18446744073709551427' . '0' x 476468 . '1';
+  my @f = Math::Prime::Util::GMP::trial_factor($n, 50000000);
+  is($f[0], 913589, "Trial factor of 476489-digit number");
+}

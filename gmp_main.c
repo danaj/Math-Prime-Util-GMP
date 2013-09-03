@@ -598,10 +598,9 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     return (p <= to_n) ? p : 0;
   }
 
-  /* For numbers under 1200 or so digits, this simple method seems best.
-   * As numbers get larger, the tree sieve becomes faster. */
+  /* For "small" numbers, this simple method is best. */
   {
-    UV small_to = (log2n < 4000)  ?  to_n  :  2000;
+    UV small_to = (log2n < 3000)  ?  to_n  :  10000;
     while (p <= small_to) {
       if (mpz_divisible_ui_p(n, p))
         break;
@@ -613,71 +612,79 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     }
   }
 
-  /* Simple fixed-height treesieve.
+  /* Simple treesieve.
    * This is much faster than simple divisibility for really big numbers.
    * Credit to Jens K Andersen for writing up the generic algorithm.
    *
-   * For deeper sieving one really should use a complete recursive tree
-   * rather than this fixed-height version.  The advantage of the fixed
-   * height is fixing the memory use.
-   *
-   * Also note that this will search until the first group element is > to_n,
-   * which means we could compare up to 2047 primes farther than the limit.
+   * This will search until the first group element is > to_n, which means
+   * we will search a bit farther than to_n.
    */
   {
-    int i, j;
+    int d, i, j;
     UV found = 0;
-    unsigned long xn[32*64];  /* max leafsize of 64 */
-    mpz_t x0[32], x1[16], x2[8], x3[4], x4[2], x5;
-    mpz_t r5, r4, r3, r2, r1, r0;
-    const int leafsize = (log2n < 2000) ? 8 : (log2n < 40000) ? 16 : (log2n < 80000) ? 32 : 64;
+    unsigned long* xn;        /* leaves */
+    mpz_t* xtree[16+1];       /* the tree (maxdepth = 16) */
+    mpz_t* xtemp;
+    unsigned int depth, leafsize, nleaves;
 
-    for (i = 0; i <32; i++)  mpz_init(x0[i]);
-    for (i = 0; i <16; i++)  mpz_init(x1[i]);
-    for (i = 0; i < 8; i++)  mpz_init(x2[i]);
-    for (i = 0; i < 4; i++)  mpz_init(x3[i]);
-    for (i = 0; i < 2; i++)  mpz_init(x4[i]);
-    mpz_init(x5); mpz_init(r5); mpz_init(r4);
-    mpz_init(r3); mpz_init(r2); mpz_init(r1); mpz_init(r0);
+    /* Decide on the tree depth (3-16) and number of leaves (10-31) */
+    {
+      depth = 0;
+      unsigned int dp = log2n >> 10;
+      while (dp >>= 1) depth++;
+      if (depth < 3) depth = 3;
+      if (depth > 16) depth = 16;
+    }
+    leafsize = log2n / (1U << depth) / 68;
+    nleaves = 1 << depth;
+    /* printf("log2n %lu  depth %u  leafsize %u  nleaves %u\n",log2n,depth,leafsize,nleaves); */
+
+    New(0, xn, nleaves * leafsize, unsigned long);
+    for (d = 0; d <= depth; d++) {
+      int nodes = 1 << (depth - d);
+      New(0, xtree[d], nodes, mpz_t);
+      for (j = 0; j < nodes; j++)
+        mpz_init(xtree[d][j]);
+    }
+    xtemp = xtree[1];   /* implies mindepth = 3 */
 
     while (!found && p <= to_n) {
-      /* Create 32 x0[i] values, each the product of leafsize primes */
-      for (i = 0; i < 32; i++) {
-        /* Create the leafsize-primes product as 4 products then combine */
-        for (j = 0; j < 4; j++)  mpz_set_ui(x3[j], 1);
+      /* Create nleaves x[0] values, each the product of leafsize primes */
+      for (i = 0; i < nleaves; i++) {
+        for (j = 0; j < 4; j++)                  /* Create 4 sub-products */
+          mpz_set_ui(xtemp[j], 1);
         for (j = 0; j < leafsize; j++) {
           xn[i*leafsize+j] = p;
-          mpz_mul_ui(x3[j&3], x3[j&3], xn[i*leafsize+j]);
+          mpz_mul_ui(xtemp[j&3], xtemp[j&3], p);
           p = prime_iterator_next(&iter);
         }
-        mpz_mul(x4[0], x3[0], x3[1]);  mpz_mul(x4[1], x3[2], x3[3]);
-        mpz_mul(x0[i], x4[0], x4[1]);
+        mpz_mul(xtemp[0], xtemp[0], xtemp[1]);   /* Combine for final product*/
+        mpz_mul(xtemp[2], xtemp[2], xtemp[3]);
+        mpz_mul(xtree[0][i], xtemp[0], xtemp[2]);
       }
-      for (i = 0; i <16; i++)  mpz_mul(x1[i], x0[2*i+0], x0[2*i+1]);
-      for (i = 0; i < 8; i++)  mpz_mul(x2[i], x1[2*i+0], x1[2*i+1]);
-      for (i = 0; i < 4; i++)  mpz_mul(x3[i], x2[2*i+0], x2[2*i+1]);
-      for (i = 0; i < 2; i++)  mpz_mul(x4[i], x3[2*i+0], x3[2*i+1]);
-      mpz_mul(x5, x4[0], x4[1]);
-      mpz_tdiv_r(r5, n, x5);
-      for (i = 0; !found && i < 32; i++) {
-        if ((i &15) == 0)  mpz_tdiv_r(r4, r5, x4[i>>4]);
-        if ((i & 7) == 0)  mpz_tdiv_r(r3, r4, x3[i>>3]);
-        if ((i & 3) == 0)  mpz_tdiv_r(r2, r3, x2[i>>2]);
-        if ((i & 1) == 0)  mpz_tdiv_r(r1, r2, x1[i>>1]);
-                           mpz_tdiv_r(r0, r1, x0[i]);
+      /* Multiply product tree, xtree[depth][0] has nleaves*leafsize product */
+      for (d = 1; d <= depth; d++)
+        for (i = 0; i < (1 << (depth-d)); i++)
+          mpz_mul(xtree[d][i], xtree[d-1][2*i], xtree[d-1][2*i+1]);
+      /* Go backwards replacing the products with remainders */
+      mpz_tdiv_r(xtree[depth][0], n, xtree[depth][0]);
+      for (d = 1; d <= depth; d++)
+        for (i = 0; i < (1 << d); i++)
+          mpz_tdiv_r(xtree[depth-d][i], xtree[depth-d+1][i>>1], xtree[depth-d][i]);
+      /* Search each leaf for divisors */
+      for (i = 0; !found && i < nleaves; i++)
         for (j = 0; j < leafsize; j++)
-          if (mpz_tdiv_ui(r0, xn[i*leafsize+j]) == 0)
+          if (mpz_divisible_ui_p(xtree[0][i], xn[i*leafsize+j]))
             { found = xn[i*leafsize+j]; break; }
-      }
     }
     p = found;
-    mpz_clear(r3); mpz_clear(r2); mpz_clear(r1); mpz_clear(r0);
-    mpz_clear(x5);  mpz_clear(r5); mpz_clear(r4);
-    for (i = 0; i < 2; i++)  mpz_clear(x4[i]);
-    for (i = 0; i < 4; i++)  mpz_clear(x3[i]);
-    for (i = 0; i < 8; i++)  mpz_clear(x2[i]);
-    for (i = 0; i <16; i++)  mpz_clear(x1[i]);
-    for (i = 0; i <32; i++)  mpz_clear(x0[i]);
+    for (d = 0; d <= depth; d++) {
+      int nodes = 1 << (depth - d);
+      for (j = 0; j < nodes; j++)
+        mpz_clear(xtree[d][j]);
+      Safefree(xtree[d]);
+    }
+    Safefree(xn);
     if (p > 0 && !mpz_divisible_ui_p(n, p))
       croak("incorrect trial factor\n");
   }
@@ -751,9 +758,25 @@ int _GMP_is_prob_prime(mpz_t n)
         { mpz_clear(t); return 0; }
     }
     mpz_clear(t);
-    /* Do more trial division if we think we should */
-    if (log2n > 3000) {
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 60*log2n))  return 0;
+    /* Do more trial division if we think we should.
+     * According to Menezes (section 4.45) as well as Park (ISPEC 2005),
+     * we want to select a trial limit B such that B = E/D where E is the
+     * time for our primality test (one M-R test) and D is the time for
+     * one trial division.  Example times on my machine came out to
+     *   log2n = 840375, E= 6514005000 uS, D=1.45 uS, E/D = 0.006 * log2n
+     *   log2n = 465618, E= 1815000000 uS, D=1.05 uS, E/D = 0.008 * log2n
+     *   log2n = 199353, E=  287282000 uS, D=0.70 uS, E/D = 0.01  * log2n
+     *   log2n =  99678, E=   56956000 uS, D=0.55 uS, E/D = 0.01  * log2n
+     *   log2n =  33412, E=    4289000 uS, D=0.30 uS, E/D = 0.013 * log2n
+     *   log2n =  13484, E=     470000 uS, D=0.21 uS, E/D = 0.012 * log2n
+     * Our trial division could also be further improved for large inputs.
+     */
+    if (log2n > 16000) {
+      double dB = (double)log2n * (double)log2n * 0.005;
+      if (BITS_PER_WORD == 32 && dB > 4200000000.0) dB = 4200000000.0;
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, (UV)dB))  return 0;
+    } else if (log2n > 3000) {
+      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 80*log2n))  return 0;
     } else if (log2n > 1000) {
       if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 30*log2n))  return 0;
     }
