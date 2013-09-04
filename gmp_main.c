@@ -62,29 +62,30 @@ static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
   return rval;
 }
 
-int _GMP_miller_rabin_random(mpz_t n, UV numbases)
+int _GMP_miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
 {
   gmp_randstate_t* p_randstate = get_randstate();
-  mpz_t base;
+  mpz_t t, base;
   UV i;
 
-  /* We could just use mpz_probab_prime_p and call it a day. */
+  if (numbases == 0)  return 1;
+  if (mpz_cmp_ui(n, 100) < 0)  return _GMP_is_prob_prime(n); /* tiny n */
 
-  /* Make sure we can make proper random bases */
-  if (mpz_cmp_ui(n, 2) < 0) return 0;  /* below 2 is composite */
-  if (mpz_cmp_ui(n, 4) < 0) return 1;  /* 2 and 3 are prime */
-  if (mpz_even_p(n))        return 0;  /* multiple of 2 is composite */
+  mpz_init(base);  mpz_init(t);
 
-  mpz_init(base);
+  if (seedstr != 0) { /* Set the RNG seed if they gave us a seed */
+    mpz_set_str(t, seedstr, 0);
+    gmp_randseed(*p_randstate, t);
+  }
+
+  mpz_sub_ui(t, n, 3);
   for (i = 0; i < numbases; i++) {
-    /* select a random base between 2 and n-2 (we're lazy and use n-1) */
-    do {
-      mpz_urandomm(base, *p_randstate, n);
-    } while (mpz_cmp(base, n) >= 0 || mpz_cmp_ui(base, 1) <= 0);
+    mpz_urandomm(base, *p_randstate, t);  /* base = 0 .. (n-3)-1 */
+    mpz_add_ui(base, base, 2);            /* base = 2 .. n-2     */
     if (_GMP_miller_rabin(n, base) == 0)
       break;
   }
-  mpz_clear(base);
+  mpz_clear(base);  mpz_clear(t);
   return (i >= numbases);
 }
 
@@ -818,7 +819,7 @@ int _GMP_is_prime(mpz_t n)
     else if (nbits < 160) ntests = 3;  /* p < .00000164 */
     else if (nbits < 413) ntests = 2;  /* p < .00000156 */
     else                  ntests = 1;  /* p < .00000159 */
-    prob_prime = _GMP_miller_rabin_random(n, ntests);
+    prob_prime = _GMP_miller_rabin_random(n, ntests, 0);
   }
 
   /* Using Damgård, Landrock, and Pomerance, we get upper bounds:
@@ -852,7 +853,7 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 
   /* Run one more M-R test, just in case. */
   if (prob_prime == 1)
-    prob_prime = _GMP_miller_rabin_random(n, 1);
+    prob_prime = _GMP_miller_rabin_random(n, 1, 0);
 
   /* We can choose a primality proving algorithm:
    *   AKS    _GMP_is_aks_prime       really slow, don't bother

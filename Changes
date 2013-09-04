@@ -2,14 +2,22 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.15 2013-08
 
-    - Trim ECPP and adjust its heuristics.
+    [Functions Added]
+      - miller_rabin_random
 
-    - Limited version of treesieve to improve trial factor.  This helps
-      a lot when doing is_prob_prime on very large (e.g. 50k+ digit) inputs.
+    - A tree sieve is done in trial factor for large (900+ digits) inputs.
+      This improves performance greatly for very large inputs.
+
+    - is_prob_prime uses more trial division for large inputs.  For very
+      large inputs (e.g. 50,000+ digits) this greatly speeds up probable
+      prime testing on many composites, for instance in next_prime or
+      similar sieving.
 
     - Use shallow product tree for primorials.  Large primorials are 2 to 12
       times faster.  Break consecutive_integer_lcm into four sub-products so
       it runs 2-4x faster for large inputs.
+
+    - Trim ECPP and adjust its heuristics.
 
 0.14 2013-08-07
 

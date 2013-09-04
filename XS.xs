@@ -97,6 +97,16 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
   OUTPUT:
     RETVAL
 
+int miller_rabin_random(IN char* strn, IN UV nbases, IN char* seedstr = 0)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET("miller_rabin_random", n, strn);
+    RETVAL = _GMP_miller_rabin_random(n, nbases, seedstr);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 #define PRIMALITY_START(name, small_retval, test_small_factors) \
     /* Negative numbers return 0 */ \
     if ((strn != 0) && (strn[0] == '-') ) \

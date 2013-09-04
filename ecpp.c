@@ -565,7 +565,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
     if (verbose) printf("%*sN[%d] (%d dig)  PRIME\n", i, "", i, nidigits);
     return 2;
   }
-  if (i == 0 && facstage == 2 && _GMP_miller_rabin_random(Ni, 2) == 0) {
+  if (i == 0 && facstage == 2 && _GMP_miller_rabin_random(Ni, 2, 0) == 0) {
     gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", Ni);
     return 0;
   }

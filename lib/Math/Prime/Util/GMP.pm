@@ -25,6 +25,7 @@ our @EXPORT_OK = qw(
                      is_extra_strong_lucas_pseudoprime
                      is_almost_extra_strong_lucas_pseudoprime
                      is_frobenius_underwood_pseudoprime
+                     miller_rabin_random
                      lucas_sequence
                      primes
                      next_prime
@@ -390,6 +391,28 @@ algorithm works with even input, most sources define it only on odd input.
 Returning composite for all non-2 even input makes the function match most
 other implementations including L<Math::Primality>'s C<is_strong_pseudoprime>
 function.
+
+=head2 miller_rabin_random
+  
+  my $maybe_prime = miller_rabin_random($n, 10); # 10 random bases
+
+Takes a positive number (C<n>) as input and a positive number (C<k>) of bases
+to use.  Performs C<k> Miller-Rabin tests using uniform random bases
+between 2 and C<n-2>.  This is the correct way to perform C<k> Miller-Rabin
+tests, rather than the common but broken method of using the first C<k>
+primes.
+
+An optional third argument may be given, which is a seed to use.  The seed
+should be a number either in decimal, binary with a leading C<0b>, hex with
+a leading C<0x>, or octal with a leading C<0>.  It will be converted to a
+GMP integer, so may be large.  Typically this is not necessary, but
+cryptographic applications may prefer to ability to use this.
+
+There is no logic to avoid duplicate bases.  With sensible size inputs
+for this function (over 64-bits), the chances of duplicate bases is
+extremely small.  The exponentiation approximation for the birthday problem
+gives a chance of less than 2e-14 for a duplicate base to appear in 1000
+random bases on a 65-bit number.
 
 
 =head2 is_lucas_pseudoprime
