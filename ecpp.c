@@ -492,13 +492,13 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
 
 /* Select the 2, 4, or 6 numbers we will try to factor. */
 static void choose_m(mpz_t* mlist, long D, mpz_t u, mpz_t v, mpz_t N,
-                     mpz_t t, mpz_t Nminus1)
+                     mpz_t t, mpz_t Nplus1)
 {
-  int i;
-  mpz_add_ui(Nminus1, N, 1);
+  int i, j;
+  mpz_add_ui(Nplus1, N, 1);
 
-  mpz_add(mlist[0], Nminus1, u);
-  mpz_sub(mlist[1], Nminus1, u);
+  mpz_sub(mlist[0], Nplus1, u);     /* N+1-u */
+  mpz_add(mlist[1], Nplus1, u);     /* N+1+u */
   for (i = 2; i < 6; i++)
     mpz_set_ui(mlist[i], 0);
 
@@ -507,22 +507,28 @@ static void choose_m(mpz_t* mlist, long D, mpz_t u, mpz_t v, mpz_t N,
     mpz_mul_si(t, v, 3);
     mpz_add(t, t, u);
     mpz_tdiv_q_2exp(t, t, 1);
-    mpz_add(mlist[2], Nminus1, t);
-    mpz_sub(mlist[3], Nminus1, t);
+    mpz_sub(mlist[2], Nplus1, t);   /* N+1-(u+3v)/2 */
+    mpz_add(mlist[3], Nplus1, t);   /* N+1+(u+3v)/2 */
     mpz_mul_si(t, v, -3);
     mpz_add(t, t, u);
     mpz_tdiv_q_2exp(t, t, 1);
-    mpz_add(mlist[4], Nminus1, t);
-    mpz_sub(mlist[5], Nminus1, t);
+    mpz_sub(mlist[4], Nplus1, t);   /* N+1-(u-3v)/2 */
+    mpz_add(mlist[5], Nplus1, t);   /* N+1+(u-3v)/2 */
   } else if (D == -4) {
     mpz_mul_ui(t, v, 2);
-    mpz_add(mlist[2], Nminus1, t);
-    mpz_sub(mlist[3], Nminus1, t);
+    mpz_sub(mlist[2], Nplus1, t);   /* N+1-2v */
+    mpz_add(mlist[3], Nplus1, t);   /* N+1+2v */
   }
   /* m must not be prime */
   for (i = 0; i < 6; i++)
     if (mpz_sgn(mlist[i]) && _GMP_is_prob_prime(mlist[i]))
       mpz_set_ui(mlist[i], 0);
+  /* Sort the m values so we test the smallest first */
+  for (i = 0; i < 5; i++)
+    if (mpz_sgn(mlist[i]))
+      for (j = i+1; j < 6; j++)
+        if (mpz_sgn(mlist[j]) && mpz_cmp(mlist[i],mlist[j]) > 0)
+          mpz_swap( mlist[i], mlist[j] );
 }
 
 
