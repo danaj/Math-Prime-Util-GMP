@@ -850,14 +850,14 @@ void verify_ecpp(void) {
   mpz_mul(T2, Y, Y);
   mpz_mod(T2, T2, N);
   if (mpz_cmp(T1, T2) != 0)   quit_invalid("ECPP", "Y^2 = X^3 + A*X + B mod N");
-  mpz_sqrt(T2, N);
-  mpz_mul_ui(T2, T2, 2);
+  mpz_mul_ui(T2, N, 4);
+  mpz_sqrt(T2, T2);
   mpz_add_ui(T1, N, 1);
   mpz_sub(T1, T1, T2);
-  if (mpz_cmp(M, T1) < 0)     quit_invalid("ECPP", "M >= N - 2*sqrt(N) + 1");
+  if (mpz_cmp(M, T1) < 0)     quit_invalid("ECPP", "M >= N + 1 - 2*sqrt(N)");
   mpz_add_ui(T1, N, 1);
   mpz_add(T1, T1, T2);
-  if (mpz_cmp(M, T1) > 0)     quit_invalid("ECPP", "M <= N + 2*sqrt(N) + 1");
+  if (mpz_cmp(M, T1) > 0)     quit_invalid("ECPP", "M <= N + 1 + 2*sqrt(N)");
   mpz_root(T1, N, 4);
   mpz_add_ui(T1, T1, 1);
   mpz_mul(T1, T1, T1);

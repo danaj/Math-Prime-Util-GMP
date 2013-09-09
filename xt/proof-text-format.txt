@@ -89,8 +89,8 @@ Y  82061726986387565872737368000504
 # Verify: gcd(N, 6) = 1                        # Primo a
 # Verify: gcd(4*a^3 + 27*b^2, N) = 1           # Primo i
 # Verify: Y^2 mod N = X^3 + A*X + B mod N      # Primo j
-# Verify: M >= N - 2*sqrt(N) + 1               # Primo g
-# Verify: M <= N + 2*sqrt(N) + 1               # Primo h
+# Verify: M >= N + 1 - 2*sqrt(N)               # Primo g
+# Verify: M <= N + 1 + 2*sqrt(N)               # Primo h
 # Verify: Q > (N^(1/4)+1)^2                    # Primo f
 # Verify: Q < N                                # Primo e
 # Verify: M != Q
