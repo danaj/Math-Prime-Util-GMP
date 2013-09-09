@@ -423,7 +423,8 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
       break;
     /* Put the two factors f and m/f into the stacks, smallest first */
     mpz_divexact(m, m, f);
-    if (mpz_cmp(m, f) < 0) { mpz_set(t, m); mpz_set(m, f); mpz_set(f, t); }
+    if (mpz_cmp(m, f) < 0)
+      mpz_swap(m, f);
     primality_handle_factor(f, _GMP_primality_bls_nm1, 0);
     primality_handle_factor(m, _GMP_primality_bls_nm1, 0);
   }
@@ -436,13 +437,9 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   /* Sort factors found from largest to smallest, but 2 must be at start. */
   {
     int i, j;
-    for (i = 2; i < fsp; i++) {
-      for (j = i; j > 1 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--) {
-        mpz_set(t, fstack[j-1]);
-        mpz_set(fstack[j-1], fstack[j]);
-        mpz_set(fstack[j], t);
-      }
-    }
+    for (i = 2; i < fsp; i++)
+      for (j = i; j > 1 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--)
+        mpz_swap( fstack[j-1], fstack[j] );
   }
 
   /* Shrink to smallest set and verify conditions. */
@@ -710,7 +707,8 @@ int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* lp, IV* lq)
       success = try_factor2(f, q, effort);
     if (success) {
       mpz_divexact(q, q, f);
-      if (mpz_cmp(q, f) < 0) { mpz_set(t, q); mpz_set(q, f); mpz_set(f, t); }
+      if (mpz_cmp(q, f) < 0)
+        mpz_swap(q, f);
       mpz_mul(m, m, f);
     }
   }
@@ -759,7 +757,8 @@ int _GMP_primality_bls_nm1_split(mpz_t n, int effort, mpz_t p, UV *reta)
       success = try_factor2(f, p, effort);
     if (success) {
       mpz_divexact(p, p, f);
-      if (mpz_cmp(p, f) < 0) { mpz_set(t, p); mpz_set(p, f); mpz_set(f, t); }
+      if (mpz_cmp(p, f) < 0)
+        mpz_swap(p, f);
       mpz_mul(m, m, f);
     }
   }
