@@ -1,6 +1,6 @@
 /*
  * Verify Cert
- * version 0.92
+ * version 0.94
  *
  * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
@@ -44,6 +44,7 @@
 #define MAX_LINE_LEN 60000
 #define MAX_STEPS    20000
 #define MAX_QARRAY   100
+#define BAD_LINES_ALLOWED  5    /* Similar to WraithX's verifier */
 
 typedef unsigned long UV;
 typedef   signed long IV;
@@ -70,6 +71,7 @@ int _verbose = 0;
 int _quiet = 0;
 int _testcount = 0;
 int _base = 10;
+int _step = 0;
 int _format = CERT_UNKNOWN;
 char _line[MAX_LINE_LEN+1];
 char _vstr[MAX_LINE_LEN+1];
@@ -155,14 +157,14 @@ static void quit_composite(void) {
   exit(RET_COMPOSITE);
 }
 static void quit_invalid(const char* type, const char* msg) {
-  if (!_quiet) printf("                                             \r");
-  if (!_quiet) gmp_printf("%s: %Zd failed condition %s\n", type, N, msg);
+  if (!_quiet) printf("\n");
+  if (!_quiet) gmp_printf("%s: step %d, %Zd failed condition %s\n", type, _step, N, msg);
   var_free();
   exit(RET_INVALID);
 }
 static void quit_error(const char* msg1, const char* msg2) {
-  if (!_quiet) printf("                                             \r");
-  if (!_quiet) gmp_printf("ERROR: %s%s\n", msg1, msg2);
+  if (!_quiet) printf("\n");
+  if (!_quiet) gmp_printf("ERROR: step %d, %s%s\n", _step, msg1, msg2);
   var_free();
   exit(RET_ERROR);
 }
@@ -642,7 +644,6 @@ int is_lucas_pseudoprime(mpz_t n, int strength)
     mpz_clear(t);
     return 0;
   }
-  if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, P*P-4*Q, P, Q);
 
   mpz_init(U);  mpz_init(V);  mpz_init(Qk);
   mpz_init_set(d, n);
@@ -825,8 +826,9 @@ UV trial_factor(mpz_t n, UV from_n, UV to_n)
  *   greater than (N^(1/4) + 1)^2 and there exists a point P on E such that
  *   (1) mP = O, (2) (m/q)P is defined and not equal to O, then N is prime."
  *
- * We use the restricted form as stated by Wikipedia, and as used in the
- * Atkin/Morain ECPP algorithm, where s is a prime.
+ * We use the restricted form as stated by Wikipedia and used in the
+ * Atkin/Morain ECPP algorithm, where s is a prime (hence the "for each prime
+ * divisor q of s" of the general theorem is just s).
  */
 void verify_ecpp(void) {
   mpz_mod(A, A, N);
@@ -1369,34 +1371,45 @@ void read_vars(const char* vars) {
   int i;
   int nargs = 0;
   int vfound = 0;
+  int bad_lines = 0;
 
   vlist[0] = strtok(varstring, " ");
   while (vlist[nargs] != 0)
     vlist[++nargs] = strtok(NULL, " ");
   while (vfound < nargs) {
     get_line(0);
+    if (strlen(_line) == 0)    /* Skip extrenuous blank lines */
+      continue;
     if (_format == CERT_PRIMO) {
-      if (sscanf(_line, "%c$=%s", &varname, _vstr) != 2)
-        quit_error("Can't read variables", "");
-      for (i = 0; i < nargs; i++) {
-        if (vlist[i] != 0 && varname == vlist[i][0]) {
-          switch (varname) {
-            case 'S':  mpz_set_str(S, _vstr, 16);  break;
-            case 'R':  mpz_set_str(R, _vstr, 16);  break;
-            case 'A':  mpz_set_str(A, _vstr, 16);  break;
-            case 'B':  mpz_set_str(B, _vstr, 16);  break;
-            case 'Q':  mpz_set_str(Q, _vstr, 16);  break;
-            case 'T':  mpz_set_str(T, _vstr, 16);  break;
-            case 'J':  mpz_set_str(J, _vstr, 16);  break;
-            default: quit_error("Internal error: bad Primo variable type",""); break;
+      int varnum = 0;  /* Did we read a variable properly this line? */
+      if (sscanf(_line, "%c$=%s", &varname, _vstr) == 2) {
+        for (i = 0; i < nargs && varnum == 0; i++) {
+          if (vlist[i] != 0 && varname == vlist[i][0]) {
+            switch (varname) {
+              case 'S':  mpz_set_str(S, _vstr, 16);  break;
+              case 'R':  mpz_set_str(R, _vstr, 16);  break;
+              case 'A':  mpz_set_str(A, _vstr, 16);  break;
+              case 'B':  mpz_set_str(B, _vstr, 16);  break;
+              case 'Q':  mpz_set_str(Q, _vstr, 16);  break;
+              case 'T':  mpz_set_str(T, _vstr, 16);  break;
+              case 'J':  mpz_set_str(J, _vstr, 16);  break;
+              default: quit_error("Internal error: bad Primo variable type","");
+                       break;
+            }
+            varnum = i+1;
           }
-          vfound++;      /* We found a variable on the list */
-          vlist[i] = 0;  /* It should only appear once */
-          break;
         }
+      } else if (sscanf(_line, "[%d]", &i) == 1) {
+        quit_error("Variables missing from proof step", "");
       }
-      if (i >= nargs)
-        quit_error("Unknown variable in line: ", _line);
+      if (varnum != 0) {
+        vfound++;             /* We found a variable on the list */
+        vlist[varnum-1] = 0;  /* It should only appear once */
+        bad_lines = 0;
+      } else {
+        if (bad_lines++ >= BAD_LINES_ALLOWED)
+          quit_error("Too many bad lines reading variables", "");
+      }
     } else {
       if      (sscanf(_line, "N %s", _vstr) == 1) PROCESS_VAR(N);
       else if (sscanf(_line, "A %s", _vstr) == 1) PROCESS_VAR(A);
@@ -1460,8 +1473,14 @@ void parse_top(void)
       }
     }
   }
-  if (!_quiet)
-    gmp_printf("N: %Zd (%d digits)\n", PROOFN, (int)mpz_sizeinbase(PROOFN, 10));
+  if (!_quiet) {
+    printf("%60s\r", "");
+    printf("N: ");
+    if (_verbose) gmp_printf("%Zd ", PROOFN);
+    printf("(%d digits)\n", (int)mpz_sizeinbase(PROOFN, 10));
+    printf("Verifying probable prime status.\r");
+    fflush(stdout);
+  }
   if (is_prob_prime(PROOFN) == 0)
     quit_composite();
   mpz_set(N, PROOFN);
@@ -1469,7 +1488,7 @@ void parse_top(void)
 
 void process_file(const char* filename)
 {
-  int step = 0;
+  _step = 0;
   if (strcmp(filename, "-") == 0)
     _fh = stdin;
   else if ((_fh = fopen(filename, "r")) == NULL)
@@ -1484,12 +1503,12 @@ void process_file(const char* filename)
       int rstep;
       get_line(0);
       if (sscanf(_line, "[%d]", &rstep) == 1) {
-        if (rstep != step+1)
+        if (rstep != _step+1)
           quit_error("Wrong step number found", "");
-        step++;
+        _step++;
       }
       if (sscanf(_line, "Type=%d", &type) == 1) {
-        if (!_quiet) { printf("%60s\r", ""); printf("Step %3d/%-3d %5d digits  Type %d\r", step, _testcount, (int)mpz_sizeinbase(N,10), type); fflush(stdout); }
+        if (!_quiet) { printf("%60s\r", ""); printf("Step %3d/%-3d %5d digits  Type %d\r", _step, _testcount, (int)mpz_sizeinbase(N,10), type); fflush(stdout); }
         switch (type) {
           case 4:  read_vars("S R J T");   verify_ecpp4();  break;
           case 3:  read_vars("S R A B T"); verify_ecpp3();  break;
@@ -1514,7 +1533,9 @@ void process_file(const char* filename)
             s++;
           }
         }
-        if (!_quiet) { printf("%60s\r", ""); printf("Step %3d/%-3d %5d digits  Type %s\r", step, _testcount, (int)mpz_sizeinbase(N,10), type); fflush(stdout); }
+        _step++;
+        /* TODO: Quick parse of the file to count steps? */
+        if (!_quiet) { printf("%60s\r", ""); printf("Step %-4d %5d digits  Type %s\r", _step, (int)mpz_sizeinbase(N,10), type); fflush(stdout); }
         if        (strcmp(type, "ECPP" ) == 0) { read_vars("N A B M Q X Y");
                                                  verify_ecpp();
                                                  add_chain(N, Q);
