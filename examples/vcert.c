@@ -1407,6 +1407,7 @@ void read_vars(const char* vars) {
         vlist[varnum-1] = 0;  /* It should only appear once */
         bad_lines = 0;
       } else {
+        if (_verbose) { printf("%60s\r", ""); printf("skipping bad line: %s\n", _line); }
         if (bad_lines++ >= BAD_LINES_ALLOWED)
           quit_error("Too many bad lines reading variables", "");
       }
