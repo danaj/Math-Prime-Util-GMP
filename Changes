@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.15 2013-08
+0.15 2013-09
 
     [Functions Added]
       - miller_rabin_random
@@ -18,6 +18,10 @@ Revision history for Perl module Math::Prime::Util::GMP
       it runs 2-4x faster for large inputs.
 
     - Trim ECPP and adjust its heuristics.
+
+    - Standalone ECPP now has consistent return codes, making it easier to
+      use in applications without having to parse return text.  The return
+      codes are consistent with the certificate verifier.
 
 0.14 2013-08-07
 

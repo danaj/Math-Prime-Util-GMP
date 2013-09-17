@@ -855,7 +855,9 @@ static void dieusage(char* prog) {
   printf("   -aprcl use APR-CL for proof\n");
 #endif
   printf("   -help  this message\n");
-  exit(1);
+  printf("\n");
+  printf("Return codes: 0 prime, 1 composite, 2 prp, 3 error\n");
+  exit(3);
 }
 
 int main(int argc, char **argv)
@@ -866,6 +868,7 @@ int main(int argc, char **argv)
   int do_aks = 0;
   int do_aprcl = 0;
   int do_bpsw = 0;
+  int retcode = 3;
   char* cert = 0;
 
   if (argc < 2) dieusage(argv[0]);
@@ -935,10 +938,12 @@ int main(int argc, char **argv)
     /* printf("(%d digit) ", (int)mpz_sizeinbase(n, 10)); */
     if (isprime == 0) {
       printf("COMPOSITE\n");
+      retcode = 1;
     } else if (isprime == 1) {
-      /* We really shouldn't ever see this. */
+      /* This would normally only be from BPSW */
       printf("PROBABLY PRIME\n");
-    } else {
+      retcode = 2;
+    } else if (isprime == 2) {
       if (do_printcert) {
         gmp_printf("[MPU - Primality Certificate]\n");
         gmp_printf("Version 1.0\n");
@@ -950,6 +955,10 @@ int main(int argc, char **argv)
       } else {
         printf("PRIME\n");
       }
+      retcode = 0;
+    } else {
+      /* E.g. APRCL returns -1 for error */
+      croak("Unknown return code, probable error.\n");
     }
     if (cert != 0) {
       Safefree(cert);
@@ -958,6 +967,6 @@ int main(int argc, char **argv)
   }
   mpz_clear(n);
   _GMP_destroy();
-  return 0;
+  return retcode;
 }
 #endif
