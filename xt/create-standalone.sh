@@ -192,7 +192,7 @@ Note 2: You can also force use of the BLS75 theorem 5/7 n-1 proof using the
 
 Note 3: You can also run APRCL.  Get WraithX's code from:
                http://sourceforge.net/projects/mpzaprcl/
-        , put the files in this directory, then add -DAPRCL to the
+        , put the files in this directory, then add -DUSE_APRCL to the
         DEFINES in the Makefile.  The '-aprcl' option will now be available.
 
 EOREADME
