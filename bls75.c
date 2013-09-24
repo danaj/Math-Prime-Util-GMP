@@ -328,7 +328,7 @@ static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
 {
   mpz_mul(t, A, B);
   mpz_add_ui(t, t, 1);
-  if (mpz_cmp(t, n) != 0) croak("BLS75:  A*B != n-1\n");
+  if (mpz_cmp(t, n) != 0) croak("BLS75 internal error: A*B != n-1\n");
 
   mpz_mul_ui(t, A, 2);
   mpz_tdiv_qr(s, r, B, t);
@@ -440,6 +440,12 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     for (i = 2; i < fsp; i++)
       for (j = i; j > 1 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--)
         mpz_swap( fstack[j-1], fstack[j] );
+    for (i = 2; i < fsp; i++)   /* Remove any duplicate factors */
+      if (mpz_cmp(fstack[i], fstack[i-1]) == 0) {
+        for (j = i+1; j < fsp; j++)
+          mpz_set(fstack[j-1], fstack[j]);
+        fsp--;
+      }
   }
 
   /* Shrink to smallest set and verify conditions. */
@@ -460,7 +466,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
       mpz_clear(fstack[--fsp]);
     /* Verify Q[0] = 2 */
     if (mpz_cmp_ui(fstack[0], 2) != 0)
-      croak("Internal error: 2 not at start of fstack");
+      croak("BLS75 internal error: 2 not at start of fstack");
     /* Verify conditions */
     success = 0;
     if (bls_theorem5_limit(n, A, B, t, m, r, s)) {
