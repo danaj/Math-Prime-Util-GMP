@@ -6,7 +6,7 @@ Devel::CheckLib;
 use 5.00405; #postfix foreach
 use strict;
 use vars qw($VERSION @ISA @EXPORT);
-$VERSION = '0.98';
+$VERSION = '1.01';
 use Config qw(%Config);
 use Text::ParseWords 'quotewords';
 
@@ -115,6 +115,11 @@ libraries (each preceded by '-l') and directories (preceded by '-L').
 
 This can also be supplied on the command-line.
 
+=item debug
+
+If true - emit information during processing that can be used for
+debugging.
+
 =back
 
 And libraries are no use without header files, so ...
@@ -203,7 +208,7 @@ sub assert_lib {
     # using special form of split to trim whitespace
     if(defined($args{LIBS})) {
         foreach my $arg (split(' ', $args{LIBS})) {
-            die("LIBS argument badly-formed: $arg\n") unless($arg =~ /^-l/i);
+            die("LIBS argument badly-formed: $arg\n") unless($arg =~ /^-[lLR]/);
             push @{$arg =~ /^-l/ ? \@libs : \@libpaths}, substr($arg, 2);
         }
     }
