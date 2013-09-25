@@ -261,9 +261,9 @@ static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 
 static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
 {
+  UV tP = 3;
   if (inc < 1 || inc > 256)
     croak("Invalid lucas paramater increment: %"UVuf"\n", inc);
-  UV tP = 3;
   while (1) {
     UV D = tP*tP - 4;
     UV gcd = mpz_gcd_ui(NULL, n, D);
@@ -621,17 +621,16 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
    * we will search a bit farther than to_n.
    */
   {
-    int d, i, j;
     UV found = 0;
     unsigned long* xn;        /* leaves */
     mpz_t* xtree[16+1];       /* the tree (maxdepth = 16) */
     mpz_t* xtemp;
-    unsigned int depth, leafsize, nleaves;
+    unsigned int i, j, d, depth, leafsize, nleaves;
 
     /* Decide on the tree depth (3-16) and number of leaves (10-31) */
     {
-      depth = 0;
       unsigned int dp = log2n >> 10;
+      depth = 0;
       while (dp >>= 1) depth++;
       if (depth < 3) depth = 3;
       if (depth > 16) depth = 16;
@@ -642,7 +641,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 
     New(0, xn, nleaves * leafsize, unsigned long);
     for (d = 0; d <= depth; d++) {
-      int nodes = 1 << (depth - d);
+      unsigned int nodes = 1 << (depth - d);
       New(0, xtree[d], nodes, mpz_t);
       for (j = 0; j < nodes; j++)
         mpz_init(xtree[d][j]);
@@ -665,12 +664,12 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
       }
       /* Multiply product tree, xtree[depth][0] has nleaves*leafsize product */
       for (d = 1; d <= depth; d++)
-        for (i = 0; i < (1 << (depth-d)); i++)
+        for (i = 0; i < (1U << (depth-d)); i++)
           mpz_mul(xtree[d][i], xtree[d-1][2*i], xtree[d-1][2*i+1]);
       /* Go backwards replacing the products with remainders */
       mpz_tdiv_r(xtree[depth][0], n, xtree[depth][0]);
       for (d = 1; d <= depth; d++)
-        for (i = 0; i < (1 << d); i++)
+        for (i = 0; i < (1U << d); i++)
           mpz_tdiv_r(xtree[depth-d][i], xtree[depth-d+1][i>>1], xtree[depth-d][i]);
       /* Search each leaf for divisors */
       for (i = 0; !found && i < nleaves; i++)
@@ -680,7 +679,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     }
     p = found;
     for (d = 0; d <= depth; d++) {
-      int nodes = 1 << (depth - d);
+      unsigned int nodes = 1U << (depth - d);
       for (j = 0; j < nodes; j++)
         mpz_clear(xtree[d][j]);
       Safefree(xtree[d]);

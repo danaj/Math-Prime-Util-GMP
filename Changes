@@ -9,9 +9,13 @@ Revision history for Perl module Math::Prime::Util::GMP
       This improves performance greatly for very large inputs.
 
     - is_prob_prime uses more trial division for large inputs.  For very
-      large inputs (e.g. 50,000+ digits) this greatly speeds up probable
-      prime testing on many composites, for instance in next_prime or
-      similar sieving.
+      large inputs (e.g. 50,000+ digits) this can greatly speed up probable
+      prime testing, for instance in next_prime or similar sieving.
+      Time for next_prime(99992 * 10**10101 - 100):
+         1m  4s  MPUGMP 0.15
+         3m 34s  Pari/GP (needs 450MB of stack!)
+         4m  1s  mpz_nextprime
+         9m 33s  Math::Primality
 
     - Use shallow product tree for primorials.  Large primorials are 2 to 12
       times faster.  Break consecutive_integer_lcm into four sub-products so

@@ -222,23 +222,25 @@ Version 0.15
 A set of utilities related to prime numbers, using GMP.  This includes
 primality tests, getting primes in a range, and factoring.
 
-While it certainly can be used directly, the main purpose of this module is
-for L<Math::Prime::Util>.  That module will automatically load this if it is
-installed, greatly speeding up many of its operations on big numbers.
+While it certainly can be used directly, the main purpose of this
+module is for L<Math::Prime::Util>.  That module will automatically
+load this one if it is installed, greatly speeding up many of its
+operations on big numbers.
 
-Inputs and outputs for big numbers are via strings, so you do not need to
-use a bigint package in your program.  However if you do use bigints, inputs
-will be converted internally so there is no need to convert before a call.
-Output results are returned as either Perl scalars (for native-size) or
-strings (for bigints).  L<Math::Prime::Util> tries to reconvert
-all strings back into the callers bigint type if possible, which makes it more
-convenient for calculations.
+Inputs and outputs for big numbers are via strings, so you do not need
+to use a bigint package in your program.  However if you do use bigints,
+inputs will be converted internally so there is no need to convert
+before a call.  Output results are returned as either Perl scalars
+(for native-size) or strings (for bigints).  L<Math::Prime::Util> tries
+to reconvert all strings back into the callers bigint type if possible,
+which makes it more convenient for calculations.
 
 The various C<is_*_pseudoprime> tests are more appropriately called
 C<is_*_probable_prime> or C<is_*_prp>.  They return 1 if the input is a
 probable prime based on their test.  The naming convention is historical
-and follows Pari and some other math packages.  The modern definition of
-pseudoprime is a I<composite> that passes the test, rather than any number.
+and follows Pari, L<Math::Primality>, and some other math packages.
+The modern definition of pseudoprime is a I<composite> that passes the
+test, rather than any number.
 
 
 =head1 FUNCTIONS
@@ -251,22 +253,25 @@ pseudoprime is a I<composite> that passes the test, rather than any number.
 Takes a positive number as input and returns back either 0 (composite),
 2 (definitely prime), or 1 (probably prime).
 
-For inputs below C<2^64> the test is deterministic, so the possible return
-values are 0 (composite) or 2 (definitely prime).
+For inputs below C<2^64> the test is deterministic, so the possible
+return values are 0 (composite) or 2 (definitely prime).
 
-For inputs above C<2^64>, a probabilistic test is performed.  Only 0 (composite)
-and 1 (probably prime) are returned.  The current implementation uses the
-Baillie-PSW (BPSW) test.  There is a possibility that composites may be
-returned marked prime, but since the test was published in 1980, not a
-single BPSW pseudoprime has been found, so it is extremely likely to be prime.
-While we believe (Pomerance 1984) that an infinite number of counterexamples
-exist, there is a weak conjecture (Martin) that none exist under 10000 digits.
+For inputs above C<2^64>, a probabilistic test is performed.  Only 0
+(composite) and 1 (probably prime) are returned.  The current
+implementation uses the Baillie-PSW (BPSW) test.  There is a
+possibility that composites may be returned marked prime, but since
+the test was published in 1980, not a single BPSW pseudoprime has
+been found, so it is extremely likely to be prime.
+While we believe (Pomerance 1984) that an infinite number of
+counterexamples exist, there is a weak conjecture (Martin) that
+none exist under 10000 digits.
 
-In more detail, we are using the extra-strong Lucas test (Grantham 2000)
-using the Baillie parameter selection method (see OEIS A217719).  Previous
-versions of this module used the strong Lucas test with Selfridge parameters,
-but the extra-strong version produces fewer pseudoprimes while running
-1.2 - 1.5x faster.  It is slightly stronger than the test used in
+In more detail, we are using the extra-strong Lucas test
+(Grantham 2000) using the Baillie parameter selection method
+(see OEIS A217719).  Previous versions of this module used the
+strong Lucas test with Selfridge parameters, but the extra-strong
+version produces fewer pseudoprimes while running 1.2 - 1.5x faster.
+It is slightly stronger than the test used in
 L<Pari|http://pari.math.u-bordeaux.fr/faq.html#primetest>.
 
 
@@ -275,31 +280,31 @@ L<Pari|http://pari.math.u-bordeaux.fr/faq.html#primetest>.
   say "$n is prime!" if is_prime($n);
 
 Takes a positive number as input and returns back either 0 (composite),
-2 (definitely prime), or 1 (probably prime).  Composites will act exactly
-like C<is_prob_prime>, as will numbers less than C<2^64>.  For numbers
-larger than C<2^64>, some additional tests are performed on probable primes
-to see if they can be proven by another means.
+2 (definitely prime), or 1 (probably prime).  Composites will act
+exactly like C<is_prob_prime>, as will numbers less than C<2^64>.
+For numbers larger than C<2^64>, some additional tests are performed
+on probable primes to see if they can be proven by another means.
 
 As with L</is_prob_prime>, a BPSW test is first performed.  If this
 indicates "probably prime" then a small number of Miller-Rabin tests
 with random bases are performed.  For numbers under 200 bits, a quick
 BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
-if the result cannot be quickly determined, and results in approximately
-30% success rate at 128-bits.
+if the result cannot be quickly determined, and results in
+approximately 30% success rate at 128-bits.
 
 The result is that many numbers will return 2 (definitely prime),
-and the numbers that return 1 (probably prime) have gone through more
-tests than L</is_prob_prime> while not taking too long.
+and the numbers that return 1 (probably prime) have gone through
+more tests than L</is_prob_prime> while not taking too long.
 
 For cryptographic key generation, you may want even more testing for
 probable primes (NIST recommends a few more additional M-R tests than
-we perform).  This can be done using additional random bases with
-L</is_strong_pseudoprime>, or a different test such as
-L</is_frobenius_underwood_pseudoprime>.  Even better, use
-L</is_provable_prime> which should be reasonably fast for sizes under
-2048 bits.
-Another possibility is to use L<Math::Prime::Util/random_maurer_prime> which
-constructs a random provable prime.
+we perform).  The function L</miller_rabin_random> is made for this.
+Alternately, a different test such as
+L</is_frobenius_underwood_pseudoprime> can be used.
+Even better, use L</is_provable_prime> which should be reasonably
+fast for sizes under 2048 bits.
+Typically for key generation one wants random primes, and there are
+many functions for that.
 
 
 =head2 is_provable_prime
@@ -311,9 +316,9 @@ Takes a positive number as input and returns back either 0 (composite),
 taken to return either 0 or 2 for all numbers.
 
 The current method first uses BPSW and a small number of Miller-Rabin
-tests with random bases to weed out composites and provide a deterministic
-answer for tiny numbers (under C<2^64>).  A quick BLS75 C<n-1> test is
-attempted, followed by ECPP.
+tests with random bases to weed out composites and provide a
+deterministic answer for tiny numbers (under C<2^64>).  A quick BLS75
+C<n-1> test is attempted, followed by ECPP.
 
 The time required for primes of different input sizes on a circa-2009
 workstation averages about C<3ms> for 30-digits, C<5ms> for 40-digit,
@@ -323,13 +328,14 @@ Expect a lot of time variation for larger inputs.  You can see progress
 indication if verbose is turned on (some at level 1, and a lot at level 2).
 
 A certificate can be obtained along with the result using the
-L</is_provable_prime_with_cert> method.
+L</is_provable_prime_with_cert> method.  There is no appreciable extra
+performance cost for returning a certificate.
 
 
 =head2 is_provable_prime_with_cert
 
-Takes a positive number as input and returns back an array with two elements.
-The result will be one of:
+Takes a positive number as input and returns back an array with two
+elements.  The result will be one of:
 
   (0, '')      The input is composite.
 
@@ -357,25 +363,25 @@ verification.  Proof types used include:
   my $maybe_prime = is_strong_pseudoprime($n, 2);
   my $probably_prime = is_strong_pseudoprime($n, 2, 3, 5, 7, 11, 13, 17);
 
-Takes a positive number as input and one or more bases.  Returns 1 if the
-input is a prime or a strong pseudoprime to all of the bases, and 0 if not.
-The base must be a positive integer.  This is often called the Miller-Rabin
-test.
+Takes a positive number as input and one or more bases.  Returns 1 if
+the input is a prime or a strong pseudoprime to all of the bases, and
+0 if not.  The base must be a positive integer.  This is often called
+the Miller-Rabin test.
 
-If 0 is returned, then the number really is a composite.  If 1 is returned,
-then it is either a prime or a strong pseudoprime to all the given bases.
-Given enough distinct bases, the chances become very strong that the number
-is actually prime.
+If 0 is returned, then the number really is a composite.  If 1 is
+returned, then it is either a prime or a strong pseudoprime to all
+the given bases.  Given enough distinct bases, the chances become
+very strong that the number is actually prime.
 
-Both the input number and the bases may be big integers.  If base modulo n
-E<lt>= 1 or base modulo n = n-1, then the result will be 1.  This allows the
-bases to be larger than n if desired, while still returning meaningful results.
-For example,
+Both the input number and the bases may be big integers.  If base
+modulo n E<lt>= 1 or base modulo n = n-1, then the result will be 1.
+This allows the bases to be larger than n if desired, while still
+returning meaningful results.  For example,
 
   is_strong_pseudoprime(367, 1101)
 
-would incorrectly return 0 if this was not done properly.  A 0 result should
-be returned only if n is composite, regardless of the base.
+would incorrectly return 0 if this was not done properly.  A 0 result
+should be returned only if n is composite, regardless of the base.
 
 This is usually used in combination with other tests to make either stronger
 tests (e.g. the strong BPSW test) or deterministic results for numbers less
@@ -406,13 +412,15 @@ An optional third argument may be given, which is a seed to use.  The seed
 should be a number either in decimal, binary with a leading C<0b>, hex with
 a leading C<0x>, or octal with a leading C<0>.  It will be converted to a
 GMP integer, so may be large.  Typically this is not necessary, but
-cryptographic applications may prefer to ability to use this.
+cryptographic applications may prefer the ability to use this, and it
+allows repeatable test results.
 
-There is no logic to avoid duplicate bases.  With sensible size inputs
-for this function (over 64-bits), the chances of duplicate bases is
-extremely small.  The exponentiation approximation for the birthday problem
-gives a chance of less than 2e-14 for a duplicate base to appear in 1000
-random bases on a 65-bit number.
+There is no check for duplicate bases.  Input sizes below 65-bits make
+little sense for this function since L<is_prob_prime> is deterministic
+at that size.  For numbers of 65+ bits, the chance of duplicate bases
+is quite small.  The exponentiation approximation for the birthday
+problem gives a probability of less than 2e-16 for 100 random bases to have
+a duplicate with a 65-bit input, and less than 2e-35 with a 128-bit input.
 
 
 =head2 is_lucas_pseudoprime
@@ -427,6 +435,14 @@ with base 2 being the other half).  The canonical BPSW test (page 1401 of
 Baillie and Wagstaff (1980)) uses the strong Lucas test with Selfridge
 parameters, but in practice a variety of Lucas tests with different
 parameters are used by tests calling themselves BPSW.
+
+The standard Lucas test implemented here corresponds to the Lucas test
+described in FIPS 186-4 section C.3.3, though uses a slightly more
+efficient calculation.  Since the standard Lucas-Selfridge test is a
+subset of the strong Lucas-Selfridge test, I recommend using the strong
+test rather than the standard test for cryptographic purposes.  It is
+often slightly faster, has over 4x fewer pseudoprimes, and is the method
+recommended by Baillie and Wagstaff in their 1980 paper.
 
 
 =head2 is_extra_strong_lucas_pseudoprime
@@ -474,9 +490,9 @@ counterexamples have been found with any of the Lucas tests described.
 
 =head2 is_frobenius_underwood_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input passes the minimal
-lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"), where
-C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  There are no known
+Takes a positive number as input, and returns 1 if the input passes the
+minimal lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"),
+where C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  There are no known
 counterexamples, but this is not a well studied test.
 
 The computational cost is about 2.5x the cost of a strong pseudoprime test
@@ -492,7 +508,13 @@ Lucas test.
 Takes a positive number as input, and returns 1 if the input passes the
 Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
 unconditional primality test which runs in polynomial time for general input.
-In practice, L</is_nminus1_prime> and L</is_ecpp_prime> are B<much> faster.
+
+In theory, AKS is extremely important.  In practice, it is essentially
+useless.  Estimated run time for a 150 digit input is about 9 years,
+making the case that while the algorithmic complexity I<growth> is
+polynomial, the constants are ludicrously high.  There are some ideas
+of Bernstein that can reduce this a little, but it would still take years
+for numbers that ECPP or APR-CL can prove in seconds.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
 
@@ -550,17 +572,21 @@ may use a multi-segmented sieve when appropriate.
 
   $n = next_prime($n);
 
-Returns the next prime greater than the input number.  The function
-L</is_prob_prime> is used to determine when a prime is found.
+Returns the prime following the input number (the smallest prime number
+that is greater than the input number).
+The function L</is_prob_prime> is used to determine when a prime is found,
+hence the result is a probable prime (using BPSW).
 
 
 =head2 prev_prime
 
   $n = prev_prime($n);
 
-Returns the prime smaller than the input number.  0 is returned if the
-input is C<2> or lower.  The function L</is_prob_prime> is used to
-determine when a prime is found.
+Returns the prime preceding the input number (the largest prime number
+that is less than the input number).
+0 is returned if the input is C<2> or lower.
+The function L</is_prob_prime> is used to determine when a prime is found,
+hence the result is a probable prime (using BPSW).
 
 
 =head2 lucas_sequence
@@ -611,7 +637,7 @@ The two are related with the relationships:
 Given an unsigned integer argument, returns the least common multiple of all
 integers from 1 to C<n>.  This can be done by manipulation of the primes up
 to C<n>, resulting in much faster and memory-friendly results than using
-n factorial.
+factorials.
 
 
 =head2 factor
@@ -633,7 +659,7 @@ Certainly improvements could be designed for this algorithm
 In practice, this factors 26-digit semiprimes in under C<100ms>, 36-digit
 semiprimes in under one second.  Arbitrary integers are factored faster.
 It is many orders of magnitude faster than any other factoring module on
-CPAN circa early 2013.  It is comparable in speed to Math::Pari's C<factorint>
+CPAN circa 2013.  It is comparable in speed to Math::Pari's C<factorint>
 for most inputs.
 
 If you want better factoring in general, I recommend looking at the
@@ -658,8 +684,12 @@ is found, or the input has been tested for divisibility with all primes less
 than or equal to the limit.  If no limit is given, then C<2**31-1> will be used.
 
 This is a good and fast initial test, and will be very fast for small numbers
-(e.g. under 1 million).  It becomes unreasonably slow in the general case as
-the input size increases.
+(e.g. under 1 million).  For larger numbers, faster methods for complete
+factoring have been known since the 17th century.
+
+For inputs larger than about 1000 digits, a dynamic product/remainder tree
+is used, which is faster than GMP's native methods.  This helps when pruning
+composites or looking for very small factors.
 
 
 =head2 prho_factor
@@ -675,7 +705,9 @@ given as the second parameter.  Factoring will stop when the input is a prime,
 one factor has been found, or the number of rounds has been exceeded.
 
 This is the Pollard Rho method with C<f = x^2 + 3> and default rounds 64M.  It
-is very good at finding small factors.
+is very good at finding small factors.  Typically L</pbrent_factor> will be
+preferred as it behaves similarly but runs quite a bit faster.  They use
+different parameters however, so are not completely identical.
 
 
 =head2 pbrent_factor
@@ -691,10 +723,10 @@ number of rounds may be given as the second parameter.  Factoring will stop
 when the input is a prime, one factor has been found, or the number of
 rounds has been exceeded.
 
-This is the Pollard Rho method using Brent's modified cycle detection and
-backtracking.  It is essentially Algorithm P''2 from Brent (1980).  Parameters
-used are C<f = x^2 + 3> and default rounds 64M.  It is very good at finding
-small factors.
+This is the Pollard Rho method using Brent's modified cycle detection,
+delayed C<gcd> computations, and backtracking.  It is essentially
+Algorithm P''2 from Brent (1980).  Parameters used are C<f = x^2 + 3>
+and default rounds 64M.  It is very good at finding small factors.
 
 
 =head2 pminus1_factor
@@ -799,8 +831,8 @@ on code ideas of Ben Buhrow and Jason Papadopoulos as well as many others.
 SQUFOF is often the preferred method for small numbers, and L<Math::Prime::Util>
 as well as many other packages use it was the default method for native size
 (e.g. 32-bit or 64-bit) numbers after trial division.  The GMP version used
-in this module will work for larger values, but my testing is showing that it
-is not faster than the C<prho> and C<pbrent> methods in general.
+in this module will work for larger values, but my testing indicates it is
+generally slower than the C<prho> and C<pbrent> implementations.
 
 
 =head2 ecm_factor
@@ -847,7 +879,7 @@ having large factors, and is the method of choice for 35+ digit semiprimes.
 
 =over 4
 
-=item L<Math::Prime::Util>.
+=item L<Math::Prime::Util>
 Has many more functions, lots of fast code for dealing with native-precision
 arguments (including much faster primes using sieves), and will use this
 module when needed for big numbers.  Using L<Math::Prime::Util> rather than
@@ -874,9 +906,20 @@ L<GGNFS|http://sourceforge.net/projects/ggnfs/>
 Good general purpose factoring utilities.  These will be faster than this
 module, and B<much> better as the factor increases in size.
 
-=item L<Primo|http://www.ellipsa.eu/public/primo/primo.html> is the state
-of the art in freely available (though not open source!) primality proving
-programs.  If you have 1000+ digit numbers to prove, you want to use this.
+=item L<Primo|http://www.ellipsa.eu/public/primo/primo.html>
+is the state of the art in freely available (though not open source!)
+primality proving programs.  If you have 1000+ digit numbers to prove,
+you want to use this.
+
+=item L<mpz_aprcl|http://sourceforge.net/projects/mpzaprcl/>
+Open source APR-CL primality proof implementation.
+Fast primality proving, though without certificates.
+
+=item L<GMP-ECPP|http://sourceforge.net/projects/gmp-ecpp/>.
+An open source ECPP primality proving program.  Slower than this
+module's ECPP for all inputs when the large polynomial set from
+github is used.  Extremely slow once past 300 or so digits.
+There are now better alternatives.
 
 =back
 
