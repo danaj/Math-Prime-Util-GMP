@@ -399,7 +399,7 @@ other implementations including L<Math::Primality>'s C<is_strong_pseudoprime>
 function.
 
 =head2 miller_rabin_random
-  
+
   my $maybe_prime = miller_rabin_random($n, 10); # 10 random bases
 
 Takes a positive number (C<n>) as input and a positive number (C<k>) of bases
@@ -576,6 +576,9 @@ Returns the prime following the input number (the smallest prime number
 that is greater than the input number).
 The function L</is_prob_prime> is used to determine when a prime is found,
 hence the result is a probable prime (using BPSW).
+
+For large inputs this function is quite a bit faster than GMP's
+C<mpz_nextprime> or Pari's C<nextprime>.
 
 
 =head2 prev_prime
