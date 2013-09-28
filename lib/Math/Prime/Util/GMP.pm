@@ -110,9 +110,8 @@ sub is_provable_prime_with_cert {
 
 sub factor {
   my ($n) = @_;
-  return ($n) if $n < 4;
-
-  my @factors = sort {$a<=>$b} _GMP_factor($n);
+  my @factors = ($n < 4) ? ($n)
+                         : sort {$a<=>$b} _GMP_factor($n);
   return @factors;
 }
 

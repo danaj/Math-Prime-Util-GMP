@@ -69,7 +69,8 @@ int _GMP_miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
   UV i;
 
   if (numbases == 0)  return 1;
-  if (mpz_cmp_ui(n, 100) < 0)  return _GMP_is_prob_prime(n); /* tiny n */
+  if (mpz_cmp_ui(n, 100) < 0)     /* tiny n */
+    return (_GMP_is_prob_prime(n) > 0);
 
   mpz_init(base);  mpz_init(t);
 

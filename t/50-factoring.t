@@ -10,6 +10,7 @@ plan tests => 0 + 56
                 + 2
                 + 6    # individual tets for factoring methods
                 + 7*7  # factor extra tests
+                + 8    # factor in scalar context
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -149,3 +150,13 @@ sub extra_factor_test {
   is_deeply( [ sort {$a<=>$b} $fsub->(53936983) ], [7013, 7691],  "$fname(53936983)" );
   is_deeply( [ sort {$a<=>$b} $fsub->('1754012594703269855671') ], ['41110234981', '42666080491'],  "$fname(1754012594703269855671)" );
 }
+
+# Factor in scalar context
+is( scalar factor(0), 1, "scalar factor(0) should be 1" );
+is( scalar factor(1), 1, "scalar factor(1) should be 1" );
+is( scalar factor(3), 1, "scalar factor(3) should be 1" );
+is( scalar factor(4), 2, "scalar factor(4) should be 2" );
+is( scalar factor(5), 1, "scalar factor(5) should be 1" );
+is( scalar factor(6), 2, "scalar factor(6) should be 2" );
+is( scalar factor(30107), 4, "scalar factor(30107) should be 4" );
+is( scalar factor(174636000), 15, "scalar factor(174636000) should be 15" );

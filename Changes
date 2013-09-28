@@ -27,6 +27,8 @@ Revision history for Perl module Math::Prime::Util::GMP
       use in applications without having to parse return text.  The return
       codes are consistent with the certificate verifier.
 
+    - factor() in scalar context is now consistent.
+
 0.14 2013-08-07
 
     - Fix small certificates leaving out the "N " for small numbers.
