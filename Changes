@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.15 2013-09
+0.15 2013-09-30
 
     [Functions Added]
       - miller_rabin_random
