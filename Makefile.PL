@@ -8,7 +8,7 @@ WriteMakefile1(
     NAME         => 'Math::Prime::Util::GMP',
     ABSTRACT     => 'Utilities related to prime numbers, using GMP',
     VERSION_FROM => 'lib/Math/Prime/Util/GMP.pm',
-    LICENSE      => 'perl',
+    LICENSE      => 'perl_5',
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
     OBJECT       => 'prime_iterator.o ' .
@@ -22,7 +22,7 @@ WriteMakefile1(
                     'XS.o',
     LIBS         => ['-lgmp -lm'],
 
-    BUILD_REQUIRES=>{
+    TEST_REQUIRES=> {
                       'Test::More'       => '0.45',
                     },
     PREREQ_PM    => {
@@ -33,12 +33,21 @@ WriteMakefile1(
                     },
 
     META_MERGE   => {
+               'meta-spec'  => {
+                  version => '2',
+                  url     => 'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
+               },
+               dynamic_config => 1,
                resources => {
                   homepage   => 'https://github.com/danaj/Math-Prime-Util-GMP',
                   repository => 'https://github.com/danaj/Math-Prime-Util-GMP',
                },
-               recommends => {
-                  'Math::Prime::Util' => 0.024,
+               prereqs => {
+                 runtime => {
+                   recommends => {
+                     'Math::Prime::Util' => 0.31,
+                   },
+                 },
                },
              },
 
