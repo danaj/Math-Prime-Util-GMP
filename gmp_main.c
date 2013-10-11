@@ -25,7 +25,7 @@ void _GMP_init(void)
 {
   /* We should  not use this random number system for crypto, so
    * using this lousy seed is ok.  We just would like something a
-   * bit different every run. */
+   * bit different every run.  Using Perl_seed(aTHX) would be better. */
   unsigned long seed = time(NULL);
   init_randstate(seed);
   prime_iterator_global_startup();
@@ -1035,6 +1035,7 @@ void _GMP_next_prime(mpz_t n)
     return;
   }
 
+mpz_t t, on; mpz_init_set(on, n); mpz_init(t);
   mpz_init(d);
   m = mpz_fdiv_q_ui(d, n, 30);
 
@@ -1047,6 +1048,7 @@ void _GMP_next_prime(mpz_t n)
   mpz_mul_ui(n, d, 30);
   mpz_add_ui(n, n, m);
   while (1) {
+mpz_sub(t, n, on); gmp_printf("testing +%Zd\n", t);
     if (_GMP_is_prob_prime(n))
       break;
     mpz_add_ui(n, n, wheel_advance[m]);
