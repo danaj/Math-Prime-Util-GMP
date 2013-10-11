@@ -1035,7 +1035,6 @@ void _GMP_next_prime(mpz_t n)
     return;
   }
 
-mpz_t t, on; mpz_init_set(on, n); mpz_init(t);
   mpz_init(d);
   m = mpz_fdiv_q_ui(d, n, 30);
 
@@ -1048,7 +1047,6 @@ mpz_t t, on; mpz_init_set(on, n); mpz_init(t);
   mpz_mul_ui(n, d, 30);
   mpz_add_ui(n, n, m);
   while (1) {
-mpz_sub(t, n, on); gmp_printf("testing +%Zd\n", t);
     if (_GMP_is_prob_prime(n))
       break;
     mpz_add_ui(n, n, wheel_advance[m]);
