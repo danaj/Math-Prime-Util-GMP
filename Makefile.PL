@@ -38,9 +38,12 @@ WriteMakefile1(
                   url     => 'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
                },
                dynamic_config => 1,
-               resources => {
+               resources    => {
+                  license    => [ 'http://dev.perl.org/licenses/' ],
                   homepage   => 'https://github.com/danaj/Math-Prime-Util-GMP',
-                  repository => 'https://github.com/danaj/Math-Prime-Util-GMP',
+                  repository => {
+                    url  => 'https://github.com/danaj/Math-Prime-Util-GMP',
+                  },
                },
                prereqs => {
                  runtime => {
