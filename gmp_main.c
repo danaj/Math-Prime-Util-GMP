@@ -170,7 +170,7 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
     if (P > 2 && mpz_invert(t, t, n)) {
       /* Compute V_k and V_{k+1}, then computer U_k from them. */
       mpz_set_si(V, P);
-      mpz_init_set_si(U, P*P-2);
+      mpz_set_si(U, P*P-2);
       while (b > 1) {
         b--;
         if (mpz_tstbit(k, b-1)) {
