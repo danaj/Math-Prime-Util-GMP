@@ -573,7 +573,7 @@ _GMP_factor(IN char* strn)
         while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
           int success = 0;
           int o = get_verbose_level();
-          UV B1 = 5000;
+          UV nbits, B1 = 5000;
 
           /*
            * This set of operations is meant to provide good performance for
@@ -621,18 +621,18 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 4000000);
           if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
 
-          /* ECM with a good chance of success */
+          /* Set ECM parameters that have a good chance of success */
           if (!success) {
-            UV bits = mpz_sizeinbase(n, 2);
-            UV curves = 20;
-            if      (bits < 100)  B1 =   5000;     /* All need tuning */
-            else if (bits < 128)  B1 =  10000;
-            else if (bits < 160)  B1 =  20000;
-            else if (bits < 192)  B1 =  30000;
-            else if (bits < 224){ B1 =  40000; curves =  40; }
-            else if (bits < 256){ B1 =  80000; curves =  40; }
-            else if (bits < 512){ B1 = 160000; curves =  80; }
-            else                { B1 = 320000; curves = 160; }
+            nbits = mpz_sizeinbase(n, 2);
+            UV curves;
+            if      (nbits < 100){ B1 =   5000; curves =  20; }
+            else if (nbits < 128){ B1 =  10000; curves =   5; } /* go to QS */
+            else if (nbits < 160){ B1 =  20000; curves =   5; } /* go to QS */
+            else if (nbits < 192){ B1 =  30000; curves =  20; }
+            else if (nbits < 224){ B1 =  40000; curves =  40; }
+            else if (nbits < 256){ B1 =  80000; curves =  40; }
+            else if (nbits < 512){ B1 = 160000; curves =  80; }
+            else                 { B1 = 320000; curves = 160; }
             success = _GMP_ECM_FACTOR(n, f, B1, curves);
             if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
           }
@@ -642,7 +642,7 @@ _GMP_factor(IN char* strn)
            * reasonable size numbers (< 91 digits).  Because of the way it
            * works, it will generate (possibly) multiple factors for the same
            * amount of work.  Go to some trouble to use them. */
-          if (!success && mpz_sizeinbase(n,10)>=30 && mpz_sizeinbase(n,2)<300) {
+          if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
             mpz_t farray[66];
             int i, nfactors;
             for (i = 0; i < 66; i++)
