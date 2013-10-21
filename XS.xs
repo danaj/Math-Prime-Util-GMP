@@ -93,7 +93,7 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
     mpz_init_set_str(n, strn, 10);
     mpz_init_set_str(a, strbase, 10);
     RETVAL = _GMP_miller_rabin(n, a);
-    mpz_clear(n); mpz_clear(a);
+    mpz_clear(n);  mpz_clear(a);
   OUTPUT:
     RETVAL
 
@@ -336,6 +336,46 @@ pn_primorial(IN UV n)
     _GMP_pn_primorial(prim, n);
     XPUSH_MPZ(prim);
     mpz_clear(prim);
+
+void partitions(IN UV n)
+  PREINIT:
+    UV i, j, k;
+  PPCODE:
+    if (n == 0) {
+      XPUSHs(sv_2mortal(newSVuv( 1 )));
+    } else if (n <= 3) {
+      XPUSHs(sv_2mortal(newSVuv( n )));
+    } else {
+      mpz_t psum;
+      mpz_t* part;
+      UV* pent;
+      UV d = (UV) sqrt(n+1);
+
+      New(0, pent, 2*d+2, UV);
+      pent[0] = 0;
+      pent[1] = 1;
+      for (i = 1; i <= d; i++) {
+        pent[2*i  ] = ( i   *(3*i+1)) / 2;
+        pent[2*i+1] = ((i+1)*(3*i+2)) / 2;
+      }
+      New(0, part, n+1, mpz_t);
+      mpz_init_set_ui(part[0], 1);
+      mpz_init(psum);
+      for (j = 1; j <= n; j++) {
+        mpz_set_ui(psum, 0);
+        for (k = 1; pent[k] <= j; k++) {
+          if ((k+1) & 2) mpz_add(psum, psum, part[ j - pent[k] ]);
+          else           mpz_sub(psum, psum, part[ j - pent[k] ]);
+        }
+        mpz_init_set(part[j], psum);
+      }
+      mpz_clear(psum);
+      XPUSH_MPZ( part[n] );
+      for (i = 0; i <= n; i++)
+        mpz_clear(part[i]);
+      Safefree(part);
+      Safefree(pent);
+    }
 
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
