@@ -38,5 +38,3 @@
 - Add BLS17 proof.  Merge into BLS5 code since the end is the same.
 
 - Add tests for proofs, similar to MPU t/23.
-
-- Add tests for partitions
