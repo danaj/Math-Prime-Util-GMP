@@ -643,6 +643,27 @@ to C<n>, resulting in much faster and memory-friendly results than using
 factorials.
 
 
+=head2 partitions
+
+Calculates the partition function p(n) for a non-negative integer input.
+This is the number of ways of writing the integer n as a sum of positive
+integers, without restrictions.  This corresponds to Pari's C<numbpart>
+function and Mathematica's C<PartitionsP> function.  The values produced
+in order are L<OEIS series A000041|http://oeis.org/A000041>.
+
+This uses a combinatorial calculation, which means it will not be very
+fast compared to Pari, Mathematica, or FLINT which use the Rademacher
+formula using multiprecision floating point.  In 10 seconds, the pure
+Perl version can produce C<partitions(10000)> while with
+L<Math::Prime::Util::GMP> it can do C<partitions(200000)>.  In contrast,
+in about 10 seconds Pari can solve C<numbpart(22000000)>.
+
+If you want the enumerated partitions, see L<Integer::Partition>.  It is
+very fast and uses an extremely memory efficient iterator.  It is not,
+however, practical for producing the partition I<number> for values
+over 100 or so.
+
+
 =head2 factor
 
   @factors = factor(640552686568398413516426919223357728279912327120302109778516984973296910867431808451611740398561987580967216226094312377767778241368426651540749005659);
