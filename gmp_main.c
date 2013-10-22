@@ -960,8 +960,7 @@ int _GMP_is_aks_prime(mpz_t n)
    * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
    * far too slow to matter either way. */
 
-  /* Note, since order_r(n) can never be > r, we should start r at limit+1 */
-  for (r = limit+1; mpz_cmp_ui(n, r) >= 0; r++) {
+  for (r = 2; mpz_cmp_ui(n, r) > 0; r++) {
     if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
       /* prime_iterator_destroy(&iter); */
       mpz_clear(sqrtn);
