@@ -653,10 +653,10 @@ in order are L<OEIS series A000041|http://oeis.org/A000041>.
 
 This uses a combinatorial calculation, which means it will not be very
 fast compared to Pari, Mathematica, or FLINT which use the Rademacher
-formula using multiprecision floating point.  In 10 seconds, the pure
-Perl version can produce C<partitions(10000)> while with
-L<Math::Prime::Util::GMP> it can do C<partitions(200000)>.  In contrast,
-in about 10 seconds Pari can solve C<numbpart(22000000)>.
+formula using multi-precision floating point.  In 10 seconds, the pure
+Perl version can produce C<partitions(10_000)> while with
+L<Math::Prime::Util::GMP> it can do C<partitions(220_000)>.  In contrast,
+in about 10 seconds Pari can solve C<numbpart(22_000_000)>.
 
 If you want the enumerated partitions, see L<Integer::Partition>.  It is
 very fast and uses an extremely memory efficient iterator.  It is not,

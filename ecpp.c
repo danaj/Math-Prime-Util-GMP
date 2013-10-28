@@ -652,7 +652,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if ( ! curveresult ) {
           /* This ought not happen */
-          if (verbose) gmp_printf("\n  Could not prove n-1 with N = %Zd\n", Ni);
+          if (verbose) gmp_printf("\n  Could not prove n+1 with N = %Zd\n", Ni);
           downresult = 1;
           continue;
         }

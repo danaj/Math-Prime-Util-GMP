@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.16 2013-10
+0.16 2013-10-28
 
     [ADDED]
 
@@ -8,7 +8,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [FIXES]
 
-    - Fixed memory leak in Lucas sequence which impacted many functions.
+    - Fixed memory leak in Lucas sequence (is_prime, next_prime, etc.).
 
     - is_aks_prime wasn't properly checking divisibility for composites.
 
