@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.15';
+  $Math::Prime::Util::GMP::VERSION = '0.16';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -43,6 +43,7 @@ our @EXPORT_OK = qw(
                      primorial
                      pn_primorial
                      consecutive_integer_lcm
+                     partitions
                    );
                    # Should add:
                    # nth_prime
@@ -162,7 +163,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.15
+Version 0.16
 
 
 =head1 SYNOPSIS
@@ -640,6 +641,27 @@ Given an unsigned integer argument, returns the least common multiple of all
 integers from 1 to C<n>.  This can be done by manipulation of the primes up
 to C<n>, resulting in much faster and memory-friendly results than using
 factorials.
+
+
+=head2 partitions
+
+Calculates the partition function p(n) for a non-negative integer input.
+This is the number of ways of writing the integer n as a sum of positive
+integers, without restrictions.  This corresponds to Pari's C<numbpart>
+function and Mathematica's C<PartitionsP> function.  The values produced
+in order are L<OEIS series A000041|http://oeis.org/A000041>.
+
+This uses a combinatorial calculation, which means it will not be very
+fast compared to Pari, Mathematica, or FLINT which use the Rademacher
+formula using multiprecision floating point.  In 10 seconds, the pure
+Perl version can produce C<partitions(10000)> while with
+L<Math::Prime::Util::GMP> it can do C<partitions(200000)>.  In contrast,
+in about 10 seconds Pari can solve C<numbpart(22000000)>.
+
+If you want the enumerated partitions, see L<Integer::Partition>.  It is
+very fast and uses an extremely memory efficient iterator.  It is not,
+however, practical for producing the partition I<number> for values
+over 100 or so.
 
 
 =head2 factor

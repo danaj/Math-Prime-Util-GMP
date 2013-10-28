@@ -8,7 +8,7 @@ WriteMakefile1(
     NAME         => 'Math::Prime::Util::GMP',
     ABSTRACT     => 'Utilities related to prime numbers, using GMP',
     VERSION_FROM => 'lib/Math/Prime/Util/GMP.pm',
-    LICENSE      => 'perl',
+    LICENSE      => 'perl_5',
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
     OBJECT       => 'prime_iterator.o ' .
@@ -22,7 +22,7 @@ WriteMakefile1(
                     'XS.o',
     LIBS         => ['-lgmp -lm'],
 
-    BUILD_REQUIRES=>{
+    TEST_REQUIRES=> {
                       'Test::More'       => '0.45',
                     },
     PREREQ_PM    => {
@@ -33,12 +33,24 @@ WriteMakefile1(
                     },
 
     META_MERGE   => {
-               resources => {
-                  homepage   => 'https://github.com/danaj/Math-Prime-Util-GMP',
-                  repository => 'https://github.com/danaj/Math-Prime-Util-GMP',
+               'meta-spec'  => {
+                  version => '2',
+                  url     => 'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
                },
-               recommends => {
-                  'Math::Prime::Util' => 0.024,
+               dynamic_config => 1,
+               resources    => {
+                  license    => [ 'http://dev.perl.org/licenses/' ],
+                  homepage   => 'https://github.com/danaj/Math-Prime-Util-GMP',
+                  repository => {
+                    url  => 'https://github.com/danaj/Math-Prime-Util-GMP',
+                  },
+               },
+               prereqs => {
+                 runtime => {
+                   recommends => {
+                     'Math::Prime::Util' => 0.31,
+                   },
+                 },
                },
              },
 
@@ -50,6 +62,10 @@ sub WriteMakefile1 {   # Cribbed from eumm-upgrade by Alexandr Ciornii
   my $eumm_version = $ExtUtils::MakeMaker::VERSION;
   $eumm_version = eval $eumm_version;
 
+  if ($params{TEST_REQUIRES} and $eumm_version < 6.6303) {
+      $params{BUILD_REQUIRES}={ %{$params{BUILD_REQUIRES} || {}} , %{$params{TEST_REQUIRES}} };
+      delete $params{TEST_REQUIRES};
+  }
   if ($params{BUILD_REQUIRES} and $eumm_version < 6.5503) {
       #EUMM 6.5502 has problems with BUILD_REQUIRES
       $params{PREREQ_PM}={ %{$params{PREREQ_PM} || {}} , %{$params{BUILD_REQUIRES}} };

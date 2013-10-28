@@ -25,7 +25,7 @@ void _GMP_init(void)
 {
   /* We should  not use this random number system for crypto, so
    * using this lousy seed is ok.  We just would like something a
-   * bit different every run. */
+   * bit different every run.  Using Perl_seed(aTHX) would be better. */
   unsigned long seed = time(NULL);
   init_randstate(seed);
   prime_iterator_global_startup();
@@ -170,7 +170,7 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
     if (P > 2 && mpz_invert(t, t, n)) {
       /* Compute V_k and V_{k+1}, then computer U_k from them. */
       mpz_set_si(V, P);
-      mpz_init_set_si(U, P*P-2);
+      mpz_set_si(U, P*P-2);
       while (b > 1) {
         b--;
         if (mpz_tstbit(k, b-1)) {
@@ -960,8 +960,7 @@ int _GMP_is_aks_prime(mpz_t n)
    * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
    * far too slow to matter either way. */
 
-  /* Note, since order_r(n) can never be > r, we should start r at limit+1 */
-  for (r = limit+1; mpz_cmp_ui(n, r) >= 0; r++) {
+  for (r = 2; mpz_cmp_ui(n, r) > 0; r++) {
     if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
       /* prime_iterator_destroy(&iter); */
       mpz_clear(sqrtn);

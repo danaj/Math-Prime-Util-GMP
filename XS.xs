@@ -93,7 +93,7 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
     mpz_init_set_str(n, strn, 10);
     mpz_init_set_str(a, strbase, 10);
     RETVAL = _GMP_miller_rabin(n, a);
-    mpz_clear(n); mpz_clear(a);
+    mpz_clear(n);  mpz_clear(a);
   OUTPUT:
     RETVAL
 
@@ -337,6 +337,46 @@ pn_primorial(IN UV n)
     XPUSH_MPZ(prim);
     mpz_clear(prim);
 
+void partitions(IN UV n)
+  PREINIT:
+    UV i, j, k;
+  PPCODE:
+    if (n == 0) {
+      XPUSHs(sv_2mortal(newSVuv( 1 )));
+    } else if (n <= 3) {
+      XPUSHs(sv_2mortal(newSVuv( n )));
+    } else {
+      mpz_t psum;
+      mpz_t* part;
+      UV* pent;
+      UV d = (UV) sqrt(n+1);
+
+      New(0, pent, 2*d+2, UV);
+      pent[0] = 0;
+      pent[1] = 1;
+      for (i = 1; i <= d; i++) {
+        pent[2*i  ] = ( i   *(3*i+1)) / 2;
+        pent[2*i+1] = ((i+1)*(3*i+2)) / 2;
+      }
+      New(0, part, n+1, mpz_t);
+      mpz_init_set_ui(part[0], 1);
+      mpz_init(psum);
+      for (j = 1; j <= n; j++) {
+        mpz_set_ui(psum, 0);
+        for (k = 1; pent[k] <= j; k++) {
+          if ((k+1) & 2) mpz_add(psum, psum, part[ j - pent[k] ]);
+          else           mpz_sub(psum, psum, part[ j - pent[k] ]);
+        }
+        mpz_init_set(part[j], psum);
+      }
+      mpz_clear(psum);
+      XPUSH_MPZ( part[n] );
+      for (i = 0; i <= n; i++)
+        mpz_clear(part[i]);
+      Safefree(part);
+      Safefree(pent);
+    }
+
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
   PREINIT:
@@ -573,7 +613,7 @@ _GMP_factor(IN char* strn)
         while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
           int success = 0;
           int o = get_verbose_level();
-          UV B1 = 5000;
+          UV nbits, B1 = 5000;
 
           /*
            * This set of operations is meant to provide good performance for
@@ -621,18 +661,18 @@ _GMP_factor(IN char* strn)
           if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 4000000);
           if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
 
-          /* ECM with a good chance of success */
+          /* Set ECM parameters that have a good chance of success */
           if (!success) {
-            UV bits = mpz_sizeinbase(n, 2);
-            UV curves = 20;
-            if      (bits < 100)  B1 =   5000;     /* All need tuning */
-            else if (bits < 128)  B1 =  10000;
-            else if (bits < 160)  B1 =  20000;
-            else if (bits < 192)  B1 =  30000;
-            else if (bits < 224){ B1 =  40000; curves =  40; }
-            else if (bits < 256){ B1 =  80000; curves =  40; }
-            else if (bits < 512){ B1 = 160000; curves =  80; }
-            else                { B1 = 320000; curves = 160; }
+            nbits = mpz_sizeinbase(n, 2);
+            UV curves;
+            if      (nbits < 100){ B1 =   5000; curves =  20; }
+            else if (nbits < 128){ B1 =  10000; curves =   5; } /* go to QS */
+            else if (nbits < 160){ B1 =  20000; curves =   5; } /* go to QS */
+            else if (nbits < 192){ B1 =  30000; curves =  20; }
+            else if (nbits < 224){ B1 =  40000; curves =  40; }
+            else if (nbits < 256){ B1 =  80000; curves =  40; }
+            else if (nbits < 512){ B1 = 160000; curves =  80; }
+            else                 { B1 = 320000; curves = 160; }
             success = _GMP_ECM_FACTOR(n, f, B1, curves);
             if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
           }
@@ -642,7 +682,7 @@ _GMP_factor(IN char* strn)
            * reasonable size numbers (< 91 digits).  Because of the way it
            * works, it will generate (possibly) multiple factors for the same
            * amount of work.  Go to some trouble to use them. */
-          if (!success && mpz_sizeinbase(n,10)>=30 && mpz_sizeinbase(n,2)<300) {
+          if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
             mpz_t farray[66];
             int i, nfactors;
             for (i = 0; i < 66; i++)
