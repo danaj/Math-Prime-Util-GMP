@@ -647,7 +647,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           continue;
         }
         if (verbose)
-          { printf("%*sN[%d] (%d dig) n-1", i, "", i, nidigits); fflush(stdout); }
+          { printf("%*sN[%d] (%d dig) n+1", i, "", i, nidigits); fflush(stdout); }
         curveresult = _GMP_primality_bls_15(Ni, q, &np1lp, &np1lq);
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if ( ! curveresult ) {
