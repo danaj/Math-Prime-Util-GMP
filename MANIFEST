@@ -50,4 +50,5 @@ examples/verify-cert.pl
 examples/convert-primo-cert.pl
 examples/convert-gmpecpp-cert.pl
 examples/vcert.c
+examples/verify_primegap.pl
 .travis.yml

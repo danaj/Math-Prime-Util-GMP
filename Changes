@@ -12,6 +12,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_aks_prime wasn't properly checking divisibility for composites.
 
+    [Scripts and Programs Added]
+
+    - verify_primegap.pl    parallel prime gap verification
+
 0.15 2013-09-30
 
     [Functions Added]
