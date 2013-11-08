@@ -663,8 +663,8 @@ _GMP_factor(IN char* strn)
 
           /* Set ECM parameters that have a good chance of success */
           if (!success) {
-            nbits = mpz_sizeinbase(n, 2);
             UV curves;
+            nbits = mpz_sizeinbase(n, 2);
             if      (nbits < 100){ B1 =   5000; curves =  20; }
             else if (nbits < 128){ B1 =  10000; curves =   5; } /* go to QS */
             else if (nbits < 160){ B1 =  20000; curves =   5; } /* go to QS */
