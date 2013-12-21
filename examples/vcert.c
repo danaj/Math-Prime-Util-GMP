@@ -603,7 +603,7 @@ static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
 {
   if (inc < 1 || inc > 256)
-    croak("Invalid lucas paramater increment: %lu\n", (unsigned long)inc);
+    croak("Invalid lucas parameter increment: %lu\n", (unsigned long)inc);
   UV tP = 3;
   while (1) {
     UV D = tP*tP - 4;

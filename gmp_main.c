@@ -264,7 +264,7 @@ static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
 {
   UV tP = 3;
   if (inc < 1 || inc > 256)
-    croak("Invalid lucas paramater increment: %"UVuf"\n", inc);
+    croak("Invalid lucas parameter increment: %"UVuf"\n", inc);
   while (1) {
     UV D = tP*tP - 4;
     UV gcd = mpz_gcd_ui(NULL, n, D);
