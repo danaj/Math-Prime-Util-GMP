@@ -1,6 +1,6 @@
 /*
  * Verify Cert
- * version 0.94
+ * version 0.95
  *
  * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
@@ -865,7 +865,10 @@ void verify_ecpp(void) {
   mpz_mul(T1, T1, T1);
   if (mpz_cmp(Q, T1) <= 0)    quit_invalid("ECPP", "Q > (N^(1/4)+1)^2");
   if (mpz_cmp(Q, N) >= 0)     quit_invalid("ECPP", "Q < N");
-  if (mpz_cmp(M, Q) == 0)     quit_invalid("ECPP", "M != Q");
+  /* While M = Q is odd to compute in a proof, it is allowed.
+   * In Primo terms, this means S=1 is allowed.
+   *   if (mpz_cmp(M, Q) == 0)     quit_invalid("ECPP", "M != Q");
+   */
   if (!mpz_divisible_p(M, Q)) quit_invalid("ECPP", "Q divides M");
 
   {
@@ -1204,64 +1207,61 @@ void verify_lucas(int num_qs) {
     quit_invalid("Lucas", "N-1 has only factors Q[i]");
 }
 
+void verify_primo_ecpp(void) {
+  /* Calculate a,b,x,y from A, B, T, then verify */
+  mpz_mul(T1, T, T);
+  mpz_add(T1, T1, A);
+  mpz_mul(T1, T1, T);
+  mpz_add(T1, T1, B);
+  mpz_mod(T1, T1, N);   /* L = T1 = T^3 + AT + B mod N */
+
+  mpz_mul(T2, T1, T1);
+  mpz_mul(A, A, T2);
+  mpz_mod(A, A, N);     /* a = AL^2 mod N */
+
+  mpz_mul(T2, T2, T1);
+  mpz_mul(B, B, T2);
+  mpz_mod(B, B, N);     /* b = BL^3 mod N */
+
+  mpz_mul(X, T, T1);
+  mpz_mod(X, X, N);     /* x = TL mod N */
+  mpz_mul(Y, T1, T1);
+  mpz_mod(Y, Y, N);     /* y = L^2 mod N */
+
+  mpz_mul(M, R, S);     /* M = R*S */
+  mpz_set(Q, R);        /* Q = R */
+
+  verify_ecpp();  /* N, A, B, M, Q, X, Y */
+}
 
 void verify_ecpp4(void) {
   mpz_mul_ui(T1, J, 2);
   if (mpz_cmpabs(T1, N) > 0) quit_invalid("Primo Type 4", "|J| <= N/2");
   if (mpz_cmp_ui(T, 0) < 0)  quit_invalid("Primo Type 4", "T >= 0");
   if (mpz_cmp(T, N) >= 0)    quit_invalid("Primo Type 4", "T < N");
+
   mpz_set_ui(T2, 1728);
   mpz_sub(T2, T2, J);
   mpz_mul(A, T2, J);
-  mpz_mul_ui(A, A, 3);
+  mpz_mul_ui(A, A, 3);    /* A = 3 J (1728-J)   */
+
   mpz_mul(T2, T2, T2);
   mpz_mul(B, T2, J);
-  mpz_mul_ui(B, B, 2);
-  mpz_mul(T1, T, T);
-  mpz_add(T1, T1, A);
-  mpz_mul(T1, T1, T);
-  mpz_add(T1, T1, B);
-  mpz_mod(T1, T1, N);
+  mpz_mul_ui(B, B, 2);    /* B = 2 J (1728-J)^2 */
 
-  mpz_mul(T2, T1, T1);
-  mpz_mul(A, A, T2);
-  mpz_mul(T2, T2, T1);
-  mpz_mul(B, B, T2);
-  mpz_mul(M, R, S);
-  mpz_set(Q, R);
-  mpz_mul(X, T, T1);
-  mpz_mod(X, X, N);
-  mpz_mul(Y, T1, T1);
-  mpz_mod(Y, Y, N);
-
-  verify_ecpp();  /* N, A, B, M, Q, X, Y */
+  verify_primo_ecpp();  /* (A,B,T)->(a,b,x,y)  (R,S)->(M,Q)  Verify */
 }
 
 void verify_ecpp3(void) {
+  /* TODO: The latest primo.html doesn't require A,B to meet these conditions */
   mpz_mul_ui(T1, A, 2);
   mpz_mul_ui(T2, B, 2);
   if (mpz_cmpabs(T1, N) > 0) quit_invalid("Primo Type 3", "|A| <= N/2");
   if (mpz_cmpabs(T2, N) > 0) quit_invalid("Primo Type 3", "|B| <= N/2");
-  if (mpz_cmp_ui(T, 0) < 0)  quit_invalid("Primo Type 4", "T >= 0");
-  if (mpz_cmp(T, N) >= 0)    quit_invalid("Primo Type 4", "T < N");
-  mpz_mul(T1, T, T);
-  mpz_add(T1, T1, A);
-  mpz_mul(T1, T1, T);
-  mpz_add(T1, T1, B);
-  mpz_mod(T1, T1, N);
+  if (mpz_cmp_ui(T, 0) < 0)  quit_invalid("Primo Type 3", "T >= 0");
+  if (mpz_cmp(T, N) >= 0)    quit_invalid("Primo Type 3", "T < N");
 
-  mpz_mul(T2, T1, T1);
-  mpz_mul(A, A, T2);
-  mpz_mul(T2, T2, T1);
-  mpz_mul(B, B, T2);
-  mpz_mul(M, R, S);
-  mpz_set(Q, R);
-  mpz_mul(X, T, T1);
-  mpz_mod(X, X, N);
-  mpz_mul(Y, T1, T1);
-  mpz_mod(Y, Y, N);
-
-  verify_ecpp();  /* N, A, B, M, Q, X, Y */
+  verify_primo_ecpp();  /* (A,B,T)->(a,b,x,y)  (R,S)->(M,Q)  Verify */
 }
 
 void verify_primo2(void) {
