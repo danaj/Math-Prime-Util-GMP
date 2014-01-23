@@ -484,9 +484,11 @@ int prime_iterator_isprime(prime_iterator *iter, UV n)
   }
 
   /* Primary sieve */
-  if (primary_sieve != 0 && n < 30*PRIMARY_SIZE) {
-    int isp = is_prime_in_segment(primary_sieve, 0, PRIMARY_SIZE, n);
-    if (isp >= 0) return isp;
+  if (primary_sieve != 0 && n <= primary_limit) {
+    UV d = n/30;
+    UV m = n - d*30;
+    unsigned char mtab = masktab30[m];
+    return mtab && !(primary_sieve[d] & mtab);
   }
 
   /* Current segment */
