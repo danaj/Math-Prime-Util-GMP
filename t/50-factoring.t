@@ -5,8 +5,8 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/factor is_prime/;
 
-plan tests => 0 + 56
-                + 22
+plan tests => 0 + 57
+                + 23
                 + 2
                 + 6    # individual tets for factoring methods
                 + 7*7  # factor extra tests
@@ -80,9 +80,11 @@ is_deeply( [ factor(701737021) ], [25997,26993], "factor(701737021)" );
 is_deeply( [ factor(999999929) ], [999999929], "factor(999999929)" );
 is_deeply( [ factor(2147483647) ], [2147483647], "factor(2147483647)" );
 is_deeply( [ factor(4118054813) ], [19,216739727], "factor(4118054813)" );
+is_deeply( [ factor(4294967293) ], [9241,464773], "factor(4294967293)" );
 
 #diag "factoring 64-bit numbers";
 is_deeply( [ factor('6469693230') ], [2,3,5,7,11,13,17,19,23,29], "factor(6469693230)" );
+is_deeply( [ factor('17179869172') ], [2,2,9241,464773], "factor(17179869172)" );
 is_deeply( [ factor('37607912018') ], [2,'18803956009'], "factor(37607912018)" );
 is_deeply( [ factor('200560490130') ], [2,3,5,7,11,13,17,19,23,29,31], "factor(200560490130)" );
 is_deeply( [ factor('346065536839') ], [11,11,163,373,47041], "factor(346065536839)" );

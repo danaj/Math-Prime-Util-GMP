@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.17 2014-02
+
+    [FIXES]
+
+    - Factoring that resulted in an intermediate very near the word boundary
+      would hang.  Thanks to Hugo van der Sanden for the report.
+
 0.16 2013-10-28
 
     [ADDED]
