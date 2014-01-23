@@ -2,10 +2,14 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.17 2014-02
 
+    [ADDED]
+
+    - gcd, lcm, kronecker
+
     [FIXES]
 
-    - Factoring that resulted in an intermediate very near the word boundary
-      would hang.  Thanks to Hugo van der Sanden for the report.
+    - Factoring with a number or intermediate near the word boundary would
+      hang or run very slow.  Thanks to Hugo van der Sanden for the report.
 
 0.16 2013-10-28
 

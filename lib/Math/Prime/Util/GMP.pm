@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.16';
+  $Math::Prime::Util::GMP::VERSION = '0.17';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -44,6 +44,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      consecutive_integer_lcm
                      partitions
+                     gcd lcm kronecker
                    );
                    # Should add:
                    # nth_prime
@@ -163,7 +164,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.16
+Version 0.17
 
 
 =head1 SYNOPSIS
@@ -1013,7 +1014,7 @@ ECM implementation, as well as the papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2013 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2014 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

@@ -38,3 +38,33 @@
 - Add BLS17 proof.  Merge into BLS5 code since the end is the same.
 
 - Add tests for proofs, similar to MPU t/23.
+
+- Handle objects of type:
+     Math::GMP
+     Math::GMP::Fast
+     Math::GMPz
+  We should parse their mpz_t directly, do our processing, and output the
+  result as one of these types.
+
+- Recognize Math::BigInt / Math::Pari objects.  Shortcut validation.
+  Create results as new objects of their type.
+
+- These functions should be added:
+is_bpsw_prime
+is_pseudoprime
+divisor_sum
+carmichael_lambda
+liouville
+exp_mangoldt
+znprimroot
+
+euler_phi
+moebius
+jordan_totient
+legendre_phi
+znorder
+znlog
+
+next_prime
+prev_prime
+prime_count
