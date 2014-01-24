@@ -14,6 +14,7 @@ use base qw( Exporter );
 our @EXPORT_OK = qw(
                      is_prime
                      is_prob_prime
+                     is_bpsw_prime
                      is_provable_prime
                      is_provable_prime_with_cert
                      is_aks_prime

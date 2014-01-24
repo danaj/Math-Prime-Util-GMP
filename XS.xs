@@ -182,6 +182,7 @@ is_prime(IN char* strn)
     is_aks_prime = 2
     is_nminus1_prime = 3
     is_ecpp_prime = 4
+    is_bpsw_prime = 5
   PREINIT:
     mpz_t n;
     int ret;
@@ -193,8 +194,9 @@ is_prime(IN char* strn)
       case 1: ret = _GMP_is_prob_prime(n); break;
       case 2: ret = _GMP_is_aks_prime(n); break;
       case 3: ret = _GMP_primality_bls_nm1(n, 100, 0); break;
-      case 4:
-      default:ret = _GMP_ecpp(n, 0); break;
+      case 4: ret = _GMP_ecpp(n, 0); break;
+      case 5:
+      default:ret = _GMP_BPSW(n); break;
     }
     RETVAL = ret;
     mpz_clear(n);
