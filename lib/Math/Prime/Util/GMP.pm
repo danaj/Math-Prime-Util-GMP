@@ -634,6 +634,32 @@ The two are related with the relationships:
   primorial($n)     ==   pn_primorial( prime_count($n) )
 
 
+=head2 gcd
+
+Given a list of integers, returns the greatest common divisor.  This is
+often used to test for L<coprimality|https://oeis.org/wiki/Coprimality>.
+
+=head2 lcm
+
+Given a list of integers, returns the least common multiple.
+
+=head2 kronecker
+
+Returns the Kronecker symbol C<(a|n)> for two integers.  The possible
+return values with their meanings for odd positive C<n> are:
+
+   0   a = 0 mod n
+   1   a is a quadratic residue modulo n (a = x^2 mod n for some x)
+  -1   a is a quadratic non-residue modulo n
+
+The Kronecker symbol is an extension of the Jacobi symbol to all integer
+values of C<n> from the latter's domain of positive odd values of C<n>.
+The Jacobi symbol is itself an extension of the Legendre symbol, which is
+only defined for odd prime values of C<n>.  This corresponds to Pari's
+C<kronecker(a,n)> function and Mathematica's C<KroneckerSymbol[n,m]>
+function.
+
+
 =head2 consecutive_integer_lcm
 
   $lcm = consecutive_integer_lcm($n);
