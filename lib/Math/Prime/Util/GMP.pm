@@ -502,6 +502,15 @@ The computational cost is about 2.5x the cost of a strong pseudoprime test
 little slower than an extra-strong Lucas test, and faster than a strong
 Lucas test.
 
+=head2 is_bpsw_prime
+
+Given a positive number input, returns 0 (composite), 2 (definitely prime),
+or 1 (probably prime), using the BPSW primality test (extra-strong variant).
+
+This function does the extra-strong BPSW test and nothing more.  That is,
+it will skip all pretests and any extra work that the L</is_prob_prime>
+test may add.
+
 
 =head2 is_aks_prime
 
