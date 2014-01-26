@@ -338,7 +338,7 @@ gcd(...)
     mpz_t ret, n;
   PPCODE:
     if (items == 0)
-      XSRETURN_UV(0);
+      XSRETURN_IV(0);
     mpz_init(n);
     mpz_init_set_ui(ret, (ix == 0) ? 0 : 1);
     for (i = 0; i < items; i++) {
