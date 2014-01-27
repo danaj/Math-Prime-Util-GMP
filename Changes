@@ -1,6 +1,15 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.17 2014-02
+0.18 2014-01-27
+
+    [FIXES]
+
+    - Fix for 5.6.2 (undefined symbol).
+
+    - Fix for unsigned long != UV, reported by CHORNY.
+
+
+0.17 2014-01-24
 
     [ADDED]
 

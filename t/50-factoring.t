@@ -6,7 +6,7 @@ use Test::More;
 use Math::Prime::Util::GMP qw/factor is_prime/;
 
 plan tests => 0 + 57
-                + 23
+                + 24
                 + 2
                 + 6    # individual tets for factoring methods
                 + 7*7  # factor extra tests
@@ -106,6 +106,7 @@ is_deeply( [ factor('614889782588491410') ], [2,3,5,7,11,13,17,19,23,29,31,37,41
 is_deeply( [ factor('999999866000004473') ], [999999929,999999937], "factor(999999866000004473)" );
 is_deeply( [ factor('3369738766071892021') ], [204518747,'16476429743'], "factor(3369738766071892021)" );
 is_deeply( [ factor('10023859281455311421') ], ['1308520867','7660450463'], "factor(10023859281455311421)" );
+is_deeply( [ factor('18446744073709551611') ], [11,59,'98818999','287630261'], "factor(18446744073709551611)" );
 
 # Check perfect squares that make it past early testing
 is_deeply( [ factor('1524157875323973084894790521049') ], ['1234567890123493','1234567890123493'], "factor(1234567890123493^2)" );
