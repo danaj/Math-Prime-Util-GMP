@@ -586,17 +586,15 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
   /* All native math if n fits in an unsigned long */
   if (log2n <= sizeof(unsigned long)*8) {
     unsigned long un = mpz_get_ui(n);
-    unsigned long sqrtn;
-#if BITS_PER_WORD == 32
-    if (un >= UVCONST(4294836225))           {  sqrtn = UVCONST(65535);
-#else
-    if (un >= UVCONST(18446744065119617025)) {  sqrtn = UVCONST(4294967295);
-#endif
-    } else {
-      sqrtn = (unsigned long) sqrt((double)un);
-      while (sqrtn*sqrtn > un) sqrtn--;
-      while ((sqrtn+1)*(sqrtn+1) <= un)  sqrtn++;
-    }
+    unsigned long sqrtn = (unsigned long) sqrt((double)un);
+    /* Be extra careful here, as we are using unsigned long, which may not
+     * match a UV.  But GMP's ui is 'unsigned long' so that's what we have
+     * to deal with.  We want to make sure we get the correct integer sqrt,
+     * but also watch out for overflow. */
+    while (sqrtn*sqrtn > un) sqrtn--;
+    while ( (sqrtn+1)*(sqrtn+1) <= un
+            && sqrtn < (1UL << 4*sizeof(unsigned long)) )
+      sqrtn++;
     if (to_n > sqrtn)
       to_n = sqrtn;
     while (p <= to_n) {
