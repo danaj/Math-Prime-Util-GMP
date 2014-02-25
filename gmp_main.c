@@ -13,6 +13,12 @@
 #include "ecpp.h"
 #include "utility.h"
 
+#define AKS_VARIANT_V6          1    /* The V6 paper with Lenstra impr */
+#define AKS_VARIANT_BORNEMANN   2    /* Based on Folkmar Bornemann's impl */
+#define AKS_VARIANT_BERNEXAMPLE 3    /* AKS-Bernstein-Morain */
+
+#define AKS_VARIANT  AKS_VARIANT_BORNEMANN
+
 static mpz_t _bgcd;
 static mpz_t _bgcd2;
 #define BGCD_PRIMES       168
@@ -882,20 +888,6 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   return prob_prime;
 }
 
-#if 0
-  /* This would be useful for a Bernstein AKS variant */
-static UV largest_factor(UV n) {
-  UV p = 2;
-  PRIME_ITERATOR(iter);
-  while (n >= p*p && !prime_iterator_isprime(&iter, n)) {
-    while ( (n % p) == 0  &&  n >= p*p ) { n /= p; }
-    p = prime_iterator_next(&iter);
-  }
-  prime_iterator_destroy(&iter);
-  return n;
-}
-#endif
-
 /*****************************************************************************/
 /*          AKS.    This implementation is quite slow, but useful to have.   */
 
@@ -929,24 +921,71 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
   return retval;
 }
 
+#if AKS_VARIANT == AKS_VARIANT_BORNEMANN
+static int is_primitive_root(mpz_t n, UV r)
+{
+  mpz_t m, modr;
+  UV p, rm1 = r-1;
+  UV lim = (UV) (sqrt(rm1) + 0.00001);
+  UV ret = 0;
+
+  mpz_init(m);
+  mpz_init_set_ui(modr, r);
+  if ((rm1 % 2) == 0) {
+    mpz_powm_ui(m, n, (rm1/2), modr);
+    if (!mpz_cmp_ui(m,1))
+      goto END_PRIMROOT;
+  }
+  for (p = 3; p <= lim; p += 2) {
+    if ((rm1 % p) == 0) {
+      mpz_powm_ui(m, n, (rm1/p), modr);
+      if (!mpz_cmp_ui(m,1))
+        goto END_PRIMROOT;
+    }
+  }
+  ret = 1;
+END_PRIMROOT:
+  mpz_clear(m);
+  mpz_clear(modr);
+  return ret;
+}
+#endif
+
+#if AKS_VARIANT == AKS_VARIANT_BERNEXAMPLE
+static UV largest_factor(UV n) {
+  UV p = 2;
+  PRIME_ITERATOR(iter);
+  while (n >= p*p && !prime_iterator_isprime(&iter, n)) {
+    while ( (n % p) == 0  &&  n >= p*p ) { n /= p; }
+    p = prime_iterator_next(&iter);
+  }
+  prime_iterator_destroy(&iter);
+  return n;
+}
+#endif
+
+
 int _GMP_is_aks_prime(mpz_t n)
 {
   mpz_t sqrtn;
   mpz_t *px, *py;
   int retval;
-  UV i, limit, rlimit, r, a;
+  UV i, limit, s, r, a;
   double log2n;
   int _verbose = get_verbose_level();
   /* PRIME_ITERATOR(iter); */
 
-  if (mpz_cmp_ui(n, 4) < 0) {
+  if (mpz_cmp_ui(n, 4) < 0)
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
-  }
 
-  if (mpz_perfect_power_p(n)) {
+  /* Just for performance: check small divisors: 2*3*5*7*11*13*17*19*23 */
+  if (mpz_gcd_ui(0, n, 223092870UL) != 1 && mpz_cmp_ui(n, 23) > 0)
     return 0;
-  }
 
+  if (mpz_perfect_power_p(n))
+    return 0;
+
+#if AKS_VARIANT == AKS_VARIANT_V6    /* From the V6 AKS paper */
   mpz_init(sqrtn);
   mpz_sqrt(sqrtn, n);
   /* limit should be floor( log2(n) ** 2 ).  The simple GMP solution is
@@ -987,13 +1026,97 @@ int _GMP_is_aks_prime(mpz_t n)
   /* prime_iterator_destroy(&iter); */
   mpz_clear(sqrtn);
 
-  if (mpz_cmp_ui(n, r) <= 0) {
+  if (mpz_cmp_ui(n, r) <= 0)
     return 1;
+
+  /* Bernstein 2002 suggests we could use:
+   *   s = (UV) floor( ceil(sqrt(((double)(r-1))/3.0)) * log2n );
+   * here, by Minkowski's theorem.  r-1 is really phi(r).  */
+  s = (UV) floor( sqrt(r-1) * log2n );
+
+#elif AKS_VARIANT == AKS_VARIANT_BORNEMANN /* Bernstein + Voloch */
+  {
+    UV slim;
+    double c1, c2, x;
+    /* small t = few iters of big poly.  big t = many iters of small poly */
+    double const t = (mpz_sizeinbase(n, 2) <= 64) ? 32 : 100;
+    double const t1 = (1.0/((t+1)*log(t+1)-t*log(t)));
+    double const dlogn = log(mpz_get_d(n));
+    mpz_t tmp;
+    PRIME_ITERATOR(iter);
+
+    mpz_init(tmp);
+    prime_iterator_setprime(&iter, (UV) (t1*t1 * dlogn*dlogn) );
+    r = prime_iterator_next(&iter);
+    while (!is_primitive_root(n,r))
+      r = prime_iterator_next(&iter);
+    prime_iterator_destroy(&iter);
+
+    slim = (UV) (2*t*(r-1));
+    c2 = dlogn * floor(sqrt(r));
+    { /* Binary search for first s in [1,slim] where x >= 0 */
+      UV i = 1;
+      UV j = slim;
+      while (i < j) {
+        s = i + (j-i)/2;
+        mpz_bin_uiui(tmp, r+s-1, s);
+        x = log(mpz_get_d(tmp)) / c2 - 1.0;
+        if (x < 0)  i = s+1;
+        else        j = s;
+      }
+      s = i-1;
+    }
+    s = (s+3) >> 1;
+    /* Bornemann checks factors up to (s-1)^2, we check to max(r,s) */
+    /* slim = (s-1)*(s-1); */
+    slim = (r > s) ? r : s;
+    if (_verbose > 1) printf("# aks trial to %lu\n", slim);
+    if (_GMP_trial_factor(n, 2, slim) > 1)
+      { mpz_clear(tmp); return 0; }
+    mpz_sqrt(tmp, n);
+    if (mpz_cmp_ui(tmp, slim) <= 0)
+      { mpz_clear(tmp); return 1; }
+    mpz_clear(tmp);
   }
 
-  rlimit = (UV) floor( sqrt(r-1) * log2n );
+#elif AKS_VARIANT == AKS_VARIANT_BERNEXAMPLE
+  {
+    double slim, x;
+    mpz_t t, t2;
+    PRIME_ITERATOR(iter);
+    mpz_init(t);  mpz_init(t2);
+    r = 0;
+    s = 0;
+    while (1) {
+      UV q, tmp;
+      if (mpz_cmp_ui(n, r) <= 0) break;
+      r = prime_iterator_next(&iter);
+      q = largest_factor(r-1);
+      mpz_set_ui(t, r);
+      mpz_powm_ui(t, n, (r-1)/q, t);
+      /* gmp_printf("r %lu  q %lu  t %Zd\n", r, q, t); */
+      if (mpz_cmp_ui(t, 1) <= 0) continue;
+      /* printf("trying r=%lu\n", r); */
 
-  if (_verbose) gmp_printf("# AKS %Zd.  r = %lu rlimit = %lu\n", n, (unsigned long) r, (unsigned long) rlimit);
+      s = 2;
+      slim = 2 * floor(sqrt(r)) * log(mpz_get_d(n));
+      while (1) {
+        mpz_bin_uiui(t, q+s-1, s);
+        x = log(mpz_get_d(t)) / slim - 1.0;
+        if (x > 0) break;
+        s++;
+        if (s > 1000000) { s=0; break; }
+      }
+      if (s != 0) break;
+    }
+    mpz_clear(t);  mpz_clear(t2);
+    prime_iterator_destroy(&iter);
+    if (_GMP_trial_factor(n, 2, s) > 1)
+      return 0;
+  }
+#endif
+
+  if (_verbose) gmp_printf("# AKS %Zd.  r = %lu s = %lu\n", n, (unsigned long) r, (unsigned long) s);
 
   /* Create the three polynomials we will use */
   New(0, px, r, mpz_t);
@@ -1006,7 +1129,7 @@ int _GMP_is_aks_prime(mpz_t n)
   }
 
   retval = 1;
-  for (a = 1; a <= rlimit; a++) {
+  for (a = 1; a <= s; a++) {
     if (! test_anr(a, n, r, px, py) ) {
       retval = 0;
       break;
