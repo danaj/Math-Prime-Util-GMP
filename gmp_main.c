@@ -1047,7 +1047,7 @@ int _GMP_is_aks_prime(mpz_t n)
     UV slim;
     double c2, x;
     /* small t = few iters of big poly.  big t = many iters of small poly */
-    double const t = (mpz_sizeinbase(n, 2) <= 64) ? 32 : 64;
+    double const t = (mpz_sizeinbase(n, 2) <= 64) ? 32 : 40;
     double const t1 = (1.0/((t+1)*log(t+1)-t*log(t)));
     double const dlogn = mpz_logn(n);
     mpz_t tmp;
