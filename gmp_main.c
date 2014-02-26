@@ -949,6 +949,14 @@ END_PRIMROOT:
   mpz_clear(modr);
   return ret;
 }
+
+static double mpz_logn(mpz_t n)
+{
+  long exp;
+  double logn = mpz_get_d_2exp(&exp, n);
+  logn = log(logn) + (log(2) * exp);
+  return logn;
+}
 #endif
 
 #if AKS_VARIANT == AKS_VARIANT_BERNEXAMPLE
@@ -1037,11 +1045,11 @@ int _GMP_is_aks_prime(mpz_t n)
 #elif AKS_VARIANT == AKS_VARIANT_BORNEMANN /* Bernstein + Voloch */
   {
     UV slim;
-    double c1, c2, x;
+    double c2, x;
     /* small t = few iters of big poly.  big t = many iters of small poly */
-    double const t = (mpz_sizeinbase(n, 2) <= 64) ? 32 : 100;
+    double const t = (mpz_sizeinbase(n, 2) <= 64) ? 32 : 64;
     double const t1 = (1.0/((t+1)*log(t+1)-t*log(t)));
-    double const dlogn = log(mpz_get_d(n));
+    double const dlogn = mpz_logn(n);
     mpz_t tmp;
     PRIME_ITERATOR(iter);
 
@@ -1060,7 +1068,7 @@ int _GMP_is_aks_prime(mpz_t n)
       while (i < j) {
         s = i + (j-i)/2;
         mpz_bin_uiui(tmp, r+s-1, s);
-        x = log(mpz_get_d(tmp)) / c2 - 1.0;
+        x = mpz_logn(tmp) / c2 - 1.0;
         if (x < 0)  i = s+1;
         else        j = s;
       }
