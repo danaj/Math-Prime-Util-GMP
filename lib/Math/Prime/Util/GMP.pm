@@ -46,6 +46,7 @@ our @EXPORT_OK = qw(
                      consecutive_integer_lcm
                      partitions
                      gcd lcm kronecker
+                     is_power
                    );
                    # Should add:
                    # nth_prime

@@ -84,7 +84,7 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
 {
   int success = 0;
 
-  if (!success)  success = _GMP_power_factor(n, f);
+  if (!success)  success = (int)power_factor(n, f);
 
   if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>2)) < 0) {
     UV ui_n = mpz_get_ui(n);
@@ -251,7 +251,7 @@ int _GMP_primality_pocklington(mpz_t n, int do_quick)
     mpz_set(m, mstack[--msp]); mpz_clear(mstack[msp]);
 
     /* Try to factor it without trying too hard */
-    if (!success)  success = _GMP_power_factor(m, f);
+    if (!success)  success = (int)power_factor(m, f);
     if (do_quick) {
       UV log2m = mpz_sizeinbase(m, 2);
       UV rounds = (log2m <= 64) ? 300000 : 300000 / (log2m-63);

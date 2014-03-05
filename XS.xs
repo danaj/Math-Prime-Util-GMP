@@ -247,6 +247,19 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
   OUTPUT:
     RETVAL
 
+UV
+is_power(IN char* strn, IN UV a = 0)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    validate_string_number("is_power (n)", strn);
+    mpz_init_set_str(n, strn, 10);
+    RETVAL = is_power(n, a);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+
 #define XPUSH_MPZ(n) \
   { \
     /* Push as a scalar if <= min(ULONG_MAX,UV_MAX), string otherwise */ \
@@ -675,7 +688,7 @@ _GMP_factor(IN char* strn)
           }
 
           /* Make sure it isn't a perfect power */
-          if (!success)  success = _GMP_power_factor(n, f);
+          if (!success)  success = (int)power_factor(n, f);
           if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
           if (!success)  success = _GMP_pminus1_factor(n, f, 10000, 200000);

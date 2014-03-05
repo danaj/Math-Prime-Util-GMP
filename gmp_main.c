@@ -2010,17 +2010,42 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 }
 
 /* See if n is a perfect power */
-int _GMP_power_factor(mpz_t n, mpz_t f)
+UV power_factor(mpz_t n, mpz_t f)
 {
   if (mpz_perfect_power_p(n)) {
-    unsigned long k;
-
+    UV k;
     mpz_set_ui(f, 1);
     for (k = 2; mpz_sgn(f); k++) {
-      if (mpz_root(f, n, k))
-        return 1;
+      if (mpz_root(f, n, k)) {
+        if (mpz_perfect_power_p(f)) {  /* If root is a power, recurse */
+          mpz_t nf;
+          mpz_init_set(nf, f);
+          k *= power_factor(nf, f);
+          mpz_clear(nf);
+        }
+        return k;
+      }
     }
     /* GMP says it's a perfect power, but we couldn't find an integer root? */
   }
   return 0;
+}
+
+/* a=0, return power.  a>1, return bool if an a-th power */
+UV is_power(mpz_t n, UV a)
+{
+  if (mpz_cmp_ui(n,3) <= 0)
+    return 0;
+  else if (a == 1)
+    return 1;
+  else if (a == 2)
+    return mpz_perfect_square_p(n);
+  else {
+    UV result;
+    mpz_t t;
+    mpz_init(t);
+    result = (a == 0)  ?  power_factor(n, t)  :  mpz_root(t, n, a);
+    mpz_clear(t);
+    return result;
+  }
 }

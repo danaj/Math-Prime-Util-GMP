@@ -32,10 +32,12 @@ extern int  _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2);
 extern int  _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2);
 extern int  _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
-extern int  _GMP_power_factor(mpz_t n, mpz_t f);
 
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, mpz_t n);
 extern void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m);
+
+extern UV   power_factor(mpz_t n, mpz_t f);
+extern UV   is_power(mpz_t n, UV a);
 
 #endif
