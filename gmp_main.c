@@ -2049,3 +2049,25 @@ UV is_power(mpz_t n, UV a)
     return result;
   }
 }
+
+void exp_mangoldt(mpz_t res, mpz_t n)
+{
+  UV k;
+  mpz_set_ui(res, 1);
+  if (mpz_cmp_ui(n, 1) <= 0)
+    return;
+  k = mpz_scan1(n, 0);
+  if (k > 0) {
+    if (k+1 == mpz_sizeinbase(n, 2))
+      mpz_set_ui(res, 2);
+    return;
+  }
+  if (_GMP_is_prob_prime(n)) {
+    mpz_set(res, n);
+    return;
+  }
+  k = power_factor(n, res);
+  if (k > 1 && _GMP_is_prob_prime(res))
+    return;
+  mpz_set_ui(res, 1);
+}

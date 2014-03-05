@@ -40,4 +40,6 @@ extern void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m);
 extern UV   power_factor(mpz_t n, mpz_t f);
 extern UV   is_power(mpz_t n, UV a);
 
+extern void exp_mangoldt(mpz_t res, mpz_t n);
+
 #endif

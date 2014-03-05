@@ -5,6 +5,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - is_power
+    - exp_mangoldt
 
     [OTHER]
 

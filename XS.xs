@@ -323,6 +323,7 @@ primorial(IN char* strn)
   ALIAS:
     pn_primorial = 1
     consecutive_integer_lcm = 2
+    exp_mangoldt = 3
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -333,8 +334,9 @@ primorial(IN char* strn)
     switch (ix) {
       case 0:  _GMP_primorial(res, n);  break;
       case 1:  _GMP_pn_primorial(res, un);  break;
-      case 2:
-      default: _GMP_lcm_of_consecutive_integers(un, res);
+      case 2: _GMP_lcm_of_consecutive_integers(un, res);  break;
+      case 3:
+      default: exp_mangoldt(res, n);
     }
     XPUSH_MPZ(res);
     mpz_clear(n);

@@ -55,7 +55,6 @@ is_pseudoprime
 divisor_sum
 carmichael_lambda
 liouville
-exp_mangoldt
 znprimroot
 
 euler_phi
