@@ -502,14 +502,13 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
   UV i, bits, r;
   mpz_t p, p2, t;
 
-  mpz_init(p); mpz_init(p2); mpz_init(t);
+  mpz_init(p); mpz_init(t);
   *dr = dx+dy;
   r = *dr+1;
   mpz_mul(t, mod, mod);
   mpz_mul_ui(t, t, r);
   bits = mpz_sizeinbase(t, 2);
   mpz_set_ui(p, 0);
-  mpz_set_ui(p2, 0);
 
   /* Create big integers p and p2 from px and py, with padding */
   {
@@ -518,15 +517,17 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
       mpz_add(p, p, px[dx-i]);
     }
   }
-  if (px != py) {
+  if (px == py) {
+    mpz_pow_ui(p, p, 2);
+  } else {
+    mpz_init_set_ui(p2, 0);
     for (i = 0; i <= (UV)dy; i++) {
       mpz_mul_2exp(p2, p2, bits);
       mpz_add(p2, p2, py[dy-i]);
     }
+    mpz_mul(p, p, p2);
+    mpz_clear(p2);
   }
-
-  /* Multiply! */
-  mpz_mul( p ,p, (px == py) ? p : p2 );
 
   /* Pull out parts of result p to pr */
   for (i = 0; i < r; i++) {
@@ -535,7 +536,7 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
     mpz_mod(pr[i], t, mod);
   }
 
-  mpz_clear(p); mpz_clear(p2); mpz_clear(t);
+  mpz_clear(p); mpz_clear(t);
 }
 #endif
 #if 0
@@ -720,6 +721,7 @@ void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, 
     mtmp = pa; pa = pb; pb = mtmp;
     ltmp = da; da = db; db = ltmp;
   }
+  /* TODO: Should set c=pa[da], then after Euclid loop, res = c^-1 * res */
 
   /* Allocate temporary polys */
   maxd = da;
@@ -839,18 +841,18 @@ static void polyz_roots(mpz_t* roots, long *nroots,
 
   /* If not a monic polynomial, divide by leading coefficient */
   if (mpz_cmp_ui(pg[dg], 1) != 0) {
-    for (i = 0; i <= dg; i++) {
-      if (!mpz_divmod(pg[i], pg[i], pg[dg], NMOD, t)) {
-        mpz_clear(t);
-        return;
-      }
+    if (!mpz_invert(t, pg[dg], NMOD)) {
+      mpz_clear(t);
+      return;
     }
+    for (i = 0; i <= dg; i++)
+      mpz_mulmod(pg[i], pg[i], t, NMOD, pg[i]);
   }
 
   /* Try hard to find a single root, work less after we got one or two.
    * In a generic routine we would want to try hard all the time. */
   ntries = 0;
-  maxtries = (*nroots == 0) ? 200 : (*nroots == 1) ? 50 : 10;
+  maxtries = (*nroots == 0) ? 400 : (*nroots == 1) ? 50 : 10;
 
   mpz_init(power);
   mpz_set_ui(pxa[1], 1);
@@ -868,10 +870,14 @@ static void polyz_roots(mpz_t* roots, long *nroots,
 
   mpz_sub_ui(t, NMOD, 1);
   mpz_tdiv_q_2exp(power, t, 1);
+  /* We'll pick random "a" values from 1 to 1000M */
+  mpz_set_ui(t, 1000000000UL);
+  if (mpz_cmp(t, NMOD) > 0) mpz_set(t, NMOD);
 
   while (ntries++ < maxtries) {
-    /* pxa = X+a for a random a */
-    mpz_urandomm(pxa[0], *p_randstate, NMOD);
+    /* pxa = X+a for randomly selected a */
+    if (ntries <= 2)  mpz_set_ui(pxa[0], ntries);  /* Simple small values */
+    else              mpz_urandomm(pxa[0], *p_randstate, t);
 
     /* Raise pxa to (NMOD-1)/2, all modulo NMOD and g(x) */
     polyz_pow_polymod(pt, pxa, pg, &dt, dxa, dg, power, NMOD);
@@ -885,8 +891,13 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   }
 
   if (dh >= 1 && dh < dg) {
-    /* Pick the smaller of the two splits to process first */
-    if (dh <= 2 || dh <= (dg-dh)) {
+    /* Split h first if one of:
+     *  - degree(h) <= 2 because roots are trivial
+     *  - degree(g/h) < roots left, because we'd need this anyway
+     *  - degree(h) <= degree(g/h) AND splitting h will get us all needed roots
+     */
+    long rootsleft = maxroots-*nroots;
+    if (dh <= 2 || (dg-dh) < rootsleft || (dh <= (dg-dh) && dh >= rootsleft)) {
       polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
       if (*nroots < maxroots) {
         /* q = g/h, and recurse */
