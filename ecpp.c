@@ -2,17 +2,24 @@
  *
  * ECPP - Elliptic Curve Primality Proving
  *
- * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
+ * Copyright (c) 2013-2014 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
  * the same terms as the Perl 5 programming language system itself.
  *
- * This file is part of the Math::Prime::Util Perl module.  It is not too hard
- * to build this as a standalone program (see the README file).
+ * This file is part of the Math::Prime::Util::GMP Perl module.  A script
+ * is included to build this as a standalone program (see the README file).
  *
- * This is pretty good for numbers less than 800 digits.  It is many orders
- * of magnitude faster than the contemporary GMP-ECPP.  It is far, far slower
- * than PRIMO for numbers over 300 digits (it's a bit faster below that).  It
- * is missing optimizations that were in François Morain's 10-20 year old work.
+ * This is pretty good for numbers less than 800 digits.  Over that, it needs
+ * larger discriminant sets.  Comparing to other contemporary software:
+ *
+ *   - Primo is much faster for inputs over 300 digits.  Not open source.
+ *   - mpz_aprcl 1.1 (APR-CL).  Nearly the same speed to ~600 digits, with
+ *     very little speed variation.  Faster over 800 digits.  No certificate.
+ *   - GMP-ECPP is much slower at all sizes, and nearly useless > 300 digits.
+ *   - AKS is stupendously slow, even with Bernstein and Voloch improvements.
+ *   - François Morain's 10-20 year old work describes optimizations not
+ *     present here, but his (very old!) binaries run slower than this code at
+ *     all sizes.  Not open source.
  *
  * A set of fixed discriminants are used, rather than calculating them as
  * needed.  Having a way to calculate values as needed would be a big help.
@@ -27,14 +34,15 @@
  * elliptic curve proof as it recurses back.
  *
  * If your goal is primality proofs for very large numbers, use Primo.  It's
- * free, it is really fast, it is widely used, it can process batch results,
- * and it makes independently verifiable certificates.  This software also
- * makes certificates in a described format, works well under 800 or so digits,
- * and is open source.
+ * free, it is very fast, it is widely used, it can process batch results,
+ * and it makes independently verifiable certificates (including the verifier
+ * included in this package).  MPU's ECPP (this software) is an open source
+ * alternative with many of the same features for "small" numbers of <1000
+ * digits.  Improvements are possible since it is open source.
  *
- * There are other proof methods, such as the open source APR-CL code from
- * WraithX.  For numbers over 1000 digits, the APR-CL implementation will
- * likely be faster than this, though does not produce a certificate.
+ * Another open source alternative if one does not need certificates is the
+ * mpz_aprcl code from David Cleaver.  To about 600 digits the speeds are
+ * very similar, but past that this ECPP code starts slowing down.
  *
  * Thanks to H. Cohen, R. Crandall & C. Pomerance, and H. Riesel for their
  * text books.  Thanks to the authors of open source software who allow me
@@ -61,7 +69,6 @@
 #include "prime_iterator.h"
 #include "bls75.h"
 
-#undef USE_NM1
 #define MAX_SFACS 1000
 
 #ifdef USE_LIBECM
@@ -145,10 +152,14 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
     if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
     if (stage >= 1) {
-#ifdef USE_LIBECM
-      /* TODO: Tune stage 1 (PM1?) */
+      if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
+      if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
+      if (!success && nsize < 500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
+#ifndef USE_LIBECM
+      if (!success && degree <= 2 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1 + (degree <= 0));
+#else
       /* TODO: LIBECM in other stages */
-      if (!success) {
+      if (!success && degree <= 2 && nsize > 600) {
         ecm_params params;
         ecm_init(params);
         params->method = ECM_ECM;
@@ -157,11 +168,8 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
         success = ecm_factor(f, n, B1/4, params);
         ecm_clear(params);
         if (mpz_cmp(f, n) == 0)  success = 0;
+        if (success) { printf("ECM FOUND FACTOR\n"); }
       }
-#else
-      if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
-      if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
-      if (!success && nsize < 500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
 #endif
     }
     /* Try any factors found in previous stage 2+ calls */
