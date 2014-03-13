@@ -825,7 +825,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   if (dg <= 2) {
     if (dg == 1) polyz_root_deg1( pxa[0], pg, NMOD );
     else         polyz_root_deg2( pxa[0], pxa[1], pg, NMOD );
-    for (dt = 0; dt < dg && *nroots < maxroots; dt++) {
+    for (dt = 0; dt < dg; dt++) {
       mpz_set(t, pxa[dt]);
       dup = 0; /* don't add duplicate roots */
       for (i = 0; i < *nroots; i++)
@@ -852,7 +852,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   /* Try hard to find a single root, work less after we got one or two.
    * In a generic routine we would want to try hard all the time. */
   ntries = 0;
-  maxtries = (*nroots == 0) ? 400 : (*nroots == 1) ? 50 : 10;
+  maxtries = (*nroots == 0) ? 200 : (*nroots == 1) ? 50 : 10;
 
   mpz_init(power);
   mpz_set_ui(pxa[1], 1);
@@ -891,13 +891,8 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   }
 
   if (dh >= 1 && dh < dg) {
-    /* Split h first if one of:
-     *  - degree(h) <= 2 because roots are trivial
-     *  - degree(g/h) < roots left, because we'd need this anyway
-     *  - degree(h) <= degree(g/h) AND splitting h will get us all needed roots
-     */
-    long rootsleft = maxroots-*nroots;
-    if (dh <= 2 || (dg-dh) < rootsleft || (dh <= (dg-dh) && dh >= rootsleft)) {
+    /* Pick the smaller of the two splits to process first */
+    if (dh <= 2 || dh <= (dg-dh)) {
       polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
       if (*nroots < maxroots) {
         /* q = g/h, and recurse */
@@ -943,9 +938,9 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
   if (dP == 0)
     return;
 
-  /* Allocate space for the maximum number of roots */
-  New(0, *roots, dP, mpz_t);
-  for (i = 0; i < dP; i++)
+  /* Allocate space for the maximum number of roots (plus 1 for safety) */
+  New(0, *roots, dP+1, mpz_t);
+  for (i = 0; i <= dP; i++)
     mpz_init((*roots)[i]);
 
   if (maxroots > dP || maxroots == 0)
@@ -957,7 +952,7 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
     *nroots = 1;
     return;
   }
-  if (dP == 2 && maxroots >= 2) {
+  if (dP == 2) {
     polyz_root_deg2( (*roots)[0], (*roots)[1], pP, NMOD );
     *nroots = 2;
     return;
@@ -968,7 +963,7 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
   /* if (*nroots == 0) croak("failed to find roots\n"); */
 
   /* Clear out space for roots we didn't find */
-  for (i = *nroots; i < dP; i++)
+  for (i = *nroots; i <= dP; i++)
     mpz_clear((*roots)[i]);
 }
 

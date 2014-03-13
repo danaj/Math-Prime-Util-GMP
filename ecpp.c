@@ -152,12 +152,21 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
     if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
     if (stage >= 1) {
+      /* P-1 */
       if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
-      if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
-      if (!success && nsize < 500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
+      /* Pollard's Rho if not too big */
+      if (!success && nsize < 1000 && degree <= 2)
+        success = _GMP_pbrent_factor(n, f, nsize, 1600-nsize);
+      else if (!success && nsize < 500)
+        success = _GMP_pbrent_factor(n, f, nsize, 1000-nsize);
+      /* P+1 */
+      if (!success) {
+        UV ppB = (nsize < 500) ? B1/6 : B1/16;
+        success = _GMP_pplus1_factor(n, f, 0, ppB, ppB);
+      }
 #ifndef USE_LIBECM
-      /* Try harder for n-1 / n+1.  Not sure if this helps or hurts perf. */
-      if (!success && degree <= 0 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1);
+      /* This may or may not be faster.  Skip for now. */
+      /* if (!success && degree <= 0 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1); */
 #else
       /* TODO: LIBECM in other stages */
       /* Note: this will be substantially slower than our code for small sizes
@@ -286,7 +295,7 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
 }
 
 
-static int find_roots(long D, mpz_t N, mpz_t** roots)
+static int find_roots(long D, mpz_t N, mpz_t** roots, int maxroots)
 {
   mpz_t* T;
   UV degree;
@@ -306,8 +315,7 @@ static int find_roots(long D, mpz_t N, mpz_t** roots)
   dT = degree;
   polyz_mod(T, T, &dT, N);
 
-  /* Don't bother getting more than 4 roots */
-  polyz_roots_modp(roots, &nroots,  4, T, dT, N, p_randstate);
+  polyz_roots_modp(roots, &nroots, maxroots, T, dT, N, p_randstate);
   if (nroots == 0) {
     gmp_printf("N = %Zd\n", N);
     croak("Failed to find roots for D = %ld\n", D);
@@ -455,14 +463,21 @@ static void update_ab(mpz_t a, mpz_t b, long D, mpz_t g, mpz_t N)
  * It's debatable what to do with a 1 return.
  */
 static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
-                      long D, mpz_t m, mpz_t q, mpz_t N)
+                      long D, mpz_t m, mpz_t q, mpz_t N, int maxroots)
 {
   long nroots, npoints, i, rooti, unity, result;
   mpz_t g, t, t2;
   mpz_t* roots = 0;
 
+  /* TODO: A better way to do this, I believe, would be to have the root
+   *       finder set up as an iterator.  That way we'd get the first root,
+   *       try to find a curve, and probably we'd be done.  Only if we tried
+   *       10+ points on that root would we get another root.  This would
+   *       probably be set up as a stack (array) of polynomials plus one
+   *       saved root (for when we solve a degree 2 poly).
+   */
   /* Step 1: Get the roots of the Hilbert class polynomial. */
-  nroots = find_roots(D, N, &roots);
+  nroots = find_roots(D, N, &roots, maxroots);
   if (nroots == 0)
     return 1;
 
@@ -720,11 +735,17 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
         if (verbose)
           { printf("%*sN[%d] (%d dig) %d (%s %d)", i, "", i, nidigits, D, (poly_type == 1) ? "Hilbert" : "Weber", poly_degree); fflush(stdout); }
 
-        curveresult = find_curve(a, b, P.x, P.y, D, m, q, Ni);
+        /* Try with only one or two roots, then 8 if that didn't work. */
+        /* TODO: This should be done using a root iterator in find_curve() */
+        curveresult = find_curve(a, b, P.x, P.y, D, m, q, Ni, 1);
+        if (curveresult == 1) {
+          if (verbose) { printf(" [redo roots]"); fflush(stdout); }
+          curveresult = find_curve(a, b, P.x, P.y, D, m, q, Ni, 8);
+        }
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if (curveresult == 1) {
-          /* Oh no!  We can't find a point on the curve.  Something is right
-           * messed up, and we've wasted a lot of time.  Sigh. */
+          /* Something is wrong.  Very likely the class poly coefficients are
+             incorrect.  We've wasted lots of time, and need to try again. */
           dlist[dnum] = -2; /* skip this D value from now on */
           if (verbose) gmp_printf("\n  Invalidated D = %d with N = %Zd\n", D, Ni);
           downresult = 1;
