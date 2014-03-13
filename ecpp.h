@@ -4,7 +4,7 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern void init_ecpp_gcds(void);
+extern void init_ecpp_gcds(UV nsize);
 extern void destroy_ecpp_gcds(void);
 
 extern int _GMP_ecpp(mpz_t N, char** prooftextptr);

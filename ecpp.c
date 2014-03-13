@@ -84,18 +84,19 @@
 static int _gcdinit = 0;
 static mpz_t _gcd_small;
 static mpz_t _gcd_large;
-static mpz_t _lcm_small;
 
-void init_ecpp_gcds(void) {
+void init_ecpp_gcds(UV nsize) {
   if (_gcdinit == 0) {
     mpz_init(_gcd_small);
     mpz_init(_gcd_large);
     _GMP_pn_primorial(_gcd_small,  3000);
-    _GMP_pn_primorial(_gcd_large, 20000);
+    /* This is never re-adjusted -- first number proved sets the size */
+    nsize *= 15;
+    if      (nsize < 20000) nsize = 20000;
+    else if (nsize > 500000) nsize = 500000;
+    _GMP_pn_primorial(_gcd_large, nsize);
     mpz_divexact(_gcd_large, _gcd_large, _gcd_small);
     mpz_divexact_ui(_gcd_small, _gcd_small, 2*3*5);
-    mpz_init(_lcm_small);
-    _GMP_lcm_of_consecutive_integers(300, _lcm_small);
     _gcdinit = 1;
   }
 }
@@ -104,7 +105,6 @@ void destroy_ecpp_gcds(void) {
   if (!_gcdinit) return;
   mpz_clear(_gcd_small);
   mpz_clear(_gcd_large);
-  mpz_clear(_lcm_small);
   _gcdinit = 0;
 }
 
@@ -143,7 +143,7 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     UV nsize = mpz_sizeinbase(n, 2);
 
     if (mpz_cmp(n, fmin) <= 0) return 0;
-    if (_GMP_is_prob_prime(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
+    if (_GMP_BPSW(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
 
     success = 0;
     B1 = 300 + 3 * nsize;
@@ -156,9 +156,12 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
       if (!success) success = _GMP_pplus1_factor(n, f, 0, B1/8, B1/8);
       if (!success && nsize < 500) success = _GMP_pbrent_factor(n, f, nsize, 1024-nsize);
 #ifndef USE_LIBECM
-      if (!success && degree <= 2 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1 + (degree <= 0));
+      /* Try harder for n-1 / n+1.  Not sure if this helps or hurts perf. */
+      if (!success && degree <= 0 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1);
 #else
       /* TODO: LIBECM in other stages */
+      /* Note: this will be substantially slower than our code for small sizes
+       *       and the small B1/B2 values we're using. */
       if (!success && degree <= 2 && nsize > 600) {
         ecm_params params;
         ecm_init(params);
@@ -213,7 +216,7 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
         nsfacs[0]++;
       }
       /* Is the factor f what we want? */
-      if ( mpz_cmp(f, fmin) > 0 && _GMP_is_prob_prime(f) )  return 1;
+      if ( mpz_cmp(f, fmin) > 0 && _GMP_BPSW(f) )  return 1;
       /* Divide out f */
       mpz_divexact(n, n, f);
     }
@@ -457,7 +460,6 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
   long nroots, npoints, i, rooti, unity, result;
   mpz_t g, t, t2;
   mpz_t* roots = 0;
-  int verbose = get_verbose_level();
 
   /* Step 1: Get the roots of the Hilbert class polynomial. */
   nroots = find_roots(D, N, &roots);
@@ -485,7 +487,7 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
       result = ecpp_check_point(x, y, m, q, a, N, t, t2);
     }
   }
-  if (verbose && npoints > 10)
+  if (npoints > 10 && get_verbose_level() > 0)
     printf("  # point finding took %ld points\n", npoints);
 
   if (roots != 0) {
@@ -824,7 +826,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
     return _GMP_is_prob_prime(N);
 
-  init_ecpp_gcds();
+  init_ecpp_gcds( mpz_sizeinbase(N,2) );
 
   if (prooftextptr)
     *prooftextptr = 0;
