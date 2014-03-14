@@ -128,13 +128,13 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
   mpz_gcd(f, n, _gcd_small);
   while (mpz_cmp_ui(f, 1) > 0) {
     mpz_divexact(n, n, f);
-    mpz_gcd(f, n, _gcd_small);
+    mpz_gcd(f, f, n);
   }
   if (mpz_cmp(n, fmin) <= 0) return 0;
   mpz_gcd(f, n, _gcd_large);
   while (mpz_cmp_ui(f, 1) > 0) {
     mpz_divexact(n, n, f);
-    mpz_gcd(f, n, _gcd_large);
+    mpz_gcd(f, f, n);
   }
 
   sfaci = 0;
