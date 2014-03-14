@@ -108,7 +108,21 @@ void destroy_ecpp_gcds(void) {
   _gcdinit = 0;
 }
 
-
+static int is_bpsw_prime(mpz_t n) {  /* Fermat + BPSW.  TODO: Put in main. */
+  mpz_t x, y, nm1;
+  int result = 0;
+  mpz_init_set_ui(x, 210UL);
+  mpz_init(nm1);
+  mpz_sub_ui(nm1, n, 1UL);
+  mpz_init(y);
+  mpz_powm(y, x, nm1, n);
+  if (mpz_cmp_ui(y, 1UL) == 0)
+    result = _GMP_BPSW(n);
+  mpz_clear(x);
+  mpz_clear(y);
+  mpz_clear(nm1);
+  return result;
+}
 
 static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs, int degree)
 {
@@ -120,7 +134,15 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
 
   if (mpz_cmp(n, fmin) <= 0) return 0;
 
-  /* Utilize GMP's fast gcd algorithms.  Trial to 224737 with two gcds. */
+#if 0
+  /* Use this to really encourage n-1 / n+1 proof types */
+  if (degree <= 0) {
+    if (stage == 1) return -1;
+    if (stage == 0) stage = 1;
+  }
+#endif
+
+  /* Utilize GMP's fast gcd algorithms.  Trial to 224737+ with two gcds. */
   mpz_tdiv_q_2exp(n, n, mpz_scan1(n, 0));
   while (mpz_divisible_ui_p(n, 3))  mpz_divexact_ui(n, n, 3);
   while (mpz_divisible_ui_p(n, 5))  mpz_divexact_ui(n, n, 5);
@@ -141,9 +163,13 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
   success = 1;
   while (success) {
     UV nsize = mpz_sizeinbase(n, 2);
+    int do_pm1 = 1;
+    int do_pp1 = 1;
+    int do_pbr = 0;
+    int do_ecm = 0;
 
     if (mpz_cmp(n, fmin) <= 0) return 0;
-    if (_GMP_BPSW(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
+    if (is_bpsw_prime(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
 
     success = 0;
     B1 = 300 + 3 * nsize;
@@ -151,23 +177,31 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     if (degree <= 0) B1 += 2*nsize;         /* N-1 and N+1 are really cheap. */
     if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
     if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
-    if (stage >= 1) {
-      /* P-1 */
-      if (!success) success = _GMP_pminus1_factor(n, f, B1, 6*B1);
-      /* Pollard's Rho if not too big */
-      if (!success && nsize < 1000 && degree <= 2)
-        success = _GMP_pbrent_factor(n, f, nsize, 1600-nsize);
-      else if (!success && nsize < 500)
-        success = _GMP_pbrent_factor(n, f, nsize, 1000-nsize);
-      /* P+1 */
+    if (stage == 0) {
       if (!success) {
-        UV ppB = (nsize < 500) ? B1/6 : B1/16;
-        success = _GMP_pplus1_factor(n, f, 0, ppB, ppB);
+        success = _GMP_pminus1_factor(n, f, 100+B1/8, 100+B1);
+        if (!success) do_pm1 = 0;
       }
-#ifndef USE_LIBECM
-      /* This may or may not be faster.  Skip for now. */
-      /* if (!success && degree <= 0 && nsize > 600) success = _GMP_ecm_factor_projective(n, f, B1/100, B1/20, 1); */
-#else
+    } else if (stage >= 1) {
+      /* P-1 */
+      if ((!success && do_pm1)) {
+        success = _GMP_pminus1_factor(n, f, B1, 10*B1);
+        if (!success) do_pm1 = 0;
+      }
+      /* Pollard's Rho */
+      if ((!success && do_pbr && nsize < 500)) {
+        success = _GMP_pbrent_factor(n, f, nsize % 53, 1000-nsize);
+      }
+      /* P+1 */
+      if ((!success && do_pp1)) {
+        UV ppB = (nsize < 500) ? B1/4 : B1/8;
+        success = _GMP_pplus1_factor(n, f, 0, ppB, ppB);
+        if (!success) do_pp1 = 0;
+      }
+      if ((!success && do_ecm)) {
+        success = _GMP_ecm_factor_projective(n, f, 400, 2000, 1);
+      }
+#ifdef USE_LIBECM
       /* TODO: LIBECM in other stages */
       /* Note: this will be substantially slower than our code for small sizes
        *       and the small B1/B2 values we're using. */
@@ -225,7 +259,7 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
         nsfacs[0]++;
       }
       /* Is the factor f what we want? */
-      if ( mpz_cmp(f, fmin) > 0 && _GMP_BPSW(f) )  return 1;
+      if ( mpz_cmp(f, fmin) > 0 && is_bpsw_prime(f) )  return 1;
       /* Divide out f */
       mpz_divexact(n, n, f);
     }
@@ -619,7 +653,9 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
   mpz_mul(minfactor, minfactor, minfactor);
   mpz_sqrt(sqrtn, Ni);
 
-  for (stage = (i == 0) ? facstage : 1; stage <= facstage; stage++) {
+  stage = 0;   /* if (nidigits > 500) stage = 1; */
+  if (i == 0 && facstage > 1)  stage = facstage;
+  for ( ; stage <= facstage; stage++) {
     int next_stage = (stage > 1) ? stage : 1;
     for (dnum = 0; dlist[dnum] != 0; dnum++) {
       int poly_type;  /* just for debugging/verbose */
@@ -690,6 +726,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       /* Make sure we can get a class polynomial for this D. */
       poly_degree = poly_class_poly(D, NULL, &poly_type);
       if (poly_degree == 0)  continue;
+      if (poly_degree > 16 && stage == 0) break;
       /* Make the continue-search vs. backtrack decision */
       if (*pmaxH > 0 && poly_degree > *pmaxH)  break;
       mpz_set_si(mD, D);
