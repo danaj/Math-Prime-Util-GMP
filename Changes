@@ -12,6 +12,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - Add improved AKS parameter selection.  About 200x faster, though still
       thousands of times slower than APR-CL or ECPP.
 
+    - Small ECPP performance adjustments.
+
 0.18 2014-01-27
 
     [FIXES]
