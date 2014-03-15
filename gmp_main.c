@@ -975,13 +975,10 @@ static UV largest_factor(UV n) {
 
 int _GMP_is_aks_prime(mpz_t n)
 {
-  mpz_t sqrtn;
   mpz_t *px, *py;
   int retval;
-  UV i, limit, s, r, a;
-  double log2n;
+  UV i, s, r, a;
   int _verbose = get_verbose_level();
-  /* PRIME_ITERATOR(iter); */
 
   if (mpz_cmp_ui(n, 4) < 0)
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
@@ -994,54 +991,51 @@ int _GMP_is_aks_prime(mpz_t n)
     return 0;
 
 #if AKS_VARIANT == AKS_VARIANT_V6    /* From the V6 AKS paper */
-  mpz_init(sqrtn);
-  mpz_sqrt(sqrtn, n);
-  /* limit should be floor( log2(n) ** 2 ).  The simple GMP solution is
-   * to get ceil(log2(n)) viz mpz_sizeinbase(n,2) and square, but that
-   * overcalculates by a fair amount.  We'll calculate float log2n as:
-   *   ceil(log2(n**k)) / k  [mpz_sizeinbase(n,2) <=> ceil(log2(n))]
-   * which gives us a value that slightly overestimates log2(n).
-   */
   {
-    mpz_t t;
+    mpz_t sqrtn, t;
+    double log2n;
+    UV limit;
+    PRIME_ITERATOR(iter);
+
+    mpz_init(sqrtn);
+    mpz_sqrt(sqrtn, n);
+
+    /* limit should be floor( log2(n) ** 2 ).  The simple GMP solution is
+     * to get ceil(log2(n)) via mpz_sizeinbase(n,2) and square, but that
+     * overcalculates by a fair amount.  We'll calculate float log2n as:
+     *   ceil(log2(n**k)) / k  [mpz_sizeinbase(n,2) <=> ceil(log2(n))]
+     * which gives us a value that slightly overestimates log2(n).
+     */
     mpz_init(t);
     mpz_pow_ui(t, n, 32);
     log2n = ((double) mpz_sizeinbase(t, 2) + 0.000001) / 32.0;
     limit = (UV) floor( log2n * log2n );
     mpz_clear(t);
-  }
 
-  if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %lu\n", n, (unsigned long) limit);
+    if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %lu\n", n, (unsigned long) limit);
 
-  /* Using a native r limits us to ~2000 digits in the worst case (r ~ log^5n)
-   * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
-   * far too slow to matter either way. */
-
-  for (r = 2; mpz_cmp_ui(n, r) > 0; r++) {
-    if (mpz_divisible_ui_p(n, r)) {   /* r divides n.  composite. */
-      /* prime_iterator_destroy(&iter); */
-      mpz_clear(sqrtn);
-      return 0;
+    /* Using a native r limits us to ~2000 digits in the worst case (r ~ log^5n)
+     * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
+     * far too slow to matter either way.  Composite r is ok here, but it will
+     * always end up prime, so save time and just check primes. */
+    retval = 0;
+    for (r = 2; /* */; r = prime_iterator_next(&iter)) {
+      if (mpz_divisible_ui_p(n, r) ) /* r divides n.  composite. */
+        { retval = 0; break; }
+      if (mpz_cmp_ui(sqrtn, r) <= 0) /* no r <= sqrtn divides n.  prime. */
+        { retval = 1; break; }
+      if (mpz_order_ui(r, n, limit) > limit)
+        { retval = 2; break; }
     }
-    if (mpz_cmp_ui(sqrtn, r) < 0) {  /* no r <= sqrtn divides n.  prime. */
-      /* prime_iterator_destroy(&iter); */
-      mpz_clear(sqrtn);
-      return 1;
-    }
-    if (mpz_order_ui(r, n, limit) > limit)
-      break;
+    prime_iterator_destroy(&iter);
+    mpz_clear(sqrtn);
+    if (retval != 2) return retval;
+
+    /* Bernstein 2002 suggests we could use:
+     *   s = (UV) floor( ceil(sqrt(((double)(r-1))/3.0)) * log2n );
+     * here, by Minkowski's theorem.  r-1 is really phi(r).  */
+    s = (UV) floor( sqrt(r-1) * log2n );
   }
-  /* prime_iterator_destroy(&iter); */
-  mpz_clear(sqrtn);
-
-  if (mpz_cmp_ui(n, r) <= 0)
-    return 1;
-
-  /* Bernstein 2002 suggests we could use:
-   *   s = (UV) floor( ceil(sqrt(((double)(r-1))/3.0)) * log2n );
-   * here, by Minkowski's theorem.  r-1 is really phi(r).  */
-  s = (UV) floor( sqrt(r-1) * log2n );
-
 #elif AKS_VARIANT == AKS_VARIANT_BORNEMANN /* Bernstein + Voloch */
   {
     UV slim;
