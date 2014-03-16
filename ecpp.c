@@ -91,7 +91,7 @@ void init_ecpp_gcds(UV nsize) {
     mpz_init(_gcd_large);
     _GMP_pn_primorial(_gcd_small,  3000);
     /* This is never re-adjusted -- first number proved sets the size */
-    nsize *= 15;
+    nsize *= 20;
     if      (nsize < 20000) nsize = 20000;
     else if (nsize > 500000) nsize = 500000;
     _GMP_pn_primorial(_gcd_large, nsize);
@@ -163,10 +163,10 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
   success = 1;
   while (success) {
     UV nsize = mpz_sizeinbase(n, 2);
-    int do_pm1 = 1;
-    int do_pp1 = 1;
-    int do_pbr = 0;
-    int do_ecm = 0;
+    const int do_pm1 = 1;
+    const int do_pp1 = 1;
+    const int do_pbr = 0;
+    const int do_ecm = 0;
 
     if (mpz_cmp(n, fmin) <= 0) return 0;
     if (is_bpsw_prime(n)) { mpz_set(f, n); return (mpz_cmp(f, fmin) > 0); }
@@ -178,29 +178,24 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
     if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
     if (stage == 0) {
-      if (!success) {
+      if (nsize > 1400)  B1 *= 2;
+      if (nsize > 2000)  B1 *= 2;
+      if (!success)
         success = _GMP_pminus1_factor(n, f, 100+B1/8, 100+B1);
-        if (!success) do_pm1 = 0;
-      }
     } else if (stage >= 1) {
       /* P-1 */
-      if ((!success && do_pm1)) {
-        success = _GMP_pminus1_factor(n, f, B1, 10*B1);
-        if (!success) do_pm1 = 0;
-      }
+      if ((!success && do_pm1))
+        success = _GMP_pminus1_factor(n, f, B1, 6*B1);
       /* Pollard's Rho */
-      if ((!success && do_pbr && nsize < 500)) {
+      if ((!success && do_pbr && nsize < 500))
         success = _GMP_pbrent_factor(n, f, nsize % 53, 1000-nsize);
-      }
       /* P+1 */
       if ((!success && do_pp1)) {
-        UV ppB = (nsize < 500) ? B1/4 : B1/8;
+        UV ppB = (nsize < 2000) ? B1/4 : B1/16;
         success = _GMP_pplus1_factor(n, f, 0, ppB, ppB);
-        if (!success) do_pp1 = 0;
       }
-      if ((!success && do_ecm)) {
+      if ((!success && do_ecm))
         success = _GMP_ecm_factor_projective(n, f, 400, 2000, 1);
-      }
 #ifdef USE_LIBECM
       /* TODO: LIBECM in other stages */
       /* Note: this will be substantially slower than our code for small sizes
@@ -653,7 +648,8 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
   mpz_mul(minfactor, minfactor, minfactor);
   mpz_sqrt(sqrtn, Ni);
 
-  stage = 0;   /* if (nidigits > 500) stage = 1; */
+  stage = 0;
+  if (nidigits > 700) stage = 1;  /* Too rare to find them */
   if (i == 0 && facstage > 1)  stage = facstage;
   for ( ; stage <= facstage; stage++) {
     int next_stage = (stage > 1) ? stage : 1;
