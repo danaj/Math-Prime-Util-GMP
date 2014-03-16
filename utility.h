@@ -36,7 +36,7 @@ extern void polyz_set(mpz_t* pr, long* dr, mpz_t* ps, long ds);
 extern void polyz_print(const char* header, mpz_t* pn, long dn);
 extern void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, mpz_t mod);
 extern void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
-                      long *dq, long *dr, long dn, long dd);
+                      long *dq, long *dr, long dn, long dd, mpz_t NMOD);
 extern void polyz_pow_polymod(mpz_t* pres,  mpz_t* pn,  mpz_t* pmod,
                               long *dres,   long   dn,  long   dmod,
                               mpz_t power, mpz_t NMOD);

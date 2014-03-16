@@ -590,11 +590,10 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 }
 #endif
 
-/* Polynomial division.  We could do this modulo N, but most users only want
- * the quotient or remainder (not both), so let them do it themselves.
+/* Polynomial division modulo N.
  * This is Cohen algorithm 3.1.2 "pseudo-division". */
 void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
-               long *dq, long *dr, long dn, long dd)
+               long *dq, long *dr, long dn, long dd, mpz_t NMOD)
 {
   long i, j;
   mpz_t t;
@@ -612,7 +611,7 @@ void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
   /* R = N */
   *dr = dn;
   for (i = 0; i <= dn; i++)
-    mpz_set(pr[i], pn[i]);
+    mpz_set(pr[i], pn[i]);  /* pn should already be mod */
 
   if (*dr < dd)
     return;
@@ -629,24 +628,28 @@ void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
     for (i = *dq; i >= 0; i--) {
       long di = dd + i;
       mpz_set(pq[i], pr[di]);
-      for (j = di-1; j >= i; j--)
+      for (j = di-1; j >= i; j--) {
         mpz_submul(pr[j], pr[di], pd[j-i]);
+        mpz_mod(pr[j], pr[j], NMOD);
+      }
     }
   } else {
     mpz_init(t);
     for (i = *dq; i >= 0; i--) {
       long di = dd + i;
-      mpz_pow_ui(t, pd[dd], i);
-      mpz_mul(pq[i], pr[di], t);
+      mpz_powm_ui(t, pd[dd], i, NMOD);
+      mpz_mul(t, t, pr[di]);
+      mpz_mod(pq[i], t, NMOD);
       for (j = di-1; j >= 0; j--) {
         mpz_mul(pr[j], pr[j], pd[dd]);   /* j != di so this is safe */
         if (j >= i)
           mpz_submul(pr[j], pr[di], pd[j-i]);
+        mpz_mod(pr[j], pr[j], NMOD);
       }
     }
     mpz_clear(t);
   }
-  /* Reduce R and Q.  Dubiously useful before modulo. */
+  /* Reduce R and Q. */
   while (*dr > 0 && mpz_sgn(pr[*dr]) == 0)  dr[0]--;
   while (*dq > 0 && mpz_sgn(pq[*dq]) == 0)  dq[0]--;
 }
@@ -683,14 +686,12 @@ void polyz_pow_polymod(mpz_t* pres,  mpz_t* pn,  mpz_t* pmod,
   while (mpz_cmp_ui(mpow, 0) > 0) {
     if (mpz_odd_p(mpow)) {
       polyz_mulmod(pProd, pres, pX, &dProd, *dres, dX, NMOD);
-      polyz_div(pQ, pres,  pProd, pmod,  &dQ, dres, dProd, dmod);
-      polyz_mod(pres, pres, dres, NMOD);
+      polyz_div(pQ, pres,  pProd, pmod,  &dQ, dres, dProd, dmod, NMOD);
     }
     mpz_tdiv_q_2exp(mpow, mpow, 1);
     if (mpz_cmp_ui(mpow, 0) > 0) {
       polyz_mulmod(pProd, pX, pX, &dProd, dX, dX, NMOD);
-      polyz_div(pQ, pX,  pProd, pmod,  &dQ, &dX, dProd, dmod);
-      polyz_mod(pX, pX, &dX, NMOD);
+      polyz_div(pQ, pX,  pProd, pmod,  &dQ, &dX, dProd, dmod, NMOD);
     }
   }
   mpz_clear(mpow);
@@ -747,7 +748,7 @@ void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, 
   while (dr1 > 0 && mpz_sgn(pr1[dr1]) == 0)   dr1--;
 
   while (dr1 > 0 || mpz_sgn(pr1[dr1]) != 0) {
-    polyz_div(pq, pr,  pres, pr1,  &dq, &dr,  *dres, dr1);
+    polyz_div(pq, pr,  pres, pr1,  &dq, &dr,  *dres, dr1, MODN);
     if (dr < 0 || dq < 0 || dr > maxd || dq > maxd)
       croak("division error: dq %ld dr %ld maxd %ld\n", dq, dr, maxd);
     /* pr0 = pr1.  pr1 = pr */
@@ -756,9 +757,7 @@ void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, 
       mpz_set(pres[i], pr1[i]);  /* pr1 is mod MODN already */
     dr1 = dr;
     for (i = 0; i <= dr; i++)
-      mpz_mod(pr1[i], pr[i], MODN);
-    /* Reduce pr1 after the mod */
-    while (dr1 > 0 && mpz_sgn(pr1[dr1]) == 0)   dr1--;
+      mpz_set(pr1[i], pr[i]);
   }
   /* return pr0 */
   while (*dres > 0 && mpz_sgn(pres[*dres]) == 0)   dres[0]--;
@@ -896,13 +895,11 @@ static void polyz_roots(mpz_t* roots, long *nroots,
       polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
       if (*nroots < maxroots) {
         /* q = g/h, and recurse */
-        polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh);
-        polyz_mod(pq, pq, &dq, NMOD);
+        polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh, NMOD);
         polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
       }
     } else {
-      polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh);
-      polyz_mod(pq, pq, &dq, NMOD);
+      polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh, NMOD);
       polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
       if (*nroots < maxroots) {
         polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
