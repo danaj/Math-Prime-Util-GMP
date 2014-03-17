@@ -372,7 +372,6 @@ int
 kronecker(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
-    int res;
   CODE:
     validate_string_number("kronecker", (stra[0]=='-') ? stra+1 : stra);
     validate_string_number("kronecker", (strb[0]=='-') ? strb+1 : strb);
