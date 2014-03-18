@@ -178,6 +178,9 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     if (degree > 20 && stage <= 1) B1 -= nsize;   /* Less time on big polys. */
     if (degree > 40) B1 -= nsize/2;               /* Less time on big polys. */
     if (stage == 0) {
+      /* A relatively small performance hit, makes slightly smaller proofs. */
+      if (nsize < 900 && degree <= 2) B1 *= 1.8;
+      /* We need to try a bit harder for the large sizes :( */
       if (nsize > 1400)  B1 *= 2;
       if (nsize > 2000)  B1 *= 2;
       if (!success)
@@ -610,6 +613,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
 {
   mpz_t a, b, u, v, m, q, minfactor, sqrtn, mD, t, t2;
   mpz_t mlist[6];
+  mpz_t qlist[6];
   UV nm1a;
   IV np1lp, np1lq;
   struct ec_affine_point P;
@@ -638,8 +642,10 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
   mpz_init(mD); mpz_init(minfactor);  mpz_init(sqrtn);
   mpz_init(t);  mpz_init(t2);
   mpz_init(P.x);mpz_init(P.y);
-  for (k = 0; k < 6; k++)
+  for (k = 0; k < 6; k++) {
     mpz_init(mlist[k]);
+    mpz_init(qlist[k]);
+  }
 
   /* Any factors q found must be strictly > minfactor.
    * See Atkin and Morain, 1992, section 6.4 */
@@ -657,46 +663,31 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       int poly_type;  /* just for debugging/verbose */
       int poly_degree;
       D = -dlist[dnum];
-      if (D > 1) continue;  /* Marked for skip */
 
-      if (D == 1) {   /* n-1 test */
-        mpz_sub_ui(m, Ni, 1);          /* m = N-1 */
+      if (D > 1) continue;  /* Marked for skip */
+      if (D == 1) continue;  /* We'll do n-1 and n+1 together */
+
+      if (D == -1) {   /* n-1 and n+1 tests */
+        int nm1_success = 0;
+        int np1_success = 0;
+        const char* ptype = "";
+        mpz_sub_ui(m, Ni, 1);
         mpz_sub_ui(t2, sqrtn, 1);
         mpz_tdiv_q_2exp(t2, t2, 1);    /* t2 = minfactor */
-
-        facresult = check_for_factor(q, m, t2, t, stage, sfacs, nsfacs, 0);
-        if (facresult <= 0)
-          continue;
-        if (verbose)
-          { printf(" n-1\n"); fflush(stdout); }
-        downresult = ecpp_down(i+1, q, next_stage, pmaxH, dlist, sfacs, nsfacs, prooftextptr);
-        if (downresult == 0) goto end_down;   /* composite */
-        if (downresult == 1) {   /* nothing found at this stage */
-          VERBOSE_PRINT_N(i, nidigits, *pmaxH, facstage);
-          continue;
-        }
-        if (verbose)
-          { printf("%*sN[%d] (%d dig) n-1", i, "", i, nidigits); fflush(stdout); }
-        curveresult = _GMP_primality_bls_3(Ni, q, &nm1a);
-        if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
-        if ( ! curveresult ) {
-          /* This ought not happen */
-          if (verbose) gmp_printf("\n  Could not prove n-1 with N = %Zd\n", Ni);
-          downresult = 1;
-          continue;
-        }
-        goto end_down;
-      }
-      if (D == -1) {  /* n+1 test */
-        mpz_add_ui(m, Ni, 1);          /* m = N+1 */
+        nm1_success = check_for_factor(u, m, t2, t, stage, sfacs, nsfacs, 0);
+        mpz_add_ui(m, Ni, 1);
         mpz_add_ui(t2, sqrtn, 1);
         mpz_tdiv_q_2exp(t2, t2, 1);    /* t2 = minfactor */
-
-        facresult = check_for_factor(q, m, t2, t, stage, sfacs, nsfacs, 0);
-        if (facresult <= 0)
-          continue;
-        if (verbose)
-          { printf(" n+1\n"); fflush(stdout); }
+        np1_success = check_for_factor(v, m, t2, t, stage, sfacs, nsfacs, 0);
+        /* If both successful, pick smallest */
+        if (nm1_success > 0 && np1_success > 0) {
+          if (mpz_cmp(u, v) <= 0) np1_success = 0;
+          else                    nm1_success = 0;
+        }
+        if      (nm1_success > 0) {  ptype = "n-1";  mpz_set(q, u);  }
+        else if (np1_success > 0) {  ptype = "n+1";  mpz_set(q, v);  }
+        else                      continue;
+        if (verbose) { printf(" %s\n", ptype); fflush(stdout); }
         downresult = ecpp_down(i+1, q, next_stage, pmaxH, dlist, sfacs, nsfacs, prooftextptr);
         if (downresult == 0) goto end_down;   /* composite */
         if (downresult == 1) {   /* nothing found at this stage */
@@ -704,15 +695,18 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           continue;
         }
         if (verbose)
-          { printf("%*sN[%d] (%d dig) n+1", i, "", i, nidigits); fflush(stdout); }
-        curveresult = _GMP_primality_bls_15(Ni, q, &np1lp, &np1lq);
+          { printf("%*sN[%d] (%d dig) %s", i, "", i, nidigits, ptype); fflush(stdout); }
+        curveresult = (nm1_success > 0)
+                    ? _GMP_primality_bls_3(Ni, q, &nm1a)
+                    : _GMP_primality_bls_15(Ni, q, &np1lp, &np1lq);
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
-        if ( ! curveresult ) {
-          /* This ought not happen */
-          if (verbose) gmp_printf("\n  Could not prove n+1 with N = %Zd\n", Ni);
+        if ( ! curveresult ) { /* This ought not happen */
+          if (verbose)
+            gmp_printf("\n  Could not prove %s with N = %Zd\n", ptype, Ni);
           downresult = 1;
           continue;
         }
+        if (nm1_success > 0) D = 1; /* Indicate we're a n-1 proof */
         goto end_down;
       }
 
@@ -722,7 +716,10 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       /* Make sure we can get a class polynomial for this D. */
       poly_degree = poly_class_poly(D, NULL, &poly_type);
       if (poly_degree == 0)  continue;
-      if (poly_degree > 16 && stage == 0) break;
+      if (poly_degree > 16 && stage == 0) {
+        if (verbose) printf(" [1]");
+        break;
+      }
       /* Make the continue-search vs. backtrack decision */
       if (*pmaxH > 0 && poly_degree > *pmaxH)  break;
       mpz_set_si(mD, D);
@@ -735,15 +732,42 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
       if (verbose > 1)
         { printf(" %d", D); fflush(stdout); }
 
+      /* We're going to factor all the values for this discriminant then pick
+       * the smallest.  This adds a little time, but it means we go down
+       * faster.  This makes smaller proofs, and might even save time. */
+
       choose_m(mlist, D, u, v, Ni, t, t2);
+      /* We have 0 to 6 m values.  Try to factor them, put in qlist. */
+      for (k = 0; k < 6; k++) {
+        mpz_set_ui(qlist[k], 0);
+        if (mpz_sgn(mlist[k])) {
+          facresult = check_for_factor(qlist[k], mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
+          /* -1 = couldn't find, 0 = no big factors, 1 = found */
+          if (facresult <= 0)
+            mpz_set_ui(qlist[k], 0);
+        }
+      }
+      /* Sort any q values by size, so we work on the smallest first */
+      {
+        int i, j;
+        for (i = 0; i < 5; i++)
+          if (mpz_sgn(qlist[i]))
+            for (j = i+1; j < 6; j++)
+              if (mpz_sgn(qlist[j]) && mpz_cmp(qlist[i],qlist[j]) > 0) {
+                mpz_swap( qlist[i], qlist[j] );
+                mpz_swap( mlist[i], mlist[j] );
+              }
+      }
+      /* Try to make a proof with the first (smallest) q value.
+       * Repeat for others if we have to. */
       for (k = 0; k < 6; k++) {
         int maxH = *pmaxH;
         int minH = (nidigits <= 240) ? 6 : (nidigits+39)/40;
-        facresult = check_for_factor(q, mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
-        /* -1 = couldn't find, 0 = no big factors, 1 = found */
-        if (facresult <= 0)
-          continue;
+
+        if (mpz_sgn(qlist[k]) == 0) continue;
         mpz_set(m, mlist[k]);
+        mpz_set(q, qlist[k]);
+
         if (verbose)
           { printf(" %d (%s %d)\n", D, (poly_type == 1) ? "Hilbert" : "Weber", poly_degree); fflush(stdout); }
         if (maxH == 0) {
@@ -862,8 +886,10 @@ end_down:
   mpz_clear(mD); mpz_clear(minfactor);  mpz_clear(sqrtn);
   mpz_clear(t);  mpz_clear(t2);
   mpz_clear(P.x);mpz_clear(P.y);
-  for (k = 0; k < 6; k++)
+  for (k = 0; k < 6; k++) {
     mpz_clear(mlist[k]);
+    mpz_clear(qlist[k]);
+  }
 
   return downresult;
 }
