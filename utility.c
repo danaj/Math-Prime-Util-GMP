@@ -997,7 +997,7 @@ UV poly_class_poly(IV D, mpz_t**T, int* type)
     for (j = 0; j < degree; j++) {
       unsigned char signcount = (*s++) & 0xFF;
       unsigned char sign = signcount >> 7;
-      unsigned char count = signcount & 0x7F;
+      unsigned long count = signcount & 0x7F;
       if (count == 127) {
         do {
           signcount = (*s++) & 0xFF;
