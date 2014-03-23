@@ -226,17 +226,17 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
     }
     if (stage > 1 && !success) {
       if (stage == 2) {
-        if (!success) success = _GMP_pbrent_factor(n, f, nsize-1, 8192);
+        /* if (!success) success = _GMP_pbrent_factor(n, f, nsize-1, 8192); */
         if (!success) success = _GMP_pminus1_factor(n, f, 6*B1, 60*B1);
         /* p+1 with different initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 1, B1/2, B1/2);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 2500, 3);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 2500, 8);
       } else if (stage == 3) {
         if (!success) success = _GMP_pbrent_factor(n, f, nsize+1, 16384);
         if (!success) success = _GMP_pminus1_factor(n, f, 60*B1, 600*B1);
         /* p+1 with a third initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 2, 1*B1, 1*B1);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/4, B1*4, 4);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/4, B1*4, 5);
       } else if (stage == 4) {
         if (!success) success = _GMP_pminus1_factor(n, f, 300*B1, 300*20*B1);
         if (!success) success = _GMP_ecm_factor_projective(n, f, B1/2, B1*8, 4);
@@ -662,6 +662,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
     for (dnum = 0; dlist[dnum] != 0; dnum++) {
       int poly_type;  /* just for debugging/verbose */
       int poly_degree;
+      int allq = (nidigits < 400);  /* Do all q values together, or not */
       D = -dlist[dnum];
 
       if (D > 1) continue;  /* Marked for skip */
@@ -737,19 +738,19 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
        * faster.  This makes smaller proofs, and might even save time. */
 
       choose_m(mlist, D, u, v, Ni, t, t2);
-      /* We have 0 to 6 m values.  Try to factor them, put in qlist. */
-      for (k = 0; k < 6; k++) {
-        mpz_set_ui(qlist[k], 0);
-        if (mpz_sgn(mlist[k])) {
-          facresult = check_for_factor(qlist[k], mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
-          /* -1 = couldn't find, 0 = no big factors, 1 = found */
-          if (facresult <= 0)
-            mpz_set_ui(qlist[k], 0);
-        }
-      }
-      /* Sort any q values by size, so we work on the smallest first */
-      {
+      if (allq) {
         int i, j;
+        /* We have 0 to 6 m values.  Try to factor them, put in qlist. */
+        for (k = 0; k < 6; k++) {
+          mpz_set_ui(qlist[k], 0);
+          if (mpz_sgn(mlist[k])) {
+            facresult = check_for_factor(qlist[k], mlist[k], minfactor, t, stage, sfacs, nsfacs, poly_degree);
+            /* -1 = couldn't find, 0 = no big factors, 1 = found */
+            if (facresult <= 0)
+              mpz_set_ui(qlist[k], 0);
+          }
+        }
+        /* Sort any q values by size, so we work on the smallest first */
         for (i = 0; i < 5; i++)
           if (mpz_sgn(qlist[i]))
             for (j = i+1; j < 6; j++)
@@ -764,9 +765,16 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
         int maxH = *pmaxH;
         int minH = (nidigits <= 240) ? 6 : (nidigits+39)/40;
 
-        if (mpz_sgn(qlist[k]) == 0) continue;
-        mpz_set(m, mlist[k]);
-        mpz_set(q, qlist[k]);
+        if (allq) {
+          if (mpz_sgn(qlist[k]) == 0) continue;
+          mpz_set(m, mlist[k]);
+          mpz_set(q, qlist[k]);
+        } else {
+          if (mpz_sgn(mlist[k]) == 0) continue;
+          mpz_set(m, mlist[k]);
+          facresult = check_for_factor(q, m, minfactor, t, stage, sfacs, nsfacs, poly_degree);
+          if (facresult <= 0) continue;
+        }
 
         if (verbose)
           { printf(" %d (%s %d)\n", D, (poly_type == 1) ? "Hilbert" : "Weber", poly_degree); fflush(stdout); }
