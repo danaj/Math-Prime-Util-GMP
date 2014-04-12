@@ -81,7 +81,7 @@ cat << 'EOREADME' > standalone/README
 
 ECPP-DJ:  Elliptic Curve Primality Proof.
 
-Dana Jacobsen (dana@acm.org), 2012-2013
+Copyright 2012-2014, Dana Jacobsen (dana@acm.org).
 
 Let me know if you find this software useful, and suggestions, comments, and
 patches are welcome.
@@ -91,6 +91,10 @@ INSTALLATION:
      make
      make test           (optional)
      ./ecpp-dj -help     (shows usage)
+
+     # If you plan on doing proofs with numbers over 800 digits, consider:
+     #   wget http://probableprime.org/ecpp/cpd/huge/class_poly_data.h.gz
+     #   gunzip class_poly_data.h.gz
 
 This is a standalone version of the ECPP implemention written for the Perl
 module Math::Prime::Util::GMP in 2013.  This uses a "Factor All" strategy, and
@@ -115,12 +119,20 @@ will read both the MPU format and the PRIMO format.
 Performance is quite good for most sub-1000 digit numbers, but starts getting
 uneven over 500 digits.  Much more work is possible here.
 
-In my testing, it is much, much faster than GMP-ECPP 2.49.  It is fairly
-similar in speed under ~300 digits to Morain's old 6.4.5a ECPP, but is
-substantially faster for larger numbers.  It is faster than WraithX's APRCL
-to about 1000 digits, then starts getting slower.  Note that APRCL does not
-produce a certificate.  AKS is currently not a viable proof method, being
-millions of times slower than these methods.
+For production proving of multi-thousand digit numbers, I recommend:
+   Primo   http://www.ellipsa.eu/public/primo/primo.html
+because of its large speed advantage for 1000+ digit numbers, especially on
+multi-processor machines.
+
+Quick performance comparisons:
+ - Primo is slower under ~300 digits, *much* faster as input grows.
+ - GMP-ECPP 2.49 is very, very slow.  Nearly unusable once over 500 digits.
+ - Morain's ancient 6.4.5a ECPP is similar under 300 digits, but gets slower.
+ - David Cleaver's mpz_aprcl is a tiny bit slower under ~700 digits, but gets
+   faster for larger inputs (2-3x faster at 2000 digits).  Note that APR-CL
+   does not produce a certificate.
+ - AKS is not currently a viable method, with all known implementations being
+   millions of times slower than alternative methods (ECPP or APR-CL).
 
 Some areas to concentrate on:
 
@@ -128,7 +140,9 @@ Some areas to concentrate on:
     think it still makes a lot of sense to include a fixed set (e.g. all polys
     of degree 6 or smaller) for speed.  However the lack of polynomials is a
     big issue with titanic numbers, as we run a good chance of not finding an
-    easily splitable 'm' value and then get bogged down in factoring.
+    easily splitable 'm' value and then get bogged down in factoring.  The CM
+    package from http://cm.multiprecision.org/ would be an excellent choice,
+    with my only concern being the large dependency chain.
 
  2. The factoring.  In most cases this will stay in factoring stage 1 the
     entire time, meaning we are running my _GMP_pminus1_factor code with small
@@ -136,8 +150,8 @@ Some areas to concentrate on:
     be faster).  I have tried GMP-ECM's n-1 and it is quite a bit slower for
     this purpose (let me be clear: for large B1/B2 values, GMP-ECM rocks, but
     in this application with small B1/B2, it ran slower for me).  If you add
-    the define USE_LIBECM, then GMP-ECM's ECM is used.  This may or may not
-    be faster, and needs tuning.
+    the define USE_LIBECM, then GMP-ECM's ECM is used.  This will probably be
+    slower.
 
     Where using GMP-ECM would really help (I think) is in later factoring
     stages where we're in trouble and need to work hard to find a factor since
@@ -165,25 +179,20 @@ Some areas to concentrate on:
 
  4. ecpp_down.  There are a lot of little things here that can have big
     impacts on performance.  For instance the decisions on when to keep
-    searching polys vs. backtracking.  It may be worthwhile for largish
-    numbers (e.g. 300+ digits) to find all the 'q' values at this stage, then
-    select the one with the smallest 'q' (this is an idea from Morain, I
-    believe).  The result would be more time spent searching at a given level,
-    but we'd get a shallower tree.  This is not hard with a structure like my
-    FPS code uses, but would take some jiggering in the simple FAS loop (since
-    we'd have to be prepared for backtracking).
+    searching polys vs. backtracking.
+
+    The current code, for smallish numbers, will use a cheap factoring stage
+    zero for a while before switching to stage 1.  There is a lot of repeated
+    work here that a rewrite could avoid.
 
  5. The poly root finding takes a long time for large degree polys, and perhaps
-    we could speed it up.  There is a little speedup applied, where we exit
-    early after finding 4 roots, since we really only need 1.  If we could get
-    polyz_pow_polymod to run faster this would help here in general.  For
-    titanic numbers this becomes a big bottleneck.
+    we could speed it up.
 
 
-Note 1: AKS is also included and you can use it via the '-aks' option.
-        This runs about the same speed indicated by Brent 2010, which means
-        absurdly slow.  Let me know if you find anything faster (the
-        Berstein-Lenstra r selection would help).
+Note 1: AKS is also included and you can use it via the '-aks' option.  The
+        default implentation includes improvements from Bernstein and Voloch,
+        with a tuning heuristic from Bornemann.  It is much faster than the
+        version used by Brent (2006) for instance, but it is still very slow.
 
 Note 2: You can also force use of the BLS75 theorem 5/7 n-1 proof using the
         '-nm1' option.  This is good for up to 70-80 digits or so.  It performs
