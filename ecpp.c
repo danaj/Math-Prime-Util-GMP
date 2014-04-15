@@ -327,7 +327,7 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
 }
 
 
-static int find_roots(long D, mpz_t N, mpz_t** roots, int maxroots)
+static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroots)
 {
   mpz_t* T;
   UV degree;
@@ -340,7 +340,7 @@ static int find_roots(long D, mpz_t N, mpz_t** roots, int maxroots)
     return 1;
   }
 
-  degree = poly_class_poly(D, &T, &poly_type);
+  degree = poly_class_poly_num(poly_index, NULL, &T, &poly_type);
   if (degree == 0 || (poly_type != 1 && poly_type != 2))
     return 0;
 
@@ -495,7 +495,7 @@ static void update_ab(mpz_t a, mpz_t b, long D, mpz_t g, mpz_t N)
  * It's debatable what to do with a 1 return.
  */
 static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
-                      long D, mpz_t m, mpz_t q, mpz_t N, int maxroots)
+                      long D, int poly_index, mpz_t m, mpz_t q, mpz_t N, int maxroots)
 {
   long nroots, npoints, i, rooti, unity, result;
   mpz_t g, t, t2;
@@ -509,7 +509,7 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
    *       saved root (for when we solve a degree 2 poly).
    */
   /* Step 1: Get the roots of the Hilbert class polynomial. */
-  nroots = find_roots(D, N, &roots, maxroots);
+  nroots = find_roots(D, poly_index, N, &roots, maxroots);
   if (nroots == 0)
     return 1;
 
@@ -609,7 +609,7 @@ static void choose_m(mpz_t* mlist, long D, mpz_t u, mpz_t v, mpz_t N,
   }
 
 /* Recursive routine to prove via ECPP */
-static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t* sfacs, int* nsfacs, char** prooftextptr)
+static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz_t* sfacs, int* nsfacs, char** prooftextptr)
 {
   mpz_t a, b, u, v, m, q, minfactor, sqrtn, mD, t, t2;
   mpz_t mlist[6];
@@ -617,7 +617,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
   UV nm1a;
   IV np1lp, np1lq;
   struct ec_affine_point P;
-  int k, dnum, nidigits, facresult, curveresult, downresult, stage, D;
+  int k, dindex, pindex, nidigits, facresult, curveresult, downresult, stage, D;
   int verbose = get_verbose_level();
 
   nidigits = mpz_sizeinbase(Ni, 10);
@@ -659,16 +659,12 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
   if (i == 0 && facstage > 1)  stage = facstage;
   for ( ; stage <= facstage; stage++) {
     int next_stage = (stage > 1) ? stage : 1;
-    for (dnum = 0; dlist[dnum] != 0; dnum++) {
+    for (dindex = -1; dindex < 0 || dilist[dindex] != 0; dindex++) {
       int poly_type;  /* just for debugging/verbose */
       int poly_degree;
       int allq = (nidigits < 400);  /* Do all q values together, or not */
-      D = -dlist[dnum];
 
-      if (D > 1) continue;  /* Marked for skip */
-      if (D == 1) continue;  /* We'll do n-1 and n+1 together */
-
-      if (D == -1) {   /* n-1 and n+1 tests */
+      if (dindex == -1) {   /* n-1 and n+1 tests */
         int nm1_success = 0;
         int np1_success = 0;
         const char* ptype = "";
@@ -685,11 +681,11 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           if (mpz_cmp(u, v) <= 0) np1_success = 0;
           else                    nm1_success = 0;
         }
-        if      (nm1_success > 0) {  ptype = "n-1";  mpz_set(q, u);  }
-        else if (np1_success > 0) {  ptype = "n+1";  mpz_set(q, v);  }
+        if      (nm1_success > 0) {  ptype = "n-1";  mpz_set(q, u);  D =  1; }
+        else if (np1_success > 0) {  ptype = "n+1";  mpz_set(q, v);  D = -1; }
         else                      continue;
         if (verbose) { printf(" %s\n", ptype); fflush(stdout); }
-        downresult = ecpp_down(i+1, q, next_stage, pmaxH, dlist, sfacs, nsfacs, prooftextptr);
+        downresult = ecpp_down(i+1, q, next_stage, pmaxH, dilist, sfacs, nsfacs, prooftextptr);
         if (downresult == 0) goto end_down;   /* composite */
         if (downresult == 1) {   /* nothing found at this stage */
           VERBOSE_PRINT_N(i, nidigits, *pmaxH, facstage);
@@ -707,16 +703,20 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           downresult = 1;
           continue;
         }
-        if (nm1_success > 0) D = 1; /* Indicate we're a n-1 proof */
         goto end_down;
       }
+
+      pindex = dilist[dindex];
+      if (pindex < 0) continue;  /* We marked this for skip */
+      /* Get the values for D, degree, and poly type */
+      poly_degree = poly_class_poly_num(pindex, &D, NULL, &poly_type);
+      if (poly_degree == 0)
+        croak("Unknown value in dilist[%d]: %d\n", dindex, pindex);
 
       if ( (-D % 4) != 3 && (-D % 16) != 4 && (-D % 16) != 8 )
         croak("Invalid discriminant '%d' in list\n", D);
       /* D must also be squarefree in odd divisors, but assume it. */
       /* Make sure we can get a class polynomial for this D. */
-      poly_degree = poly_class_poly(D, NULL, &poly_type);
-      if (poly_degree == 0)  continue;
       if (poly_degree > 16 && stage == 0) {
         if (verbose) printf(" [1]");
         break;
@@ -786,7 +786,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
           maxH--;
         }
         /* Great, now go down. */
-        downresult = ecpp_down(i+1, q, next_stage, &maxH, dlist, sfacs, nsfacs, prooftextptr);
+        downresult = ecpp_down(i+1, q, next_stage, &maxH, dilist, sfacs, nsfacs, prooftextptr);
         /* Nothing found, look at more polys in the future */
         if (downresult == 1 && *pmaxH > 0)  *pmaxH = maxH;
 
@@ -802,16 +802,16 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, IV* dlist, mpz_t
 
         /* Try with only one or two roots, then 8 if that didn't work. */
         /* TODO: This should be done using a root iterator in find_curve() */
-        curveresult = find_curve(a, b, P.x, P.y, D, m, q, Ni, 1);
+        curveresult = find_curve(a, b, P.x, P.y, D, pindex, m, q, Ni, 1);
         if (curveresult == 1) {
           if (verbose) { printf(" [redo roots]"); fflush(stdout); }
-          curveresult = find_curve(a, b, P.x, P.y, D, m, q, Ni, 8);
+          curveresult = find_curve(a, b, P.x, P.y, D, pindex, m, q, Ni, 8);
         }
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if (curveresult == 1) {
           /* Something is wrong.  Very likely the class poly coefficients are
              incorrect.  We've wasted lots of time, and need to try again. */
-          dlist[dnum] = -2; /* skip this D value from now on */
+          dilist[dindex] = -2; /* skip this D value from now on */
           if (verbose) gmp_printf("\n  Invalidated D = %d with N = %Zd\n", D, Ni);
           downresult = 1;
           continue;
@@ -905,7 +905,7 @@ end_down:
 /* returns 2 if N is proven prime, 1 if probably prime, 0 if composite */
 int _GMP_ecpp(mpz_t N, char** prooftextptr)
 {
-  IV* dlist;
+  int* dilist;
   mpz_t* sfacs;
   int i, fstage, result, nsfacs;
   int verbose = get_verbose_level();
@@ -920,17 +920,17 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
     *prooftextptr = 0;
 
   New(0, sfacs, MAX_SFACS, mpz_t);
-  dlist = poly_class_degrees(1);
+  dilist = poly_class_nums();
   nsfacs = 0;
   result = 1;
   for (fstage = 1; fstage < 20; fstage++) {
     int maxH = 0;
     if (verbose && fstage == 3) gmp_printf("Working hard on: %Zd\n", N);
-    result = ecpp_down(0, N, fstage, &maxH, dlist, sfacs, &nsfacs, prooftextptr);
+    result = ecpp_down(0, N, fstage, &maxH, dilist, sfacs, &nsfacs, prooftextptr);
     if (result != 1)
       break;
   }
-  Safefree(dlist);
+  Safefree(dilist);
   for (i = 0; i < nsfacs; i++)
     mpz_clear(sfacs[i]);
   Safefree(sfacs);

@@ -62,4 +62,13 @@ extern UV poly_class_poly(IV D, mpz_t**T, int* type);
 /* return a 0 terminated list of all D's sorted by degree */
 extern IV* poly_class_degrees(int insert_1s);
 
+/* List of class polynomial indices in order */
+extern int* poly_class_nums(void);
+/* Given a class poly index, return the degree and fill in (if not null):
+ *   D     the discriminant number
+ *   T     the polynomial coefficients
+ *   type  the poly type:  1 Hilber, 2 Weber
+ */
+extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
+
 #endif

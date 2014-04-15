@@ -967,72 +967,17 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
 
 #include "class_poly_data.h"
 
-UV poly_class_poly(IV D, mpz_t**T, int* type)
+int* poly_class_nums(void)
 {
-  UV i, j;
-  UV UD = -D;
-  { /* Binary search for the poly with this D */
-    UV lo = 0;
-    UV hi = NUM_CLASS_POLYS;
-    while (lo < hi) {
-      UV mid = (lo+hi)/2;
-      if (_class_poly_data[mid].D <= UD) { lo = mid+1; }
-      else                               { hi = mid;   }
-    }
-    i = lo-1;
-  }
-  if (_class_poly_data[i].D != UD) { /* Not found */
-    if (T != 0)  *T = 0;
-    return 0;
-  }
-  {                                  /* Found */
-    mpz_t t;
-    UV degree = _class_poly_data[i].degree;
-    int ctype = _class_poly_data[i].type;
-    const char* s = _class_poly_data[i].coefs;
-    if (type != 0) *type = ctype;
-    if (T == 0) return degree;
-    New(0, *T, degree+1, mpz_t);
-    mpz_init(t);
-    for (j = 0; j < degree; j++) {
-      unsigned char signcount = (*s++) & 0xFF;
-      unsigned char sign = signcount >> 7;
-      unsigned long count = signcount & 0x7F;
-      if (count == 127) {
-        do {
-          signcount = (*s++) & 0xFF;
-          count += signcount;
-        } while (signcount == 127);
-      }
-      mpz_set_ui(t, 0);
-      while (count-- > 0) {
-        mpz_mul_2exp(t, t, 8);
-        mpz_add_ui(t, t, (unsigned long) (*s++) & 0xFF);
-      }
-      /* Cube the last coefficient of Hilbert polys */
-      if (j == 0 && ctype == 1) mpz_pow_ui(t, t, 3);
-      if (sign) mpz_neg(t, t);
-      mpz_init_set( (*T)[j], t );
-    }
-    mpz_clear(t);
-    mpz_init_set_ui( (*T)[degree], 1 );
-    return degree;
-  }
-}
-
-IV* poly_class_degrees(int insert_1s)
-{
-  IV* dlist;
+  int* dlist;
   UV i;
   int degree_offset[256] = {0};
-  int poffset = insert_1s ? 2 : 0;
 
   for (i = 1; i < NUM_CLASS_POLYS; i++)
     if (_class_poly_data[i].D < _class_poly_data[i-1].D)
       croak("Problem with data file, out of order at D=%d\n", (int)_class_poly_data[i].D);
 
-  New(0, dlist, poffset + NUM_CLASS_POLYS + 1, IV);
-  dlist += poffset;
+  Newz(0, dlist, NUM_CLASS_POLYS + 1, int);
   /* init degree_offset to total number of this degree */
   for (i = 0; i < NUM_CLASS_POLYS; i++)
     degree_offset[_class_poly_data[i].degree]++;
@@ -1042,15 +987,58 @@ IV* poly_class_degrees(int insert_1s)
   /* Fill in dlist, sorted */
   for (i = 0; i < NUM_CLASS_POLYS; i++) {
     int position = degree_offset[_class_poly_data[i].degree-1]++;
-    dlist[position] = _class_poly_data[i].D;
+    dlist[position] = i+1;
   }
   /* Null terminate */
   dlist[NUM_CLASS_POLYS] = 0;
-  dlist -= poffset;
-  /* Add -1 and +1 if asked */
-  if (insert_1s) {
-    dlist[0] = -1;
-    dlist[1] =  1;
-  }
   return dlist;
+}
+
+UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type)
+{
+  UV degree, j;
+  int ctype;
+  mpz_t t;
+  const char* s;
+
+  if (i < 1 || i > NUM_CLASS_POLYS) { /* Invalid number */
+     if (D != 0) *D = 0;
+     if (T != 0) *T = 0;
+     return 0;
+  }
+  i--; /* i now is the index into our table */
+
+  degree = _class_poly_data[i].degree;
+  ctype  = _class_poly_data[i].type;
+  s = _class_poly_data[i].coefs;
+
+  if (D != 0)  *D = -_class_poly_data[i].D;
+  if (type != 0)  *type = ctype;
+  if (T == 0) return degree;
+
+  New(0, *T, degree+1, mpz_t);
+  mpz_init(t);
+  for (j = 0; j < degree; j++) {
+    unsigned char signcount = (*s++) & 0xFF;
+    unsigned char sign = signcount >> 7;
+    unsigned long count = signcount & 0x7F;
+    if (count == 127) {
+      do {
+        signcount = (*s++) & 0xFF;
+        count += signcount;
+      } while (signcount == 127);
+    }
+    mpz_set_ui(t, 0);
+    while (count-- > 0) {
+      mpz_mul_2exp(t, t, 8);
+      mpz_add_ui(t, t, (unsigned long) (*s++) & 0xFF);
+    }
+    /* Cube the last coefficient of Hilbert polys */
+    if (j == 0 && ctype == 1) mpz_pow_ui(t, t, 3);
+    if (sign) mpz_neg(t, t);
+    mpz_init_set( (*T)[j], t );
+  }
+  mpz_clear(t);
+  mpz_init_set_ui( (*T)[degree], 1 );
+  return degree;
 }
