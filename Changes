@@ -14,6 +14,24 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Small ECPP performance adjustments.
 
+    - Updated ECPP class polynomial data.  Default "tiny" table had very minor
+      changes.  The "big" table (in the github xt/ directory, default for
+      standalone ECPP) removed some large coefficient 17-24 degree polys to
+      make room for many more higher-degree polys.  For some ranges this may
+      mean more backtracking, but should expand the input size that is able to
+      find good discriminants without high factoring effort.
+
+      Default "tiny" table:
+        OLD:    30373 bytes   604 polys    24 maxdeg   42.0 prob   1450 prob/MB
+        NEW:    30422 bytes   611 polys    25 maxdeg   42.8 prob   1475 prob/MB
+
+      "big"  table at www.probableprime.org/ecpp/cpd/big/class_poly_data.h.gz
+        OLD:  2032376 bytes  3197 polys   117 maxdeg  104.5 prob     54 prob/MB
+        NEW:  2005072 bytes  5271 polys    85 maxdeg  125.2 prob     65 prob/MB
+
+      "huge" table at www.probableprime.org/ecpp/cpd/huge/class_poly_data.h.gz
+             15724395 bytes 14571 polys   128 maxdeg  207.9 prob     14 prob/MB
+
 0.18 2014-01-27
 
     [FIXES]
