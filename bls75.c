@@ -83,6 +83,7 @@
 static int try_factor(mpz_t f, mpz_t n, int effort)
 {
   int success = 0;
+  UV log2n = mpz_sizeinbase(n, 2);
 
   if (!success)  success = (int)power_factor(n, f);
 
@@ -102,7 +103,6 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
   }
 
   if (!success && effort == 2) {
-    UV log2n = mpz_sizeinbase(n, 2);
     UV brent_rounds = (log2n <= 64) ? 100000 : 100000 / (log2n-63);
     int final_B2 = 1000 * (150-(int)log2n);
     if (log2n < 70) brent_rounds *= 3;
@@ -115,6 +115,15 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
     if (!success)  success = _GMP_pminus1_factor(n, f, 10000, 200000);
     if (!success)  success = _GMP_ECM_FACTOR(n, f, 500, 30);
     if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 20);
+  }
+  if (!success && effort >= 5 && log2n > 170) {
+    UV B1 = (log2n > 2500) ? 10000000 : 4000 * log2n;
+    if (!success)  success = _GMP_pminus1_factor(n, f, B1, 20*B1);
+    /* To head off expensive QS, do these early */
+    if (!success && log2n > 210) success = _GMP_ECM_FACTOR(n, f, 20000, 10);
+    if (!success && log2n > 240) success = _GMP_ECM_FACTOR(n, f, 40000, 10);
+    if (!success && log2n > 240) success = _GMP_ECM_FACTOR(n, f, 80000,  5);
+    if (!success && log2n > 270) success = _GMP_ECM_FACTOR(n, f,160000, 20);
   }
 
   return success;
@@ -403,18 +412,14 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
 
     success = try_factor(f, m, effort);
 
-    if (!success && effort >= 5) {
-      /* The factor isn't trivial, but our size is relatively small.  QS. */
-      if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,10)<55) {
+    /* QS.  Uses lots of memory, but finds multiple factors quickly */
+    if (!success && effort >= 5 &&
+        mpz_sizeinbase(m,10) >= 30 && mpz_sizeinbase(m,10) <= 100) {
+      if (effort > 5 || (effort == 5 && mpz_sizeinbase(m,10) < 55) ) {
         INNER_QS_FACTOR(m, _GMP_primality_bls_nm1);
       }
     }
-    if (!success && effort > 5) {  /* do here only if effort > 5 */
-      /* QS.  Uses lots of memory, but finds multiple factors quickly */
-      if (!success && mpz_sizeinbase(m,10)>=30 && mpz_sizeinbase(m,2)<270) {
-        INNER_QS_FACTOR(m, _GMP_primality_bls_nm1);
-      }
-    }
+
     if (!success)
       success = try_factor2(f, m, effort);
 
