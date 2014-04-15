@@ -1,10 +1,12 @@
 
 - prime_count - needs the pc(#) option as well as pc(#,#)
 
-- Consider adding Lehmer's method for prime count.  The only use I can really
-  think of would be 32-bit machines.  I worry that the overhead of GMP would
-  kill us, and some method using __uint64s, or even Math::Int64 would be
-  faster.
+- Do a GMP version of LMO prime_count.  Possible versions:
+    - 32-bit main, 16-bit support
+    - 64-bit main, 32-bit support   (using __uint64_t if necessary)
+    - 128-bit main, 64-bit support  (gcc only)
+    - GMP main, 32-bit support      (portable)
+    - GMP main, 64-bit support      (mostly portable)
 
 - nth_prime
 
@@ -49,21 +51,20 @@
 - Recognize Math::BigInt / Math::Pari objects.  Shortcut validation.
   Create results as new objects of their type.
 
+- Pull factor subroutine out of .xs file.  Right now it's impossible to
+  implement the various routines that want the factors of n, such as
+  divisor_sum, euler_phi, etc.
+
 - These functions should be added:
-is_bpsw_prime
-is_pseudoprime
-divisor_sum
-carmichael_lambda
-liouville
-znprimroot
-
-euler_phi
-moebius
-jordan_totient
-legendre_phi
-znorder
-znlog
-
-next_prime
-prev_prime
-prime_count
+     is_bpsw_prime
+     is_pseudoprime
+     divisor_sum
+     carmichael_lambda
+     liouville
+     znprimroot
+     euler_phi
+     moebius
+     jordan_totient
+     legendre_phi
+     znorder
+     znlog
