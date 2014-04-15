@@ -23,11 +23,12 @@
  *
  * A set of fixed discriminants are used, rather than calculating them as
  * needed.  Having a way to calculate values as needed would be a big help.
- * In the interests of space for the MPU package, I've chosen ~500 values which
+ * In the interests of space for the MPU package, I've chosen ~600 values which
  * compile into about 35k of data.  This is about 1/5 of the entire code size
- * for the MPU package.  The github repository includes a alternate set of 3182
- * discriminants that compile to 2.3MB.  This is recommended if proving 300+
- * digit numbers is a regular occurance.
+ * for the MPU package.  The github repository includes an expanded set of 5271
+ * discriminants that compile to 2MB.  This is recommended if proving 300+
+ * digit numbers is a regular occurance.  There is a set available for download
+ * with almost 15k polys, taking 15.5MB.
  *
  * This version uses the FAS "factor all strategy", meaning it first constructs
  * the entire factor chain, with backtracking if necessary, then will do the
@@ -908,13 +909,15 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   int* dilist;
   mpz_t* sfacs;
   int i, fstage, result, nsfacs;
-  int verbose = get_verbose_level();
+  UV nsize = mpz_sizeinbase(N,2);
 
   /* We must check gcd(N,6), let's check 2*3*5*7*11*13*17*19*23. */
-  if (mpz_gcd_ui(NULL, N, 223092870UL) != 1)
-    return _GMP_is_prob_prime(N);
+  if (nsize <= 64 || mpz_gcd_ui(NULL, N, 223092870UL) != 1) {
+    result = _GMP_is_prob_prime(N);
+    if (result != 1) return result;
+  }
 
-  init_ecpp_gcds( mpz_sizeinbase(N,2) );
+  init_ecpp_gcds( nsize );
 
   if (prooftextptr)
     *prooftextptr = 0;
@@ -925,7 +928,8 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
   result = 1;
   for (fstage = 1; fstage < 20; fstage++) {
     int maxH = 0;
-    if (verbose && fstage == 3) gmp_printf("Working hard on: %Zd\n", N);
+    if (fstage == 3 && get_verbose_level())
+      gmp_printf("Working hard on: %Zd\n", N);
     result = ecpp_down(0, N, fstage, &maxH, dilist, sfacs, &nsfacs, prooftextptr);
     if (result != 1)
       break;
