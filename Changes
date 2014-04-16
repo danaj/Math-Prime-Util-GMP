@@ -12,7 +12,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - Add improved AKS parameter selection.  About 200x faster, though still
       thousands of times slower than APR-CL or ECPP.
 
-    - Small ECPP performance adjustments.
+    - ECPP performance adjustments, version 1.03 of standalone ECPP.
 
     - Updated ECPP class polynomial data.  Default "tiny" table had very minor
       changes.  The "big" table (in the github xt/ directory, default for
