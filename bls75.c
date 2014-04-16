@@ -414,7 +414,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
 
     /* QS.  Uses lots of memory, but finds multiple factors quickly */
     if (!success && effort >= 5 &&
-        mpz_sizeinbase(m,10) >= 30 && mpz_sizeinbase(m,10) <= 100) {
+        mpz_sizeinbase(m,10) >= 30 && mpz_sizeinbase(m,10) <= 90) {
       if (effort > 5 || (effort == 5 && mpz_sizeinbase(m,10) < 55) ) {
         INNER_QS_FACTOR(m, _GMP_primality_bls_nm1);
       }
