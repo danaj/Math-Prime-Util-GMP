@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.19 2014-03
+0.19 2014-04
 
     [ADDED]
 
@@ -10,7 +10,12 @@ Revision history for Perl module Math::Prime::Util::GMP
     [OTHER]
 
     - Add improved AKS parameter selection.  About 200x faster, though still
-      thousands of times slower than APR-CL or ECPP.
+      thousands of times slower than APR-CL or ECPP.  Updated times for the
+      example in the v0.10 entry: Timing for 10**100+267:
+          AKS:         ~5 days.
+          BLS75 n-1:   ~3 minutes.
+          APR-CL:      0.09 seconds
+          ECPP:        0.05 seconds.
 
     - ECPP performance adjustments, version 1.03 of standalone ECPP.
 
@@ -19,7 +24,9 @@ Revision history for Perl module Math::Prime::Util::GMP
       standalone ECPP) removed some large coefficient 17-24 degree polys to
       make room for many more higher-degree polys.  For some ranges this may
       mean more backtracking, but should expand the input size that is able to
-      find good discriminants without high factoring effort.
+      find good discriminants without high factoring effort.  "prob" below is
+      summing the estimate 1/2H:   9x more polys and 66x larger size gives on
+      average about 3x more candidates.
 
       Default "tiny" table:
         OLD:    30373 bytes   604 polys    24 maxdeg   42.0 prob   1450 prob/MB
