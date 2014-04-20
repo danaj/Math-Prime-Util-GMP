@@ -7,6 +7,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_power
     - exp_mangoldt
 
+    [FIXES]
+
+    - Fixed string shortcut for simple divisibility.  is_prime and related
+      functions are a bit faster when given inputs divisible by 2 or 5.
+
     [OTHER]
 
     - Add improved AKS parameter selection.  About 200x faster, though still

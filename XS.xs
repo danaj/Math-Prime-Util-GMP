@@ -126,8 +126,8 @@ int miller_rabin_random(IN char* strn, IN UV nbases, IN char* seedstr = 0)
       UV digsum = 0; \
       int i, slen = strlen(strn); \
       /* Multiples of 2 and 5 return 0 */ \
-      switch (strn[slen]) { \
-        case '0': case '2': case '4': case '5': case '6': case '8': \
+      switch (strn[slen-1]-'0') { \
+        case 0: case 2: case 4: case 5: case 6: case 8: \
            XSRETURN_IV(0); break; \
       } \
       /* Multiples of 3 return 0 */ \
