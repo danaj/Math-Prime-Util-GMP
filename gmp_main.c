@@ -2038,7 +2038,7 @@ UV is_power(mpz_t n, UV a)
     UV result;
     mpz_t t;
     mpz_init(t);
-    result = (a == 0)  ?  power_factor(n, t)  :  mpz_root(t, n, a);
+    result = (a == 0)  ?  power_factor(n, t)  :  (UV)mpz_root(t, n, a);
     mpz_clear(t);
     return result;
   }

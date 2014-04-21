@@ -1001,7 +1001,7 @@ UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type)
   mpz_t t;
   const char* s;
 
-  if (i < 1 || i > NUM_CLASS_POLYS) { /* Invalid number */
+  if (i < 1 || i > (int)NUM_CLASS_POLYS) { /* Invalid number */
      if (D != 0) *D = 0;
      if (T != 0) *T = 0;
      return 0;
