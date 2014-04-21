@@ -764,7 +764,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
        * Repeat for others if we have to. */
       for (k = 0; k < 6; k++) {
         int maxH = *pmaxH;
-        int minH = (nidigits <= 240) ? 6 : (nidigits+39)/40;
+        int minH = (nidigits <= 240) ? 7 : (nidigits+34)/35;
 
         if (allq) {
           if (mpz_sgn(qlist[k]) == 0) continue;
