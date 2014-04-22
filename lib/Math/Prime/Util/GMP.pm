@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.18';
+  $Math::Prime::Util::GMP::VERSION = '0.19';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -46,6 +46,7 @@ our @EXPORT_OK = qw(
                      consecutive_integer_lcm
                      partitions
                      gcd lcm kronecker
+                     exp_mangoldt
                      is_power
                    );
                    # Should add:
@@ -166,7 +167,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.18
+Version 0.19
 
 
 =head1 SYNOPSIS
@@ -700,6 +701,39 @@ If you want the enumerated partitions, see L<Integer::Partition>.  It is
 very fast and uses an extremely memory efficient iterator.  It is not,
 however, practical for producing the partition I<number> for values
 over 100 or so.
+
+
+=head2 exp_mangoldt
+
+  say "exp(lambda($_)) = ", exp_mangoldt($_) for 1 .. 100;
+
+Returns EXP(Λ(n)), the exponential of the Mangoldt function (also known
+as von Mangoldt's function) for an integer value.
+The Mangoldt function is equal to log p if n is prime or a power of a prime,
+and 0 otherwise.  We return the exponential so all results are integers.
+Hence the return value for C<exp_mangoldt> is:
+
+   p   if n = p^m for some prime p and integer m >= 1
+   1   otherwise.
+
+
+=head2 is_power
+
+  say "$n is a perfect square" if is_power($n, 2);
+  say "$n is a perfect cube" if is_power($n, 3);
+  say "$n is a ", is_power($n), "-th power";
+
+Given a single positive integer input C<n>, returns k if C<n = p^k> for
+some integer C<p E<gt> 1, k E<gt> 1>, and 0 otherwise.  The k returned is
+the largest possible.  This can be used in a boolean statement to
+determine if C<n> is a perfect power.
+
+If given two arguments C<n> and C<k>, returns 1 if C<n> is a C<k-th> power,
+and 0 otherwise.  For example, if C<k=2> then this detects perfect squares.
+
+This corresponds to Pari/GP's C<ispower> function, with the limitations of
+only integer arguments and no third argument may be given to return the root.
+
 
 
 =head2 factor

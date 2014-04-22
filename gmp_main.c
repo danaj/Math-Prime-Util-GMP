@@ -614,7 +614,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 
   /* For "small" numbers, this simple method is best. */
   {
-    UV small_to = (log2n < 3000)  ?  to_n  :  10000;
+    UV small_to = (log2n < 3000)  ?  to_n  :  30000;
     while (p <= small_to) {
       if (mpz_divisible_ui_p(n, p))
         break;
