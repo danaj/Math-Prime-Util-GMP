@@ -20,6 +20,7 @@ our @EXPORT_OK = qw(
                      is_aks_prime
                      is_nminus1_prime
                      is_ecpp_prime
+                     is_pseudoprime
                      is_strong_pseudoprime
                      is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
@@ -45,7 +46,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      consecutive_integer_lcm
                      partitions
-                     gcd lcm kronecker
+                     gcd lcm kronecker valuation invmod
                      exp_mangoldt
                      is_power
                    );
@@ -362,6 +363,13 @@ verification.  Proof types used include:
   BLS5
   Small
 
+=head2 is_pseudoprime
+
+Takes a positive number C<n> and a base C<a> as input, and returns 1 if
+C<n> is a probable prime to base C<a>.  This is the simple Fermat primality
+test.  Removing primes, given base 2 this produces the sequence
+L<OEIS A001567|http://oeis.org/A001567>.
+
 =head2 is_strong_pseudoprime
 
   my $maybe_prime = is_strong_pseudoprime($n, 2);
@@ -670,6 +678,24 @@ The Jacobi symbol is itself an extension of the Legendre symbol, which is
 only defined for odd prime values of C<n>.  This corresponds to Pari's
 C<kronecker(a,n)> function and Mathematica's C<KroneckerSymbol[n,m]>
 function.
+
+=head2 valuation
+
+  say "$n is divisible by 2 ", valuation($n,2), " times.";
+
+Given integers C<n> and C<k>, returns the numbers of times C<n> is divisible
+by C<k>.  This is a very limited version of the algebraic valuation meaning,
+just applied to integers.
+This corresponds to Pari's C<valuation> function.
+C<0> is returned if C<n> or C<k> is one of the values C<-1>, C<0>, or C<1>.
+
+=head2 invmod
+
+  say "The inverse of 42 mod 2017 = ", invmod(42,2017);
+
+Given two integers C<a> and C<n>, return the inverse of C<a> modulo C<n>.
+If not defined, undef is returned.  If defined, then the return value
+multiplied by C<a> equals C<1> modulo C<n>.
 
 
 =head2 consecutive_integer_lcm

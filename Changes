@@ -1,5 +1,13 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.20 2014-05
+
+    [ADDED]
+
+    - valuation(a,b)                      how many times does b divide a?
+    - invmod(a,n)                         inverse of a modulo n
+    - is_pseudoprime(n,base)              Simple Fermat test
+
 0.19 2014-04-21
 
     [ADDED]

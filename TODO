@@ -56,8 +56,6 @@
   divisor_sum, euler_phi, etc.
 
 - These functions should be added:
-     is_bpsw_prime
-     is_pseudoprime
      divisor_sum
      carmichael_lambda
      liouville

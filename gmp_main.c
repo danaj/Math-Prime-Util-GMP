@@ -155,10 +155,10 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   UV b = mpz_sizeinbase(k, 2);
   IV D = P*P - 4*Q;
 
-  MPUassert( mpz_cmp_ui(n, 2) >= 0, "lucas_seq: n is less than 2" );
+  if (mpz_cmp_ui(n, 2) < 0) croak("Lucas sequence modulus n must be > 1");
   MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucas_seq: k is negative" );
-  MPUassert( P >= 0 && mpz_cmp_si(n, P) >= 0, "lucas_seq: P is out of range" );
-  MPUassert( mpz_cmp_si(n, Q) >= 0, "lucas_seq: Q is out of range" );
+  MPUassert( mpz_cmp_si(n,(P>=0) ? P : -P) > 0, "lucas_seq: P is out of range");
+  MPUassert( mpz_cmp_si(n,(Q>=0) ? Q : -Q) > 0, "lucas_seq: Q is out of range");
   MPUassert( D != 0, "lucas_seq: D is zero" );
 
   if (mpz_cmp_ui(k, 0) <= 0) {

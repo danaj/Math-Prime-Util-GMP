@@ -77,11 +77,15 @@ _GMP_destroy()
 
 
 int
-_GMP_miller_rabin(IN char* strn, IN char* strbase)
+_GMP_miller_rabin(IN char* strn, ...)
+  ALIAS:
+    is_pseudoprime = 1
   PREINIT:
     mpz_t n, a;
+    char* strbase;
   CODE:
     validate_string_number("GMP_miller_rabin (n)", strn);
+    strbase = (items == 1) ? "2" : SvPV_nolen(ST(1));  /* default base = 2 */
     validate_string_number("GMP_miller_rabin (base)", strbase);
     if (strn[1] == 0) {
       switch (strn[0]) {
@@ -92,7 +96,14 @@ _GMP_miller_rabin(IN char* strn, IN char* strbase)
     }
     mpz_init_set_str(n, strn, 10);
     mpz_init_set_str(a, strbase, 10);
-    RETVAL = _GMP_miller_rabin(n, a);
+    if (ix == 0) {
+      RETVAL = _GMP_miller_rabin(n, a);
+    } else {
+      mpz_t nm1; mpz_init(nm1); mpz_sub_ui(nm1, n, 1);
+      mpz_powm(a, a, nm1, n);
+      mpz_clear(nm1);
+      RETVAL = !mpz_cmp_ui(a,1);
+    }
     mpz_clear(n);  mpz_clear(a);
   OUTPUT:
     RETVAL
@@ -261,7 +272,7 @@ is_power(IN char* strn, IN UV a = 0)
 
 
 #define XPUSH_MPZ(n) \
-  { \
+  do { \
     /* Push as a scalar if <= min(ULONG_MAX,UV_MAX), string otherwise */ \
     UV v = mpz_get_ui(n); \
     if (!mpz_cmp_ui(n, v)) { \
@@ -274,7 +285,7 @@ is_power(IN char* strn, IN UV a = 0)
       XPUSHs(sv_2mortal(newSVpv(str, 0))); \
       Safefree(str); \
     } \
-  }
+  } while (0)
 
 void
 next_prime(IN char* strn)
@@ -370,6 +381,8 @@ gcd(...)
 
 int
 kronecker(IN char* stra, IN char* strb)
+  ALIAS:
+    valuation = 1
   PREINIT:
     mpz_t a, b;
   CODE:
@@ -377,11 +390,38 @@ kronecker(IN char* stra, IN char* strb)
     validate_string_number("kronecker", (strb[0]=='-') ? strb+1 : strb);
     mpz_init_set_str(a, stra, 10);
     mpz_init_set_str(b, strb, 10);
-    RETVAL = mpz_kronecker(a, b);
+    if (ix == 0) {
+      RETVAL = mpz_kronecker(a, b);
+    } else {
+      mpz_abs(a,a);
+      mpz_abs(b,b);
+      if (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0)
+        RETVAL = 0;
+      else
+        RETVAL = mpz_remove(a, a, b);
+    }
     mpz_clear(b);
     mpz_clear(a);
   OUTPUT:
     RETVAL
+
+void
+invmod(IN char* stra, IN char* strb)
+  PREINIT:
+    mpz_t ret, a, b;
+    int invertok;
+  PPCODE:
+    validate_string_number("invmod", (stra[0]=='-') ? stra+1 : stra);
+    validate_string_number("invmod", (strb[0]=='-') ? strb+1 : strb);
+    mpz_init_set_str(a, stra, 10);
+    mpz_init_set_str(b, strb, 10);
+    mpz_init(ret);
+    if (!mpz_sgn(b) || !mpz_sgn(a))  invertok = 0; /* undef if a or b is zero */
+    else if (!mpz_cmp_ui(b,1))       invertok = 1; /* return 0 */
+    else                             invertok = mpz_invert(ret, a, b);
+    if (invertok) XPUSH_MPZ(ret);
+    else          XSRETURN_UNDEF;
+    mpz_clear(ret); mpz_clear(b); mpz_clear(a);
 
 void partitions(IN UV n)
   PREINIT:
