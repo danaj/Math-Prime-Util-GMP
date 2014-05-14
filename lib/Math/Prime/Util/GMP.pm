@@ -679,6 +679,21 @@ only defined for odd prime values of C<n>.  This corresponds to Pari's
 C<kronecker(a,n)> function and Mathematica's C<KroneckerSymbol[n,m]>
 function.
 
+=head2 binomial
+
+Given integer arguments C<n> and C<k>, returns the binomial coefficient
+C<n*(n-1)*...*(n-k+1)/k!>, also known as the choose function.  Negative
+arguments use the L<Kronenburg extensions|http://arxiv.org/abs/1105.3689/>.
+This corresponds to Mathematica's C<Binomial[n,k]> function, Pari's
+C<binomial(n,k)> function, and GMP's C<mpz_bin_ui> function.
+
+For negative arguments, this matches Mathematica.  Pari does not implement
+the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
+case.  GMP's API does not allow negative C<k> but otherwise matches.
+L<Math::BigInt> does not implement any extensions and the results for
+C<n E<lt> 0, k > 0> are undefined.
+
+
 =head2 valuation
 
   say "$n is divisible by 2 ", valuation($n,2), " times.";

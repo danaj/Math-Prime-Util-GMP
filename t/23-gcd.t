@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/gcd lcm kronecker is_power valuation invmod/;
+use Math::Prime::Util::GMP qw/gcd lcm kronecker is_power valuation invmod
+                              binomial/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @gcds = (
@@ -94,12 +95,36 @@ my @invmods = (
  [ -42, -2017, 48],
  [ 14, 28474, undef],
 );
+my @binomials = (
+ [ 0,0, 1 ],
+ [ 0,1, 0 ],
+ [ 1,0, 1 ],
+ [ 1,1, 1 ],
+ [ 1,2, 0 ],
+ [ 13,13, 1 ],
+ [ 13,14, 0 ],
+ [ 35,16, 4059928950 ],             # We can do this natively even in 32-bit
+ [ 40,19, "131282408400" ],         # We can do this in 64-bit
+ [ 67,31, "11923179284862717872" ], # ...and this
+ [ 228,12, "30689926618143230620" ],# But the result of this is too big.
+ [ 177,78, "3314450882216440395106465322941753788648564665022000" ],
+ [ -10,5, -2002 ],
+ [ -11,22, 64512240 ],
+ [ -12,23, -286097760 ],
+ [ -23,-26, -2300 ],     # Kronenburg extension
+ [ -12,-23, -705432 ],   # same
+ [  12,-23, 0 ],
+ [  12,-12, 0 ],
+ [ -12,0, 1 ],
+ [  0,-1, 0 ],
+);
 
 plan tests => scalar(@gcds)
             + scalar(@lcms)
             + scalar(@kroneckers)
             + scalar(@valuations)
             + scalar(@invmods)
+            + 2 + scalar(@binomials)
             + 3 + 3 + 1 + 5;
 
 foreach my $garg (@gcds) {
@@ -130,6 +155,16 @@ foreach my $r (@invmods) {
   is( invmod($a,$n), $exp, "invmod($a,$n) = ".((defined $exp)?$exp:"<undef>") );
 }
 
+foreach my $r (@binomials) {
+  my($n, $k, $exp) = @$r;
+  is( binomial($n,$k), $exp, "binomial($n,$k)) = $exp" );
+}
+is_deeply( [map { binomial(10, $_) } -15 .. 15],
+           [qw/0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 10 45 120 210 252 210 120 45 10 1 0 0 0 0 0/],
+           "binomial(10,n) for n in -15 .. 15" );
+is_deeply( [map { binomial(-10, $_) } -15 .. 15],
+           [qw/-2002 715 -220 55 -10 1 0 0 0 0 0 0 0 0 0 1 -10 55 -220 715 -2002 5005 -11440 24310 -48620 92378 -167960 293930 -497420 817190 -1307504/],
+           "binomial(-10,n) for n in -15 .. 15" );
 
 
 is( gcd("921166566073002915606255698642","1168315374100658224561074758384","951943731056111403092536868444"), 14, "gcd(a,b,c)" );
