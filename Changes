@@ -7,6 +7,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - valuation(a,b)                      how many times does b divide a?
     - invmod(a,n)                         inverse of a modulo n
     - is_pseudoprime(n,base)              Simple Fermat test
+    - binomial(n,k)                       binomial coefficient
 
 0.19 2014-04-21
 

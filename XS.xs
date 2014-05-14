@@ -407,6 +407,8 @@ kronecker(IN char* stra, IN char* strb)
 
 void
 invmod(IN char* stra, IN char* strb)
+  ALIAS:
+    binomial = 1
   PREINIT:
     mpz_t ret, a, b;
     int invertok;
@@ -415,13 +417,26 @@ invmod(IN char* stra, IN char* strb)
     validate_string_number("invmod", (strb[0]=='-') ? strb+1 : strb);
     mpz_init_set_str(a, stra, 10);
     mpz_init_set_str(b, strb, 10);
-    mpz_init(ret);
-    if (!mpz_sgn(b) || !mpz_sgn(a))  invertok = 0; /* undef if a or b is zero */
-    else if (!mpz_cmp_ui(b,1))       invertok = 1; /* return 0 */
-    else                             invertok = mpz_invert(ret, a, b);
-    if (invertok) XPUSH_MPZ(ret);
-    else          XSRETURN_UNDEF;
-    mpz_clear(ret); mpz_clear(b); mpz_clear(a);
+    if (ix == 0) {
+      mpz_init(ret);
+      if (!mpz_sgn(b) || !mpz_sgn(a))  invertok = 0; /* undef if a|b is zero */
+      else if (!mpz_cmp_ui(b,1))       invertok = 1; /* return 0 */
+      else                             invertok = mpz_invert(ret, a, b);
+      if (invertok) XPUSH_MPZ(ret);
+      mpz_clear(ret);
+      mpz_clear(b); mpz_clear(a);
+      if (!invertok) XSRETURN_UNDEF;
+    } else {
+      if (mpz_sgn(a) >= 0 && mpz_sgn(b) < 0)
+        mpz_set_ui(a, 0);
+      if (mpz_sgn(a) < 0 && mpz_sgn(b) < 0) {
+        if (mpz_cmp(b,a) <= 0)  mpz_sub(b, a, b);
+        else                    mpz_set_ui(a, 0);
+      }
+      mpz_bin_ui(a, a, mpz_get_ui(b));
+      XPUSH_MPZ(a);
+      mpz_clear(b); mpz_clear(a);
+    }
 
 void partitions(IN UV n)
   PREINIT:

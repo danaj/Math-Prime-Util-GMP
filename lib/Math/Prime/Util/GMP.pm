@@ -46,7 +46,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      consecutive_integer_lcm
                      partitions
-                     gcd lcm kronecker valuation invmod
+                     gcd lcm kronecker valuation invmod binomial
                      exp_mangoldt
                      is_power
                    );
