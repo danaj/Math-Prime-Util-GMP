@@ -427,11 +427,9 @@ invmod(IN char* stra, IN char* strb)
       mpz_clear(b); mpz_clear(a);
       if (!invertok) XSRETURN_UNDEF;
     } else {
-      if (mpz_sgn(a) >= 0 && mpz_sgn(b) < 0)
-        mpz_set_ui(a, 0);
-      if (mpz_sgn(a) < 0 && mpz_sgn(b) < 0) {
-        if (mpz_cmp(b,a) <= 0)  mpz_sub(b, a, b);
-        else                    mpz_set_ui(a, 0);
+      if (mpz_sgn(b) < 0) {   /* Handle negative k */
+        if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
+        else                                      mpz_sub(b, a, b);
       }
       mpz_bin_ui(a, a, mpz_get_ui(b));
       XPUSH_MPZ(a);
