@@ -9,6 +9,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_pseudoprime(n,base)              Simple Fermat test
     - binomial(n,k)                       binomial coefficient
 
+    [OTHER]
+
+    - 10%-ish speedup for next/prev prime with 38-950 digit inputs.
+
 0.19 2014-04-21
 
     [ADDED]

@@ -21,11 +21,14 @@
 
 static mpz_t _bgcd;
 static mpz_t _bgcd2;
+static mpz_t _bgcd3;
 #define BGCD_PRIMES       168
 #define BGCD_LASTPRIME    997
 #define BGCD_NEXTPRIME   1009
-#define BGCD2_PRIMES     2262
-#define BGCD2_NEXTPRIME 20011
+#define BGCD2_PRIMES     1229
+#define BGCD2_NEXTPRIME 10007
+#define BGCD3_PRIMES     4203
+#define BGCD3_NEXTPRIME 40009
 
 void _GMP_init(void)
 {
@@ -38,6 +41,7 @@ void _GMP_init(void)
   mpz_init(_bgcd);
   _GMP_pn_primorial(_bgcd, BGCD_PRIMES);   /* mpz_primorial_ui(_bgcd, 1000) */
   mpz_init_set_ui(_bgcd2, 0);
+  mpz_init_set_ui(_bgcd3, 0);
 }
 
 void _GMP_destroy(void)
@@ -46,6 +50,7 @@ void _GMP_destroy(void)
   clear_randstate();
   mpz_clear(_bgcd);
   mpz_clear(_bgcd2);
+  mpz_clear(_bgcd3);
   destroy_ecpp_gcds();
 }
 
@@ -761,7 +766,15 @@ int _GMP_is_prob_prime(mpz_t n)
       { mpz_clear(t); return 2; }
 
     /* If we're reasonably large, do a gcd with more primes */
-    if (log2n > 128) {
+    if (log2n > 700) {
+      if (mpz_sgn(_bgcd3) == 0) {
+        _GMP_pn_primorial(_bgcd3, BGCD3_PRIMES);
+        mpz_divexact(_bgcd3, _bgcd3, _bgcd);
+      }
+      mpz_gcd(t, n, _bgcd3);
+      if (mpz_cmp_ui(t, 1))
+        { mpz_clear(t); return 0; }
+    } else if (log2n > 300) {
       if (mpz_sgn(_bgcd2) == 0) {
         _GMP_pn_primorial(_bgcd2, BGCD2_PRIMES);
         mpz_divexact(_bgcd2, _bgcd2, _bgcd);
@@ -787,11 +800,11 @@ int _GMP_is_prob_prime(mpz_t n)
     if (log2n > 16000) {
       double dB = (double)log2n * (double)log2n * 0.005;
       if (BITS_PER_WORD == 32 && dB > 4200000000.0) dB = 4200000000.0;
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, (UV)dB))  return 0;
-    } else if (log2n > 3000) {
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 80*log2n))  return 0;
-    } else if (log2n > 1000) {
-      if (_GMP_trial_factor(n, BGCD2_NEXTPRIME, 30*log2n))  return 0;
+      if (_GMP_trial_factor(n, BGCD3_NEXTPRIME, (UV)dB))  return 0;
+    } else if (log2n > 4000) {
+      if (_GMP_trial_factor(n, BGCD3_NEXTPRIME, 80*log2n))  return 0;
+    } else if (log2n > 1600) {
+      if (_GMP_trial_factor(n, BGCD3_NEXTPRIME, 30*log2n))  return 0;
     }
   }
 
