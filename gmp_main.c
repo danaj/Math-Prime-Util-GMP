@@ -60,7 +60,9 @@ static const unsigned char next_wheel[30] =
 static const unsigned char prev_wheel[30] =
   {29,29,1,1,1,1,1,1,7,7,7,7,11,11,13,13,13,13,17,17,19,19,19,19,23,23,23,23,23,23};
 static const unsigned char wheel_advance[30] =
-  {0,6,0,0,0,0,0,4,0,0,0,2,0,4,0,0,0,2,0,4,0,0,0,6,0,0,0,0,0,2};
+  {1,6,5,4,3,2,1,4,3,2,1,2,1,4,3,2,1,2,1,4,3,2,1,6,5,4,3,2,1,2};
+static const unsigned char wheel_retreat[30] =
+  {1,2,1,2,3,4,5,6,1,2,3,4,1,2,1,2,3,4,1,2,1,2,3,4,1,2,3,4,5,6};
 
 
 static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
@@ -1170,63 +1172,52 @@ int _GMP_is_aks_prime(mpz_t n)
 /* Modifies argument */
 void _GMP_next_prime(mpz_t n)
 {
-  mpz_t d;
-  UV m;
+  UV m, m23;
+  if (mpz_cmp_ui(n, 29) < 0) { /* small inputs */
 
-  /* small inputs */
-  if (mpz_cmp_ui(n, 7) < 0) {
-    if      (mpz_cmp_ui(n, 2) < 0) { mpz_set_ui(n, 2); }
-    else if (mpz_cmp_ui(n, 3) < 0) { mpz_set_ui(n, 3); }
-    else if (mpz_cmp_ui(n, 5) < 0) { mpz_set_ui(n, 5); }
-    else                           { mpz_set_ui(n, 7); }
-    return;
-  }
+    m = mpz_get_ui(n);
+    m = (m < 2) ? 2 : (m < 3) ? 3 : (m < 5) ? 5 : next_wheel[m];
+    mpz_set_ui(n, m);
 
-  mpz_init(d);
-  m = mpz_fdiv_q_ui(d, n, 30);
-
-  if (m == 29) {
-    mpz_add_ui(d, d, 1);
-    m = 1;
   } else {
-    m = next_wheel[m];
+
+    m23 = mpz_fdiv_ui(n, 223092870UL);  /* 2*3*5*7*11*13*17*19*23 */
+    m = m23 % 30;
+    do {
+      UV skip = wheel_advance[m];
+      mpz_add_ui(n, n, skip);
+      m23 += skip;
+      m = next_wheel[m];
+    } while ( !(m23% 7) || !(m23%11) || !(m23%13) || !(m23%17) ||
+              !(m23%19) || !(m23%23) || !_GMP_is_prob_prime(n) );
+
   }
-  mpz_mul_ui(n, d, 30);
-  mpz_add_ui(n, n, m);
-  while (1) {
-    if (_GMP_is_prob_prime(n))
-      break;
-    mpz_add_ui(n, n, wheel_advance[m]);
-    m = next_wheel[m];
-  }
-  mpz_clear(d);
 }
 
 /* Modifies argument */
 void _GMP_prev_prime(mpz_t n)
 {
-  mpz_t d;
-  UV m;
+  UV m, m23;
+  if (mpz_cmp_ui(n, 29) <= 0) { /* small inputs */
 
-  /* small inputs */
-  if (mpz_cmp_ui(n, 2) <= 0) { mpz_set_ui(n, 0); return; }
-  if (mpz_cmp_ui(n, 3) <= 0) { mpz_set_ui(n, 2); return; }
-  if (mpz_cmp_ui(n, 5) <= 0) { mpz_set_ui(n, 3); return; }
-  if (mpz_cmp_ui(n, 7) <= 0) { mpz_set_ui(n, 5); return; }
+    m = mpz_get_ui(n);
+    m = (m < 3) ? 0 : (m < 4) ? 2 : (m < 6) ? 3 : (m < 8) ? 5 : prev_wheel[m];
+    mpz_set_ui(n, m);
 
-  mpz_init(d);
-  m = mpz_fdiv_q_ui(d, n, 30);
+  } else {
 
-  while (1) {
-    m = prev_wheel[m];
-    if (m == 29)
-      mpz_sub_ui(d, d, 1);
-    mpz_mul_ui(n, d, 30);
-    mpz_add_ui(n, n, m);
-    if (_GMP_is_prob_prime(n))
-      break;
+    m23 = mpz_fdiv_ui(n, 223092870UL);  /* 2*3*5*7*11*13*17*19*23 */
+    m = m23 % 30;
+    m23 += 223092870UL;  /* No need to re-mod inside the loop */
+    do {
+      UV skip = wheel_retreat[m];
+      mpz_sub_ui(n, n, skip);
+      m23 -= skip;
+      m = prev_wheel[m];
+    } while ( !(m23% 7) || !(m23%11) || !(m23%13) || !(m23%17) ||
+              !(m23%19) || !(m23%23) || !_GMP_is_prob_prime(n) );
+
   }
-  mpz_clear(d);
 }
 
 #define LAST_DOUBLE_PROD \
