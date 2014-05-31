@@ -68,3 +68,6 @@
      znlog
 
 - measure effect of ecpp's Fermat pretest in main as well as ECPP.
+
+- Add is_power to factor, similar to MPU's factor.  Test, from Pari #1074:
+   my $n = next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));
