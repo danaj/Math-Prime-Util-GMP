@@ -259,7 +259,7 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
   }
   MPUassert( sieve != 0, "Could not generate base sieve" );
 
-  for (p = 17; p <= prim_limit; p = next_prime_in_sieve(sieve,p))
+  for (p = 17; p <= limit; p = next_prime_in_sieve(sieve,p))
   {
     /* p increments from 17 to at least sqrt(endp) */
     UV p2 = p*p;   /* TODO: overflow */
@@ -326,8 +326,9 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
  * the primary sieve and won't redo for segments until after 5*10^11.  Each
  * segment will store a range of 30*(16384-16) = 491040 numbers.
  */
-#define PRIMARY_SIZE (24576-16)
-#define SEGMENT_SIZE (16384-16)
+#define PRIMARY_SIZE (32768-16)
+#define SEGMENT_SIZE (24576-16)
+
 static const unsigned char* primary_sieve = 0;
 static const UV primary_limit = (30 * PRIMARY_SIZE)-1;
 
