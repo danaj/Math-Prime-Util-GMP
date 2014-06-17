@@ -23,7 +23,7 @@ sub test_at_digits {
   cmpthese($count,{
     'MP'      =>sub {Math::Primality::is_strong_pseudoprime($_,3) for @nums;},
     'MPU'     =>sub {Math::Prime::Util::is_strong_pseudoprime($_,3) for @nums;},
-    'MPU PP'  =>sub {Math::Prime::Util::PP::miller_rabin($_,3) for @nums;},
+    #'MPU PP'  =>sub {Math::Prime::Util::PP::is_strong_pseudoprime($_,3) for @nums;},
     'MPU GMP' =>sub {Math::Prime::Util::GMP::is_strong_pseudoprime($_,3) for @nums;},
   });
 }
