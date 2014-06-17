@@ -46,7 +46,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      consecutive_integer_lcm
                      partitions
-                     gcd lcm kronecker valuation invmod binomial
+                     gcd lcm kronecker valuation invmod binomial gcdext vecsum
                      exp_mangoldt
                      is_power
                    );
@@ -160,6 +160,8 @@ __END__
 =pod
 
 =encoding utf8
+
+=for stopwords Möbius Deléglise Bézout gcdext vecsum
 
 =head1 NAME
 
@@ -662,6 +664,19 @@ often used to test for L<coprimality|https://oeis.org/wiki/Coprimality>.
 =head2 lcm
 
 Given a list of integers, returns the least common multiple.
+
+=head2 gcdext
+
+Given two integers C<x> and C<y>, returns C<u,v,d> such that C<d = gcd(x,y)>
+and C<u*x + v*y = d>.  This uses the extended Euclidian algorithm to compute
+the values satisfying Bézout's Identity.
+
+This corresponds to Pari's C<gcdext> function, which was renamed from
+C<bezout> out Pari 2.6.  The results will hence match L<Math::Pari/bezout>.
+
+=head2 vecsum
+
+Returns the sum of all arguments, each of which must be an integer.
 
 =head2 kronecker
 

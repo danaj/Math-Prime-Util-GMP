@@ -359,6 +359,7 @@ gcd(...)
   PROTOTYPE: @
   ALIAS:
     lcm = 1
+    vecsum = 2
   PREINIT:
     int i;
     mpz_t ret, n;
@@ -366,14 +367,18 @@ gcd(...)
     if (items == 0)
       XSRETURN_IV(0);
     mpz_init(n);
-    mpz_init_set_ui(ret, (ix == 0) ? 0 : 1);
+    mpz_init_set_ui(ret, (ix == 1) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
-      if (strn != 0 && strn[0] == '-') strn++;
-      validate_string_number("gcd/lcm", strn);
+      validate_string_number("gcd/lcm", (strn[0]=='-') ? strn+1 : strn);
+      if (ix <= 1 && strn != 0 && strn[0] == '-') strn++;
       mpz_set_str(n, strn, 10);
-      if (ix == 0) mpz_gcd(ret, ret, n);
-      else         mpz_lcm(ret, ret, n);
+      switch (ix) {
+        case 0:  mpz_gcd(ret, ret, n); break;
+        case 1:  mpz_lcm(ret, ret, n); break;
+        case 2:
+        default: mpz_add(ret, ret, n); break;
+      }
     }
     XPUSH_MPZ(ret);
     mpz_clear(n);
@@ -409,6 +414,7 @@ void
 invmod(IN char* stra, IN char* strb)
   ALIAS:
     binomial = 1
+    gcdext = 2
   PREINIT:
     mpz_t ret, a, b;
     int invertok;
@@ -426,13 +432,18 @@ invmod(IN char* stra, IN char* strb)
       mpz_clear(ret);
       mpz_clear(b); mpz_clear(a);
       if (!invertok) XSRETURN_UNDEF;
-    } else {
+    } else if (ix == 1) {
       if (mpz_sgn(b) < 0) {   /* Handle negative k */
         if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
         else                                      mpz_sub(b, a, b);
       }
       mpz_bin_ui(a, a, mpz_get_ui(b));
       XPUSH_MPZ(a);
+      mpz_clear(b); mpz_clear(a);
+    } else {
+      mpz_init(ret);
+      mpz_gcdext(ret, a, b, a, b);
+      XPUSH_MPZ(a);  XPUSH_MPZ(b);  XPUSH_MPZ(ret);
       mpz_clear(b); mpz_clear(a);
     }
 

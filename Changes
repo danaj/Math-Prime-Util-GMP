@@ -8,6 +8,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - invmod(a,n)                         inverse of a modulo n
     - is_pseudoprime(n,base)              Simple Fermat test
     - binomial(n,k)                       binomial coefficient
+    - gcdext(a,b)                         extended Euclidian algorithm
+    - vecsum(...)                         sum list of integers
 
     [OTHER]
 
