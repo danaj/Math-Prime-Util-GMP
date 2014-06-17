@@ -109,21 +109,10 @@ void destroy_ecpp_gcds(void) {
   _gcdinit = 0;
 }
 
-static int is_bpsw_prime(mpz_t n) {  /* Fermat + BPSW.  TODO: Put in main. */
-  mpz_t x, y, nm1;
-  int result = 0;
-  mpz_init_set_ui(x, 210UL);
-  mpz_init(nm1);
-  mpz_sub_ui(nm1, n, 1UL);
-  mpz_init(y);
-  mpz_powm(y, x, nm1, n);
-  if (mpz_cmp_ui(y, 1UL) == 0)
-    result = _GMP_BPSW(n);
-  mpz_clear(x);
-  mpz_clear(y);
-  mpz_clear(nm1);
-  return result;
-}
+/* We could use a function with a prefilter here, but my tests are showing
+ * that adding a Fermat test (ala GMP's is_probab_prime) is slower than going
+ * straight to the base-2 Miller-Rabin test we use in BPSW. */
+#define is_bpsw_prime(n) _GMP_BPSW(n)
 
 static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs, int degree)
 {
