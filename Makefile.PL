@@ -48,7 +48,7 @@ WriteMakefile1(
                prereqs => {
                  runtime => {
                    recommends => {
-                     'Math::Prime::Util' => 0.37,
+                     'Math::Prime::Util' => 0.42,
                    },
                  },
                },
