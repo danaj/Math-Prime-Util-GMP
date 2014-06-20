@@ -1,5 +1,10 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.21 2014-06-19
+
+    - Used a bare 64-bit in a test.  Wrap in quotes.
+
+
 0.20 2014-06-18
 
     [ADDED]
