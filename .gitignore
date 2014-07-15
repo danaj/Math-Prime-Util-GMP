@@ -7,6 +7,7 @@ XS.[co]
 gmp_main.o
 prime_iterator.o
 small_factor.o
+factor.o
 ecm.o
 bls75.o
 ecpp.o

@@ -51,10 +51,6 @@
 - Recognize Math::BigInt / Math::Pari objects.  Shortcut validation.
   Create results as new objects of their type.
 
-- Pull factor subroutine out of .xs file.  Right now it's impossible to
-  implement the various routines that want the factors of n, such as
-  divisor_sum, euler_phi, etc.
-
 - These functions should be added:
      divisor_sum
      carmichael_lambda
@@ -68,6 +64,3 @@
      znlog
 
 - measure effect of ecpp's Fermat pretest in main as well as ECPP.
-
-- Add is_power to factor, similar to MPU's factor.  Test, from Pari #1074:
-   my $n = next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));

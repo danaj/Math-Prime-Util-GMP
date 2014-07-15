@@ -14,6 +14,8 @@ prime_iterator.h
 prime_iterator.c
 small_factor.h
 small_factor.c
+factor.h
+factor.c
 ecm.h
 ecm.c
 class_poly_data.h

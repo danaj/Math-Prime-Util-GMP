@@ -1,5 +1,14 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.22 2014-07
+
+    - Moved factoring loop out of XS file.
+
+    - factor does much better power splitting, similar to MPU 0.38's code:
+      time mpu 'prime_set_config(verbose=>2); use bigint; my $n = next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));'
+      time mpu 'prime_set_config(verbose=>2); use bigint; my $n = next_prime(10**21)**200 * next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));'
+
+
 0.21 2014-06-19
 
     - Used a bare 64-bit in a test.  Wrap in quotes.

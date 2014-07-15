@@ -2014,6 +2014,7 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 /* See if n is a perfect power */
 UV power_factor(mpz_t n, mpz_t f)
 {
+  if (mpz_cmp_ui(n, 1) <= 0) return 0;
   if (mpz_perfect_power_p(n)) {
     UV k;
     mpz_set_ui(f, 1);
