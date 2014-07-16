@@ -43,22 +43,6 @@ static void validate_string_number(const char* f, const char* s)
   validate_string_number(func " (" #var ")", str); \
   mpz_init_set_str(var, str, 10);
 
-static const unsigned short primes_small[] =
-  {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
-   101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
-   193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
-   293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,
-   409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,
-   521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,
-   641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,
-   757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,
-   881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009
-  };
-#define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
-
-#define TRIAL_LIM 400
-#define MAX_FACTORS 256
-
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
@@ -546,152 +530,112 @@ lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
     mpz_clear(U);  mpz_clear(V);  mpz_clear(Qk);  mpz_clear(t);
 
 
-#define SIMPLE_FACTOR_START(name) \
-    validate_string_number(name " (n)", strn); \
-    mpz_init_set_str(n, strn, 10); \
-    if (mpz_cmp_ui(n, 3) <= 0) { \
-      XPUSH_MPZ(n); \
-    } else { \
-      if (_GMP_is_prob_prime(n)) { XPUSH_MPZ(n); } \
-      else { \
-        mpz_t f; \
-        int success = 0; \
-        mpz_init(f);
-
-#define SIMPLE_FACTOR_END \
-        if (!success) { \
-          XPUSHs(sv_2mortal(newSVpv(strn, 0))); \
-        } else { \
-          mpz_divexact(n, n, f); \
-          XPUSH_MPZ(f); \
-          XPUSH_MPZ(n); \
-        } \
-        mpz_clear(f); \
-      } \
-    } \
-    mpz_clear(n);
-
+#define SET_UV_VIA_MPZ_STRING(uva, sva, name) \
+  { \
+      mpz_t t; \
+      char* stra = SvPV_nolen(sva); \
+      validate_string_number(name, stra); \
+      mpz_init_set_str(t, stra, 10); \
+      uva = mpz_get_ui(t); \
+      mpz_clear(t); \
+  }
 
 void
-trial_factor(IN char* strn, IN UV maxn = 0)
+trial_factor(IN char* strn, ...)
+  ALIAS:
+    prho_factor = 1
+    pbrent_factor = 2
+    pminus1_factor = 3
+    pplus1_factor = 4
+    holf_factor = 5
+    squfof_factor = 6
+    ecm_factor = 7
+    qs_factor = 8
   PREINIT:
     mpz_t n;
-    UV factor;
+    UV arg1, arg2, uf;
+    static const UV default_arg1[] =
+       {0,    64000000,64000000,5000000,5000000,256000000,16000000,0,  0  };
+     /* Trial,Rho,     Brent,   P-1,    P+1,    HOLF,     SQUFOF,  ECM,QS */
   PPCODE:
-    VALIDATE_AND_SET("trial_factor", n, strn);
-    if (mpz_cmp_ui(n, 3) <= 0) {
-      XPUSH_MPZ(n);
-    } else {
-      factor = _GMP_trial_factor(n, 2, (maxn == 0) ? 2147483647 : maxn);
-      if (factor == 0) {
-        XPUSHs(sv_2mortal(newSVpv(strn, 0)));
-      } else {
-        XPUSHs(sv_2mortal(newSVuv( factor )));
-        mpz_divexact_ui(n, n, factor);
-        XPUSH_MPZ(n);
+    VALIDATE_AND_SET(" specific factor", n, strn);
+    {
+      int cmpr = mpz_cmp_ui(n,1);
+      if (cmpr <= 0) {
+        mpz_clear(n);
+        XSRETURN_UV( (cmpr < 0)  ?  0  :  1 );
       }
     }
-    mpz_clear(n);
-
-void
-prho_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("prho_factor");
-    success = _GMP_prho_factor(n, f, 3, maxrounds);
-    SIMPLE_FACTOR_END;
-
-void
-pbrent_factor(IN char* strn, IN UV maxrounds = 64*1024*1024)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("pbrent_factor");
-    success = _GMP_pbrent_factor(n, f, 3, maxrounds);
-    SIMPLE_FACTOR_END;
-
-void
-pminus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("pminus1_factor");
-    success = _GMP_pminus1_factor(n, f, B1, (B2 == 0) ? B1*10 : B2);
-    SIMPLE_FACTOR_END;
-
-void
-pplus1_factor(IN char* strn, IN UV B1 = 5000000, IN UV B2 = 0)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("pplus1_factor");
-    success = _GMP_pplus1_factor(n, f, 0, B1, (B2 == 0) ? B1*10 : B2);
-    /* if (!success) success = _GMP_pplus1_factor(n, f, 1, B1, (B2 == 0) ? B1*10 : B2); */
-    SIMPLE_FACTOR_END;
-
-void
-holf_factor(IN char* strn, IN UV maxrounds = 256*1024*1024)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("holf_factor");
-    success = _GMP_holf_factor(n, f, maxrounds);
-    SIMPLE_FACTOR_END;
-
-void
-squfof_factor(IN char* strn, IN UV maxrounds = 16*1024*1024)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("squfof_factor");
-    success = _GMP_squfof_factor(n, f, maxrounds);
-    SIMPLE_FACTOR_END;
-
-void
-ecm_factor(IN char* strn, IN UV bmax = 0, IN UV ncurves = 100)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    SIMPLE_FACTOR_START("ecm_factor");
-    if (bmax == 0) {
-                    success = _GMP_ECM_FACTOR(n, f,     1000, 40);
-      if (!success) success = _GMP_ECM_FACTOR(n, f,    10000, 40);
-      if (!success) success = _GMP_ECM_FACTOR(n, f,   100000, 40);
-      if (!success) success = _GMP_ECM_FACTOR(n, f,  1000000, 40);
-      if (!success) success = _GMP_ECM_FACTOR(n, f, 10000000, 100);
-    } else {
-      success = _GMP_ECM_FACTOR(n, f, bmax, ncurves);
+    arg1 = default_arg1[ix];
+    arg2 = 0;
+    if (items >= 2) SET_UV_VIA_MPZ_STRING(arg1, ST(1), "specific factor arg 1");
+    if (items >= 3) SET_UV_VIA_MPZ_STRING(arg2, ST(2), "specific factor arg 2");
+    while (mpz_even_p(n)) {
+      XPUSHs(sv_2mortal(newSVuv(2)));
+      mpz_divexact_ui(n, n, 2);
     }
-    SIMPLE_FACTOR_END;
+    while (mpz_divisible_ui_p(n, 3)) {
+      XPUSHs(sv_2mortal(newSVuv(3)));
+      mpz_divexact_ui(n, n, 3);
+    }
+    while (mpz_divisible_ui_p(n, 5)) {
+      XPUSHs(sv_2mortal(newSVuv(5)));
+      mpz_divexact_ui(n, n, 5);
+    }
+    if (mpz_cmp_ui(n,1) > 0 && !_GMP_is_prob_prime(n)) {
+      mpz_t f;
+      int success = 0;
 
-void
-qs_factor(IN char* strn)
-  PREINIT:
-    mpz_t n;
-  PPCODE:
-    /* Returns multiple factors, so do this separately */
-    VALIDATE_AND_SET("qs_factor", n, strn);
-    if (mpz_cmp_ui(n, 3) <= 0) {
-      XPUSH_MPZ(n);
-    } else {
-      if (_GMP_is_prob_prime(n)) {
-        XPUSH_MPZ(n);
-      } else {
-        mpz_t farray[66];
-        int i, nfactors;
-        for (i = 0; i < 66; i++)
-          mpz_init(farray[i]);
-        nfactors = _GMP_simpqs(n, farray);
-        for (i = 0; i < nfactors; i++) {
-          XPUSH_MPZ(farray[i]);
-        }
-        for (i = 0; i < 66; i++)
-          mpz_clear(farray[i]);
+      mpz_init(f);
+      switch (ix) {
+        case 0: if (arg1 == 0) arg1 = 2147483647;
+                uf = _GMP_trial_factor(n, 2, arg1);
+                mpz_set_ui(f, uf);
+                success = (uf > 0);
+                break;
+        case 1: success = _GMP_prho_factor(n, f, 3, arg1);        break;
+        case 2: success = _GMP_pbrent_factor(n, f, 3, arg1);      break;
+        case 3: if (arg2 == 0)  arg2 = arg1*10;
+                success = _GMP_pminus1_factor(n, f, arg1,arg2);   break;
+        case 4: if (arg2 == 0)  arg2 = arg1*10;
+                success = _GMP_pplus1_factor(n, f, 0,arg1,arg2);  break;
+        case 5: success = _GMP_holf_factor(n, f, arg1);           break;
+        case 6: success = _GMP_squfof_factor(n, f, arg1);         break;
+        case 7: if (arg2 == 0) arg2 = 100;
+                if (arg1 == 0) {
+                  success =    _GMP_ECM_FACTOR(n, f,     1000, 40)
+                            || _GMP_ECM_FACTOR(n, f,    10000, 40)
+                            || _GMP_ECM_FACTOR(n, f,   100000, 40)
+                            || _GMP_ECM_FACTOR(n, f,  1000000, 40)
+                            || _GMP_ECM_FACTOR(n, f, 10000000,100);
+                } else {
+                  success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
+                }
+                break;
+        case 8:
+        default:{
+                  mpz_t farray[66];
+                  int i, nfactors;
+                  for (i = 0; i < 66; i++)
+                    mpz_init(farray[i]);
+                  nfactors = _GMP_simpqs(n, farray);
+                  for (i = 0; i < nfactors; i++)
+                    XPUSH_MPZ(farray[i]);
+                  for (i = 0; i < 66; i++)
+                    mpz_clear(farray[i]);
+                  if (nfactors > 0)
+                    mpz_set_ui(n, 1);
+                }
+      }
+
+      if (success) {
+        XPUSH_MPZ(f);
+        mpz_divexact(n, n, f);
       }
     }
+    if (mpz_cmp_ui(n,1) > 0)
+      XPUSH_MPZ(n);
     mpz_clear(n);
-
 
 void
 _GMP_factor(IN char* strn)
