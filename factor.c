@@ -6,6 +6,7 @@
 
 #include "factor.h"
 #include "gmp_main.h"
+#include "prime_iterator.h"
 
 #define TRIAL_LIM 2000
 #define MAX_FACTORS 256
@@ -53,6 +54,14 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
   return nfactors+1;
 }
 
+#define ADD_FACTOR_UI(f, t) \
+  do { \
+    mpz_set_ui(f, t); \
+    nfactors = add_factor(nfactors, f, &factors, &exponents); \
+  } while (0)
+
+#define ADD_FACTOR(f) \
+  do { nfactors = add_factor(nfactors, f, &factors, &exponents); } while (0)
 
 int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
 {
@@ -62,17 +71,38 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
   int* exponents;
   int nfactors = 0;
   mpz_t f;
+  UV tf;
 
   mpz_init(f);
-  UV tf = 2;
-  while (tf < TRIAL_LIM) {
-    tf = _GMP_trial_factor(n, tf, TRIAL_LIM);
-    if (tf == 0)  break;
-    mpz_set_ui(f, tf);
-    nfactors = add_factor(nfactors, f, &factors, &exponents);
-    mpz_divexact_ui(n, n, tf);
-    if (mpz_cmp_ui(n, 1) == 0)
-      break;
+  if (mpz_cmp_ui(n, 4) < 0) {
+    ADD_FACTOR(n);
+    goto DONE;
+  }
+
+  /* Trial factor to small limit */
+  while (mpz_even_p(n)) {
+    ADD_FACTOR_UI(f, 2);
+    mpz_divexact_ui(n, n, 2);
+  }
+  {
+    UV p;
+    PRIME_ITERATOR(iter);
+
+    for (p = prime_iterator_next(&iter);
+         p < TRIAL_LIM && mpz_cmp_ui(n, p*p) >= 0;
+         p = prime_iterator_next(&iter)) {
+      if (mpz_divisible_ui_p(n, p)) {
+        mpz_set_ui(f, p);
+        int ndiv = mpz_remove(n, n, f);
+        while (ndiv-- > 0)
+          ADD_FACTOR(f);
+      }
+    }
+    if (mpz_cmp_ui(n, p*p) < 0) {
+      if (mpz_cmp_ui(n, 1) > 0)
+        ADD_FACTOR(n);
+      goto DONE;
+    }
   }
 
   /* Power factor */
@@ -88,9 +118,9 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
       pow_exponents[i] *= tf;
     for (i = 0; i < pow_nfactors; i++)
       for (j = 0; j < pow_exponents[i]; j++)
-        nfactors = add_factor(nfactors, pow_factors[i], &factors, &exponents);
+        ADD_FACTOR(pow_factors[i]);
     clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
-    mpz_set_ui(n, 1);
+    goto DONE;
   }
 
   do { /* loop over each remaining factor */
@@ -247,12 +277,12 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
          *       For now, just push them as if we factored.
          */
         if (get_verbose_level()) gmp_printf("gave up on %Zd\n", n);
-        nfactors = add_factor(nfactors, n, &factors, &exponents);
+        ADD_FACTOR(n);
         mpz_set_ui(n, 1);
       } else if (_GMP_is_prob_prime(f)) {
         int ndiv = mpz_remove(n, n, f);
         while (ndiv-- > 0)
-          nfactors = add_factor(nfactors, f, &factors, &exponents);
+          ADD_FACTOR(f);
       } else {
         int ndiv = mpz_remove(n, n, f);
         if (ntofac == MAX_FACTORS-ndiv)
@@ -263,7 +293,7 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
     }
     /* n is now prime or 1 */
     if (mpz_cmp_ui(n, 1) > 0) {
-      nfactors = add_factor(nfactors, n, &factors, &exponents);
+      ADD_FACTOR(n);
       mpz_set_ui(n, 1);
     }
     if (ntofac-- > 0) {
@@ -272,6 +302,7 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
     }
   } while (mpz_cmp_ui(n, 1) > 0);
 
+DONE:
   mpz_clear(f);
   *pfactors = factors;
   *pexponents = exponents;
