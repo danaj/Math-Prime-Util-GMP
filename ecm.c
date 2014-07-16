@@ -530,7 +530,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
         NORMALIZE(f, u, v, x1, z1, ecn);
         mpz_set(x, x2);  mpz_set(z, z2);
       }
-      if (m+D > B1) {
+      if (m+D > B1 && m >= D) {
         prime_iterator_setprime(&iter, m-D-1);
         for (i = prime_iterator_next(&iter); i < m; i = prime_iterator_next(&iter)) {
           /* if (m+D-i<1 || m+D-i>2*D) croak("index %lu range\n",i-(m-D)); */
