@@ -19,16 +19,18 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
   if (nfactors == 0) {                      /* First factor */
     mpz_t *factors;
     int* exponents;
-    New(0, factors, 1, mpz_t);
-    New(0, exponents, 1, int);
+    New(0, factors, 10, mpz_t);
+    New(0, exponents, 10, int);
     mpz_init_set(factors[0], f);
     exponents[0] = 1;
     *pfactors = factors;
     *pexponents = exponents;
     return 1;
   } else if (mpz_cmp((*pfactors)[nfactors-1],f) < 0) {  /* New biggest factor */
-    Renew(*pfactors, nfactors+1, mpz_t);
-    Renew(*pexponents, nfactors+1, int);
+    if (!(nfactors % 10)) {
+      Renew(*pfactors, nfactors+10, mpz_t);
+      Renew(*pexponents, nfactors+10, int);
+    }
     mpz_init_set((*pfactors)[nfactors], f);
     (*pexponents)[nfactors] = 1;
     return nfactors+1;
@@ -42,8 +44,10 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     return nfactors;
   }
   /* factor[i] > f.  Move everything from i to nfactors up. */
-  Renew(*pfactors, nfactors+1, mpz_t);
-  Renew(*pexponents, nfactors+1, int);
+  if (!(nfactors % 10)) {
+    Renew(*pfactors, nfactors+10, mpz_t);
+    Renew(*pexponents, nfactors+10, int);
+  }
   mpz_init((*pfactors)[nfactors]);
   for (j = nfactors; j > i; j--) {
     mpz_set( (*pfactors)[j], (*pfactors)[j-1] );
@@ -91,11 +95,9 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
     for (p = prime_iterator_next(&iter);
          p < TRIAL_LIM && mpz_cmp_ui(n, p*p) >= 0;
          p = prime_iterator_next(&iter)) {
-      if (mpz_divisible_ui_p(n, p)) {
-        mpz_set_ui(f, p);
-        int ndiv = mpz_remove(n, n, f);
-        while (ndiv-- > 0)
-          ADD_FACTOR(f);
+      while (mpz_divisible_ui_p(n, p)) {
+        ADD_FACTOR_UI(f, p);
+        mpz_divexact_ui(n, n, p);
       }
     }
     if (mpz_cmp_ui(n, p*p) < 0) {
