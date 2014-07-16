@@ -1801,7 +1801,8 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
       mpz_sqrt(f, m);
       mpz_sub(s, s, f);
       mpz_gcd(f, s, n);
-      mpz_clear(s); mpz_clear(m); return 1;
+      mpz_clear(s); mpz_clear(m);
+      return (mpz_cmp_ui(f, 1) > 0);
     }
   }
   mpz_divexact_ui(n, n, PREMULT);
