@@ -40,6 +40,7 @@ our @EXPORT_OK = qw(
                      holf_factor
                      squfof_factor
                      ecm_factor
+                     qs_factor
                      factor
                      prime_count
                      primorial
