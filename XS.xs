@@ -394,33 +394,34 @@ kronecker(IN char* stra, IN char* strb)
   OUTPUT:
     RETVAL
 
-int
-moebius(IN char* strn)
+void
+moebius(IN char* strn, IN char* stro = 0)
   PREINIT:
-    static const unsigned long smallf[] = {4, 9, 25, 49, 121, 169, 289};
-    mpz_t* factors;
-    int* exponents;
     mpz_t n;
-    int i, nfactors;
-  CODE:
+  PPCODE:
     VALIDATE_AND_SET("moebius", n, strn);
-    RETVAL = 0;
-    if (mpz_cmp_ui(n, 1) <= 0) {
-      if (mpz_cmp_ui(n,1) == 0)
-        RETVAL = 1;
-    } else {
-      for (i = 0; i < 7; i++)
-        if (mpz_divisible_ui_p(n, smallf[i]))
-          break;
-      if (i >= 7) {
-        nfactors = factor(n, &factors, &exponents);
-        RETVAL = (nfactors % 2) ? -1 : 1;
-        for (i = 0; i < nfactors; i++)
-          if (exponents[i] > 1)
-            { RETVAL = 0; break; }
-        clear_factors(nfactors, &factors, &exponents);
+    if (stro == 0) {
+      int result = moebius(n);
+      mpz_clear(n);
+      XSRETURN_IV(result);
+    } else {   /* Ranged result */
+      mpz_t nhi;
+      VALIDATE_AND_SET("moebius high value", nhi, stro);
+      while (mpz_cmp(n, nhi) <= 0) {
+        XPUSHs(sv_2mortal(newSViv( moebius(n) )));
+        mpz_add_ui(n, n, 1);
       }
+      mpz_clear(n);
+      mpz_clear(nhi);
     }
+
+int
+liouville(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET("liouville", n, strn);
+    RETVAL = liouville(n);
     mpz_clear(n);
   OUTPUT:
     RETVAL

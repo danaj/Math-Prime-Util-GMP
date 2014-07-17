@@ -54,13 +54,16 @@
 - These functions should be added:
      divisor_sum
      carmichael_lambda
-     liouville
      znprimroot
      euler_phi
-     moebius
      jordan_totient
      legendre_phi
      znorder
      znlog
 
 - measure effect of ecpp's Fermat pretest in main as well as ECPP.
+
+- Tests and docs for:
+
+     moebius
+     liouville

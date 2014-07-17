@@ -90,19 +90,21 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
 #define ADD_FACTOR(f) \
   do { nfactors = add_factor(nfactors, f, &factors, &exponents); } while (0)
 
-int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
+int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
   mpz_t tofac_stack[MAX_FACTORS];
   int ntofac = 0;
-  mpz_t* factors;
-  int* exponents;
+  mpz_t* factors = 0;
+  int* exponents = 0;
   int nfactors = 0;
-  mpz_t f;
+  mpz_t f, n;
   UV tf;
 
+  mpz_init_set(n, input_n);
   mpz_init(f);
   if (mpz_cmp_ui(n, 4) < 0) {
-    ADD_FACTOR(n);
+    if (mpz_cmp_ui(n, 1) != 0)    /* 1 should return no results */
+      ADD_FACTOR(n);
     goto DONE;
   }
 
@@ -330,6 +332,7 @@ int factor(mpz_t n, mpz_t* pfactors[], int* pexponents[])
 
 DONE:
   mpz_clear(f);
+  mpz_clear(n);
   *pfactors = factors;
   *pexponents = exponents;
   return nfactors;
@@ -341,4 +344,43 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
     mpz_clear((*pfactors)[--nfactors]);
   Safefree(*pfactors);
   Safefree(*pexponents);
+}
+
+
+
+static const unsigned long smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
+int moebius(mpz_t n)
+{
+  mpz_t* factors;
+  int* exponents;
+  int i, nfactors, result;
+
+  if (mpz_sgn(n) <= 0)       return 0;
+  if (mpz_cmp_ui(n, 1) == 0) return 1;
+
+  for (i = 0; i < 7; i++)
+    if (mpz_divisible_ui_p(n, smalldiv[i]))
+      return 0;
+
+  nfactors = factor(n, &factors, &exponents);
+  result = (nfactors % 2) ? -1 : 1;
+  for (i = 0; i < nfactors; i++)
+    if (exponents[i] > 1)
+      { result = 0; break; }
+  clear_factors(nfactors, &factors, &exponents);
+  return result;
+}
+
+int liouville(mpz_t n)
+{
+  mpz_t* factors;
+  int* exponents;
+  int i, nfactors, result;
+
+  nfactors = factor(n, &factors, &exponents);
+  for (i = 0, result = 0; i < nfactors; i++)
+    result += exponents[i];
+  result = (result & 1) ? -1 : 1;
+  clear_factors(nfactors, &factors, &exponents);
+  return result;
 }
