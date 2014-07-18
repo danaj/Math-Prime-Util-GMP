@@ -384,3 +384,66 @@ int liouville(mpz_t n)
   clear_factors(nfactors, &factors, &exponents);
   return result;
 }
+
+void totient(mpz_t tot, mpz_t n_input)
+{
+  mpz_t t, n;
+  mpz_t* factors;
+  int* exponents;
+  int i, j, nfactors;
+
+  if (mpz_cmp_ui(n_input, 1) <= 0) {
+    mpz_set(tot, n_input);
+    return;
+  }
+  mpz_init_set(n, n_input);
+  mpz_set_ui(tot, 1);
+  /* Fast reduction of multiples of 2 */
+  i = mpz_scan1(n, 0);
+  if (i > 0) {
+    if (i > 1)  mpz_mul_2exp(tot, tot, i-1);
+    mpz_tdiv_q_2exp(n, n, i);
+  }
+  /* Now factor and calculate totient */
+  nfactors = factor(n, &factors, &exponents);
+  mpz_init(t);
+  for (i = 0; i < nfactors; i++) {
+    mpz_sub_ui(t, factors[i], 1);
+    for (j = 1; j < exponents[i]; j++)
+      mpz_mul(t, t, factors[i]);
+    mpz_mul(tot, tot, t);
+  }
+  mpz_clear(t);
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(n);
+}
+
+void jordan_totient(mpz_t tot, mpz_t n, unsigned long k)
+{
+  if (k == 0) {
+    mpz_set_ui(tot, (mpz_cmp_ui(n, 1) == 0) ? 1 : 0);
+  } else if (k == 1) {
+    totient(tot, n);
+  } else if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(tot, (mpz_cmp_ui(n, 1) == 0) ? 1 : 0);
+  } else {
+    mpz_t t;
+    mpz_t* factors;
+    int* exponents;
+    int i, j, nfactors;
+
+    nfactors = factor(n, &factors, &exponents);
+    mpz_init(t);
+    mpz_set_ui(tot, 1);
+    for (i = 0; i < nfactors; i++) {
+      mpz_pow_ui(t, factors[i], k);
+      mpz_sub_ui(t, t, 1);
+      mpz_mul(tot, tot, t);
+      mpz_add_ui(t, t, 1);
+      for (j = 1; j < exponents[i]; j++)
+        mpz_mul(tot, tot, t);
+    }
+    mpz_clear(t);
+    clear_factors(nfactors, &factors, &exponents);
+  }
+}

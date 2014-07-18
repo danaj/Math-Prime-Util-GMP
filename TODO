@@ -55,8 +55,6 @@
      divisor_sum
      carmichael_lambda
      znprimroot
-     euler_phi
-     jordan_totient
      legendre_phi
      znorder
      znlog
@@ -67,3 +65,5 @@
 
      moebius
      liouville
+     totient
+     jordan_totient

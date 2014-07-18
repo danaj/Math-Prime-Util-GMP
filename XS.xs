@@ -319,6 +319,7 @@ primorial(IN char* strn)
     pn_primorial = 1
     consecutive_integer_lcm = 2
     exp_mangoldt = 3
+    totient = 4
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -329,9 +330,10 @@ primorial(IN char* strn)
     switch (ix) {
       case 0:  _GMP_primorial(res, n);  break;
       case 1:  _GMP_pn_primorial(res, un);  break;
-      case 2: _GMP_lcm_of_consecutive_integers(un, res);  break;
-      case 3:
-      default: exp_mangoldt(res, n);
+      case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
+      case 3:  exp_mangoldt(res, n);
+      case 4:
+      default: totient(res, n);
     }
     XPUSH_MPZ(res);
     mpz_clear(n);
@@ -431,6 +433,7 @@ invmod(IN char* stra, IN char* strb)
   ALIAS:
     binomial = 1
     gcdext = 2
+    jordan_totient = 3
   PREINIT:
     mpz_t ret, a, b;
     int invertok;
@@ -456,10 +459,14 @@ invmod(IN char* stra, IN char* strb)
       mpz_bin_ui(a, a, mpz_get_ui(b));
       XPUSH_MPZ(a);
       mpz_clear(b); mpz_clear(a);
-    } else {
+    } else if (ix == 2) {
       mpz_init(ret);
       mpz_gcdext(ret, a, b, a, b);
       XPUSH_MPZ(a);  XPUSH_MPZ(b);  XPUSH_MPZ(ret);
+      mpz_clear(b); mpz_clear(a);
+    } else {
+      jordan_totient(b, b, mpz_get_ui(a));
+      XPUSH_MPZ(b);
       mpz_clear(b); mpz_clear(a);
     }
 

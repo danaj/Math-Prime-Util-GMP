@@ -50,6 +50,8 @@ our @EXPORT_OK = qw(
                      partitions
                      gcd lcm kronecker valuation invmod binomial gcdext vecsum
                      exp_mangoldt
+                     totient
+                     jordan_totient
                      is_power
                    );
                    # Should add:
