@@ -60,10 +60,3 @@
      znlog
 
 - measure effect of ecpp's Fermat pretest in main as well as ECPP.
-
-- Tests and docs for:
-
-     moebius
-     liouville
-     totient
-     jordan_totient

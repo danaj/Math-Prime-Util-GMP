@@ -50,6 +50,7 @@ our @EXPORT_OK = qw(
                      partitions
                      gcd lcm kronecker valuation invmod binomial gcdext vecsum
                      exp_mangoldt
+                     liouville
                      totient
                      jordan_totient
                      is_power
@@ -165,7 +166,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum
+=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville
 
 =head1 NAME
 
@@ -723,6 +724,23 @@ just applied to integers.
 This corresponds to Pari's C<valuation> function.
 C<0> is returned if C<n> or C<k> is one of the values C<-1>, C<0>, or C<1>.
 
+=head2 moebius
+
+  say "$n is square free" if moebius($n) != 0;
+  $sum += moebius($_) for (1..200); say "Mertens(200) = $sum";
+  say "Mertens(2000) = ", vecsum(moebius(0,2000));
+
+Returns μ(n), the Möbius function (also known as the Moebius, Mobius, or
+MoebiusMu function) for an integer input.  This function is 1 if
+C<n = 1>, 0 if C<n> is not square free (i.e. C<n> has a repeated factor),
+and C<-1^t> if C<n> is a product of C<t> distinct primes.  This is an
+important function in prime number theory.  Like SAGE, we define
+C<moebius(0) = 0> for convenience.
+
+If called with two arguments, they define a range C<low> to C<high>, and the
+function returns an array with the value of the Möbius function for every n
+from low to high inclusive.
+
 =head2 invmod
 
   say "The inverse of 42 mod 2017 = ", invmod(42,2017);
@@ -775,6 +793,38 @@ Hence the return value for C<exp_mangoldt> is:
 
    p   if n = p^m for some prime p and integer m >= 1
    1   otherwise.
+
+
+=head2 totient
+
+  say "The Euler totient of $n is ", totient($n);
+
+Returns φ(n), the Euler totient function (also called Euler's phi or phi
+function) for an integer value.  This is an arithmetic function which counts
+the number of positive integers less than or equal to C<n> that are relatively
+prime to C<n>.  Given the definition used, C<totient> will return 0 for all
+C<n E<lt> 1>.  This follows the logic used by SAGE.  Mathematica and Pari
+return C<totient(-n)> for C<n E<lt> 0>.  Mathematica returns 0 for C<n = 0>,
+Pari pre-2.6.2 raises and exception, and Pari 2.6.2 and newer returns 2.
+
+
+=head2 jordan_totient
+
+  say "Jordan's totient J_$k($n) is ", jordan_totient($k, $n);
+
+Returns Jordan's totient function for a given integer value.  Jordan's totient
+is a generalization of Euler's totient, where
+  C<jordan_totient(1,$n) == euler_totient($n)>
+This counts the number of k-tuples less than or equal to n that form a coprime
+tuple with n.  As with C<totient>, 0 is returned for all C<n E<lt> 1>.
+This function can be used to generate some other useful functions, such as
+the Dedekind psi function, where C<psi(n) = J(2,n) / J(1,n)>.
+
+
+=head2 liouville
+
+Returns λ(n), the Liouville function for a non-negative integer input.
+This is -1 raised to Ω(n) (the total number of prime factors).
 
 
 =head2 is_power

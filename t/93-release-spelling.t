@@ -19,7 +19,7 @@ plan skip_all => "Test::Spellunker required for testing POD spelling" if $@;
 add_stopwords(qw/bigint bigints bignum bignums primorial
                  gcd lcm kronecker invmod von
                  pseudoprime pseudoprimes
-                 semiprime semiprimes
+                 semiprime semiprimes coprime k-tuples
                  precalculated premultiplier
                  PSP-2
                  pp/);

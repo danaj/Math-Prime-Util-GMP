@@ -324,6 +324,8 @@ primorial(IN char* strn)
     mpz_t res, n;
     UV un;
   PPCODE:
+    if ((ix == 3) && (strn != 0) && (strn[0] == '-'))
+      XSRETURN_UV(1);
     VALIDATE_AND_SET("primorial", n, strn);
     un = mpz_get_ui(n);
     mpz_init(res);
@@ -331,9 +333,9 @@ primorial(IN char* strn)
       case 0:  _GMP_primorial(res, n);  break;
       case 1:  _GMP_pn_primorial(res, un);  break;
       case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
-      case 3:  exp_mangoldt(res, n);
+      case 3:  exp_mangoldt(res, n);  break;
       case 4:
-      default: totient(res, n);
+      default: totient(res, n);  break;
     }
     XPUSH_MPZ(res);
     mpz_clear(n);
@@ -665,6 +667,7 @@ trial_factor(IN char* strn, ...)
                   if (nfactors > 0)
                     mpz_set_ui(n, 1);
                 }
+                break;
       }
 
       if (success) {
