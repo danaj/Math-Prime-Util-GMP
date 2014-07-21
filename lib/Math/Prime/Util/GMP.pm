@@ -53,6 +53,7 @@ our @EXPORT_OK = qw(
                      liouville
                      totient
                      jordan_totient
+                     carmichael_lambda
                      is_power
                    );
                    # Should add:
@@ -819,6 +820,14 @@ This counts the number of k-tuples less than or equal to n that form a coprime
 tuple with n.  As with C<totient>, 0 is returned for all C<n E<lt> 1>.
 This function can be used to generate some other useful functions, such as
 the Dedekind psi function, where C<psi(n) = J(2,n) / J(1,n)>.
+
+
+=head2 carmichael_lambda
+
+Returns the Carmichael function (also called the reduced totient function,
+or Carmichael λ(n)) of a positive integer argument.  It is the smallest
+positive integer C<m> such that C<a^m = 1 mod n> for every integer C<a>
+coprime to C<n>.  This is L<OEIS series A002322|http://oeis.org/A002322>.
 
 
 =head2 liouville

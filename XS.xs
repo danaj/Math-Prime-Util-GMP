@@ -320,6 +320,7 @@ primorial(IN char* strn)
     consecutive_integer_lcm = 2
     exp_mangoldt = 3
     totient = 4
+    carmichael_lambda = 5
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -334,8 +335,9 @@ primorial(IN char* strn)
       case 1:  _GMP_pn_primorial(res, un);  break;
       case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
       case 3:  exp_mangoldt(res, n);  break;
-      case 4:
-      default: totient(res, n);  break;
+      case 4:  totient(res, n);  break;
+      case 5:
+      default: carmichael_lambda(res, n);  break;
     }
     XPUSH_MPZ(res);
     mpz_clear(n);

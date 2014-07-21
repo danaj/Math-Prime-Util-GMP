@@ -447,3 +447,30 @@ void jordan_totient(mpz_t tot, mpz_t n, unsigned long k)
     clear_factors(nfactors, &factors, &exponents);
   }
 }
+
+void carmichael_lambda(mpz_t lambda, mpz_t n)
+{
+  if (mpz_cmp_ui(n, 8) < 0) {
+    totient(lambda, n);
+  } else if (mpz_scan1(n, 0) == mpz_sizeinbase(n, 2)-1) {
+    mpz_tdiv_q_2exp(lambda, n, 2);
+  } else {
+    mpz_t t;
+    mpz_t* factors;
+    int* exponents;
+    int i, j, nfactors;
+
+    nfactors = factor(n, &factors, &exponents);
+    mpz_init(t);
+    mpz_set_ui(lambda, 1);
+    if (exponents[0] > 2 && mpz_cmp_ui(factors[i], 2) == 0) exponents[0]--;
+    for (i = 0; i < nfactors; i++) {
+      mpz_sub_ui(t, factors[i], 1);
+      for (j = 1; j < exponents[i]; j++)
+        mpz_mul(t, t, factors[i]);
+      mpz_lcm(lambda, lambda, t);
+    }
+    mpz_clear(t);
+    clear_factors(nfactors, &factors, &exponents);
+  }
+}
