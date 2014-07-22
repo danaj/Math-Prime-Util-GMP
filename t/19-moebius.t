@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/moebius liouville totient jordan_totient
-                              exp_mangoldt carmichael_lambda/;
+                              exp_mangoldt carmichael_lambda znorder/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @moeb_vals = (qw/ 1 -1 -1 0 -1 1 -1 0 0 1 -1 0 -1 1 1 0 -1 0 -1 0 /);
@@ -71,6 +71,32 @@ my %mangoldt = (
  130321 => 19,
 );
 
+my @mult_orders = (
+  [1, 35, 1],
+  [2, 35, 12],
+  [4, 35, 6],
+  [6, 35, 2],
+  [7, 35],
+  [2, "1000000000000031", 81788975100],
+  [1, 1, 1],
+  [0, 0],
+  [1, 0],
+  [25, 0],
+  [1, 1, 1],
+  [19, 1, 1],
+  [1, 19, 1],
+  [2, 19, 18],
+  [3, 20, 4],
+  [57,1000000003,189618],
+  [67,999999749,30612237],
+  [22,999991815,69844],
+  [10,2147475467,31448382],
+  [141,2147475467,1655178],
+  [7410,2147475467,39409],
+  [31407,2147475467,266],
+  [2, "2405286912458753", 1073741824],  # Pari #1031
+);
+
 
 plan tests => 1
             + 1 # moeb_vals
@@ -79,7 +105,8 @@ plan tests => 1
             + 1 # Small Carmichael Lambda
             + scalar(@liouville_pos) + scalar(@liouville_neg)
             + scalar(keys %mangoldt)
-            + 8;
+            + scalar(@mult_orders)
+            + 9;
 
 
 ###### moebius
@@ -123,6 +150,13 @@ while (my($n, $em) = each (%mangoldt)) {
   is( exp_mangoldt($n), $em, "exp_mangoldt($n) == $em" );
 }
 
+###### znorder
+foreach my $moarg (@mult_orders) {
+  my ($a, $n, $exp) = @$moarg;
+  my $zn = znorder($a, $n);
+  is( $zn, $exp, "znorder($a, $n) = " . ((defined $exp) ? $exp : "<undef>") );
+}
+
 ###### Various with specific values
 is(totient("9082348072348972344232348972345"),"6196599862139600370393700256064", "totient(9082348072348972344232348972345)");
 is(jordan_totient(4,"9082348072348972344232348972345"),"6790726211626980360097015112160435536604703765653198944780917706227632058693872718134564711592636975392545473161803366400000", "jordan_totient(4,9082348072348972344232348972345)");
@@ -132,3 +166,4 @@ is(jordan_totient(7,"9082348072348972344232348972353"),"509551831275719674422627
 is(carmichael_lambda("9082348072348972344232348972353"),"118383835264498988202339093780", "carmichael_lambda(9082348072348972344232348972353)");
 is(moebius("9082348072348972344232348972353"),-1,"moebius(9082348072348972344232348972353)");
 is(liouville("9082348072348972344232348972353"),-1,"liouville(9082348072348972344232348972353)");
+is(znorder(17,"100000000000000000000000065"),"11018158296270848614660","znorder(17,100000000000000000000000065)");

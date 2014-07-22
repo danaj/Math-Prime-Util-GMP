@@ -55,7 +55,6 @@
      divisor_sum
      znprimroot
      legendre_phi
-     znorder
      znlog
 
 - measure effect of ecpp's Fermat pretest in main as well as ECPP.

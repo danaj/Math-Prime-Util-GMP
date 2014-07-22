@@ -438,6 +438,7 @@ invmod(IN char* stra, IN char* strb)
     binomial = 1
     gcdext = 2
     jordan_totient = 3
+    znorder = 4
   PREINIT:
     mpz_t ret, a, b;
     int invertok;
@@ -468,10 +469,14 @@ invmod(IN char* stra, IN char* strb)
       mpz_gcdext(ret, a, b, a, b);
       XPUSH_MPZ(a);  XPUSH_MPZ(b);  XPUSH_MPZ(ret);
       mpz_clear(b); mpz_clear(a);
-    } else {
+    } else if (ix == 3) {
       jordan_totient(b, b, mpz_get_ui(a));
       XPUSH_MPZ(b);
       mpz_clear(b); mpz_clear(a);
+    } else {
+      znorder(a, a, b);
+      if (mpz_sgn(a)) { XPUSH_MPZ(a);  mpz_clear(a);  mpz_clear(b); }
+      else            { mpz_clear(a); mpz_clear(b); XSRETURN_UNDEF; }
     }
 
 void partitions(IN UV n)

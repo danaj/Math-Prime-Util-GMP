@@ -474,3 +474,48 @@ void carmichael_lambda(mpz_t lambda, mpz_t n)
     clear_factors(nfactors, &factors, &exponents);
   }
 }
+
+void znorder(mpz_t res, mpz_t a, mpz_t n)
+{
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set(res, n);
+  } else if (mpz_cmp_ui(a, 1) <= 0) {
+    mpz_set(res, a);
+  } else {
+    mpz_t order, t, phi;
+    mpz_t* factors;
+    int* exponents;
+    int i, j, nfactors;
+
+    mpz_init(t);
+    mpz_gcd(t, a, n);
+    if (mpz_cmp_ui(t, 1) != 0) {
+      mpz_set_ui(res, 0);
+      return;
+    }
+    mpz_init_set_ui(order, 1);
+    mpz_init(phi);
+    /* Abhijit Das, algorithm 1.7, applied to Carmichael Lambda */
+    carmichael_lambda(phi, n);
+    nfactors = factor(phi, &factors, &exponents);
+    for (i = 0; i < nfactors; i++) {
+      mpz_divexact(t, phi, factors[i]);
+      for (j = 1; j < exponents[i]; j++)
+        mpz_divexact(t, t, factors[i]);
+      mpz_powm(t, a, t, n);
+      for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
+        if (j++ >= exponents[i]) {
+          mpz_set_ui(order, 0);
+          break;
+        }
+        mpz_mul(order, order, factors[i]);
+      }
+      if (j > exponents[i]) break;
+    }
+    mpz_set(res, order);
+    mpz_clear(phi);
+    mpz_clear(order);
+    mpz_clear(t);
+    clear_factors(nfactors, &factors, &exponents);
+  }
+}

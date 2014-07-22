@@ -55,6 +55,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      is_power
+                     znorder
                    );
                    # Should add:
                    # nth_prime
@@ -167,7 +168,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville
+=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder
 
 =head1 NAME
 
@@ -713,6 +714,18 @@ the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
 case.  GMP's API does not allow negative C<k> but otherwise matches.
 L<Math::BigInt> does not implement any extensions and the results for
 C<n E<lt> 0, k > 0> are undefined.
+
+
+=head2 znorder
+
+  $order = znorder(17, "100000000000000000000000065");
+
+Given two positive integers C<a> and C<n>, returns the multiplicative order
+of C<a> modulo C<n>.  This is the smallest positive integer C<k> such that
+C<a^k ≡ 1 mod n>.  Returns 1 if C<a = 1>.  Returns undef if C<a = 0> or if
+C<a> and C<n> are not coprime, since no value will result in 1 mod n.
+This corresponds to Pari's C<znorder(Mod(a,n))> function and Mathematica's
+C<MultiplicativeOrder[a,n]> function.
 
 
 =head2 valuation
