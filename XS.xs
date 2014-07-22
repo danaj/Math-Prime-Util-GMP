@@ -15,6 +15,7 @@
 #include "bls75.h"
 #include "ecpp.h"
 #include "utility.h"
+#include "factor.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
@@ -692,8 +693,7 @@ _GMP_factor(IN char* strn)
     mpz_t n;
     mpz_t* factors;
     int* exponents;
-    int nfactors;
-    UV i, j;
+    int nfactors, i, j;
   PPCODE:
     VALIDATE_AND_SET("factor", n, strn);
     nfactors = factor(n, &factors, &exponents);

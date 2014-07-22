@@ -1,12 +1,10 @@
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <math.h>
-//#include <time.h>
-
 #include "factor.h"
 #include "gmp_main.h"
 #include "prime_iterator.h"
+#include "utility.h"
+#include "small_factor.h"
+#include "ecm.h"
+#include "simpqs.h"
 
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
@@ -38,7 +36,7 @@ static const unsigned short primes_small[] =
 
 static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
 {
-  int i, j, cmp;
+  int i, j, cmp = 0;
   if (nfactors == 0) {                      /* First factor */
     mpz_t *factors;
     int* exponents;
@@ -463,7 +461,7 @@ void carmichael_lambda(mpz_t lambda, mpz_t n)
     nfactors = factor(n, &factors, &exponents);
     mpz_init(t);
     mpz_set_ui(lambda, 1);
-    if (exponents[0] > 2 && mpz_cmp_ui(factors[i], 2) == 0) exponents[0]--;
+    if (exponents[0] > 2 && mpz_cmp_ui(factors[0], 2) == 0) exponents[0]--;
     for (i = 0; i < nfactors; i++) {
       mpz_sub_ui(t, factors[i], 1);
       for (j = 1; j < exponents[i]; j++)
@@ -477,22 +475,23 @@ void carmichael_lambda(mpz_t lambda, mpz_t n)
 
 void znorder(mpz_t res, mpz_t a, mpz_t n)
 {
+  mpz_t t;
+
+  mpz_init(t);
+  mpz_gcd(t, a, n);
+
   if (mpz_cmp_ui(n, 1) <= 0) {
     mpz_set(res, n);
   } else if (mpz_cmp_ui(a, 1) <= 0) {
     mpz_set(res, a);
+  } else if (mpz_cmp_ui(t, 1) != 0) {
+    mpz_set_ui(res, 0);
   } else {
-    mpz_t order, t, phi;
+    mpz_t order, phi;
     mpz_t* factors;
     int* exponents;
     int i, j, nfactors;
 
-    mpz_init(t);
-    mpz_gcd(t, a, n);
-    if (mpz_cmp_ui(t, 1) != 0) {
-      mpz_set_ui(res, 0);
-      return;
-    }
     mpz_init_set_ui(order, 1);
     mpz_init(phi);
     /* Abhijit Das, algorithm 1.7, applied to Carmichael Lambda */
@@ -515,7 +514,7 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
     mpz_set(res, order);
     mpz_clear(phi);
     mpz_clear(order);
-    mpz_clear(t);
     clear_factors(nfactors, &factors, &exponents);
   }
+  mpz_clear(t);
 }
