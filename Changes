@@ -8,6 +8,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - liouville(n)                        Liouville function
     - totient(n)                          Euler's Totient function (single)
     - jordan_totient(k, n)                Jordan totient
+    - carmichael_lambda(n)                Carmichael Lambda (reduced totient)
+    - znorder(a, n)                       multiplicative order of a mod n
+    - znprimroot(n)                       least primitive root of n
 
     [OTHER]
 

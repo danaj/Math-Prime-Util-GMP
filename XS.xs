@@ -322,12 +322,15 @@ primorial(IN char* strn)
     exp_mangoldt = 3
     totient = 4
     carmichael_lambda = 5
+    znprimroot = 6
   PREINIT:
     mpz_t res, n;
     UV un;
   PPCODE:
-    if ((ix == 3) && (strn != 0) && (strn[0] == '-'))
-      XSRETURN_UV(1);
+    if (strn != 0 && strn[0] == '-') { /* If input is negative... */
+      if (ix == 3)  XSRETURN_UV(1);    /* exp_mangoldt return 1 */
+      if (ix == 6)  strn++;            /* znprimroot flip sign */
+    }
     VALIDATE_AND_SET("primorial", n, strn);
     un = mpz_get_ui(n);
     mpz_init(res);
@@ -337,9 +340,12 @@ primorial(IN char* strn)
       case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
       case 3:  exp_mangoldt(res, n);  break;
       case 4:  totient(res, n);  break;
-      case 5:
-      default: carmichael_lambda(res, n);  break;
+      case 5:  carmichael_lambda(res, n);  break;
+      case 6:
+      default: znprimroot(res, n);  break;
     }
+    if (ix == 6 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
+      {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
     XPUSH_MPZ(res);
     mpz_clear(n);
     mpz_clear(res);

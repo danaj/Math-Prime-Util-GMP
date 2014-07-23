@@ -4,7 +4,8 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/moebius liouville totient jordan_totient
-                              exp_mangoldt carmichael_lambda znorder/;
+                              exp_mangoldt carmichael_lambda
+                              znorder znprimroot/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @moeb_vals = (qw/ 1 -1 -1 0 -1 1 -1 0 0 1 -1 0 -1 1 1 0 -1 0 -1 0 /);
@@ -97,6 +98,33 @@ my @mult_orders = (
   [2, "2405286912458753", 1073741824],  # Pari #1031
 );
 
+my %primroots = (
+   -11 => 2,
+     0 => undef,
+     1 => 0,
+     2 => 1,
+     3 => 2,
+     4 => 3,
+     5 => 2,
+     6 => 5,
+     7 => 3,
+     8 => undef,
+     9 => 2,
+    10 => 3,          # 3 is the smallest root.  Pari gives the other root 7.
+      1729 => undef,  # Pari goes into an infinite loop.
+   5109721 =>  94,
+  17551561 =>  97,
+  90441961 => 113,
+1407827621 =>   2,
+1520874431 =>  17,
+1685283601 => 164,
+ 100000001 => undef,  # Without an early exit, this will essentially hang.
+2232881419280027 => 6,
+14123555781055773271 => 6,
+89637484042681 => 335,
+9223372036854775837 => 5,
+);
+
 
 plan tests => 1
             + 1 # moeb_vals
@@ -106,7 +134,8 @@ plan tests => 1
             + scalar(@liouville_pos) + scalar(@liouville_neg)
             + scalar(keys %mangoldt)
             + scalar(@mult_orders)
-            + 9;
+            + scalar(keys %primroots) + 1
+            + 10;
 
 
 ###### moebius
@@ -156,6 +185,11 @@ foreach my $moarg (@mult_orders) {
   my $zn = znorder($a, $n);
   is( $zn, $exp, "znorder($a, $n) = " . ((defined $exp) ? $exp : "<undef>") );
 }
+###### znprimroot
+while (my($n, $root) = each (%primroots)) {
+  is( znprimroot($n), $root, "znprimroot($n) == " . ((defined $root) ? $root : "<undef>") );
+}
+is( znprimroot("-100000898"), 31, "znprimroot(\"-100000898\") == 31" );
 
 ###### Various with specific values
 is(totient("9082348072348972344232348972345"),"6196599862139600370393700256064", "totient(9082348072348972344232348972345)");
@@ -167,3 +201,5 @@ is(carmichael_lambda("9082348072348972344232348972353"),"11838383526449898820233
 is(moebius("9082348072348972344232348972353"),-1,"moebius(9082348072348972344232348972353)");
 is(liouville("9082348072348972344232348972353"),-1,"liouville(9082348072348972344232348972353)");
 is(znorder(17,"100000000000000000000000065"),"11018158296270848614660","znorder(17,100000000000000000000000065)");
+#is(znprimroot("1000000000000000000000000000066"),3,"znprimroot(1000000000000000000000000000066)");
+is(znprimroot("9218092345892375982375972365235234234238"),7,"znprimroot(9218092345892375982375972365235234234238)");

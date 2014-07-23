@@ -56,6 +56,7 @@ our @EXPORT_OK = qw(
                      carmichael_lambda
                      is_power
                      znorder
+                     znprimroot
                    );
                    # Should add:
                    # nth_prime
@@ -168,7 +169,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder
+=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot
 
 =head1 NAME
 
@@ -726,6 +727,19 @@ C<a^k ≡ 1 mod n>.  Returns 1 if C<a = 1>.  Returns undef if C<a = 0> or if
 C<a> and C<n> are not coprime, since no value will result in 1 mod n.
 This corresponds to Pari's C<znorder(Mod(a,n))> function and Mathematica's
 C<MultiplicativeOrder[a,n]> function.
+
+
+=head2 znprimroot
+
+Given a positive integer C<n>, returns the smallest primitive root
+of C<(Z/nZ)^*>, or C<undef> if no root exists.  A root exists when
+C<euler_phi($n) == carmichael_lambda($n)>, which will be true for
+all prime C<n> and some composites.
+
+L<OEIS A033948|http://oeis.org/A033948> is a sequence of integers where
+the primitive root exists, while L<OEIS A046145|http://oeis.org/A046145>
+is a list of the smallest primitive roots, which is what this function
+produces.
 
 
 =head2 valuation
