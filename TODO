@@ -55,5 +55,12 @@
      divisor_sum
      legendre_phi
      znlog
+     chinese
 
-- measure effect of ecpp's Fermat pretest in main as well as ECPP.
+- Any fast primality pretest would be nice.  I've tested:
+    - Colin Plumb's Euler Criterion test
+    - Fermat base 210, which is done in GMP's internal millerrabin.c.
+  None of these are faster on average than just doing BPSW.
+
+- Partial range sieve, which we could use for next_prime or primes in
+  combination with BPSW.
