@@ -113,7 +113,8 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   }
   {
     UV sp, p, un;
-    un = mpz_get_ui(n);
+    un = (mpz_cmp_ui(n,2*TRIAL_LIM*TRIAL_LIM) >= 0) ? 2*TRIAL_LIM*TRIAL_LIM
+                                                    : mpz_get_ui(n);
 
     for (sp = 2, p = primes_small[sp];
          p < TRIAL_LIM && p*p <= un;
@@ -121,7 +122,8 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       while (mpz_divisible_ui_p(n, p)) {
         ADD_FACTOR_UI(f, p);
         mpz_divexact_ui(n, n, p);
-        un = mpz_get_ui(n);
+        un = (mpz_cmp_ui(n,2*TRIAL_LIM*TRIAL_LIM) > 0) ? 2*TRIAL_LIM*TRIAL_LIM
+                                                       : mpz_get_ui(n);
       }
     }
     if (un < p*p) {
