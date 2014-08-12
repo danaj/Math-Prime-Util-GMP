@@ -234,8 +234,8 @@ Version 0.21
 
 =head1 DESCRIPTION
 
-A set of utilities related to prime numbers, using GMP.  This includes
-primality tests, getting primes in a range, and factoring.
+A module for number theory in Perl using GMP.  This includes primality tests,
+getting primes in a range, factoring, and more.
 
 While it certainly can be used directly, the main purpose of this
 module is for L<Math::Prime::Util>.  That module will automatically
