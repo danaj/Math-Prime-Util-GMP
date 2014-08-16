@@ -49,6 +49,9 @@ t/93-release-spelling.t
 xt/create-standalone.sh
 xt/calculate-mr-probs.pl
 xt/proof-text-format.txt
+xt/expr-impl.h
+xt/expr.c
+xt/expr.h
 examples/bench-mp-psrp.pl
 examples/verify-cert.pl
 examples/convert-primo-cert.pl

@@ -934,7 +934,7 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
 
 #ifdef STANDALONE_ECPP
 static void dieusage(char* prog) {
-  printf("ECPP-DJ version 1.03.  Dana Jacobsen\n\n");
+  printf("ECPP-DJ version 1.03a.  Dana Jacobsen\n\n");
   printf("Usage: %s [options] <number>\n\n", prog);
   printf("Options:\n");
   printf("   -v     set verbose\n");
@@ -951,6 +951,8 @@ static void dieusage(char* prog) {
   printf("Return codes: 0 prime, 1 composite, 2 prp, 3 error\n");
   exit(3);
 }
+
+#include "expr.h"
 
 int main(int argc, char **argv)
 {
@@ -994,8 +996,9 @@ int main(int argc, char **argv)
       }
       continue;
     }
-    mpz_set_str(n, argv[i], 10);
-    /* gmp_printf("%Zd\n", n); */
+    /* mpz_set_str(n, argv[i], 10); */
+    if (mpz_expr(n, 10, argv[i]))  croak("Can't parse input: '%s'\n",argv[i]);
+    if (get_verbose_level() > 1) gmp_printf("N: %Zd\n", n);
 
     isprime = _GMP_is_prob_prime(n);
     /* If isprime = 2 here, that means it's so small it fits in the
