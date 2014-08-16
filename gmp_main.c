@@ -751,10 +751,10 @@ int _GMP_is_prob_prime(mpz_t n)
   /* Check for tiny divisors */
   if (mpz_even_p(n)) return 0;
   if (sizeof(unsigned long) < 8) {
-    if (mpz_gcd_ui(NULL, n, 3234846615UL) != 1) return 0;           /* 3-29 */
+    if (mpz_gcd_ui(NULL, n, 3234846615UL) != 1) return 0;           /*  3-29 */
   } else {
-    if (mpz_gcd_ui(NULL, n, 16294579238595022365UL) != 1) return 0; /* 3-53 */
-    if (mpz_gcd_ui(NULL, n, 7145393598349078859UL) != 1) return 0; /* 59-101 */
+    if (mpz_gcd_ui(NULL, n, 4127218095UL*3948078067UL)!=1) return 0;/*  3-53 */
+    if (mpz_gcd_ui(NULL, n, 4269855901UL*1673450759UL)!=1) return 0;/* 59-101 */
   }
 
   {
