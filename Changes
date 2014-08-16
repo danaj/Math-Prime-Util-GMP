@@ -23,7 +23,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - Fix spelling of Paul Zimmermann's name (thanks to Mathew @ mersenneforum)
 
     - Standalone ECPP now does expression parsing using the GMP 6.0.0a demo
-      code.  Version bumped to 1.03a since no changes to ECPP were made.
+      code.  Version bumped to 1.04.
 
 
 0.21 2014-06-19
