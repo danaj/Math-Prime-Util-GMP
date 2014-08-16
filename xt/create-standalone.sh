@@ -96,13 +96,13 @@ INSTALLATION:
      #   wget http://probableprime.org/ecpp/cpd/huge/class_poly_data.h.gz
      #   gunzip class_poly_data.h.gz
 
-This is a standalone version of the ECPP implemention written for the Perl
+This is a standalone version of the ECPP implementation written for the Perl
 module Math::Prime::Util::GMP in 2013.  This uses a "Factor All" strategy, and
 closely follows the papers by Atkin and Morain.  Most of the utility functions
 closely follow the algorithms presented in Cohen's book "A Course in
 Computational Algebraic Number Theory".  Almost all the factoring is done
 with my p-1 implementation.  The ECM factoring and manipulation was heavily
-insipired by GMP-ECM by Phil Zimmerman and many others.
+inspired by GMP-ECM by Paul Zimmermann and many others.
 
 This includes a BPSW test (strong PRP-2 test followed by extra strong
 Lucas-Selfridge test).  We use this to (1) detect composites, and (2) prove

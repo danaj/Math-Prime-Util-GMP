@@ -339,7 +339,7 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
  *  Lucas chains, Peter L. Montgomery, Dec 1983 (revised Jan 1992).
  *  http://research.microsoft.com/en-us/um/people/petmon/lucas.pdf
  *
- * "20 years of ECM" by Paul Zimmerman, 2006.
+ * "20 years of ECM" by Paul Zimmermann, 2006.
  *
  * Code derived from GMP-ECM (Zimmermann & Kruppa)
  */

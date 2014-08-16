@@ -27,7 +27,7 @@
  * compile into about 35k of data.  This is about 1/5 of the entire code size
  * for the MPU package.  The github repository includes an expanded set of 5271
  * discriminants that compile to 2MB.  This is recommended if proving 300+
- * digit numbers is a regular occurance.  There is a set available for download
+ * digit numbers is a regular occurrence.  There is a set available for download
  * with almost 15k polys, taking 15.5MB.
  *
  * This version uses the FAS "factor all strategy", meaning it first constructs
@@ -51,8 +51,8 @@
  * Thanks to Schoof, Goldwasser, Kilian, Atkin, Morain, Lenstra, etc. for all
  * the math and publications.  Thanks to Gauss, Euler, et al.
  *
- * The ECM code in ecm.c was heavily influenced by early GMP-ECM work by Phil
- * Zimmerman, as well as all the articles of Montgomery, Bosma, Lentra,
+ * The ECM code in ecm.c was heavily influenced by early GMP-ECM work by Paul
+ * Zimmermann, as well as all the articles of Montgomery, Bosma, Lentra,
  * Cohen, and others.
  */
 
@@ -939,7 +939,7 @@ static void dieusage(char* prog) {
   printf("Options:\n");
   printf("   -v     set verbose\n");
   printf("   -V     set extra verbose\n");
-  printf("   -c     print certificate\n");
+  printf("   -c     print certificate to stdout (redirect to save to a file)\n");
   printf("   -bpsw  use the extra strong BPSW test (probable prime test)\n");
   printf("   -nm1   use n-1 proof only (BLS75 theorem 5)\n");
   printf("   -aks   use AKS for proof\n");

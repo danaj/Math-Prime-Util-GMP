@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.22 2014-07
+0.22 2014-08-16
 
     [ADDED]
 
@@ -19,6 +19,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - factor does much better power splitting, similar to MPU 0.38's code:
       time mpu 'use bigint; my $n = next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));'
       time mpu 'use bigint; my $n = next_prime(10**21)**200 * next_prime(10**20)**200; say join(" ", map {"[@$_]"} factor_exp($n));'
+
+    - Fix spelling of Paul Zimmermann's name (thanks to Mathew @ mersenneforum)
 
 
 0.21 2014-06-19
