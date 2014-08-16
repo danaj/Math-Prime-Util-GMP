@@ -934,11 +934,12 @@ int _GMP_ecpp(mpz_t N, char** prooftextptr)
 
 #ifdef STANDALONE_ECPP
 static void dieusage(char* prog) {
-  printf("ECPP-DJ version 1.03a.  Dana Jacobsen\n\n");
-  printf("Usage: %s [options] <number>\n\n", prog);
+  printf("ECPP-DJ version 1.03a.  Dana Jacobsen, 2014.\n\n");
+  printf("Usage: %s [options] <number or expression>\n\n", prog);
   printf("Options:\n");
   printf("   -v     set verbose\n");
   printf("   -V     set extra verbose\n");
+  printf("   -q     no output other than return code\n");
   printf("   -c     print certificate to stdout (redirect to save to a file)\n");
   printf("   -bpsw  use the extra strong BPSW test (probable prime test)\n");
   printf("   -nm1   use n-1 proof only (BLS75 theorem 5)\n");
@@ -962,6 +963,7 @@ int main(int argc, char **argv)
   int do_aks = 0;
   int do_aprcl = 0;
   int do_bpsw = 0;
+  int be_quiet = 0;
   int retcode = 3;
   char* cert = 0;
 
@@ -978,6 +980,10 @@ int main(int argc, char **argv)
         set_verbose_level(1);
       } else if (strcmp(argv[i], "-V") == 0) {
         set_verbose_level(2);
+      } else if (strcmp(argv[i], "-q") == 0) {
+        be_quiet = 1;
+        set_verbose_level(0);
+        do_printcert = 0;
       } else if (strcmp(argv[i], "-c") == 0) {
         do_printcert = 1;
       } else if (strcmp(argv[i], "-nm1") == 0) {
@@ -1032,11 +1038,11 @@ int main(int argc, char **argv)
 
     /* printf("(%d digit) ", (int)mpz_sizeinbase(n, 10)); */
     if (isprime == 0) {
-      printf("COMPOSITE\n");
+      if (!be_quiet) printf("COMPOSITE\n");
       retcode = 1;
     } else if (isprime == 1) {
       /* This would normally only be from BPSW */
-      printf("PROBABLY PRIME\n");
+      if (!be_quiet) printf("PROBABLY PRIME\n");
       retcode = 2;
     } else if (isprime == 2) {
       if (do_printcert) {
@@ -1048,7 +1054,7 @@ int main(int argc, char **argv)
         gmp_printf("\n");
         printf("%s", cert);
       } else {
-        printf("PRIME\n");
+        if (!be_quiet) printf("PRIME\n");
       }
       retcode = 0;
     } else {
