@@ -328,7 +328,7 @@ primorial(IN char* strn)
     UV un;
   PPCODE:
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
-      if (ix == 3)  XSRETURN_UV(1);    /* exp_mangoldt return 1 */
+      if (ix == 3)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
       if (ix == 6)  strn++;            /* znprimroot flip sign */
     }
     VALIDATE_AND_SET("primorial", n, strn);
@@ -618,7 +618,7 @@ trial_factor(IN char* strn, ...)
       int cmpr = mpz_cmp_ui(n,1);
       if (cmpr <= 0) {
         mpz_clear(n);
-        XSRETURN_UV( (cmpr < 0)  ?  0  :  1 );
+        XSRETURN_IV( (cmpr < 0)  ?  0  :  1 );
       }
     }
     arg1 = default_arg1[ix];
