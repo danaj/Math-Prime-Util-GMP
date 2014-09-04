@@ -2075,3 +2075,34 @@ void exp_mangoldt(mpz_t res, mpz_t n)
     return;
   mpz_set_ui(res, 1);
 }
+
+#define TSTAVAL(arr, val)   (arr[(val) >> 6] & (1U << (((val)>>1) & 0x1F)))
+#define SETAVAL(arr, val)   arr[(val) >> 6] |= 1U << (((val)>>1) & 0x1F)
+
+uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
+{
+  UV p, m, pos;
+  uint32_t* comp;
+  mpz_t t;
+  PRIME_ITERATOR(iter);
+
+  MPUassert(mpz_odd_p(start), "partial sieve given even start");
+  MPUassert(length > 0, "partial sieve given zero length");
+  mpz_sub_ui(start, start, 1);
+  Newz(0, comp, (length+63)/64, uint32_t);
+  mpz_init(t);
+
+  p = prime_iterator_next(&iter);
+  for (p = 3; p <= maxprime; p = prime_iterator_next(&iter)) {
+    m = mpz_mod_ui(t, start, p);
+    pos = (m == 0) ? 0 : p-m;    // First multiple of p after start
+    if (!(pos & 1)) pos += p;    // Make sure it is odd.
+    while (pos < length) {
+      SETAVAL(comp, pos);
+      pos += 2*p;
+    }
+  }
+  mpz_clear(t);
+  prime_iterator_destroy(&iter);
+  return comp;
+}

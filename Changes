@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.24 2014-?
+
+    [ADDED]
+
+    - sieve_primes(low,high[,k])          sieve for primes, partial or BPSW
+
+
 0.23 2014-08-16
 
     - Fat comma isn't fat for numbers, garbled test hashes on 32-bit.

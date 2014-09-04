@@ -30,6 +30,7 @@ our @EXPORT_OK = qw(
                      miller_rabin_random
                      lucas_sequence
                      primes
+                     sieve_primes
                      next_prime
                      prev_prime
                      trial_factor
@@ -135,27 +136,17 @@ sub primes {
   croak "too many parameters to primes" unless scalar @_ <= 2;
   my $low = (@_ == 2)  ?  shift  :  2;
   my $high = shift;
-  my $sref = [];
 
   _validate_positive_integer($low);
   _validate_positive_integer($high);
 
-  return $sref if ($low > $high) || ($high < 2);
+  return [] if $low > $high || $high < 2;
 
-  # Simple trial method for now.
-  return _GMP_trial_primes($low, $high);
+  # Trial if small size.
+  return _GMP_trial_primes($low, $high) if $low < 2_000_000_000;
 
-  # Trial primes without the XS code.  Works fine and is a lot easier than the
-  # XS code (duh -- it's Perl).  But 30-40% slower, mostly due to lots of
-  # string -> mpz -> string conversions and little memory allocations.
-  #
-  #my @primes;
-  #my $curprime = is_prime($low)  ?  $low  :  next_prime($low);
-  #while ($curprime <= $high) {
-  #  push @primes, $curprime;
-  #  $curprime = next_prime($curprime);
-  #}
-  #return \@primes;
+  # Use the partial sieve with BPSW post-filter.
+  [ sieve_primes($low, $high, 0) ];
 }
 
 1;
