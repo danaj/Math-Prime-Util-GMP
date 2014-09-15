@@ -6,6 +6,11 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - sieve_primes(low,high[,k])          sieve for primes, partial or BPSW
 
+    [OTHER]
+
+    - New version of Frobenius-Underwood test.  No substantial changes, but
+      now matches the 2014 draft paper.
+
 
 0.23 2014-08-16
 
