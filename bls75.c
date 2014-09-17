@@ -85,9 +85,7 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
   int success = 0;
   UV log2n = mpz_sizeinbase(n, 2);
 
-  if (!success)  success = (int)power_factor(n, f);
-
-  if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>2)) < 0) {
+  if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>5)) < 0) {
     UV ui_n = mpz_get_ui(n);
     UV ui_factors[2];
     if (!mpz_cmp_ui(n, ui_n)) {
@@ -98,9 +96,10 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
   }
 
   if (effort >= 1) {
-    if (!success)  success = _GMP_pminus1_factor(n, f, 100, 1000);
     if (!success)  success = _GMP_pminus1_factor(n, f, 1000, 10000);
   }
+
+  if (!success)  success = (int)power_factor(n, f);
 
   if (!success && effort == 2) {
     UV brent_rounds = (log2n <= 64) ? 100000 : 100000 / (log2n-63);

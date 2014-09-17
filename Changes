@@ -5,11 +5,16 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - sieve_primes(low,high[,k])          sieve for primes, partial or BPSW
+    - is_frobenius_pseudoprime(n,[a,b])   Frobenius quadratic primality test
 
     [OTHER]
 
     - New version of Frobenius-Underwood test.  No substantial changes, but
       now matches the 2014 draft paper.
+
+    - BLS75 with effort 1 toned down.  97% proved in 60% the time.  This makes
+      is_prime with 65-200 bit inputs faster (but slightly less likely to
+      return with the value 2 rather than 1).
 
 
 0.23 2014-08-16
