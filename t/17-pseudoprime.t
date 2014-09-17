@@ -10,6 +10,7 @@ use Math::Prime::Util::GMP qw/
    is_strong_lucas_pseudoprime
    is_extra_strong_lucas_pseudoprime
    is_almost_extra_strong_lucas_pseudoprime
+   is_frobenius_pseudoprime
    is_prime
    lucas_sequence
    miller_rabin_random
@@ -54,6 +55,8 @@ my %pseudoprimes = (
  eslucas    => [ qw/989 3239 5777 10877 27971 29681 30739 31631 39059 72389 73919 75077 100127 113573 125249 137549 137801 153931 155819/ ],
  aeslucas1  => [ qw/989 3239 5777 10469 10877 27971 29681 30739 31631 39059 72389 73919 75077 100127 113573 125249 137549 137801 153931 154697 155819/ ],
  aeslucas2  => [ qw/3239 4531 5777 10877 12209 21899 31631 31831 32129 34481 36079 37949 47849 50959 51641 62479 73919 75077 97109 100127 108679 113573 116899 154697 161027/ ],
+ frobenius  => [ qw/4181 5777 6721 10877 13201 15251 34561 51841 64079 64681 67861 68251 75077 90061 96049 97921 100127/ ],
+ frob35     => [ qw/13333 44801 486157 1615681 3125281 4219129 9006401 12589081 13404751 15576571 16719781/ ],
 );
 my $num_pseudoprimes = 0;
 foreach my $ppref (values %pseudoprimes) {
@@ -152,6 +155,10 @@ while (my($base, $ppref) = each (%pseudoprimes)) {
       ok(is_strong_lucas_pseudoprime($p), "$p is a strong Lucas-Selfridge pseudoprime");
     } elsif ($base eq 'lucas') {
       ok(is_lucas_pseudoprime($p), "$p is a Lucas-Selfridge pseudoprime");
+    } elsif ($base eq 'frobenius') {
+      ok(is_frobenius_pseudoprime($p,1,-1), "$p is a Frobenius (1,-1) pseudoprime");
+    } elsif ($base eq 'frob35') {
+      ok(is_frobenius_pseudoprime($p,3,-5), "$p is a Frobenius (3,-5) pseudoprime");
     } else {
       ok(is_strong_pseudoprime($p, $base), "Pseudoprime (base $base) $p passes MR");
     }

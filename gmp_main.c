@@ -481,6 +481,79 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   return rval;
 }
 
+int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
+{
+  mpz_t t, Vcomp, d, U, V, Qk;
+  IV D;
+  UV Du;
+  int k = 0;
+  int rval;
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+    if (mpz_perfect_square_p(n))  return 0;
+  }
+  mpz_init(t);
+  if (P == 0 && Q == 0) {
+    P = 1;  Q = 2;
+    while (k != -1) {
+      P += 2;
+      if (P == 3) P = 5;  /* P=3,Q=2 -> D=9-8=1 => k=1, so skip */
+      D = P*P-4*Q;
+      if (mpz_cmp_ui(n, P >= 0 ? P : -P) <= 0) break;
+      if (mpz_cmp_ui(n, D >= 0 ? D : -D) <= 0) break;
+      mpz_set_si(t, D);
+      k = mpz_jacobi(t, n);
+      if (k != 1) break;
+    }
+  } else {
+    D = P*P-4*Q;
+    mpz_set_si(t, D);
+    if (mpz_perfect_square_p(t))
+      croak("Frobenius invalid P,Q: (%"IVdf",%"IVdf")", P, Q);
+    k = mpz_jacobi(t, n);
+  }
+  if (k == 0) { mpz_clear(t); return 0; }
+
+  {
+    UV Pu = P >= 0 ? P : -P;
+    UV Qu = Q >= 0 ? Q : -Q;
+    UV Du = D >= 0 ? D : -D;
+    if (mpz_cmp_ui(n, Pu) <= 0 || mpz_cmp_ui(n, Qu) <= 0 || mpz_cmp_ui(n, Du) <= 0) {
+      mpz_clear(t);
+      return _GMP_trial_factor(n, 2, Du+Pu+Qu) ? 0 : 1;
+    }
+    if (mpz_gcd_ui(NULL, n, Du*Pu*Qu) > 1) {
+      mpz_clear(t);
+      return 0;
+    }
+  }
+
+  mpz_init(Vcomp);
+  if (k == 1) {
+    mpz_set_si(Vcomp, 2);
+  } else {
+    mpz_set_si(Vcomp, Q);
+    mpz_mul_ui(Vcomp, Vcomp, 2);
+    mpz_mod(Vcomp, Vcomp, n);
+  }
+
+  mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(d);
+  if (k == 1) mpz_sub_ui(d, n, 1);
+  else        mpz_add_ui(d, n, 1);
+
+  _GMP_lucas_seq(U, V, n, P, Q, d, Qk, t);
+  rval = ( mpz_sgn(U) == 0 && mpz_cmp(V, Vcomp) == 0 );
+
+  mpz_clear(d); mpz_clear(Qk); mpz_clear(V); mpz_clear(U);
+  mpz_clear(Vcomp); mpz_clear(t);
+
+  return rval;
+}
+
 /* New code based on draft paper */
 int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 {
@@ -827,12 +900,25 @@ int _GMP_is_prime(mpz_t n)
   UV nbits = mpz_sizeinbase(n, 2);
   int prob_prime = _GMP_is_prob_prime(n);
 
-  /* We're pretty sure n is a prime since it passed the BPSW test.  Try
-   * a few random M-R bases to give some extra assurance.  See discussion
-   * above about number of tests.  Assuming we are choosing uniformly random
-   * bases and the caller cannot predict our random numbers (not guaranteed!),
-   * then there is less than a 1 in 595,000 chance that a composite will pass
-   * our extra tests. */
+  /* n has passed the ES BPSW test, making it quite unlikely it is a
+   * composite (and it cannot be if n < 2^64). */
+
+  /* For small numbers, try a quick BLS75 n-1 proof. */
+  if (prob_prime == 1 && nbits <= 200)
+    prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* proof */);
+
+  /* If prob_prime is still 1, let's run some extra tests.  We could run
+   * a Frobenius test or some random-base M-R tests.  The FU test is
+   * attractive as it does not overlap with the BPSW test and gives very
+   * strong assurances.  However for small sizes it can take 6x more time
+   * than a random-base MR test (this narrows to ~2.5x at large sizes).  It
+   * also has the advantage of being deterministic.
+   *
+   * For performance reasons, we'll use random-base MRs.
+   * Assuming we are choosing uniformly random bases and the caller cannot
+   * predict our random numbers (not guaranteed), then there is less than
+   * a 1 in 595,000 chance that a composite will pass the extra tests.
+   */
 
   if (prob_prime == 1) {
     UV ntests;
@@ -842,6 +928,7 @@ int _GMP_is_prime(mpz_t n)
     else if (nbits < 413) ntests = 2;  /* p < .00000156 */
     else                  ntests = 1;  /* p < .00000159 */
     prob_prime = _GMP_miller_rabin_random(n, ntests, 0);
+    /* prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n); */
   }
 
   /* Using Damgård, Landrock, and Pomerance, we get upper bounds:
@@ -861,10 +948,6 @@ int _GMP_is_prime(mpz_t n)
    * is_pseudoprime, but isprime uses APRCL which, being a proof, could only
    * output a pseudoprime through a coding error.
    */
-
-  /* For small numbers, try a quick BLS75 n-1 proof. */
-  if (prob_prime == 1 && nbits <= 200)
-    prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* proof */);
 
   return prob_prime;
 }

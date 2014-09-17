@@ -12,9 +12,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - New version of Frobenius-Underwood test.  No substantial changes, but
       now matches the 2014 draft paper.
 
-    - BLS75 with effort 1 toned down.  97% proved in 60% the time.  This makes
-      is_prime with 65-200 bit inputs faster (but slightly less likely to
-      return with the value 2 rather than 1).
+    - BLS75 with effort 1 toned down.  This makes is_prime with 65- to 200-bit
+      inputs faster, though a bit less likely to return with the value 2
+      rather than 1.  It's a couple percent fewer, but 10-60% faster.
 
 
 0.23 2014-08-16

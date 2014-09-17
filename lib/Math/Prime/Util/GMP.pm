@@ -26,6 +26,7 @@ our @EXPORT_OK = qw(
                      is_strong_lucas_pseudoprime
                      is_extra_strong_lucas_pseudoprime
                      is_almost_extra_strong_lucas_pseudoprime
+                     is_frobenius_pseudoprime
                      is_frobenius_underwood_pseudoprime
                      miller_rabin_random
                      lucas_sequence
@@ -291,12 +292,21 @@ exactly like C<is_prob_prime>, as will numbers less than C<2^64>.
 For numbers larger than C<2^64>, some additional tests are performed
 on probable primes to see if they can be proven by another means.
 
+This call walks the line between the performance of L</is_prob_prime>
+and the certainty of L</is_provable_prime>.  Those calls may be more
+appropriate in some cases.  What this function does is give most of
+the performance of the former, while adding more certainty.  For finer
+tuning of this tradeoff, especially if performance is critical for
+65- to 200-bit inputs, you may instead use L</is_prob_prime> followed
+by additional probable prime tests such as L</miller_rabin_random>
+and/or L</is_frobenius_underwood_pseudoprime>.
+
 As with L</is_prob_prime>, a BPSW test is first performed.  If this
 indicates "probably prime" then a small number of Miller-Rabin tests
 with random bases are performed.  For numbers under 200 bits, a quick
 BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
-if the result cannot be quickly determined, and results in
-approximately 30% success rate at 128-bits.
+if the result cannot be quickly determined, and results in success
+rates of ~80% at 80 bits, ~30% at 128 bits, and ~13% at 160 bits.
 
 The result is that many numbers will return 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through
@@ -501,17 +511,27 @@ pseudoprimes than the extra-strong Lucas test.  However this is still only
 counterexamples have been found with any of the Lucas tests described.
 
 
+=head2 is_frobenius_pseudoprime
+
+Takes a positive number C<n> as input, and two optional parameters C<a> and
+C<b>, and returns 1 if the C<n> is a Frobenius probable prime with respect
+to the polynomial C<x^2 - ax + b>.  Without the parameters, C<b = 2> and
+C<a> is the least positive odd number such that C<(a^2-4b|n) = -1>.
+This selection has no pseudoprimes below C<2^64> and none known.  In any
+case, the discriminant C<a^2-4b> must not be a perfect square.
+
 =head2 is_frobenius_underwood_pseudoprime
 
 Takes a positive number as input, and returns 1 if the input passes the
-minimal lambda+2 test (see Underwood 2012 "Quadratic Compositeness Tests"),
-where C<(L+2)^(n-1) = 5 + 2x mod (n, L^2 - Lx + 1)>.  There are no known
-counterexamples, but this is not a well studied test.
+efficient Frobenius test of Paul Underwood.  This selects a parameter C<a>
+as the least positive integer such that C<(a^2-4|n)=-1>, then verifies that
+C<(2+2)^(n+1) = 2a + 5 mod (x^2-ax+1,n)>.  This combines a Fermat and Lucas
+test at a computational cost of about 2.5x a strong pseudoprime test.  This
+makes it similar to, but faster than, a Frobenius test.
 
-The computational cost is about 2.5x the cost of a strong pseudoprime test
-(this will vary somewhat with platform and input size).  It is typically a
-little slower than an extra-strong Lucas test, and faster than a strong
-Lucas test.
+There are no known pseudoprimes to this test.  This test also has no overlap
+with the BPSW test, making it a very effective method for adding additional
+certainty.
 
 =head2 is_bpsw_prime
 
