@@ -481,11 +481,60 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   return rval;
 }
 
+static void mat_mulmod_3x3(mpz_t* a, mpz_t* b, mpz_t n, mpz_t* t, mpz_t t2) {
+  int i, row, col;
+  for (row = 0; row < 3; row++) {
+    for (col = 0; col < 3; col++) {
+      mpz_mul(t[3*row+col], a[3*row+0], b[0+col]);
+      mpz_mul(t2, a[3*row+1], b[3+col]);
+      mpz_add(t[3*row+col], t[3*row+col], t2);
+      mpz_mul(t2, a[3*row+2], b[6+col]);
+      mpz_add(t[3*row+col], t[3*row+col], t2);
+    }
+  }
+  for (i = 0; i < 9; i++) mpz_mod(a[i], t[i], n);
+}
+static void mat_powmod_3x3(mpz_t* m, mpz_t kin, mpz_t n) {
+  mpz_t k, t2, t[9], res[9];
+  int i;
+  mpz_init_set(k, kin);
+  mpz_init(t2);
+  for (i = 0; i < 9; i++) { mpz_init(t[i]); mpz_init(res[i]); }
+  mpz_set_ui(res[0],1);  mpz_set_ui(res[4],1);  mpz_set_ui(res[8],1);
+  while (mpz_sgn(k)) {
+    if (mpz_odd_p(k))  mat_mulmod_3x3(res, m, n, t, t2);
+    mpz_fdiv_q_2exp(k, k, 1);
+    if (mpz_sgn(k))    mat_mulmod_3x3(m, m, n, t, t2);
+  }
+  for (i = 0; i < 9; i++)
+    { mpz_set(m[i],res[i]);  mpz_clear(res[i]);  mpz_clear(t[i]); }
+  mpz_clear(t2);
+  mpz_clear(k);
+}
+int is_perrin_pseudoprime(mpz_t n)
+{
+  int P[9] = {0,1,0, 0,0,1, 1,1,0};
+  mpz_t m[9];
+  int i, rval;
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+  }
+  for (i = 0; i < 9; i++) mpz_init_set_ui(m[i], P[i]);
+  mat_powmod_3x3(m, n, n);
+  mpz_add(m[1], m[0], m[4]);
+  mpz_add(m[2], m[1], m[8]);
+  mpz_mod(m[0], m[2], n);
+  rval = mpz_sgn(m[0]) ? 0 : 1;
+  for (i = 0; i < 9; i++) mpz_clear(m[i]);
+  return rval;
+}
+
 int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
 {
   mpz_t t, Vcomp, d, U, V, Qk;
   IV D;
-  UV Du;
   int k = 0;
   int rval;
 

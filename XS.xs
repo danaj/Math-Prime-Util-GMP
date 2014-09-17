@@ -138,6 +138,7 @@ is_lucas_pseudoprime(IN char* strn)
     is_strong_lucas_pseudoprime = 1
     is_extra_strong_lucas_pseudoprime = 2
     is_frobenius_underwood_pseudoprime = 3
+    is_perrin_pseudoprime = 4
   PREINIT:
     mpz_t n;
   CODE:
@@ -148,8 +149,9 @@ is_lucas_pseudoprime(IN char* strn)
       case 0: RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
       case 1: RETVAL = _GMP_is_lucas_pseudoprime(n, 1); break;
       case 2: RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
-      case 3:
-      default:RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
+      case 3: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
+      case 4:
+      default:RETVAL = is_perrin_pseudoprime(n); break;
     }
     mpz_clear(n);
   OUTPUT:

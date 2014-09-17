@@ -26,6 +26,7 @@ our @EXPORT_OK = qw(
                      is_strong_lucas_pseudoprime
                      is_extra_strong_lucas_pseudoprime
                      is_almost_extra_strong_lucas_pseudoprime
+                     is_perrin_pseudoprime
                      is_frobenius_pseudoprime
                      is_frobenius_underwood_pseudoprime
                      miller_rabin_random
@@ -510,6 +511,18 @@ pseudoprimes than the extra-strong Lucas test.  However this is still only
 66% of the number produced by the strong Lucas-Selfridge test.  No BPSW
 counterexamples have been found with any of the Lucas tests described.
 
+
+=head2 is_perrin_pseudoprime
+
+Takes a positive number C<n> as input and returns 1 if C<n> divides C<P(n)>
+where C<P(n)> is the Perrin number of C<n>.  The Perrin sequence is defined by
+
+   C<P(0) = 3, P(1) = 0, P(2) = 2;  P(n) = P(n-2) + P(n-3)>
+
+This is not a commonly used test, as it runs 5 to 10 times slower than most
+of the other probable prime tests and offers little benefit, especially over
+combined tests like L</is_bpsw_prime> and
+L</is_frobenius_underwood_pseudoprime>.
 
 =head2 is_frobenius_pseudoprime
 
