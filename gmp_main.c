@@ -30,6 +30,10 @@ static mpz_t _bgcd3;
 #define BGCD3_PRIMES     4203
 #define BGCD3_NEXTPRIME 40009
 
+#define TSTAVAL(arr, val)   (arr[(val) >> 6] & (1U << (((val)>>1) & 0x1F)))
+#define SETAVAL(arr, val)   arr[(val) >> 6] |= 1U << (((val)>>1) & 0x1F)
+
+
 void _GMP_init(void)
 {
   /* We should  not use this random number system for crypto, so
@@ -1291,21 +1295,59 @@ int _GMP_is_aks_prime(mpz_t n)
 
 /*****************************************************************************/
 
+/* Controls how many numbers to sieve.  Little time impact. */
+#define NPS_MERIT  30.0
+/* Controls how many primes to use.  Big time impact. */
+#define NPS_DEPTH  (log2n > 200000 ? 4200000000UL : log2n * (log2n/10))
+
+static void next_prime_with_sieve(mpz_t n) {
+  uint32_t* comp;
+  mpz_t t, base;
+  UV i;
+  UV log2n = mpz_sizeinbase(n, 2);
+  UV width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
+  UV depth = NPS_DEPTH;
+
+  if (width & 1) width++;                     /* Make width even */
+  mpz_add_ui(n, n, mpz_even_p(n) ? 1 : 2);    /* Set n to next odd */
+  mpz_init(t);  mpz_init(base);
+  while (1) {
+    mpz_set(base, n);
+    comp = partial_sieve(base, width, depth); /* sieve range to depth */
+    for (i = 1; i <= width; i += 2) {
+      if (!TSTAVAL(comp, i)) {
+        mpz_add_ui(t, base, i);               /* We found a candidate */
+        if (_GMP_BPSW(t)) {
+          mpz_set(n, t);
+          mpz_clear(t);  mpz_clear(base);
+          Safefree(comp);
+          return;
+        }
+      }
+    }
+    /* A huge gap found, so sieve another range */
+    Safefree(comp);
+    mpz_add_ui(n, n, width);
+  }
+}
 
 /* Modifies argument */
 void _GMP_next_prime(mpz_t n)
 {
-  UV m, m23;
   if (mpz_cmp_ui(n, 29) < 0) { /* small inputs */
 
-    m = mpz_get_ui(n);
+    UV m = mpz_get_ui(n);
     m = (m < 2) ? 2 : (m < 3) ? 3 : (m < 5) ? 5 : next_wheel[m];
     mpz_set_ui(n, m);
 
+  } else if (mpz_sizeinbase(n,2) > 120) {
+
+    return next_prime_with_sieve(n);
+
   } else {
 
-    m23 = mpz_fdiv_ui(n, 223092870UL);  /* 2*3*5*7*11*13*17*19*23 */
-    m = m23 % 30;
+    UV m23 = mpz_fdiv_ui(n, 223092870UL);  /* 2*3*5*7*11*13*17*19*23 */
+    UV m = m23 % 30;
     do {
       UV skip = wheel_advance[m];
       mpz_add_ui(n, n, skip);
@@ -2195,9 +2237,6 @@ void exp_mangoldt(mpz_t res, mpz_t n)
   mpz_set_ui(res, 1);
 }
 
-#define TSTAVAL(arr, val)   (arr[(val) >> 6] & (1U << (((val)>>1) & 0x1F)))
-#define SETAVAL(arr, val)   arr[(val) >> 6] |= 1U << (((val)>>1) & 0x1F)
-
 uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 {
   UV p, m, pos;
@@ -2214,8 +2253,8 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   p = prime_iterator_next(&iter);
   for (p = 3; p <= maxprime; p = prime_iterator_next(&iter)) {
     m = mpz_mod_ui(t, start, p);
-    pos = (m == 0) ? 0 : p-m;    // First multiple of p after start
-    if (!(pos & 1)) pos += p;    // Make sure it is odd.
+    pos = (m == 0) ? 0 : p-m;    /* First multiple of p after start  */
+    if (!(pos & 1)) pos += p;    /* Make sure it is odd.             */
     while (pos < length) {
       SETAVAL(comp, pos);
       pos += 2*p;

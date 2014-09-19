@@ -618,10 +618,6 @@ a lower limit of C<2> if none is given.
 An array reference is returned (with large lists this is much faster and uses
 less memory than returning an array directly).
 
-The current implementation uses repeated calls to C<next_prime>, which is
-good for very small ranges, but not good for large ranges.  A future release
-may use a multi-segmented sieve when appropriate.
-
 
 =head2 next_prime
 

@@ -10,8 +10,17 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [OTHER]
 
-    - New version of Frobenius-Underwood test.  No substantial changes, but
-      now matches the 2014 draft paper.
+    - next_prime will use a partial sieve for 120+ bit inputs.  For large
+      inputs this is a 15-30% speedup.  For 2469*2617#/93030-12182 I get:
+
+         = 392.2s  OpenPFGW 3.7.7
+         = 220.6s  Pari/GP 2.6.2
+         = 128.4s  GMP 5.0.2 mpz_nextprime
+         =  57.6s  old MPU
+         =  45.5s  new MPU
+    
+    - New version of Frobenius-Underwood test to match the 2014 draft paper.
+      This is just a code refresh and has no other effect.
 
     - BLS75 with effort 1 toned down.  This makes is_prime with 65- to 200-bit
       inputs faster, though a bit less likely to return with the value 2

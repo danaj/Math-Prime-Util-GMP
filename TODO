@@ -64,4 +64,4 @@
 
 - Documentation and tests for sieve_primes.
 
-- Investigate using sieve_primes in next_prime.
+- Do a prev_prime using partial sieve.
