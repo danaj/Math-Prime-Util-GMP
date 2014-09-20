@@ -1453,6 +1453,7 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
   prime_iterator_destroy(&iter);
 }
 
+/* Luschny's version of the "Brent-Harvey" method */
 void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
 {
   UV k, j, n = mpz_get_ui(zn);
@@ -1472,7 +1473,7 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   for (k = 2; k <= n; k++)
     mpz_mul_ui(T[k], T[k-1], k-1);
 
-  for (k = 2; k < n; k++) {
+  for (k = 2; k <= n; k++) {
     for (j = k; j <= n; j++) {
       mpz_mul_ui(t, T[j], j-k+2);
       mpz_mul_ui(T[j], T[j-1], j-k);
@@ -1489,7 +1490,6 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_gcd(t, num, den);
   mpz_divexact(num, num, t);
   mpz_divexact(den, den, t);
-  mpz_divexact_ui(den, den, 2);
   mpz_clear(t);
   for (k = 1; k <= n; k++)  mpz_clear(T[k]);
   Safefree(T);

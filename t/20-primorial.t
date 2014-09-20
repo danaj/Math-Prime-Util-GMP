@@ -3,9 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/primorial pn_primorial/;
-
-plan tests => 31*2 + 2;
+use Math::Prime::Util::GMP qw/primorial pn_primorial factorial/;
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71
@@ -58,9 +56,54 @@ my @pn_primorials = qw/
 31610054640417607788145206291543662493274686990
 /;
 
-foreach my $n (0..30) {
-  is( primorial(nth_prime($n)), $pn_primorials[$n], "primorial(nth($n))" );
-  is( pn_primorial($n), $pn_primorials[$n], "pn_primorial($n)" );
+my @factorials = (qw/
+1
+1
+2
+6
+24
+120
+720
+5040
+40320
+362880
+3628800
+39916800
+479001600
+6227020800
+87178291200
+1307674368000
+20922789888000
+355687428096000
+6402373705728000
+121645100408832000
+2432902008176640000
+51090942171709440000
+1124000727777607680000
+25852016738884976640000
+620448401733239439360000
+15511210043330985984000000
+403291461126605635584000000
+10888869450418352160768000000
+304888344611713860501504000000
+8841761993739701954543616000000
+265252859812191058636308480000000
+/);
+
+plan tests =>   1    # factorial
+              + 2    # primorial and pn_primorial
+              + 2;   # extra primorial tests
+
+{
+  my @fact = map { factorial($_) }  0 .. $#factorials;
+  is_deeply( \@fact, \@factorials, "factorial 0 .. $#factorials" );
+}
+
+{
+  my @prim   = map { primorial(nth_prime($_)) }  0 .. $#pn_primorials;
+  my @pnprim = map { pn_primorial($_)         }  0 .. $#pn_primorials;
+  is_deeply(\@prim, \@pn_primorials, "primorial(nth(...)) 0 - $#pn_primorials");
+  is_deeply(\@pnprim, \@pn_primorials, "pn_primorial(...) 0 - $#pn_primorials");
 }
 
 is( primorial(100), '2305567963945518424753102147331756070', "primorial(100)");

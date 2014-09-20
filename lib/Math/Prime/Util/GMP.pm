@@ -49,6 +49,7 @@ our @EXPORT_OK = qw(
                      prime_count
                      primorial
                      pn_primorial
+                     factorial
                      consecutive_integer_lcm
                      partitions bernfrac
                      gcd lcm kronecker valuation invmod binomial gcdext vecsum
@@ -162,7 +163,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot
+=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot bernfrac
 
 =head1 NAME
 
@@ -683,6 +684,12 @@ The two are related with the relationships:
   pn_primorial($n)  ==   primorial( nth_prime($n) )
   primorial($n)     ==   pn_primorial( prime_count($n) )
 
+=head2 factorial
+
+Given positive integer argument C<n>, returns the factorial of C<n>,
+defined as the product of the integers 1 to C<n> with the special case
+of C<factorial(0) = 1>.  This corresponds to Pari's C<factorial(n)>
+and Mathematica's C<Factorial[n]> functions.
 
 =head2 gcd
 
@@ -735,6 +742,13 @@ the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
 case.  GMP's API does not allow negative C<k> but otherwise matches.
 L<Math::BigInt> does not implement any extensions and the results for
 C<n E<lt> 0, k > 0> are undefined.
+
+=head2 bernfrac
+
+Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
+rational number represented by two L<Math::BigInt> objects.  B_1 = 1/2.
+This corresponds to Pari's C<bernfrac(n)> and Mathematica's C<BernoulliB>
+functions.
 
 
 =head2 znorder
