@@ -337,14 +337,16 @@ primorial(IN char* strn)
     exp_mangoldt = 3
     totient = 4
     carmichael_lambda = 5
-    znprimroot = 6
+    factorial = 6
+    bernfrac = 7
+    znprimroot = 8
   PREINIT:
     mpz_t res, n;
     UV un;
   PPCODE:
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
       if (ix == 3)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
-      if (ix == 6)  strn++;            /* znprimroot flip sign */
+      if (ix == 8)  strn++;            /* znprimroot flip sign */
     }
     VALIDATE_AND_SET("primorial", n, strn);
     un = mpz_get_ui(n);
@@ -356,10 +358,14 @@ primorial(IN char* strn)
       case 3:  exp_mangoldt(res, n);  break;
       case 4:  totient(res, n);  break;
       case 5:  carmichael_lambda(res, n);  break;
-      case 6:
+      case 6:  mpz_fac_ui(res, un);  break;  /* Uses swing, so let's use it */
+      case 7:  bernfrac(n, res, n);
+               XPUSH_MPZ(n);
+               break;
+      case 8:
       default: znprimroot(res, n);  break;
     }
-    if (ix == 6 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
+    if (ix == 8 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
     XPUSH_MPZ(res);
     mpz_clear(n);

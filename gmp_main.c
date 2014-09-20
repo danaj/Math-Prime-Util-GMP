@@ -1453,6 +1453,50 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
   prime_iterator_destroy(&iter);
 }
 
+void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
+{
+  UV k, j, n = mpz_get_ui(zn);
+  mpz_t* T;
+  mpz_t t;
+
+  if      (n == 0) { mpz_set_ui(num, 1);  mpz_set_ui(den, 1); return; }
+  else if (n == 1) { mpz_set_ui(num, 1);  mpz_set_ui(den, 2); return; }
+  else if (n & 1)  { mpz_set_ui(num, 0);  mpz_set_ui(den, 1); return; }
+  n >>= 1;
+  New(0, T, n+1, mpz_t);
+  for (k = 1; k <= n; k++)  mpz_init(T[k]);
+  mpz_set_ui(T[1], 1);
+
+  mpz_init(t);
+
+  for (k = 2; k <= n; k++)
+    mpz_mul_ui(T[k], T[k-1], k-1);
+
+  for (k = 2; k < n; k++) {
+    for (j = k; j <= n; j++) {
+      mpz_mul_ui(t, T[j], j-k+2);
+      mpz_mul_ui(T[j], T[j-1], j-k);
+      mpz_add(T[j], T[j], t);
+    }
+  }
+
+  mpz_mul_ui(num, T[n], n);
+  mpz_mul_si(num, num, (n & 1) ? 2 : -2);
+  mpz_set_ui(t, 1);
+  mpz_mul_2exp(den, t, 2*n);  /* den = U = 1 << 2n  */
+  mpz_sub_ui(t, den, 1);      /* t = U-1            */
+  mpz_mul(den, den, t);       /* den = U*(U-1)      */
+  mpz_gcd(t, num, den);
+  mpz_divexact(num, num, t);
+  mpz_divexact(den, den, t);
+  mpz_divexact_ui(den, den, 2);
+  mpz_clear(t);
+  for (k = 1; k <= n; k++)  mpz_clear(T[k]);
+  Safefree(T);
+}
+
+
+
 #define TEST_FOR_2357(n, f) \
   { \
     if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; } \
