@@ -61,6 +61,7 @@ our @EXPORT_OK = qw(
                      is_power
                      znorder
                      znprimroot
+                     Pi
                    );
                    # Should add:
                    # nth_prime

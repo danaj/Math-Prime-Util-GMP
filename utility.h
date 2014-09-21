@@ -26,6 +26,8 @@ extern unsigned long modinverse(unsigned long a, unsigned long p);
 
 extern UV mpz_order_ui(UV r, mpz_t n, UV limit);
 
+extern void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
+
 extern void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t t1, mpz_t t2, mpz_t t3);
 extern void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod);
 

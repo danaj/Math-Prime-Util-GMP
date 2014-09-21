@@ -2308,3 +2308,126 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   prime_iterator_destroy(&iter);
   return comp;
 }
+
+char* pidigits(UV n) {
+#if 0
+  /* Spigot method.
+   * ~40x slower than the Machin formulas, 2x slower than spigot in plain C */
+  mpz_t t1, t2, acc, den, num;
+  UV i, k, d, d2;
+  char* out;
+
+  New(0, out, n+3, char);
+  out[0] = '3';
+  if (n > 1) {
+    mpz_init(t1);  mpz_init(t2);
+    mpz_init_set_ui(acc, 0);
+    mpz_init_set_ui(den, 1);
+    mpz_init_set_ui(num, 1);
+    n++;   /* rounding */
+    for (i = k = 0; i < n; ) {
+      {
+        UV k2 = ++k * 2 + 1;
+        mpz_mul_2exp(t1, num, 1);
+        mpz_add(acc, acc, t1);
+        mpz_mul_ui(acc, acc, k2);
+        mpz_mul_ui(den, den, k2);
+        mpz_mul_ui(num, num, k);
+      }
+      if (mpz_cmp(num, acc) > 0)  continue;
+      {
+        mpz_mul_ui(t1, num, 3);
+        mpz_add(t2, t1, acc);
+        mpz_tdiv_q(t1, t2, den);
+        d = mpz_get_ui(t1);
+      }
+      {
+        mpz_mul_ui(t1, num, 4);
+        mpz_add(t2, t1, acc);
+        mpz_tdiv_q(t1, t2, den);
+        d2 = mpz_get_ui(t1);
+      }
+      if (d != d2)  continue;
+      out[++i] = '0' + d;
+      {
+        mpz_submul_ui(acc, den, d);
+        mpz_mul_ui(acc, acc, 10);
+        mpz_mul_ui(num, num, 10);
+      }
+    }
+    mpz_clear(num); mpz_clear(den); mpz_clear(acc); mpz_clear(t2);mpz_clear(t1);
+    if (out[n] >= '5') out[n-1]++;  /* Round */
+    for (i = n-1; out[i] == '9'+1; i--)    /* Keep rounding */
+      { out[i] = '0';  out[i-1]++; }
+    n--;  /* Undo the extra digit we used for rounding */
+    out[1] = '.';
+    out[n+1] = '\0';
+  }
+#else
+  /* https://en.wikipedia.org/wiki/Machin-like_formula
+   * Thanks to Ledrug from RosettaCode for the simple code for base 10 */
+  mpz_t t1, t2, term1, term2, pows;
+  UV i, k;
+  char* out;
+
+  New(0, out, n+4, char);
+  out[0] = '3';  out[1] = '\0';
+  if (n > 1) {
+    mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
+
+    n++;   /* rounding */
+    mpz_ui_pow_ui(pows, 10, n+20);
+
+#if 0
+    /* Machin 1706 */
+    mpz_arctan(term1,       5, pows, t1, t2);  mpz_mul_ui(term1, term1, 4);
+    mpz_arctan(term2,     239, pows, t1, t2);
+    mpz_sub(term1, term1, term2);
+#elif 0
+    /* Störmer 1896 */
+    mpz_arctan(term1,      57, pows, t1, t2);  mpz_mul_ui(term1, term1, 44);
+    mpz_arctan(term2,     239, pows, t1, t2);  mpz_mul_ui(term2, term2, 7);
+    mpz_add(term1, term1, term2); 
+    mpz_arctan(term2,     682, pows, t1, t2);  mpz_mul_ui(term2, term2, 12);
+    mpz_sub(term1, term1, term2);
+    mpz_arctan(term2,   12943, pows, t1, t2);  mpz_mul_ui(term2, term2, 24);
+    mpz_add(term1, term1, term2);
+#else
+    /* Chien-Lih 1997 */
+    mpz_arctan(term1,     239, pows, t1, t2);  mpz_mul_ui(term1, term1, 183);
+    mpz_arctan(term2,    1023, pows, t1, t2);  mpz_mul_ui(term2, term2,  32);
+    mpz_add(term1, term1, term2);
+    mpz_arctan(term2,    5832, pows, t1, t2);  mpz_mul_ui(term2, term2,  68);
+    mpz_sub(term1, term1, term2);
+    mpz_arctan(term2,  110443, pows, t1, t2);  mpz_mul_ui(term2, term2,  12);
+    mpz_add(term1, term1, term2);
+    mpz_arctan(term2, 4841182, pows, t1, t2);  mpz_mul_ui(term2, term2,  12);
+    mpz_sub(term1, term1, term2);
+    mpz_arctan(term2, 6826318, pows, t1, t2);  mpz_mul_ui(term2, term2, 100);
+    mpz_sub(term1, term1, term2);
+#endif
+    mpz_mul_ui(term1, term1, 4);
+
+    mpz_ui_pow_ui(pows, 10, 20);
+    mpz_tdiv_q(term1, term1, pows);
+
+    mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
+
+    k = mpz_sizeinbase(term1, 10);           /* Copy result to out string */
+    while (k > n+1) {                        /* making sure we don't overflow */
+      mpz_tdiv_q_ui(term1, term1, 10);
+      k = mpz_sizeinbase(term1, 10);
+    }
+    (void) mpz_get_str(out+1, 10, term1);
+    mpz_clear(term1);
+
+    if (out[n] >= '5') out[n-1]++;  /* Round */
+    for (i = n-1; out[i] == '9'+1; i--)    /* Keep rounding */
+      { out[i] = '0';  out[i-1]++; }
+    n--;  /* Undo the extra digit we used for rounding */
+    out[1] = '.';
+    out[n+1] = '\0';
+  }
+#endif
+  return out;
+}

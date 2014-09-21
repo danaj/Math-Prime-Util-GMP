@@ -508,10 +508,20 @@ invmod(IN char* stra, IN char* strb)
     }
 
 void partitions(IN UV n)
+  ALIAS:
+    Pi = 1
   PREINIT:
     UV i, j, k;
   PPCODE:
-    if (n == 0) {
+    if (ix ==1) {
+      if (n == 1)
+        XSRETURN_UV(3);
+      else if (n > 0) {
+        char* pi = pidigits(n);
+        XPUSHs(sv_2mortal(newSVpvn(pi, n+1)));
+        Safefree(pi);
+      }
+    } else if (n == 0) {
       XPUSHs(sv_2mortal(newSVuv( 1 )));
     } else if (n <= 3) {
       XPUSHs(sv_2mortal(newSVuv( n )));

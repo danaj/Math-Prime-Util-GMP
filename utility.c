@@ -282,6 +282,19 @@ UV mpz_order_ui(UV r, mpz_t n, UV limit) {
   return j;
 }
 
+void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
+{
+  unsigned long i = 1;
+  mpz_tdiv_q_ui(r, pow, base);
+  mpz_set(t1, r);
+  do {
+    mpz_ui_pow_ui(t2, base, 2);
+    mpz_tdiv_q(t1, t1, t2);
+    mpz_tdiv_q_ui(t2, t1, 2*i+1);
+    if (i++ & 1) mpz_sub(r, r, t2); else mpz_add(r, r, t2);
+  } while (mpz_sgn(t2));
+}
+
 
 
 #if 0
