@@ -2310,16 +2310,20 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 }
 
 char* pidigits(UV n) {
+  char* out;
+
+  New(0, out, n+4, char);
+  out[0] = '3';  out[1] = '\0';
+  if (n <= 1)
+    return;
+
 #if 0
   /* Spigot method.
    * ~40x slower than the Machin formulas, 2x slower than spigot in plain C */
-  mpz_t t1, t2, acc, den, num;
-  UV i, k, d, d2;
-  char* out;
+  {
+    mpz_t t1, t2, acc, den, num;
+    UV i, k, d, d2;
 
-  New(0, out, n+3, char);
-  out[0] = '3';
-  if (n > 1) {
     mpz_init(t1);  mpz_init(t2);
     mpz_init_set_ui(acc, 0);
     mpz_init_set_ui(den, 1);
@@ -2363,18 +2367,15 @@ char* pidigits(UV n) {
     out[1] = '.';
     out[n+1] = '\0';
   }
-#else
+#elif 0
   /* https://en.wikipedia.org/wiki/Machin-like_formula
-   * Thanks to Ledrug from RosettaCode for the simple code for base 10 */
-  mpz_t t1, t2, term1, term2, pows;
-  UV i, k;
-  char* out;
+   * Thanks to Ledrug from RosettaCode for the simple code for base 10.
+   * Pretty fast, but growth is a lot slower than AGM. */
+  {
+    mpz_t t1, t2, term1, term2, pows;
+    UV i, k;
 
-  New(0, out, n+4, char);
-  out[0] = '3';  out[1] = '\0';
-  if (n > 1) {
     mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
-
     n++;   /* rounding */
     mpz_ui_pow_ui(pows, 10, n+20);
 
@@ -2427,6 +2428,49 @@ char* pidigits(UV n) {
     n--;  /* Undo the extra digit we used for rounding */
     out[1] = '.';
     out[n+1] = '\0';
+  }
+#else
+  /* AGM using GMP's floating point.  Fast and very good growth. */
+  {
+    mpf_t x0, y0, resA, resB, Z, var;
+    mp_exp_t exp;
+    int i, k;
+ 
+    mpf_set_default_prec(10 + n * 3.322);
+    mpf_init_set_ui (x0, 1);
+    mpf_init_set_d (y0, 0.5);
+    mpf_sqrt (y0, y0);
+    mpf_init (resA);
+    mpf_init (resB);
+    mpf_init_set_d (Z, 0.25);
+    mpf_init (var);
+ 
+    for (i = 0, k = 1; k < n; i++) {
+      mpf_add (resA, x0, y0);
+      mpf_div_ui (resA, resA, 2);
+      mpf_mul (resB, x0, y0);
+      mpf_sqrt (resB, resB);
+
+      mpf_sub(var, resA, x0);
+      mpf_mul(var, var, var);
+      mpf_mul_ui(var, var, k);
+      mpf_sub(Z, Z, var);
+      k += k;
+
+      mpf_add (x0, resA, resB);
+      mpf_div_ui (x0, x0, 2);
+      mpf_mul (y0, resA, resB);
+      mpf_sqrt (y0, y0);
+
+      mpf_sub(var, x0, resA);
+      mpf_mul(var, var, var);
+      mpf_mul_ui(var, var, k);
+      mpf_sub(Z, Z, var);
+      k += k;
+    }
+    mpf_mul(x0, x0, x0);
+    mpf_div(x0, x0, Z);
+    gmp_sprintf(out, "%.*Ff", n-1, x0);
   }
 #endif
   return out;
