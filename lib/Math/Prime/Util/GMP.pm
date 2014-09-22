@@ -844,6 +844,15 @@ however, practical for producing the partition I<number> for values
 over 100 or so.
 
 
+=head2 Pi
+
+Takes a positive integer argument C<n> and returns the constant Pi with that
+many digits (including the leading 3).  Rounding is performed.
+
+The implementation uses AGM and is only slightly slower than MPFR (which has
+tighter bounds on the intermediate bits and exit conditions).
+
+
 =head2 exp_mangoldt
 
   say "exp(lambda($_)) = ", exp_mangoldt($_) for 1 .. 100;
