@@ -2315,7 +2315,7 @@ char* pidigits(UV n) {
   New(0, out, n+4, char);
   out[0] = '3';  out[1] = '\0';
   if (n <= 1)
-    return;
+    return out;
 
 #if 0
   /* Spigot method.
