@@ -2470,7 +2470,7 @@ char* pidigits(UV n) {
     }
     mpf_mul(x0, x0, x0);
     mpf_div(x0, x0, Z);
-    gmp_sprintf(out, "%.*Ff", n-1, x0);
+    gmp_sprintf(out, "%.*Ff", (int)(n-1), x0);
   }
 #endif
   return out;
