@@ -1,5 +1,9 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.25 2014-09-23
+
+    - Fixed compiler warning (error for some compilers).
+
 0.24 2014-09-22
 
     [ADDED]
