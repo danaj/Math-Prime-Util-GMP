@@ -2433,7 +2433,6 @@ char* pidigits(UV n) {
   /* AGM using GMP's floating point.  Fast and very good growth. */
   {
     mpf_t x0, y0, resA, resB, Z, var;
-    mp_exp_t exp;
     int i, k;
  
     mpf_set_default_prec(10 + n * 3.322);
@@ -2445,7 +2444,7 @@ char* pidigits(UV n) {
     mpf_init_set_d (Z, 0.25);
     mpf_init (var);
  
-    for (i = 0, k = 1; k < n; i++) {
+    for (i = 0, k = 1; k < (int)n; i++) {
       mpf_add (resA, x0, y0);
       mpf_div_ui (resA, resA, 2);
       mpf_mul (resB, x0, y0);
