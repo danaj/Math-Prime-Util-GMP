@@ -7,6 +7,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - sieve_primes(low,high[,k])          sieve for primes, partial or BPSW
     - is_frobenius_pseudoprime(n,[a,b])   Frobenius quadratic primality test
     - is_perrin_pseudoprime(n)            Perrin primality test
+    - factorial(n)                        n!
+    - bernfrac                            returns (num,den) of Bernoulli number
+    - Pi([digits])                        Pi with requested number of digits
 
     [OTHER]
 
