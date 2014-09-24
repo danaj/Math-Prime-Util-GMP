@@ -4,6 +4,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Fixed compiler warning (error for some compilers).
 
+    - prev_prime uses a sieve for 200+ bits.  20% speedup for large inputs.
+
 0.24 2014-09-22
 
     [ADDED]
