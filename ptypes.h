@@ -4,6 +4,9 @@
 #ifndef _MSC_VER
 #define __STDC_LIMIT_MACROS
 #include <stdint.h>
+#else
+  typedef unsigned __int32 uint32_t;
+  typedef unsigned __int64 uint64_t;
 #endif
 
 #ifdef STANDALONE
