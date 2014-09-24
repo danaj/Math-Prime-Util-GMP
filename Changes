@@ -1,5 +1,9 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.26 2014-?
+
+    - Cleanup invmod, etc. XS parser.  Smaller, removes gcdext mpz_t leak.
+
 0.25 2014-09-23
 
     - Fixed compiler warning (error for some compilers).

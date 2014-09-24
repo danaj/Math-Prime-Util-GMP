@@ -468,44 +468,39 @@ invmod(IN char* stra, IN char* strb)
     jordan_totient = 3
     znorder = 4
   PREINIT:
-    mpz_t ret, a, b;
-    int invertok;
+    mpz_t a, b, t;
+    int retundef;
   PPCODE:
     validate_string_number("invmod", (stra[0]=='-') ? stra+1 : stra);
     validate_string_number("invmod", (strb[0]=='-') ? strb+1 : strb);
     mpz_init_set_str(a, stra, 10);
     mpz_init_set_str(b, strb, 10);
+    retundef = 0;
     if (ix == 0) {
-      mpz_init(ret);
-      if (!mpz_sgn(b) || !mpz_sgn(a))  invertok = 0; /* undef if a|b is zero */
-      else if (!mpz_cmp_ui(b,1))       invertok = 1; /* return 0 */
-      else                             invertok = mpz_invert(ret, a, b);
-      if (invertok) XPUSH_MPZ(ret);
-      mpz_clear(ret);
-      mpz_clear(b); mpz_clear(a);
-      if (!invertok) XSRETURN_UNDEF;
+      /* undef if a|b is zero, 0 if b is 1, otherwise result of mpz_invert */
+      if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
+      else if (!mpz_cmp_ui(b,1))       mpz_set_ui(a,0);
+      else                             retundef = !mpz_invert(a,a,b);
     } else if (ix == 1) {
       if (mpz_sgn(b) < 0) {   /* Handle negative k */
         if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
         else                                      mpz_sub(b, a, b);
       }
       mpz_bin_ui(a, a, mpz_get_ui(b));
-      XPUSH_MPZ(a);
-      mpz_clear(b); mpz_clear(a);
     } else if (ix == 2) {
-      mpz_init(ret);
-      mpz_gcdext(ret, a, b, a, b);
-      XPUSH_MPZ(a);  XPUSH_MPZ(b);  XPUSH_MPZ(ret);
-      mpz_clear(b); mpz_clear(a);
+      mpz_init(t);
+      mpz_gcdext(a, t, b, a, b);
+      XPUSH_MPZ(t);  XPUSH_MPZ(b);
+      mpz_clear(t);
     } else if (ix == 3) {
-      jordan_totient(b, b, mpz_get_ui(a));
-      XPUSH_MPZ(b);
-      mpz_clear(b); mpz_clear(a);
+      jordan_totient(a, b, mpz_get_ui(a));
     } else {
       znorder(a, a, b);
-      if (mpz_sgn(a)) { XPUSH_MPZ(a);  mpz_clear(a);  mpz_clear(b); }
-      else            { mpz_clear(a); mpz_clear(b); XSRETURN_UNDEF; }
+      if (!mpz_sgn(a)) retundef = 1;
     }
+    if (!retundef) XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
+    if (retundef) XSRETURN_UNDEF;
 
 void partitions(IN UV n)
   ALIAS:
