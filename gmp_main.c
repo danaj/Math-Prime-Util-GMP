@@ -1536,21 +1536,28 @@ void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
 {
   mpz_t t, t2;
   unsigned long j;
-  if (type != 1 && type != 2) croak("stirling type must be 1 or 2");
+  if (type < 1 || type > 3) croak("stirling type must be 1, 2, or 3");
   if (n == m) {
     mpz_set_ui(r, 1);
   } else if (n == 0 || m == 0 || m > n) {
     mpz_set_ui(r,0);
   } else if (m == 1) {
-    mpz_set_ui(r, 1);
-    if (type == 1) {
-      mpz_fac_ui(r, n-1);
-      if (!(n&1)) mpz_neg(r, r);
+    switch (type) {
+      case 1:  mpz_fac_ui(r, n-1);  if (!(n&1)) mpz_neg(r, r); break;
+      case 2:  mpz_set_ui(r, 1); break;
+      case 3:
+      default: mpz_fac_ui(r, n); break;
     }
   } else {
     mpz_init(t);  mpz_init(t2);
     mpz_set_ui(r,0);
-    if (type == 2) {
+    if (type == 3) {
+      mpz_bin_uiui(t, n-1, m-1);
+      mpz_fac_ui(t2, n);
+      mpz_mul(r, t, t2);
+      mpz_fac_ui(t2, m);
+      mpz_divexact(r, r, t2);
+    } else if (type == 2) {
       for (j = 1; j <= m; j++) {
         mpz_bin_uiui(t, m, j);
         mpz_ui_pow_ui(t2, j, n);

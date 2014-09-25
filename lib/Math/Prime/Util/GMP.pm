@@ -756,15 +756,18 @@ functions.
   say "s(14,2) = ", stirling(14, 2);
   say "S(14,2) = ", stirling(14, 2, 2);
 
-Returns the Stirling numbers of either the first kind (default) or
-second kind (with a third argument of 2).  It takes two non-negative integer
-arguments C<n< and C<k>.  This corresponds to Pari's C<stirling(n,k,{type})>
-function and Mathematica's C<StirlingS1> / C<StirlingS2> functions.
+Returns the Stirling numbers of either the first kind (default), the
+second kind, or the third kind (the unsigned Lah numbers), with the kind
+selected as an optional third argument.  It takes two non-negative integer
+arguments C<n< and C<k> plus the optional C<type>.  This corresponds to Pari's
+C<stirling(n,k,{type})> function and Mathematica's
+C<StirlingS1> / C<StirlingS2> functions.
 
 Stirling numbers of the first kind are C<-1^(n-k)> times the number of
 permutations of C<n> symbols with exactly C<k> cycles.  Stirling numbers
 of the second kind are the number of ways to partition a set of C<n>
-elements into C<k> subsets.
+elements into C<k> non-empty subsets.  The Lah numbers are the number of
+ways to split a set of C<n> elements into C<k> non-empty lists.
 
 
 =head2 znorder

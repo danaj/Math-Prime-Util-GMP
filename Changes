@@ -2,6 +2,12 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.26 2014-?
 
+    [ADDED]
+
+    - stirling(n,m,[type])      Stirling numbers of first,second,third kind
+
+    [OTHER]
+
     - Cleanup invmod, etc. XS parser.  Smaller, removes gcdext mpz_t leak.
 
 0.25 2014-09-23
