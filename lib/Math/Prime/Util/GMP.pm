@@ -164,7 +164,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot bernfrac
+=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot bernfrac stirling
 
 =head1 NAME
 
@@ -750,6 +750,21 @@ Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
 rational number represented by two L<Math::BigInt> objects.  B_1 = 1/2.
 This corresponds to Pari's C<bernfrac(n)> and Mathematica's C<BernoulliB>
 functions.
+
+=head2 stirling
+
+  say "s(14,2) = ", stirling(14, 2);
+  say "S(14,2) = ", stirling(14, 2, 2);
+
+Returns the Stirling numbers of either the first kind (default) or
+second kind (with a third argument of 2).  It takes two non-negative integer
+arguments C<n< and C<k>.  This corresponds to Pari's C<stirling(n,k,{type})>
+function and Mathematica's C<StirlingS1> / C<StirlingS2> functions.
+
+Stirling numbers of the first kind are C<-1^(n-k)> times the number of
+permutations of C<n> symbols with exactly C<k> cycles.  Stirling numbers
+of the second kind are the number of ways to partition a set of C<n>
+elements into C<k> subsets.
 
 
 =head2 znorder

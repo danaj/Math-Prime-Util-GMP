@@ -63,5 +63,3 @@
   None of these are faster on average than just doing BPSW.
 
 - Documentation and tests for sieve_primes.
-
-- Documentation and tests for stirling.
