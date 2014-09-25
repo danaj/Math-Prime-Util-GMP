@@ -1532,6 +1532,49 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   Safefree(T);
 }
 
+void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
+{
+  mpz_t t, t2;
+  unsigned long j;
+  if (type != 1 && type != 2) croak("stirling type must be 1 or 2");
+  if (n == m) {
+    mpz_set_ui(r, 1);
+  } else if (n == 0 || m == 0 || m > n) {
+    mpz_set_ui(r,0);
+  } else if (m == 1) {
+    mpz_set_ui(r, 1);
+    if (type == 1) {
+      mpz_fac_ui(r, n-1);
+      if (!(n&1)) mpz_neg(r, r);
+    }
+  } else {
+    mpz_init(t);  mpz_init(t2);
+    mpz_set_ui(r,0);
+    if (type == 2) {
+      for (j = 1; j <= m; j++) {
+        mpz_bin_uiui(t, m, j);
+        mpz_ui_pow_ui(t2, j, n);
+        mpz_mul(t, t, t2);
+        if ((m-j) & 1)  mpz_sub(r, r, t);
+        else            mpz_add(r, r, t);
+      }
+      mpz_fac_ui(t, m);
+      mpz_divexact(r, r, t);
+    } else {
+      for (j = 1; j <= n-m; j++) {
+        mpz_bin_uiui(t,  n+j-1, n+j-m);
+        mpz_bin_uiui(t2, n+n-m, n-j-m);
+        mpz_mul(t, t, t2);
+        stirling(t2, n+j-m, j, 2);
+        mpz_mul(t, t, t2);
+        if (j & 1)      mpz_sub(r, r, t);
+        else            mpz_add(r, r, t);
+      }
+    }
+    mpz_clear(t2);  mpz_clear(t);
+  }
+}
+
 
 
 #define TEST_FOR_2357(n, f) \

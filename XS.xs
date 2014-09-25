@@ -552,6 +552,16 @@ void partitions(IN UV n)
       Safefree(pent);
     }
 
+void
+stirling(IN UV n, IN UV m, IN UV type = 1)
+  PREINIT:
+    mpz_t r;
+  PPCODE:
+    mpz_init(r);
+    stirling(r, n, m, type);
+    XPUSH_MPZ( r );
+    mpz_clear(r);
+
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
   PREINIT:
