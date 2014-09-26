@@ -295,6 +295,21 @@ void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
   } while (mpz_sgn(t2));
 }
 
+void mpz_product(mpz_t* A, UV a, UV b) {
+  if (b <= a) {
+    /* nothing */
+  } else if (b == a+1) {
+    mpz_mul(A[a], A[a], A[b]);
+  } else if (b == a+2) {
+    mpz_mul(A[a+1], A[a+1], A[a+2]);
+    mpz_mul(A[a], A[a], A[a+1]);
+  } else {
+    UV c = a + (b-a+1)/2;
+    mpz_product(A, a, c-1);
+    mpz_product(A, c, b);
+    mpz_mul(A[a], A[a], A[c]);
+  }
+}
 
 
 #if 0

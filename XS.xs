@@ -378,14 +378,27 @@ gcd(...)
   ALIAS:
     lcm = 1
     vecsum = 2
+    vecprod = 3
   PREINIT:
     int i;
     mpz_t ret, n;
   PPCODE:
-    if (items == 0)
-      XSRETURN_IV(0);
+    if (items == 0) XSRETURN_IV( (ix == 3) ? 1 : 0);
+    if (ix == 3) {
+      mpz_t* list;
+      New(0, list, items, mpz_t);
+      for (i = 0; i < items; i++) {
+        char* strn = SvPV_nolen(ST(i));
+        validate_string_number("vecprod", (strn[0]=='-') ? strn+1 : strn);
+        mpz_init_set_str(list[i], strn, 10);
+      }
+      mpz_product(list, 0, items-1);
+      XPUSH_MPZ(list[0]);
+      for (i = 0; i < items; i++)  mpz_clear(list[i]);
+      XSRETURN(1);
+    }
     mpz_init(n);
-    mpz_init_set_ui(ret, (ix == 1) ? 1 : 0);
+    mpz_init_set_ui(ret, (ix == 1 || ix == 3) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
       validate_string_number("gcd/lcm", (strn[0]=='-') ? strn+1 : strn);
@@ -394,8 +407,9 @@ gcd(...)
       switch (ix) {
         case 0:  mpz_gcd(ret, ret, n); break;
         case 1:  mpz_lcm(ret, ret, n); break;
-        case 2:
-        default: mpz_add(ret, ret, n); break;
+        case 2:  mpz_add(ret, ret, n); break;
+        case 3:
+        default: mpz_mul(ret, ret, n); break;
       }
     }
     XPUSH_MPZ(ret);
