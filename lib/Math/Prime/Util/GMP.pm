@@ -52,7 +52,8 @@ our @EXPORT_OK = qw(
                      factorial
                      consecutive_integer_lcm
                      partitions bernfrac stirling
-                     gcd lcm kronecker valuation invmod binomial gcdext vecsum
+                     gcd lcm kronecker valuation invmod binomial gcdext
+                     vecsum vecprod
                      exp_mangoldt
                      liouville
                      totient
@@ -164,7 +165,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum moebius totient liouville znorder znprimroot bernfrac stirling
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac stirling
 
 =head1 NAME
 
@@ -713,6 +714,10 @@ C<bezout> out Pari 2.6.  The results will hence match L<Math::Pari/bezout>.
 =head2 vecsum
 
 Returns the sum of all arguments, each of which must be an integer.
+
+=head2 vecprod
+
+Returns the product of all arguments, each of which must be an integer.
 
 =head2 kronecker
 
