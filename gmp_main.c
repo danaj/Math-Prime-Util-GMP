@@ -2522,45 +2522,53 @@ char* pidigits(UV n) {
   }
 #else
   /* AGM using GMP's floating point.  Fast and very good growth. */
+  /* Code from Nigel Galloway 2012 */
   {
-    mpf_t x0, y0, resA, resB, Z, var;
+    mpf_t x0, y0, resA, resB, Z, t, t2;
     int i, k;
+    mp_bitcnt_t oldprec;
  
+    oldprec = mpf_get_default_prec();
     mpf_set_default_prec(10 + n * 3.322);
+    mpf_init(t);  mpf_init(t2);
     mpf_init_set_ui (x0, 1);
-    mpf_init_set_d (y0, 0.5);
-    mpf_sqrt (y0, y0);
+    mpf_init(y0);
     mpf_init (resA);
     mpf_init (resB);
     mpf_init_set_d (Z, 0.25);
-    mpf_init (var);
+
+    mpf_set_d(t, 0.5);
+    mpf_sqrt (y0, t);
  
     for (i = 0, k = 1; k < (int)n; i++) {
       mpf_add (resA, x0, y0);
       mpf_div_ui (resA, resA, 2);
-      mpf_mul (resB, x0, y0);
-      mpf_sqrt (resB, resB);
+      mpf_mul (t, x0, y0);
+      mpf_sqrt (resB, t);
 
-      mpf_sub(var, resA, x0);
-      mpf_mul(var, var, var);
-      mpf_mul_ui(var, var, k);
-      mpf_sub(Z, Z, var);
+      mpf_sub(t, resA, x0);
+      mpf_mul(t2, t, t);
+      mpf_mul_ui(t, t2, k);
+      mpf_sub(Z, Z, t);
       k += k;
 
       mpf_add (x0, resA, resB);
       mpf_div_ui (x0, x0, 2);
-      mpf_mul (y0, resA, resB);
-      mpf_sqrt (y0, y0);
+      mpf_mul (t, resA, resB);
+      mpf_sqrt (y0, t);
 
-      mpf_sub(var, x0, resA);
-      mpf_mul(var, var, var);
-      mpf_mul_ui(var, var, k);
-      mpf_sub(Z, Z, var);
+      mpf_sub(t, x0, resA);
+      mpf_mul(t2, t, t);
+      mpf_mul_ui(t, t2, k);
+      mpf_sub(Z, Z, t);
       k += k;
     }
-    mpf_mul(x0, x0, x0);
-    mpf_div(x0, x0, Z);
+    mpf_mul(t, x0, x0);
+    mpf_div(x0, t, Z);
     gmp_sprintf(out, "%.*Ff", (int)(n-1), x0);
+    mpf_clear(Z); mpf_clear(resB); mpf_clear(resA);
+    mpf_clear(y0); mpf_clear(x0); mpf_clear(t); mpf_clear(t2);
+    mpf_set_default_prec(oldprec);
   }
 #endif
   return out;

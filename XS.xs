@@ -89,7 +89,8 @@ _GMP_miller_rabin(IN char* strn, ...)
       mpz_clear(nm1);
       RETVAL = !mpz_cmp_ui(a,1);
     }
-    mpz_clear(n);  mpz_clear(a);
+    mpz_clear(a);
+    mpz_clear(n);
   OUTPUT:
     RETVAL
 
@@ -395,6 +396,7 @@ gcd(...)
       mpz_product(list, 0, items-1);
       XPUSH_MPZ(list[0]);
       for (i = 0; i < items; i++)  mpz_clear(list[i]);
+      Safefree(list);
       XSRETURN(1);
     }
     mpz_init(n);
@@ -786,6 +788,7 @@ trial_factor(IN char* strn, ...)
         XPUSH_MPZ(f);
         mpz_divexact(n, n, f);
       }
+      mpz_clear(f);
     }
     if (mpz_cmp_ui(n,1) > 0)
       XPUSH_MPZ(n);
