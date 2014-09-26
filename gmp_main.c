@@ -1375,7 +1375,7 @@ void _GMP_next_prime(mpz_t n)
 
   } else if (mpz_sizeinbase(n,2) > 120) {
 
-    return next_prime_with_sieve(n);
+    next_prime_with_sieve(n);
 
   } else {
 
@@ -1404,7 +1404,7 @@ void _GMP_prev_prime(mpz_t n)
 
   } else if (mpz_sizeinbase(n,2) > 200) {
 
-    return prev_prime_with_sieve(n);
+    prev_prime_with_sieve(n);
 
   } else {
 
