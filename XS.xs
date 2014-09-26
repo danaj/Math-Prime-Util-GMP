@@ -510,7 +510,7 @@ void partitions(IN UV n)
   PPCODE:
     if (ix ==1) {
       if (n == 1)
-        XSRETURN_UV(3);
+        XSRETURN_IV(3);
       else if (n > 0) {
         char* pi = pidigits(n);
         XPUSHs(sv_2mortal(newSVpvn(pi, n+1)));
