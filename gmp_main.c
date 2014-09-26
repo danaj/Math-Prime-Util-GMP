@@ -2526,7 +2526,7 @@ char* pidigits(UV n) {
   {
     mpf_t x0, y0, resA, resB, Z, t, t2;
     int i, k;
-    mp_bitcnt_t oldprec;
+    unsigned long oldprec;
  
     oldprec = mpf_get_default_prec();
     mpf_set_default_prec(10 + n * 3.322);
