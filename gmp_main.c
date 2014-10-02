@@ -1458,7 +1458,6 @@ void _GMP_pn_primorial(mpz_t prim, UV n)
 }
 void _GMP_primorial(mpz_t prim, mpz_t n)
 {
-#if 0
   UV p = 2;
   PRIME_ITERATOR(iter);
 
@@ -1485,9 +1484,6 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
     for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
-#else
-  mpz_primorial_ui(prim, mpz_get_ui(n));
-#endif
 }
 
 /* Luschny's version of the "Brent-Harvey" method */
