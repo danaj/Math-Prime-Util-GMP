@@ -1450,20 +1450,19 @@ void _GMP_pn_primorial(mpz_t prim, UV n)
       p = prime_iterator_next(&iter);
       i++;
     }
-    for (i = 0; i < 8; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    for (i = 0; i < 4; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    for (i = 0; i < 2; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    mpz_mul(prim, t[0], t[1]);
+    mpz_product(t, 0, 16-1);
+    mpz_set(prim, t[0]);
     for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
 }
 void _GMP_primorial(mpz_t prim, mpz_t n)
 {
+#if 0
   UV p = 2;
   PRIME_ITERATOR(iter);
 
-  if (mpz_cmp_ui(n, 4000) < 0) {
+  if (mpz_cmp_ui(n, 1000) < 0) {
     /* Simple linear multiplication, one at a time */
     mpz_set_ui(prim, 1);
     while (mpz_cmp_ui(n, p) >= 0) {
@@ -1481,13 +1480,14 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
       p = prime_iterator_next(&iter);
       i++;
     }
-    for (i = 0; i < 8; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    for (i = 0; i < 4; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    for (i = 0; i < 2; i++)  mpz_mul(t[i], t[2*i], t[2*i+1]);
-    mpz_mul(prim, t[0], t[1]);
+    mpz_product(t, 0, 16-1);
+    mpz_set(prim, t[0]);
     for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
+#else
+  mpz_primorial_ui(prim, mpz_get_ui(n));
+#endif
 }
 
 /* Luschny's version of the "Brent-Harvey" method */
