@@ -1,5 +1,13 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.27 2014-?
+
+    [OTHER]
+
+    - Add Goetgheluck binomial code.  For very large inputs this can be
+      thousands of times faster than the GMP 6.0.0a and earlier code.
+  
+
 0.26 2014-09-26
 
     [ADDED]

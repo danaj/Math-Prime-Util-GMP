@@ -40,6 +40,7 @@ extern void _GMP_primorial(mpz_t prim, mpz_t n);
 extern void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m);
 extern void bernfrac(mpz_t num, mpz_t den, mpz_t n);
 extern void stirling(mpz_t r, unsigned long n, unsigned long m, UV type);
+extern void binomial(mpz_t r, UV n, UV k);
 
 extern UV   power_factor(mpz_t n, mpz_t f);
 extern UV   is_power(mpz_t n, UV a);

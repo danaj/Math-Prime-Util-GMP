@@ -498,11 +498,20 @@ invmod(IN char* stra, IN char* strb)
       else if (!mpz_cmp_ui(b,1))       mpz_set_ui(a,0);
       else                             retundef = !mpz_invert(a,a,b);
     } else if (ix == 1) {
+      unsigned long n, k;
       if (mpz_sgn(b) < 0) {   /* Handle negative k */
         if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
         else                                      mpz_sub(b, a, b);
       }
-      mpz_bin_ui(a, a, mpz_get_ui(b));
+      n = mpz_get_ui(a);
+      k = mpz_get_ui(b);
+      if (k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
+        mpz_bin_ui(a, a, k);
+      } else {
+        if (k > n/2) k = n-k;
+        if ( (n > 8000 && k > n/10) || k > 1000)  binomial(a, n, k);
+        else                                      mpz_bin_uiui(a, n, k);
+      }
     } else if (ix == 2) {
       mpz_init(t);
       mpz_gcdext(a, t, b, a, b);

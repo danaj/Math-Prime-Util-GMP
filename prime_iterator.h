@@ -20,4 +20,6 @@ extern UV prime_iterator_next(prime_iterator *iter);
 extern void prime_iterator_setprime(prime_iterator *iter, UV n);
 extern int prime_iterator_isprime(prime_iterator *iter, UV n);
 
+extern UV* sieve_to_n(UV n, UV* count);
+
 #endif

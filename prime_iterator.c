@@ -507,3 +507,40 @@ int prime_iterator_isprime(prime_iterator *iter, UV n)
     return _is_trial_prime(n);
   }
 }
+
+UV* sieve_to_n(UV n, UV* count)
+{
+  UV pi_max, max_buf, i, p, pi;
+  const unsigned char* sieve;
+  UV* primes;
+
+  pi_max = (n < 67)     ? 18
+           : (n < 355991) ? 15+(n/(log(n)-1.09))
+           : (n/log(n)) * (1.0+1.0/log(n)+2.51/(log(n)*log(n)));
+  New(0, primes, pi_max + 10, UV);
+  pi = 0;
+  primes[pi++] =  2; primes[pi++] =  3; primes[pi++] =  5; primes[pi++] =  7;
+  primes[pi++] = 11; primes[pi++] = 13; primes[pi++] = 17; primes[pi++] = 19;
+  primes[pi++] = 23; primes[pi++] = 29;
+
+  if (primary_sieve != 0 && n < 30*PRIMARY_SIZE)
+    sieve = primary_sieve;
+  else
+    sieve = sieve_erat30(n);
+  max_buf = (n/30) + ((n%30) != 0);
+  for (i = 1, p = 30;   i < max_buf;   i++, p += 30) {
+    UV c = sieve[i];
+    if (!(c &   1)) primes[pi++] = p+ 1;
+    if (!(c &   2)) primes[pi++] = p+ 7;
+    if (!(c &   4)) primes[pi++] = p+11;
+    if (!(c &   8)) primes[pi++] = p+13;
+    if (!(c &  16)) primes[pi++] = p+17;
+    if (!(c &  32)) primes[pi++] = p+19;
+    if (!(c &  64)) primes[pi++] = p+23;
+    if (!(c & 128)) primes[pi++] = p+29;
+  }
+  while (pi > 0 && primes[pi-1] > n) pi--;
+  if (sieve != primary_sieve) Safefree(sieve);
+  if (count != 0) *count = pi;
+  return primes;
+}

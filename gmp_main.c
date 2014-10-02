@@ -1582,6 +1582,60 @@ void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
   }
 }
 
+/* Goetgheluck method.  Also thanks to Peter Luschny */
+void binomial(mpz_t r, UV n, UV k)
+{
+  UV fi, nk, sqrtn, piN, prime, i, j;
+  UV* primes;
+  mpz_t* mprimes;
+
+  if (k > n)            { mpz_set_ui(r, 0); return; }
+  if (k == 0 || k == n) { mpz_set_ui(r, 1); return; }
+
+  if (k > n/2)  k = n-k;
+
+  sqrtn = (UV) (sqrt((double)n));
+  fi = 0;
+  nk = n-k;
+  primes = sieve_to_n(n, &piN);
+
+#define PUSHP(p) \
+ do { \
+   if ((j++ % 8) == 0) mpz_init_set_ui(mprimes[fi++], p); \
+   else                mpz_mul_ui(mprimes[fi-1], mprimes[fi-1], p); \
+ } while (0)
+
+  New(0, mprimes, (piN+7)/8, mpz_t);
+
+  for (i = 0, j = 0; i < piN; i++) {
+    prime = primes[i];
+    if (prime > nk) {
+      PUSHP(prime);
+    } else if (prime > n/2) {
+      /* nothing */
+    } else if (prime > sqrtn) {
+      if (n % prime < k % prime)
+        PUSHP(prime);
+    } else {
+      UV N = n, K = k, p = 1, r = 0;
+      while (N > 0) {
+        r = (N % prime) < (K % prime + r) ? 1 : 0;
+        if (r == 1)  p *= prime;
+        N /= prime;
+        K /= prime;
+      }
+      if (p > 1)
+        PUSHP(p);
+    }
+  }
+  Safefree(primes);
+  mpz_product(mprimes, 0, fi-1);
+  mpz_set(r, mprimes[0]);
+  for (i = 0; i < fi; i++)
+    mpz_clear(mprimes[i]);
+  Safefree(mprimes);
+}
+
 
 
 #define TEST_FOR_2357(n, f) \
