@@ -764,7 +764,7 @@ functions.
 Returns the Stirling numbers of either the first kind (default), the
 second kind, or the third kind (the unsigned Lah numbers), with the kind
 selected as an optional third argument.  It takes two non-negative integer
-arguments C<n< and C<k> plus the optional C<type>.  This corresponds to Pari's
+arguments C<n> and C<k> plus the optional C<type>.  This corresponds to Pari's
 C<stirling(n,k,{type})> function and Mathematica's
 C<StirlingS1> / C<StirlingS2> functions.
 

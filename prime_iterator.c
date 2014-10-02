@@ -326,22 +326,37 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
  * the primary sieve and won't redo for segments until after 5*10^11.  Each
  * segment will store a range of 30*(16384-16) = 491040 numbers.
  */
-#define PRIMARY_SIZE (32768-16)
-#define SEGMENT_SIZE (24576-16)
+#define PRIMARY_SIZE  (32768-16)
+#define SEGMENT_SIZE  (24576-16)
+#define NSMALL_PRIMES (83970-180)
 
 static const unsigned char* primary_sieve = 0;
 static const UV primary_limit = (30 * PRIMARY_SIZE)-1;
+static const uint32_t* small_primes = 0;
+static UV num_small_primes = 0;
 
 void prime_iterator_global_startup(void)
 {
   primary_sieve = sieve_erat30(primary_limit);
+#ifdef NSMALL_PRIMES
+  {
+    UV p;
+    uint32_t *primes32;
+    UV *primes64 = sieve_to_n(NSMALL_PRIMES + 180, &num_small_primes);
+    New(0, primes32, num_small_primes, uint32_t);
+    for (p = 0; p < num_small_primes; p++)  primes32[p] = primes64[p];
+    Safefree(primes64);
+    small_primes = primes32;
+  }
+#endif
 }
 
 void prime_iterator_global_shutdown(void)
 {
-  if (primary_sieve != 0)
-    Safefree(primary_sieve);
+  if (primary_sieve != 0)  Safefree(primary_sieve);
+  if (small_primes != 0)   Safefree(small_primes);
   primary_sieve = 0;
+  small_primes = 0;
 }
 
 #if 0
@@ -369,6 +384,22 @@ void prime_iterator_destroy(prime_iterator *iter)
   iter->p = 0;
 }
 
+#ifdef NSMALL_PRIMES
+static UV pcount(UV n)
+{
+  UV lo = 0 + n>>4;
+  UV hi = num_small_primes;
+  if (n < 8480) { if (hi > 1060) hi = 1060; }
+  else          { if (hi > (n>>3)) hi = n>>3; }
+  while (lo < hi) {
+    UV mid = lo + (hi-lo)/2;
+    if (small_primes[mid] <= n) lo = mid+1;
+    else                        hi = mid;
+  }
+  return lo;   /* Because 2 is stored at location 0 */
+}
+#endif
+
 void prime_iterator_setprime(prime_iterator *iter, UV n) {
   /* Is it inside the current segment? */
   if (    (iter->segment_mem != 0)
@@ -378,13 +409,17 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
     return;
   }
   prime_iterator_destroy(iter);
-  /* Is it inside the primary cache range? */
-  if (n <= primary_limit) {
+#ifdef NSMALL_PRIMES
+  /* In small area? */
+  if (n < NSMALL_PRIMES) {
+    UV pc = pcount(n);
+    iter->segment_start = pc-1;
+    iter->p = (pc == 0)  ?  2  :  small_primes[pc-1];
+  } else
+#endif
+  if (n <= primary_limit) { /* Is it inside the primary cache range? */
     iter->p = n;
-    return;
-  }
-  /* Sieve this range */
-  {
+  } else { /* Sieve this range */
     UV lod, hid;
     lod = n/30;
     hid = lod + SEGMENT_SIZE;
@@ -400,9 +435,15 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
 UV prime_iterator_next(prime_iterator *iter)
 {
   UV lod, hid, seg_beg, seg_end;
-  const unsigned char* sieve = iter->segment_mem;
+  const unsigned char* sieve;
   UV n = iter->p;
 
+#ifdef NSMALL_PRIMES
+  if (n < NSMALL_PRIMES) {
+    iter->p = small_primes[++iter->segment_start];
+    return iter->p;
+  }
+#else
   if (n < 11) {
     switch (n) {
       case 0: case 1:  iter->p =  2; break;
@@ -413,6 +454,7 @@ UV prime_iterator_next(prime_iterator *iter)
     }
     return iter->p;
   }
+#endif
 
   /* Primary sieve */
   if (primary_sieve != 0 && n < 30*PRIMARY_SIZE) {
@@ -423,6 +465,7 @@ UV prime_iterator_next(prime_iterator *iter)
     }
   }
 
+  sieve = iter->segment_mem;
   /* Current segment */
   if (sieve != 0) {
     seg_beg = iter->segment_start;
@@ -514,10 +557,21 @@ UV* sieve_to_n(UV n, UV* count)
   const unsigned char* sieve;
   UV* primes;
 
+#ifdef NSMALL_PRIMES
+  if (small_primes != 0 && n < NSMALL_PRIMES) {
+    pi = pcount(n);
+    New(0, primes, pi, UV);
+    for (i = 0; i < pi; i++)  primes[i] = small_primes[i];
+    if (count != 0) *count = pi;
+    return primes;
+  }
+#endif
+
   pi_max = (n < 67)     ? 18
            : (n < 355991) ? 15+(n/(log(n)-1.09))
            : (n/log(n)) * (1.0+1.0/log(n)+2.51/(log(n)*log(n)));
   New(0, primes, pi_max + 10, UV);
+
   pi = 0;
   primes[pi++] =  2; primes[pi++] =  3; primes[pi++] =  5; primes[pi++] =  7;
   primes[pi++] = 11; primes[pi++] = 13; primes[pi++] = 17; primes[pi++] = 19;
