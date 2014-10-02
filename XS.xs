@@ -509,8 +509,11 @@ invmod(IN char* stra, IN char* strb)
         mpz_bin_ui(a, a, k);
       } else {
         if (k > n/2) k = n-k;
-        if ( (n > 8000 && k > n/10) || k > 1000)  binomial(a, n, k);
-        else                                      mpz_bin_uiui(a, n, k);
+        /* Note: mpz_bin_uiui is *much* faster than mpz_bin_ui.  It is a
+         * bit faster than our code for small values, and a tiny bit slower
+         * for larger values. */
+        if (n > 50000 && k > 1000)  binomial(a, n, k);
+        else                        mpz_bin_uiui(a, n, k);
       }
     } else if (ix == 2) {
       mpz_init(t);

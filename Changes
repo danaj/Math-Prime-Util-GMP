@@ -4,9 +4,12 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [OTHER]
 
-    - Add Goetgheluck binomial code.  For very large inputs this can be
-      thousands of times faster than the GMP 6.0.0a and earlier code.
-  
+    - Add Goetgheluck binomial code, and also switch to mpz_bin_uiui for the
+      alternate builtin.  For very large inputs this can be thousands of times
+      faster than mpz_bin_ui.
+
+    - Cache ~32k worth of small primes to give a little speedup in many places.
+
 
 0.26 2014-09-26
 
@@ -21,11 +24,13 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Fixed some leaked mpz_t / mpz_f objects.
 
+
 0.25 2014-09-23
 
     - Fixed compiler warning (error for some compilers).
 
     - prev_prime uses a sieve for 200+ bits.  20% speedup for large inputs.
+
 
 0.24 2014-09-22
 
