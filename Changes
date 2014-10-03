@@ -10,6 +10,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Cache ~32k worth of small primes to give a little speedup in many places.
 
+    - Switch to my original AGM code, slightly faster for large values.
+
 
 0.26 2014-09-26
 

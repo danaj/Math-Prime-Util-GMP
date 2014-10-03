@@ -2572,52 +2572,35 @@ char* pidigits(UV n) {
   }
 #else
   /* AGM using GMP's floating point.  Fast and very good growth. */
-  /* Code from Nigel Galloway 2012 */
   {
-    mpf_t x0, y0, resA, resB, Z, t, t2;
-    int i, k;
-    unsigned long oldprec;
- 
-    oldprec = mpf_get_default_prec();
+    mpf_t t, an, bn, tn, prev_an;
+    UV k = 0;
+    unsigned long oldprec = mpf_get_default_prec();
     mpf_set_default_prec(10 + n * 3.322);
-    mpf_init(t);  mpf_init(t2);
-    mpf_init_set_ui (x0, 1);
-    mpf_init(y0);
-    mpf_init (resA);
-    mpf_init (resB);
-    mpf_init_set_d (Z, 0.25);
 
-    mpf_set_d(t, 0.5);
-    mpf_sqrt (y0, t);
+    mpf_init(t);  mpf_init(prev_an);
+    mpf_init_set_d(an, 1);  mpf_init_set_d(bn, 0.5);  mpf_init_set_d(tn, 0.25);
+    mpf_sqrt(bn, bn);
  
-    for (i = 0, k = 1; k < (int)n; i++) {
-      mpf_add (resA, x0, y0);
-      mpf_div_ui (resA, resA, 2);
-      mpf_mul (t, x0, y0);
-      mpf_sqrt (resB, t);
-
-      mpf_sub(t, resA, x0);
-      mpf_mul(t2, t, t);
-      mpf_mul_ui(t, t2, k);
-      mpf_sub(Z, Z, t);
-      k += k;
-
-      mpf_add (x0, resA, resB);
-      mpf_div_ui (x0, x0, 2);
-      mpf_mul (t, resA, resB);
-      mpf_sqrt (y0, t);
-
-      mpf_sub(t, x0, resA);
-      mpf_mul(t2, t, t);
-      mpf_mul_ui(t, t2, k);
-      mpf_sub(Z, Z, t);
-      k += k;
+    while ((n >> k) > 0) {
+      mpf_set(prev_an, an);
+      mpf_add(t, an, bn);
+      mpf_div_ui(an, t, 2);
+      mpf_mul(t, bn, prev_an);
+      mpf_sqrt(bn, t);
+      mpf_sub(prev_an, prev_an, an);
+      mpf_mul(t, prev_an, prev_an);
+      mpf_mul_2exp(t, t, k);
+      mpf_sub(tn, tn, t);
+      k++;
     }
-    mpf_mul(t, x0, x0);
-    mpf_div(x0, t, Z);
-    gmp_sprintf(out, "%.*Ff", (int)(n-1), x0);
-    mpf_clear(Z); mpf_clear(resB); mpf_clear(resA);
-    mpf_clear(y0); mpf_clear(x0); mpf_clear(t); mpf_clear(t2);
+    mpf_add(t, an, bn);
+    mpf_mul(an, t, t);
+    mpf_mul_2exp(t, tn, 2);
+    mpf_div(bn, an, t);
+    gmp_sprintf(out, "%.*Ff", (int)(n-1), bn);
+    mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
+    mpf_clear(prev_an); mpf_clear(t);
     mpf_set_default_prec(oldprec);
   }
 #endif
