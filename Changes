@@ -12,6 +12,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Switch to my original AGM code, slightly faster for large values.
 
+    - Don't use mp_bitcnt_t -- old GMPs don't have this type.
+
 
 0.26 2014-09-26
 
