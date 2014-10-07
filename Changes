@@ -1,20 +1,21 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.27 2014-?
+0.27 2014-10-07
 
-    [OTHER]
+    [PERFORMANCE]
 
-    - Add Goetgheluck binomial code, and also switch to mpz_bin_uiui for the
-      alternate builtin.  For very large inputs this can be thousands of times
-      faster than mpz_bin_ui.
+    - Minor changes to factor recipe, should give a little speedup.
 
     - Cache ~32k worth of small primes to give a little speedup in many places.
 
     - Switch to my original AGM code, slightly faster for large values.
 
-    - Don't use mp_bitcnt_t -- old GMPs don't have this type.
+    - Add Goetgheluck binomial code, and switch to mpz_bin_uiui for builtin.
+      For large inputs this can be thousands of times faster than mpz_bin_ui.
 
-    - Slight changes to factor recipe, should give small speedup.
+    [OTHER]
+
+    - Don't use mp_bitcnt_t -- old GMPs don't have this type.
 
 
 0.26 2014-09-26
@@ -59,7 +60,7 @@ Revision history for Perl module Math::Prime::Util::GMP
          = 128.4s  GMP 5.0.2 mpz_nextprime
          =  57.6s  old MPU
          =  45.5s  new MPU
-    
+
     - New version of Frobenius-Underwood test to match the 2014 draft paper.
       This is just a code refresh and has no other effect.
 

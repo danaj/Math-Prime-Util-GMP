@@ -387,10 +387,9 @@ void prime_iterator_destroy(prime_iterator *iter)
 #ifdef NSMALL_PRIMES
 static UV pcount(UV n)
 {
-  UV lo = 0 + n>>4;
-  UV hi = num_small_primes;
-  if (n < 8480) { if (hi > 1060) hi = 1060; }
-  else          { if (hi > (n>>3)) hi = n>>3; }
+  UV lo = 0 + (n >> 4);
+  UV hi = (n >> 3) - (n >> 6) + ( (n<503) ? 40 : (n<1669) ? 80 : 139 );
+  if (hi > num_small_primes) hi = num_small_primes;
   while (lo < hi) {
     UV mid = lo + (hi-lo)/2;
     if (small_primes[mid] <= n) lo = mid+1;

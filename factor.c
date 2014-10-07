@@ -200,15 +200,17 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
 
       /* Small p-1 */
-      if (nbits < 100 || nbits >= 160) {
-        if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 3000000);
-        if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+      if (!success) {
+        nbits = mpz_sizeinbase(n, 2);
+        if (nbits < 100 || nbits >= 160) {
+          success = _GMP_pminus1_factor(n, f, 200000, 3000000);
+          if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+        }
       }
 
       /* Set ECM parameters that have a good chance of success */
       if (!success) {
         UV curves;
-        nbits = mpz_sizeinbase(n, 2);
         if      (nbits < 100){ B1 =   5000; curves =  20; }
         else if (nbits < 128){ B1 =  10000; curves =   2; } /* go to QS */
         else if (nbits < 160){ B1 =  20000; curves =   2; } /* go to QS */
