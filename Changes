@@ -14,6 +14,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Don't use mp_bitcnt_t -- old GMPs don't have this type.
 
+    - Slight changes to factor recipe, should give small speedup.
+
 
 0.26 2014-09-26
 

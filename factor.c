@@ -188,35 +188,39 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (!success)  success = (int)power_factor(n, f);
       if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
-      if (!success)  success = _GMP_pminus1_factor(n, f, 10000, 150000);
+      if (!success)  success = _GMP_pminus1_factor(n, f, 15000, 150000);
       if (success&&o) {gmp_printf("p-1 (10k) found factor %Zd\n", f);o=0;}
 
-      /* Really small ECM to find small factors */
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 150, 30);
-      if (success&&o) {gmp_printf("tiny ecm (150) found factor %Zd\n", f);o=0;}
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 500, 25);
-      if (success&&o) {gmp_printf("tiny ecm (500) found factor %Zd\n", f);o=0;}
+      /* Small ECM to find small factors */
+      if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
+      if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
+      if (!success)  success = _GMP_ECM_FACTOR(n, f, 600, 20);
+      if (success&&o) {gmp_printf("tiny ecm (600) found factor %Zd\n", f);o=0;}
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 10);
       if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
 
       /* Small p-1 */
-      if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 3000000);
-      if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+      if (nbits < 100 || nbits >= 160) {
+        if (!success)  success = _GMP_pminus1_factor(n, f, 200000, 3000000);
+        if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+      }
 
       /* Set ECM parameters that have a good chance of success */
       if (!success) {
         UV curves;
         nbits = mpz_sizeinbase(n, 2);
         if      (nbits < 100){ B1 =   5000; curves =  20; }
-        else if (nbits < 128){ B1 =  10000; curves =   5; } /* go to QS */
-        else if (nbits < 160){ B1 =  20000; curves =   5; } /* go to QS */
+        else if (nbits < 128){ B1 =  10000; curves =   2; } /* go to QS */
+        else if (nbits < 160){ B1 =  20000; curves =   2; } /* go to QS */
         else if (nbits < 192){ B1 =  30000; curves =  20; }
         else if (nbits < 224){ B1 =  40000; curves =  40; }
         else if (nbits < 256){ B1 =  80000; curves =  40; }
         else if (nbits < 512){ B1 = 160000; curves =  80; }
         else                 { B1 = 320000; curves = 160; }
-        success = _GMP_ECM_FACTOR(n, f, B1, curves);
-        if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
+        if (curves > 0) {
+          success = _GMP_ECM_FACTOR(n, f, B1, curves);
+          if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
+        }
       }
 
       /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
