@@ -24,6 +24,10 @@
    This code goes through curves slightly faster than v2.0, but with big
    inputs it ends up needing 2x the time because of not combining partials
    as well as the final linear algebra time.
+
+   To compile standalone:
+   gcc -O2 -DSTANDALONE_SIMPQS -DSTANDALONE simpqs.c utility.c -lgmp -lm
+
 ============================================================================*/
 
 /*============================================================================
@@ -56,10 +60,12 @@
 #ifdef STANDALONE_SIMPQS
   typedef unsigned long UV;
   typedef   signed long IV;
-  #define INLINE
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
+  /*
+  #define INLINE
   #define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
+  */
   #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
   #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
   #define Safefree(mem)             free((void*)mem)
