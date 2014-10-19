@@ -31,7 +31,7 @@ static const unsigned short primes_small[] =
    1949,1951,1973,1979,1987,1993,1997,1999,2003,2011};
 #define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
 
-#define TRIAL_LIM 2000
+#define TRIAL_LIM 2011
 #define MAX_FACTORS 256
 
 static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
@@ -170,7 +170,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
        * of many 12-digit or 14-digit primes should take under 10 seconds.
        */
 
-      if (mpz_cmp_ui(n, (unsigned long)(UV_MAX>>2)) < 0) {
+      if (mpz_cmp_ui(n, (unsigned long)(UV_MAX>>4)) < 0) {
         UV ui_n = mpz_get_ui(n);
         UV ui_factors[2];
         if (!mpz_cmp_ui(n, ui_n)) {
