@@ -1903,6 +1903,8 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_t b, bm, bmdiff;
     mpz_t precomp_bm[111];
     int   is_precomp[111] = {0};
+    UV* primes = 0;
+    UV sp;
 
     mpz_init(bmdiff);
     mpz_init_set(bm, a);
@@ -1921,13 +1923,19 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     }
 
     mpz_powm_ui(a, a, q, n );
+    if (B2 < 10000000) {
+      /* grab all the primes at once.  Hack around non-perfect iterator. */
+      primes = sieve_to_n(B2+300, 0);
+      for (sp = B1>>4; primes[sp] <= q; sp++)  ;
+      /* q is primes <= B1, primes[sp] is the next prime */
+    }
 
     j = 31;
     while (q <= B2) {
       UV lastq, qdiff;
 
       lastq = q;
-      q = prime_iterator_next(&iter);
+      q = primes ? primes[sp++] : prime_iterator_next(&iter);
       qdiff = (q - lastq) / 2 - 1;
 
       if (qdiff < 111 && is_precomp[qdiff]) {
@@ -1961,6 +1969,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
       if (is_precomp[j])
         mpz_clear(precomp_bm[j]);
     }
+    if (primes != 0) Safefree(primes);
     if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
       goto end_success;
   }

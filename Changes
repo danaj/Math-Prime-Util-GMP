@@ -1,5 +1,14 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.28 2014-?
+
+    [PERFORMANCE]
+
+    - Update UV SQUFOF factoring code, faster factoring once reduced in size.
+
+    - Slightly better P-1 stage 2 performance.
+
+
 0.27 2014-10-07
 
     [PERFORMANCE]
