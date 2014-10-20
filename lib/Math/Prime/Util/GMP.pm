@@ -88,8 +88,9 @@ sub _validate_positive_integer {
   if (ref($n) eq 'Math::BigInt' && $n->can("sign")) {
     croak "Parameter '$n' must be a positive integer" unless $n->sign() eq '+';
   } else {
-    croak "Parameter '$n' must be a positive integer"
-          if $n eq '' || $n =~ tr/0123456789//c;
+    my $sn = "$n";
+    croak "Parameter '$sn' must be a positive integer"
+          if $sn eq '' || $sn =~ tr/0123456789//c;
   }
   croak "Parameter '$n' must be >= $min" if defined $min && $n < $min;
   croak "Parameter '$n' must be <= $max" if defined $max && $n > $max;
