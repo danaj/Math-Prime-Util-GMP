@@ -8,6 +8,15 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Slightly better P-1 stage 2 performance.
 
+    - Slightly deeper trial division in general factoring.
+
+    - Big reduction in average depth of unfactored stack.  We work on smaller
+      composite factors first, and add repeated factors all at once.  This
+      fixes some pathological inputs such as:
+          vecprod( map { $_*($_+2)**17 } @{twin_primes(100000,115000)} )
+      which has 2574 factors and would overflow the 256-element stack.  With
+      the new code it has a maximum stack depth of 3.
+
 
 0.27 2014-10-07
 

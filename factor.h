@@ -4,6 +4,8 @@
 #include <gmp.h>
 #include "ptypes.h"
 
+extern void _init_factor(void);
+
 extern int factor(mpz_t n, mpz_t* factors[], int* exponents[]);
 extern void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[]);
 

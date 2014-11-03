@@ -9,30 +9,24 @@
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
-static const unsigned short primes_small[] =
-  {0,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,
-   101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,
-   193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
-   293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,
-   409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,
-   521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,
-   641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,
-   757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,
-   881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009,
-   1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069,1087,1091,1093,
-   1097,1103,1109,1117,1123,1129,1151,1153,1163,1171,1181,1187,1193,1201,
-   1213,1217,1223,1229,1231,1237,1249,1259,1277,1279,1283,1289,1291,1297,
-   1301,1303,1307,1319,1321,1327,1361,1367,1373,1381,1399,1409,1423,1427,
-   1429,1433,1439,1447,1451,1453,1459,1471,1481,1483,1487,1489,1493,1499,
-   1511,1523,1531,1543,1549,1553,1559,1567,1571,1579,1583,1597,1601,1607,
-   1609,1613,1619,1621,1627,1637,1657,1663,1667,1669,1693,1697,1699,1709,
-   1721,1723,1733,1741,1747,1753,1759,1777,1783,1787,1789,1801,1811,1823,
-   1831,1847,1861,1867,1871,1873,1877,1879,1889,1901,1907,1913,1931,1933,
-   1949,1951,1973,1979,1987,1993,1997,1999,2003,2011};
-#define NPRIMES_SMALL (sizeof(primes_small)/sizeof(primes_small[0]))
+#define NPRIMES_SMALL 2000
+static unsigned short primes_small[NPRIMES_SMALL];
+void _init_factor(void) {
+  UV pn;
+  PRIME_ITERATOR(iter);
+  primes_small[0] = 0;
+  primes_small[1] = 2;
+  for (pn = 2; pn < NPRIMES_SMALL; pn++) {
+    primes_small[pn] = prime_iterator_next(&iter);
+  }
+  prime_iterator_destroy(&iter);
+}
 
-#define TRIAL_LIM 2011
-#define MAX_FACTORS 256
+/* Max number of factors on the unfactored stack, not the max total factors.
+ * This is used when we split n into two or more composites.  Since we work
+ * on the smaller of the composites first, this rarely goes above 10 even
+ * with thousands of non-trivial factors. */
+#define MAX_FACTORS 128
 
 static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
 {
@@ -96,7 +90,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   int* exponents = 0;
   int nfactors = 0;
   mpz_t f, n;
-  UV tf;
+  UV tf, tlim;
 
   mpz_init_set(n, input_n);
   mpz_init(f);
@@ -111,21 +105,21 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
     ADD_FACTOR_UI(f, 2);
     mpz_divexact_ui(n, n, 2);
   }
+  tlim = (mpz_sizeinbase(n,2) > 80)  ?  4001  :  16001;
   {
     UV sp, p, un;
-    un = (mpz_cmp_ui(n,2*TRIAL_LIM*TRIAL_LIM) >= 0) ? 2*TRIAL_LIM*TRIAL_LIM
-                                                    : mpz_get_ui(n);
+    un = (mpz_cmp_ui(n,2*tlim*tlim) >= 0) ? 2*tlim*tlim : mpz_get_ui(n);
 
     for (sp = 2, p = primes_small[sp];
-         p < TRIAL_LIM && p*p <= un;
+         p < tlim && p*p <= un;
          p = primes_small[++sp]) {
       while (mpz_divisible_ui_p(n, p)) {
         ADD_FACTOR_UI(f, p);
         mpz_divexact_ui(n, n, p);
-        un = (mpz_cmp_ui(n,2*TRIAL_LIM*TRIAL_LIM) > 0) ? 2*TRIAL_LIM*TRIAL_LIM
-                                                       : mpz_get_ui(n);
+        un = (mpz_cmp_ui(n,2*tlim*tlim) > 0) ? 2*tlim*tlim : mpz_get_ui(n);
       }
     }
+
     if (un < p*p) {
       if (un > 1)
         ADD_FACTOR(n);
@@ -138,8 +132,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   if (tf) {
     mpz_t* pow_factors;
     int* pow_exponents;
-    int pow_nfactors;
-    int i, j;
+    int pow_nfactors, i, j;
 
     pow_nfactors = factor(f, &pow_factors, &pow_exponents);
     for (i = 0; i < pow_nfactors; i++)
@@ -152,7 +145,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   }
 
   do { /* loop over each remaining factor */
-    while ( mpz_cmp_ui(n, TRIAL_LIM*TRIAL_LIM) > 0 && !_GMP_is_prob_prime(n) ) {
+    while ( mpz_cmp_ui(n, tlim*tlim) > 0 && !_GMP_is_prob_prime(n) ) {
       int success = 0;
       int o = get_verbose_level();
       UV nbits, B1 = 5000;
@@ -189,7 +182,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
 
       if (!success)  success = _GMP_pminus1_factor(n, f, 15000, 150000);
-      if (success&&o) {gmp_printf("p-1 (10k) found factor %Zd\n", f);o=0;}
+      if (success&&o) {gmp_printf("p-1 (15k) found factor %Zd\n", f);o=0;}
 
       /* Small ECM to find small factors */
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
@@ -241,7 +234,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
           /* We found multiple factors */
           for (i = 2; i < nfactors; i++) {
             if (o){gmp_printf("SIMPQS found extra factor %Zd\n",farray[i]);}
-            if (ntofac == MAX_FACTORS-1) croak("Too many factors\n");
+            if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
             mpz_init_set(tofac_stack[ntofac], farray[i]);
             ntofac++;
             mpz_divexact(n, n, farray[i]);
@@ -313,16 +306,32 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         if (get_verbose_level()) gmp_printf("gave up on %Zd\n", n);
         ADD_FACTOR(n);
         mpz_set_ui(n, 1);
-      } else if (_GMP_is_prob_prime(f)) {
-        int ndiv = mpz_remove(n, n, f);
-        while (ndiv-- > 0)
-          ADD_FACTOR(f);
       } else {
         int ndiv = mpz_remove(n, n, f);
-        if (ntofac == MAX_FACTORS-ndiv)
-          croak("Too many factors\n");
-        while (ndiv-- > 0)
-          mpz_init_set(tofac_stack[ntofac++], f);
+        if (_GMP_is_prob_prime(f)) { /* prime factor */
+          while (ndiv-- > 0)
+            ADD_FACTOR(f);
+        } else if (ndiv > 1) {       /* Repeated non-trivial composite factor */
+          mpz_t* pow_factors;
+          int* pow_exponents;
+          int pow_nfactors, i, j;
+          pow_nfactors = factor(f, &pow_factors, &pow_exponents);
+          for (i = 0; i < pow_nfactors; i++)
+            pow_exponents[i] *= ndiv;
+          for (i = 0; i < pow_nfactors; i++)
+            for (j = 0; j < pow_exponents[i]; j++)
+              ADD_FACTOR(pow_factors[i]);
+          clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
+        } else {                     /* One non-trivial composite factor */
+          if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
+          /* If f < n and both are composites, put n on stack and work on f */
+          if (mpz_cmp(f, n) < 0 && !_GMP_is_prob_prime(n)) {
+            mpz_init_set(tofac_stack[ntofac++], n);
+            mpz_set(n, f);
+          } else {
+            mpz_init_set(tofac_stack[ntofac++], f);
+          }
+        }
       }
     }
     /* n is now prime or 1 */

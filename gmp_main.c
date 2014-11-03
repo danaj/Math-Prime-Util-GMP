@@ -46,6 +46,7 @@ void _GMP_init(void)
   _GMP_pn_primorial(_bgcd, BGCD_PRIMES);   /* mpz_primorial_ui(_bgcd, 1000) */
   mpz_init_set_ui(_bgcd2, 0);
   mpz_init_set_ui(_bgcd3, 0);
+  _init_factor();
 }
 
 void _GMP_destroy(void)
