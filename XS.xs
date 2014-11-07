@@ -533,10 +533,13 @@ invmod(IN char* stra, IN char* strb)
 void partitions(IN UV n)
   ALIAS:
     Pi = 1
+    is_mersenne_prime = 2
   PREINIT:
     UV i, j, k;
   PPCODE:
-    if (ix ==1) {
+    if (ix == 2) {
+      XSRETURN_IV(lucas_lehmer(n));
+    } else if (ix == 1) {
       if (n == 1)
         XSRETURN_IV(3);
       else if (n > 0) {

@@ -29,6 +29,7 @@ our @EXPORT_OK = qw(
                      is_perrin_pseudoprime
                      is_frobenius_pseudoprime
                      is_frobenius_underwood_pseudoprime
+                     is_mersenne_prime
                      miller_rabin_random
                      lucas_sequence
                      primes
@@ -576,6 +577,16 @@ of Bernstein that can reduce this a little, but it would still take years
 for numbers that ECPP or APR-CL can prove in seconds.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
+
+=head2 is_mersenne_prime
+
+  say "2^607-1 (M607) is a Mersenne prime" if is_mersenne_prime(607);
+
+Takes a positive number C<p> as input and returns 1 if C<2^p-1> is prime.
+After some pre-testing, the Lucas-Lehmer test is performed.
+This is a deterministic unconditional test that runs very fast compared
+to other primality methods for numbers of comparable size, and vastly
+faster than any known general-form primality proof methods.
 
 =head2 is_nminus1_prime
 

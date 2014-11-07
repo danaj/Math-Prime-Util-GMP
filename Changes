@@ -2,6 +2,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.28 2014-?
 
+    [ADDED]
+    - is_mersenne_prime(p)      returns 1 iff 2^p-1 is prime
+
     [PERFORMANCE]
 
     - Update UV SQUFOF factoring code, faster factoring once reduced in size.

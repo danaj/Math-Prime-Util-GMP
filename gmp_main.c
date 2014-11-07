@@ -255,6 +255,50 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   mpz_mod(V, V, n);
 }
 
+int lucas_lehmer(UV p)
+{
+  UV k;
+  int res;
+  mpz_t V, mp, t;
+
+  if (p == 2) return 1;
+  if (!(p&1)) return 0;
+
+  mpz_init_set_ui(t, p);
+  if (!_GMP_is_prob_prime(t)) {    /* p must be prime */
+    mpz_clear(t);
+    return 0;
+  }
+  if (p > 3 && p % 4 == 3) {       /* if p and 2p+1 prime and p=3 mod 4, */
+    mpz_mul_ui(t, t, 2);           /* then 2p+1 | 2^p-1                  */
+    mpz_add_ui(t, t, 1);
+    if (_GMP_is_prob_prime(t)) {
+      mpz_clear(t);
+      return 0;
+    }
+  }
+  mpz_init(mp);
+  mpz_setbit(mp, p);
+  mpz_sub_ui(mp, mp, 1);
+  mpz_init_set_ui(V, 4);
+
+  for (k = 3; k <= p; k++) {
+    mpz_mul(V, V, V);
+    mpz_sub_ui(V, V, 2);
+    /* mpz_mod(V, V, mp) but more efficiently done given mod 2^p-1 */
+    if (mpz_sgn(V) < 0) mpz_add(V, V, mp);
+    /* while (n > mp) { n = (n >> p) + (n & mp) } if (n==mp) n=0 */
+    /* but in this case we can have at most one loop plus a carry */
+    mpz_tdiv_r_2exp(t, V, p);
+    mpz_tdiv_q_2exp(V, V, p);
+    mpz_add(V, V, t);
+    while (mpz_cmp(V, mp) >= 0) mpz_sub(V, V, mp);
+  }
+  res = !mpz_sgn(V);
+  mpz_clear(t); mpz_clear(mp); mpz_clear(V);
+  return res;
+}
+
 static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 {
   IV D = 5;
@@ -1905,7 +1949,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_t precomp_bm[111];
     int   is_precomp[111] = {0};
     UV* primes = 0;
-    UV sp;
+    UV sp = 1;
 
     mpz_init(bmdiff);
     mpz_init_set(bm, a);

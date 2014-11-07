@@ -43,6 +43,7 @@ t/22-partitions.t
 t/23-gcd.t
 t/24-bernfrac.t
 t/25-pi.t
+t/26-mersenne.t
 t/50-factoring.t
 t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
