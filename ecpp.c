@@ -615,9 +615,12 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
   downresult = _GMP_is_prob_prime(Ni);
   if (downresult == 0)  return 0;
   if (downresult == 2) {
-    /* No need to put anything in the proof */
-    if (verbose) printf("%*sN[%d] (%d dig)  PRIME\n", i, "", i, nidigits);
-    return 2;
+    if (mpz_sizeinbase(Ni,2) <= 64) {
+      /* No need to put anything in the proof */
+      if (verbose) printf("%*sN[%d] (%d dig)  PRIME\n", i, "", i, nidigits);
+      return 2;
+    }
+    downresult = 1;
   }
   if (i == 0 && facstage == 2 && _GMP_miller_rabin_random(Ni, 2, 0) == 0) {
     gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", Ni);
@@ -1007,8 +1010,11 @@ int main(int argc, char **argv)
     if (get_verbose_level() > 1) gmp_printf("N: %Zd\n", n);
 
     isprime = _GMP_is_prob_prime(n);
-    /* If isprime = 2 here, that means it's so small it fits in the
-     * deterministic M-R or BPSW range. */
+    /* isprime = 2 either because BPSW/M-R passed and it is small, or it
+     * went through a test like Lucas-Lehmer, Proth, or Lucas-Lehmer-Riesel.
+     * We don't currently handle those tests, so just look for small values. */
+    if (isprime == 2 && mpz_sizeinbase(n, 2) > 64)  isprime = 1;
+
     if (isprime == 2) {
       Newz(0, cert, 20 + mpz_sizeinbase(n, 10), char);
       gmp_sprintf(cert, "Type Small\nN  %Zd\n", n);

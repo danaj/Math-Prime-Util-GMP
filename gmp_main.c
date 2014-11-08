@@ -299,6 +299,52 @@ int lucas_lehmer(UV p)
   return res;
 }
 
+/* Returns:  -1 unknown, 0 composite, 2 definitely prime */
+int llr(mpz_t N)
+{
+  mpz_t v, k, V;
+  UV i, n;
+  int res = -1;
+
+  if (mpz_cmp_ui(N,100) <= 0) return (_GMP_is_prob_prime(N) ? 2 : 0);
+  if (mpz_even_p(N) || mpz_divisible_ui_p(N, 3)) return 0;
+  mpz_init(v); mpz_init(k);
+  mpz_add_ui(v, N, 1);
+  n = mpz_scan1(v, 0);
+  mpz_tdiv_q_2exp(k, v, n);
+  /* N = k * 2^n - 1 */
+  if (mpz_cmp_ui(k,1) == 0) {
+    res = lucas_lehmer(n) ? 2 : 0;
+    goto DONE_LLR;
+  }
+  if (mpz_sizeinbase(k,2) > n)
+    goto DONE_LLR;
+
+  mpz_init(V);
+  if (!mpz_divisible_ui_p(k, 3)) { /* Select V for 3 not divis k */
+    mpz_t U, Qk, t;
+    mpz_init(U); mpz_init(Qk); mpz_init(t);
+    _GMP_lucas_seq(U, V, N, 4, 1, k, Qk, t);
+    mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
+  } else {
+    /* TODO: No logic for the k | 3 case yet. */
+    mpz_clear(V);
+    goto DONE_LLR;
+  }
+
+  for (i = 3; i <= n; i++) {
+    mpz_mul(V, V, V);
+    mpz_sub_ui(V, V, 2);
+    mpz_mod(V, V, N);
+  }
+  res = mpz_sgn(V) ? 0 : 2;
+  mpz_clear(V);
+
+DONE_LLR:
+  mpz_clear(k); mpz_clear(v);
+  return res;
+}
+
 static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 {
   IV D = 5;
@@ -971,6 +1017,12 @@ int _GMP_is_prob_prime(mpz_t n)
       if (_GMP_trial_factor(n, BGCD3_NEXTPRIME, 30*log2n))  return 0;
     }
   }
+
+  /* TODO: We'd like to do this, but it screws with primality certificates */
+#if 0
+  /* If the number is of form N=k*2^n-1 and we have a fast proof, do it. */
+  { int llr_res = llr(n); if (llr_res >= 0) return llr_res; }
+#endif
 
   /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
   return _GMP_BPSW(n);
