@@ -257,7 +257,7 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 
 int lucas_lehmer(UV p)
 {
-  UV k;
+  UV k, tlim;
   int res;
   mpz_t V, mp, t;
 
@@ -265,21 +265,29 @@ int lucas_lehmer(UV p)
   if (!(p&1)) return 0;
 
   mpz_init_set_ui(t, p);
-  if (!_GMP_is_prob_prime(t)) {    /* p must be prime */
-    mpz_clear(t);
-    return 0;
-  }
-  if (p > 3 && p % 4 == 3) {       /* if p and 2p+1 prime and p=3 mod 4, */
-    mpz_mul_ui(t, t, 2);           /* then 2p+1 | 2^p-1                  */
+  if (!_GMP_is_prob_prime(t))    /* p must be prime */
+    { mpz_clear(t); return 0; }
+  if (p < 23)
+    { mpz_clear(t); return (p != 11); }
+  /* If p=3 mod 4 and p,2p+1 both prime, then 2p+1 | 2^p-1.  Cheap test. */
+  if (p > 3 && p % 4 == 3) {
+    mpz_mul_ui(t, t, 2);
     mpz_add_ui(t, t, 1);
-    if (_GMP_is_prob_prime(t)) {
-      mpz_clear(t);
-      return 0;
-    }
+    if (_GMP_is_prob_prime(t))
+      { mpz_clear(t); return 0; }
   }
   mpz_init(mp);
   mpz_setbit(mp, p);
   mpz_sub_ui(mp, mp, 1);
+
+  /* Do a little trial division first.  Saves quite a bit of time. */
+  tlim = (p < 1500) ? p/2 : (p < 5000) ? p : 2*p;
+  if (tlim > UV_MAX/(2*p)) tlim = UV_MAX/(2*p);
+  for (k = 1; k < tlim; k++)
+    if (mpz_divisible_ui_p(mp, 2*p*k+1))
+      { mpz_clear(mp); mpz_clear(t); return 0; }
+  /* We could do some specialized p+1 factoring here. */
+
   mpz_init_set_ui(V, 4);
 
   for (k = 3; k <= p; k++) {
