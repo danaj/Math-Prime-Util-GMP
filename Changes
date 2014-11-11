@@ -7,6 +7,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [PERFORMANCE]
 
+    - is_prime will do a LLR test, as will is_provable_prime if not returning
+      a certificate.  This means many primes of the form k*2^n-1 will run
+      faster and return 2 rather than 1.
+
     - Update UV SQUFOF factoring code, faster factoring once reduced in size.
 
     - Slightly better P-1 stage 2 performance.

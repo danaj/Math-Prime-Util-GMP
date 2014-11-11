@@ -953,11 +953,8 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
  * probability once we've somehow found a BPSW pseudoprime.
  */
 
-int _GMP_is_prob_prime(mpz_t n)
+static int primality_pretest(mpz_t n)
 {
-  /*  Step 1: Look for small divisors.  This is done purely for performance.
-   *          It is *not* a requirement for the BPSW test. */
-
   /* If less than 1009, make trial factor handle it. */
   if (mpz_cmp_ui(n, BGCD_NEXTPRIME) < 0)
     return _GMP_trial_factor(n, 2, BGCD_LASTPRIME) ? 0 : 2;
@@ -1027,15 +1024,7 @@ int _GMP_is_prob_prime(mpz_t n)
       if (_GMP_trial_factor(n, BGCD3_NEXTPRIME, 30*log2n))  return 0;
     }
   }
-
-  /* TODO: We'd like to do this, but it screws with primality certificates */
-#if 0
-  /* If the number is of form N=k*2^n-1 and we have a fast proof, do it. */
-  { int llr_res = llr(n); if (llr_res >= 0) return llr_res; }
-#endif
-
-  /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
-  return _GMP_BPSW(n);
+  return 1;
 }
 
 int _GMP_BPSW(mpz_t n)
@@ -1055,10 +1044,35 @@ int _GMP_BPSW(mpz_t n)
   return 1;
 }
 
+int _GMP_is_prob_prime(mpz_t n)
+{
+  /*  Step 1: Look for small divisors.  This is done purely for performance.
+   *          It is *not* a requirement for the BPSW test. */
+  int res = primality_pretest(n);
+  if (res != 1)  return res;
+
+  /* We'd like to do the LLR test here, but it screws with certificates. */
+
+  /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
+  return _GMP_BPSW(n);
+}
+
 int _GMP_is_prime(mpz_t n)
 {
-  UV nbits = mpz_sizeinbase(n, 2);
-  int prob_prime = _GMP_is_prob_prime(n);
+  UV nbits;
+  /* Similar to is_prob_prime, but put LLR before BPSW, then do more testing */
+
+  /* First, simple pretesting */
+  int prob_prime = primality_pretest(n);
+  if (prob_prime != 1)  return prob_prime;
+
+  /* If the number is of form N=k*2^n-1 and we have a fast proof, do it. */
+  prob_prime = llr(n);
+  if (prob_prime == 0 || prob_prime == 2) return prob_prime;
+
+  /* Start with BPSW */
+  prob_prime = _GMP_BPSW(n);
+  nbits = mpz_sizeinbase(n, 2);
 
   /* n has passed the ES BPSW test, making it quite unlikely it is a
    * composite (and it cannot be if n < 2^64). */
@@ -1115,6 +1129,12 @@ int _GMP_is_prime(mpz_t n)
 int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
   int prob_prime = _GMP_is_prob_prime(n);
+
+  /* Try LLR test if they don't need a proof certificate. */
+  if (prooftext == 0) {
+    int res = llr(n);
+    if (res == 0 || res == 2) return res;
+  }
 
   /* Run one more M-R test, just in case. */
   if (prob_prime == 1)

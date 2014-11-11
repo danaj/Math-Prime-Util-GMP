@@ -588,6 +588,20 @@ This is a deterministic unconditional test that runs very fast compared
 to other primality methods for numbers of comparable size, and vastly
 faster than any known general-form primality proof methods.
 
+=head2 is_llr_prime
+
+Takes a positive number C<n> as input and returns one of: 0 (definitely
+composite), 2 (definitely prime), or -1 (test does not indicate anything).
+This implements a partial version of the Lucas-Lehmer-Riesel test for
+fast deterministic primality testing on numbers of the form C<k * 2^n - 1>.
+If C<k = 1> then this is a Mersenne number and the Lucas-Lehmer test is used.
+If the number is not of this form, or if C<k E<lt>= 2^n>, then C<-1> will
+be returned as the test does not apply.  In this implementation, some values
+of C<k> are not solved, so they will also return C<-1>.  Otherwise, the LLR
+test is performed.  While not as fast as the Lucas-Lehmer test for Mersenne
+numbers, it is almost as fast as a single strong pseudoprime test (i.e.
+Miller-Rabin test) while giving a certain answer.
+
 =head2 is_nminus1_prime
 
   say "$n is definitely prime" if is_nminus1_prime($n);
