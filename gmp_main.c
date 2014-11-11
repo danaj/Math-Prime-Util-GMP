@@ -283,9 +283,11 @@ int lucas_lehmer(UV p)
   /* Do a little trial division first.  Saves quite a bit of time. */
   tlim = (p < 1500) ? p/2 : (p < 5000) ? p : 2*p;
   if (tlim > UV_MAX/(2*p)) tlim = UV_MAX/(2*p);
-  for (k = 1; k < tlim; k++)
-    if (mpz_divisible_ui_p(mp, 2*p*k+1))
+  for (k = 1; k < tlim; k++) {
+    UV q = 2*p*k+1;
+    if ((q%8==1 || q%8==7) && mpz_divisible_ui_p(mp, q))
       { mpz_clear(mp); mpz_clear(t); return 0; }
+  }
   /* We could do some specialized p+1 factoring here. */
 
   mpz_init_set_ui(V, 4);
