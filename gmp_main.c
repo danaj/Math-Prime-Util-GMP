@@ -336,6 +336,8 @@ int llr(mpz_t N)
     mpz_init(U); mpz_init(Qk); mpz_init(t);
     _GMP_lucas_seq(U, V, N, 4, 1, k, Qk, t);
     mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
+  } else if ((n % 4 == 0 || n % 4 == 3) && mpz_cmp_ui(k,3)==0) {
+    mpz_set_ui(V, 5778);
   } else {
     /* TODO: No logic for the k | 3 case yet. */
     mpz_clear(V);
