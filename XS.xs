@@ -265,11 +265,22 @@ UV
 is_power(IN char* strn, IN UV a = 0)
   PREINIT:
     mpz_t n;
+    int isneg;
   CODE:
+    isneg = (strn[0] == '-');
+    if (isneg) strn++;
     validate_string_number("is_power (n)", strn);
-    mpz_init_set_str(n, strn, 10);
-    RETVAL = is_power(n, a);
-    mpz_clear(n);
+    RETVAL = 0;
+    if (!isneg || (a == 0 || a & 1)) {
+      mpz_init_set_str(n, strn, 10);
+      RETVAL = is_power(n, a);
+      mpz_clear(n);
+    }
+    if (isneg && a == 0 && RETVAL != 0) {
+      UV r = RETVAL;
+      while (!(r & 1)) r >>= 1;
+      RETVAL = (r == 1) ? 0 : r;
+    }
   OUTPUT:
     RETVAL
 

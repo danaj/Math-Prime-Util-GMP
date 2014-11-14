@@ -24,6 +24,9 @@ Revision history for Perl module Math::Prime::Util::GMP
       which has 2574 factors and would overflow the 256-element stack.  With
       the new code it has a maximum stack depth of 3.
 
+    [OTHER]
+
+    - is_power works with negative powers, although doesn't return root.
 
 0.27 2014-10-07
 
