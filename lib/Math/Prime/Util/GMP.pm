@@ -1133,7 +1133,7 @@ This is Hart's One Line Factorization method, which is a variant of Fermat's
 algorithm.  A premultiplier of 480 is used.  It is very good at factoring
 numbers that are close to perfect squares, or small numbers.  Very naive
 methods of picking RSA parameters sometimes yield numbers in this form, so
-it can be useful to run this a few rounds to check.  For example, the number:
+it can be useful to run a few rounds to check.  For example, the number:
 
   18548676741817250104151622545580576823736636896432849057 \
   10984160646722888555430591384041316374473729421512365598 \
