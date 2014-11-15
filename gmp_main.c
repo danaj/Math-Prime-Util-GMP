@@ -12,6 +12,7 @@
 #include "bls75.h"
 #include "ecpp.h"
 #include "utility.h"
+#include "factor.h"
 
 #define AKS_VARIANT_V6          1    /* The V6 paper with Lenstra impr */
 #define AKS_VARIANT_BORNEMANN   2    /* Based on Folkmar Bornemann's impl */
