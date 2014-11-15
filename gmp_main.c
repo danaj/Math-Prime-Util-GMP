@@ -354,6 +354,7 @@ int llr(mpz_t N)
   mpz_clear(V);
 
 DONE_LLR:
+  if (res != -1 && get_verbose_level() > 1) printf("N shown %s with LLR\n", res ? "prime" : "composite");
   mpz_clear(k); mpz_clear(v);
   return res;
 }
