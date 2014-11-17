@@ -384,10 +384,10 @@ int is_proth_prime(mpz_t N, UV ntests)
     mpz_init(n2); mpz_init(t);
     mpz_tdiv_q_2exp(n2, v, 1);   /* v = (N-1)   n2 = (N-1)/2; */
     for (i = 0, p = 2, res = 0; i < ntests; i++) {
+      p = prime_iterator_next(&iter);
       mpz_set_ui(t, p);
       mpz_powm(t, t, n2, N);
       if (!mpz_cmp(t, v)) { res = 2; break; }
-      p = prime_iterator_next(&iter);
     }
     prime_iterator_destroy(&iter);
     mpz_clear(t); mpz_clear(n2);
@@ -1114,6 +1114,9 @@ int _GMP_is_prime(mpz_t n)
   prob_prime = llr(n);
   if (prob_prime == 0 || prob_prime == 2) return prob_prime;
 
+  /* If the number is of form N=k*2^n+1 and we have a fast proof, do it. */
+  if (is_proth_prime(n, 1) == 2) return 2;
+
   /* Start with BPSW */
   prob_prime = _GMP_BPSW(n);
   nbits = mpz_sizeinbase(n, 2);
@@ -1174,10 +1177,11 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
   int prob_prime = _GMP_is_prob_prime(n);
 
-  /* Try LLR test if they don't need a proof certificate. */
+  /* Try LLR and Proth tests if they don't need a proof certificate. */
   if (prooftext == 0) {
     int res = llr(n);
     if (res == 0 || res == 2) return res;
+    if (is_proth_prime(n, 10) == 2) return 2;
   }
 
   /* Run one more M-R test, just in case. */
