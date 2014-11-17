@@ -358,6 +358,46 @@ DONE_LLR:
   mpz_clear(k); mpz_clear(v);
   return res;
 }
+/* Returns:  -1 not Proth form, 0 maybe composite, 2 definitely prime */
+int is_proth_prime(mpz_t N, UV ntests)
+{
+  mpz_t v, k;
+  UV n;
+  int res = -1;
+
+  if (mpz_cmp_ui(N,100) <= 0) return (_GMP_is_prob_prime(N) ? 2 : 0);
+  if (mpz_even_p(N) || mpz_divisible_ui_p(N, 3)) return 0;
+
+  mpz_init(v); mpz_init(k);
+  mpz_sub_ui(v, N, 1);
+  n = mpz_scan1(v, 0);
+  mpz_tdiv_q_2exp(k, v, n);
+  /* N = k * 2^n + 1 */
+  if (mpz_sizeinbase(k,2) > n)
+    goto DONE_PROTH;
+
+  {
+    mpz_t n2, t;
+    UV i, p;
+    PRIME_ITERATOR(iter);
+
+    mpz_init(n2); mpz_init(t);
+    mpz_tdiv_q_2exp(n2, v, 1);   /* v = (N-1)   n2 = (N-1)/2; */
+    for (i = 0, p = 2, res = 0; i < ntests; i++) {
+      mpz_set_ui(t, p);
+      mpz_powm(t, t, n2, N);
+      if (!mpz_cmp(t, v)) { res = 2; break; }
+      p = prime_iterator_next(&iter);
+    }
+    prime_iterator_destroy(&iter);
+    mpz_clear(t); mpz_clear(n2);
+  }
+
+DONE_PROTH:
+  if (res != -1 && get_verbose_level() > 1) printf("N shown %s with PROTH (%lu)\n", res ? "prime" : "maybe composite", (unsigned long)ntests);
+  mpz_clear(k); mpz_clear(v);
+  return res;
+}
 
 static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
 {

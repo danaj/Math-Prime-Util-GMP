@@ -174,6 +174,19 @@ is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
     RETVAL
 
 int
+is_proth_prime(IN char* strn, IN UV ntests = 10)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    if ((strn != 0) && (strn[0] == '-') )
+      croak("Parameter '%s' must be a positive integer\n", strn);
+    PRIMALITY_START("is_proth_prime", 2, 0);
+    RETVAL = is_proth_prime(n, ntests);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
 is_frobenius_pseudoprime(IN char* strn, IN IV P = 0, IN IV Q = 0)
   PREINIT:
     mpz_t n;
