@@ -1181,7 +1181,8 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   if (prooftext == 0) {
     int res = llr(n);
     if (res == 0 || res == 2) return res;
-    if (is_proth_prime(n, 10) == 2) return 2;
+    /* We can generate a BLS5 proof faster than the Proth code. */
+    /* if (is_proth_prime(n, 1) == 2) return 2; */
   }
 
   /* Run one more M-R test, just in case. */
