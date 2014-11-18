@@ -1064,6 +1064,7 @@ int _GMP_BPSW(mpz_t n)
   return 1;
 }
 
+
 int _GMP_is_prob_prime(mpz_t n)
 {
   /*  Step 1: Look for small divisors.  This is done purely for performance.
@@ -1076,6 +1077,7 @@ int _GMP_is_prob_prime(mpz_t n)
   /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
   return _GMP_BPSW(n);
 }
+
 
 int _GMP_is_prime(mpz_t n)
 {
@@ -1150,21 +1152,25 @@ int _GMP_is_prime(mpz_t n)
   return prob_prime;
 }
 
+
 int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 {
-  int prob_prime = _GMP_is_prob_prime(n);
+  int prob_prime = primality_pretest(n);
+  if (prob_prime != 1)  return prob_prime;
 
-  /* Try LLR and Proth tests if they don't need a proof certificate. */
+  /* Try LLR if they don't need a proof certificate. */
   if (prooftext == 0) {
-    int res = llr(n);
-    if (res == 0 || res == 2) return res;
-    /* We can generate a BLS5 proof faster than the Proth code. */
-    /* if (is_proth_prime(n, 1) == 2) return 2; */
+    prob_prime = llr(n);
+    if (prob_prime == 0 || prob_prime == 2) return prob_prime;
   }
 
+  /* Start with BPSW */
+  prob_prime = _GMP_BPSW(n);
+  if (prob_prime != 1)  return prob_prime;
+
   /* Run one more M-R test, just in case. */
-  if (prob_prime == 1)
-    prob_prime = _GMP_miller_rabin_random(n, 1, 0);
+  prob_prime = _GMP_miller_rabin_random(n, 1, 0);
+  if (prob_prime != 1)  return prob_prime;
 
   /* We can choose a primality proving algorithm:
    *   AKS    _GMP_is_aks_prime       really slow, don't bother
@@ -1173,15 +1179,15 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
    */
 
   /* Give n-1 a small go */
-  if (prob_prime == 1)
-    prob_prime = _GMP_primality_bls_nm1(n, 2, prooftext);
+  prob_prime = _GMP_primality_bls_nm1(n, is_proth_form(n) ? 3 : 1, prooftext);
+  if (prob_prime != 1)  return prob_prime;
 
   /* ECPP */
-  if (prob_prime == 1)
-    prob_prime = _GMP_ecpp(n, prooftext);
+  prob_prime = _GMP_ecpp(n, prooftext);
 
   return prob_prime;
 }
+
 
 /*****************************************************************************/
 /*          AKS.    This implementation is quite slow, but useful to have.   */

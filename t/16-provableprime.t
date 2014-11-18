@@ -11,7 +11,7 @@ plan tests => 0 + 6
                 + 43
                 + 34
                 + 2
-                + 6   # _with_cert
+                + 7   # _with_cert
                 + 3   # AKS, N-1, ECPP
                 + 0;
 
@@ -166,9 +166,13 @@ Q[6]  19
 ----
 EOPROOF
 $proof =~ s/\n$//;
-is_deeply( [is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453")],
-           [2, $proof],
-           "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+my($isp, $cert) = is_provable_prime_with_cert("3138550867693340381917894711603833208051177722232017256453");
+is($isp, 2, "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453) is prime");
+if ($cert =~ /\bType BLS5\b/) {
+  is($cert, $proof, "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+} else {
+  like($cert, qr/\nType BLS15\nN  3138550867693340381917894711603833208051177722232017256453\nQ  120713494911282322381457488907839738771199143162769894479\nLP 1\nLQ 6\n\n/, "is_provable_prime_with_cert(3138550867693340381917894711603833208051177722232017256453)");
+}
 
 
 # Individual routines

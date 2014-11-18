@@ -10,6 +10,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_prime will prove many Proth-form (h*2^n+1) numbers.
 
+    - is_provable_prime tries less hard to make a BLS75-T5 proof.  Certs may
+      be longer, but performance is better.
+
 0.28 2014-11-17
 
     [ADDED]
