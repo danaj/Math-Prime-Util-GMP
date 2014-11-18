@@ -19,7 +19,6 @@ extern void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
                            mpz_t Qk, mpz_t t);
 extern int lucas_lehmer(UV p);
 extern int llr(mpz_t N);
-extern int is_proth_prime(mpz_t N, UV ntests);
 
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 

@@ -30,7 +30,7 @@ our @EXPORT_OK = qw(
                      is_frobenius_pseudoprime
                      is_frobenius_underwood_pseudoprime
                      is_mersenne_prime
-                     is_llr_prime is_proth_prime
+                     is_llr_prime
                      miller_rabin_random
                      lucas_sequence
                      primes
