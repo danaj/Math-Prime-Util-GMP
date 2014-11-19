@@ -186,7 +186,6 @@ is_frobenius_pseudoprime(IN char* strn, IN IV P = 0, IN IV Q = 0)
   OUTPUT:
     RETVAL
 
-
 int
 is_prime(IN char* strn)
   ALIAS:
@@ -288,9 +287,9 @@ is_power(IN char* strn, IN UV a = 0)
 #define XPUSH_MPZ(n) \
   do { \
     /* Push as a scalar if <= min(ULONG_MAX,UV_MAX), string otherwise */ \
-    UV v = mpz_get_ui(n); \
-    if (!mpz_cmp_ui(n, v)) { \
-      XPUSHs(sv_2mortal(newSVuv( v ))); \
+    UV _v = mpz_get_ui(n); \
+    if (!mpz_cmp_ui(n, _v)) { \
+      XPUSHs(sv_2mortal(newSVuv( _v ))); \
     } else { \
       char* str; \
       int nsize = mpz_sizeinbase(n, 10) + 2; \
@@ -477,6 +476,22 @@ moebius(IN char* strn, IN char* stro = 0)
       mpz_clear(n);
       mpz_clear(nhi);
     }
+
+void
+lucasu(IN IV P, IN IV Q, IN char* strk)
+  ALIAS:
+    lucasv = 1
+  PREINIT:
+    mpz_t u, v, k;
+  PPCODE:
+    VALIDATE_AND_SET("lucasu/lucasv", k, strk);
+    /* We could call mpz_fib_ui / mpz_lucnum_ui when P=1,Q=-1,
+     * but it is only 10-15% faster so let's not special case. */
+    mpz_init(u);  mpz_init(v);
+    lucasuv(u, v, P, Q, k);
+    XPUSH_MPZ( ((ix == 0) ? u : v) );
+    mpz_clear(v); mpz_clear(u);
+    mpz_clear(k);
 
 int
 liouville(IN char* strn)

@@ -13,7 +13,7 @@ use Math::Prime::Util::GMP qw/
    is_frobenius_pseudoprime
    is_perrin_pseudoprime
    is_prime
-   lucas_sequence
+   lucas_sequence lucasu lucasv
    miller_rabin_random
    primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -103,6 +103,7 @@ plan tests => 0 + 9
                 + 9  # mr with large bases
                 + scalar @small_lucas_trials
                 + scalar(keys %lucas_sequences)
+                + 7  # lucasu lucasv
               # + $num_large_pseudoprime_tests
                 + 12*$extra  # Large Carmichael numbers
                 + 2 # M-R-random
@@ -208,6 +209,33 @@ for my $n (@small_lucas_trials) {
 while (my($params, $expect) = each (%lucas_sequences)) {
   my ($n, $p, $q, $k) = split(' ', $params);
   is_deeply( [lucas_sequence($n,$p,$q,$k)], $expect, "Lucas sequence $params" );
+}
+{
+  is( lucasu(1,-1,1001), "70330367711422815821835254877183549770181269836358732742604905087154537118196933579742249494562611733487750449241765991088186363265450223647106012053374121273867339111198139373125598767690091902245245323403501", "Fibonacci(1001)" );
+  is( lucasv(1,-1,1001), "157263483085297728693212310227264801375310590871102293547568363266227647954095037360550009174721122072079595635402411260638605742511929970292048335339367003086933714987796078672982630775099044177835579021861251", "Lucas(1001)" );
+
+  # Two examples used in primality proofs by Broadhurst and de Water
+  my($n, $str);
+  $n = lucasu(9,-1,3671);
+  $str = $n;
+  substr($str, 15, -15, "...");
+  is( $str, "244000543463515...617812356676529", "lucasu(9,-1,3671)" );
+  $n = lucasu(287,-1,3079);
+  $str = $n;
+  substr($str, 15, -15, "...");
+  is( $str, "238068250883464...633235555322189", "lucasu(287,-1,3079)" );
+
+  is( lucasv(80,1,71), "1301877113746131144509980743600829473173742739374514641352770534569341664593745336690230666043630253570208103530328102099934784158714320", "lucasv(80,1,71)" );
+
+  $n = lucasv(63,1,13217);
+  $str = $n;
+  substr($str, 15, -15, "...");
+  is( $str, "273696635948516...411235453749183", "lucasv(63,1,13217)" );
+
+  $n = lucasv(10,8,88321);
+  $str = $n;
+  substr($str, 15, -15, "...");
+  is( $str, "580334188745259...957502147624960", "lucasv(10,8,88321)" );
 }
 
 if ($extra) {

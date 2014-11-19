@@ -256,6 +256,59 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   mpz_mod(V, V, n);
 }
 
+void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
+{
+  mpz_t Vh, Ql, Qh, t;
+  int j, s, n;
+
+  if (mpz_sgn(k) <= 0) {
+    mpz_set_ui(Uh, 0);
+    mpz_set_ui(Vl, 2);
+    return;
+  }
+
+  mpz_set_ui(Uh, 1);
+  mpz_set_ui(Vl, 2);
+  mpz_init_set_si(Vh,P);
+  mpz_init(t);
+
+  s = mpz_scan1(k, 0);     /* number of zero bits at the end */
+  n = mpz_sizeinbase(k,2);
+
+  /* It is tempting to try to pull out the various Q operations when Q=1 or
+   * Q=-1.  This doesn't lead to any immediate savings.  Don't bother unless
+   * there is a way to reduce the actual operations involving U and V. */
+  mpz_init_set_ui(Ql,1);
+  mpz_init_set_ui(Qh,1);
+
+  for (j = n; j > s; j--) {
+    mpz_mul(Ql, Ql, Qh);
+    if (mpz_tstbit(k, j)) {
+      mpz_mul_si(Qh, Ql, Q);
+      mpz_mul(Uh, Uh, Vh);
+      mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh); mpz_sub(Vl, Vl, t);
+      mpz_mul(Vh, Vh, Vh); mpz_sub(Vh, Vh, Qh); mpz_sub(Vh, Vh, Qh);
+    } else {
+      mpz_set(Qh, Ql);
+      mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
+      mpz_mul_si(t, Ql, P);  mpz_mul(Vh, Vh, Vl); mpz_sub(Vh, Vh, t);
+      mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
+    }
+  }
+  mpz_mul(Ql, Ql, Qh);
+  mpz_mul_si(Qh, Ql, Q);
+  mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
+  mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh);  mpz_sub(Vl, Vl, t);
+  mpz_mul(Ql, Ql, Qh);
+  mpz_clear(Qh);  mpz_clear(t);  mpz_clear(Vh);
+  for (j = 0; j < s; j++) {
+    mpz_mul(Uh, Uh, Vl);
+    mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
+    mpz_mul(Ql, Ql, Ql);
+  }
+  mpz_clear(Ql);
+}
+
 int lucas_lehmer(UV p)
 {
   UV k, tlim;

@@ -17,6 +17,7 @@ extern int  _GMP_miller_rabin_random(mpz_t n, UV numbases, char* seedstr);
 
 extern void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
                            mpz_t Qk, mpz_t t);
+extern void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k);
 extern int lucas_lehmer(UV p);
 extern int llr(mpz_t N);
 

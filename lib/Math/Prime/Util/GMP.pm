@@ -32,7 +32,7 @@ our @EXPORT_OK = qw(
                      is_mersenne_prime
                      is_llr_prime
                      miller_rabin_random
-                     lucas_sequence
+                     lucas_sequence  lucasu  lucasv
                      primes
                      sieve_primes
                      next_prime
@@ -168,7 +168,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac stirling
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac stirling lucasu lucasv OpenPFGW gmpy2
 
 =head1 NAME
 
@@ -672,6 +672,29 @@ that is less than the input number).
 The function L</is_prob_prime> is used to determine when a prime is found,
 hence the result is a probable prime (using BPSW).
 
+
+=head2 lucasu
+
+  say "Fibonacci($_) = ", lucasu(1,-1,$_) for 0..100;
+
+Given integers C<P>, C<Q>, and the non-negative integer C<k>,
+computes C<U_k> for the Lucas sequence defined by C<P>,C<Q>.  These include
+the Fibonacci numbers (C<1,-1>), the Pell numbers (C<2,-1>), the Jacobsthal
+numbers (C<1,-2>), the Mersenne numbers (C<3,2>), and more.
+
+This corresponds to OpenPFGW's C<lucasU> function and gmpy2's C<lucasu>
+function.
+
+=head2 lucasv
+
+  say "Lucas($_) = ", lucasv(1,-1,$_) for 0..100;
+
+Given integers C<P>, C<Q>, and the non-negative integer C<k>,
+computes C<V_k> for the Lucas sequence defined by C<P>,C<Q>.  These include
+the Lucas numbers (C<1,-1>).
+
+This corresponds to OpenPFGW's C<lucasV> function and gmpy2's C<lucasv>
+function.
 
 =head2 lucas_sequence
 
