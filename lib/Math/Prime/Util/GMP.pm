@@ -649,6 +649,30 @@ An array reference is returned (with large lists this is much faster and uses
 less memory than returning an array directly).
 
 
+=head2 sieve_primes
+
+  my @primes = sieve_primes(2**100, 2**100 + 10000);
+  my @candidates = sieve_primes(2**1000, 2**1000 + 10000, 40000);
+
+Given two arguments C<low> and C<high>, this returns the primes in the
+interval (inclusive).  It is somewhat similar to L<primes> in this regard,
+although it must have two arguments and returns a list rather than a reference.
+Additionally, the method will always be that of a partial-sieve followed
+by primality test.
+
+With three arguments C<low>, C<high>, and C<limit>, this does a partial
+sieve over the inclusive range and returns the list that pass the sieve.
+If C<limit> is less than C<2> then it is identical to the two-argument
+version, in that a primality test will be performed after sieving.
+Otherwise, sieving is performed up to C<limit>.
+
+The two-argument version is typically only used internally and adds little
+functionality.  The three-argument version is quite useful for applications
+that want to apply their own primality or other tests, and wish to have a
+list of values in the range with no small factors.  This is quite common
+for applications involving prime gaps.
+
+
 =head2 next_prime
 
   $n = next_prime($n);
