@@ -312,7 +312,7 @@ void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
 int lucas_lehmer(UV p)
 {
   UV k, tlim;
-  int res;
+  int res, pbits;
   mpz_t V, mp, t;
 
   if (p == 2) return 1;
@@ -330,6 +330,7 @@ int lucas_lehmer(UV p)
     if (_GMP_is_prob_prime(t))
       { mpz_clear(t); return 0; }
   }
+  pbits = mpz_sizeinbase(t,2);
   mpz_init(mp);
   mpz_setbit(mp, p);
   mpz_sub_ui(mp, mp, 1);
@@ -339,8 +340,21 @@ int lucas_lehmer(UV p)
   if (tlim > UV_MAX/(2*p)) tlim = UV_MAX/(2*p);
   for (k = 1; k < tlim; k++) {
     UV q = 2*p*k+1;
-    if ((q%8==1 || q%8==7) && mpz_divisible_ui_p(mp, q))
-      { mpz_clear(mp); mpz_clear(t); return 0; }
+    if ( (q%8==1 || q%8==7) &&                 /* factor must be 1 or 7 mod 8 */
+         q % 3 && q % 5 && q % 7 && q % 11 ) { /* factor must be prime */
+      if (1 && q < (1ULL << (BITS_PER_WORD/2)) ) {
+        UV b = 1, k = pbits;
+        while (k--) {
+          b = (b*b) % q;
+          if (p & (UVCONST(1) << k)) { b *= 2; if (b >= q) b -= q; }
+        }
+        if (b == 1)
+          { mpz_clear(mp); mpz_clear(t); return 0; }
+      } else {
+        if( mpz_divisible_ui_p(mp, q) )
+          { mpz_clear(mp); mpz_clear(t); return 0; }
+      }
+    }
   }
   /* We could do some specialized p+1 factoring here. */
 
