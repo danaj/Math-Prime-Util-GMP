@@ -323,17 +323,19 @@ int lucas_lehmer(UV p)
     { mpz_clear(t); return 0; }
   if (p < 23)
     { mpz_clear(t); return (p != 11); }
-  /* If p=3 mod 4 and p,2p+1 both prime, then 2p+1 | 2^p-1.  Cheap test. */
-  if (p > 3 && p % 4 == 3) {
-    mpz_mul_ui(t, t, 2);
-    mpz_add_ui(t, t, 1);
-    if (_GMP_is_prob_prime(t))
-      { mpz_clear(t); return 0; }
-  }
+
   pbits = mpz_sizeinbase(t,2);
   mpz_init(mp);
   mpz_setbit(mp, p);
   mpz_sub_ui(mp, mp, 1);
+
+  /* If p=3 mod 4 and p,2p+1 both prime, then 2p+1 | 2^p-1.  Cheap test. */
+  if (p > 3 && p % 4 == 3) {
+    mpz_mul_ui(t, t, 2);
+    mpz_add_ui(t, t, 1);
+    if (_GMP_is_prob_prime(t) && mpz_divisible_p(mp, t))
+      { mpz_clear(mp); mpz_clear(t); return 0; }
+  }
 
   /* Do a little trial division first.  Saves quite a bit of time. */
   tlim = (p < 1500) ? p/2 : (p < 5000) ? p : 2*p;
@@ -341,7 +343,7 @@ int lucas_lehmer(UV p)
   for (k = 1; k < tlim; k++) {
     UV q = 2*p*k+1;
     if ( (q%8==1 || q%8==7) &&                 /* factor must be 1 or 7 mod 8 */
-         q % 3 && q % 5 && q % 7 && q % 11 ) { /* factor must be prime */
+         q % 3 && q % 5 && q % 7 && q % 11 && q % 13) {  /* and must be prime */
       if (1 && q < (1ULL << (BITS_PER_WORD/2)) ) {
         UV b = 1, k = pbits;
         while (k--) {
