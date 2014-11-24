@@ -60,6 +60,13 @@
 - Any fast primality pretest would be nice.  I've tested:
     - Colin Plumb's Euler Criterion test
     - Fermat base 210, which is done in GMP's internal millerrabin.c.
+    - Fermat base 2 also no faster than SPRP-2, though some claim it is.
+      mpz_t e, r;  int composite;
+      mpz_init(e);
+      mpz_init_set_ui(r, 2);  mpz_sub_ui(e, n, 1);  mpz_powm(r, r, e, n);
+      composite = mpz_cmp_ui(r, 1) != 0;
+      mpz_clear(r); mpz_clear(e);
+      if (composite) return 0;
   None of these are faster on average than just doing BPSW.
 
 - tests for sieve_primes.
