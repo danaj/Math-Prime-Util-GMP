@@ -1755,6 +1755,35 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   for (k = 1; k <= n; k++)  mpz_clear(T[k]);
   Safefree(T);
 }
+static void _harmonic(mpz_t a, mpz_t b, mpz_t t) {
+  mpz_sub(t, b, a);
+  if (mpz_cmp_ui(t, 1) == 0) {
+    mpz_set(b, a);
+    mpz_set_ui(a, 1);
+  } else {
+    mpz_t q, r;
+    mpz_add(t, a, b);
+    mpz_tdiv_q_2exp(t, t, 1);
+    mpz_init_set(q, t); mpz_init_set(r, t);
+    _harmonic(a, q, t);
+    _harmonic(r, b, t);
+    mpz_mul(a, a, b);
+    mpz_mul(t, q, r);
+    mpz_add(a, a, t);
+    mpz_mul(b, b, q);
+    mpz_clear(q); mpz_clear(r);
+  }
+}
+
+void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
+{
+  mpz_t t;
+  mpz_init(t);
+  mpz_add_ui(den, zn, 1);
+  mpz_set_ui(num, 1);
+  _harmonic(num, den, t);
+  mpz_clear(t);
+}
 
 void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
 {

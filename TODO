@@ -70,3 +70,5 @@
   None of these are faster on average than just doing BPSW.
 
 - tests for sieve_primes.
+
+- tests and docs for harmfrac

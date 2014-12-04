@@ -53,7 +53,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      factorial
                      consecutive_integer_lcm
-                     partitions bernfrac stirling
+                     partitions bernfrac harmfrac stirling
                      gcd lcm kronecker valuation invmod binomial gcdext
                      vecsum vecprod
                      exp_mangoldt

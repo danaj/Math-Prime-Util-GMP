@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.30 2014-?
+
+    [ADDED]
+
+    - harmfrac                            returns (num,den) of Harmonic number
+
 0.29 2014-11-26
 
     [ADDED]
