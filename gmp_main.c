@@ -1782,6 +1782,9 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_add_ui(den, zn, 1);
   mpz_set_ui(num, 1);
   _harmonic(num, den, t);
+  mpz_gcd(t, num, den);
+  mpz_divexact(num, num, t);
+  mpz_divexact(den, den, t);
   mpz_clear(t);
 }
 
