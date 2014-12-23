@@ -113,7 +113,7 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
       mpz_powm_ui(t, t, 2, p);
       m++;
     } while (m < r && mpz_cmp_ui(t, 1));
-    if (m == r) break;
+    if (m >= r) break;
     mpz_ui_pow_ui(t, 2, r-m-1);
     mpz_powm(t, z, t, p);
     mpz_mulmod(x, x, t, p, x);
