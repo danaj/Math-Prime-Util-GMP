@@ -72,3 +72,6 @@
 - tests for sieve_primes.
 
 - tests and docs for harmfrac
+
+- merge the two frobenius tests.  cp is faster, needs the deterministic
+  version, we should switch to the two input version (allow GMP), etc.

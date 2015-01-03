@@ -742,7 +742,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
   mpz_init(t);
   if (P == 0 && Q == 0) {
     P = 1;  Q = 2;
-    while (k != -1) {
+    do {
       P += 2;
       if (P == 3) P = 5;  /* P=3,Q=2 -> D=9-8=1 => k=1, so skip */
       D = P*P-4*Q;
@@ -750,8 +750,9 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
       if (mpz_cmp_ui(n, D >= 0 ? D : -D) <= 0) break;
       mpz_set_si(t, D);
       k = mpz_jacobi(t, n);
-      if (k != 1) break;
-    }
+    } while (k == 1);
+    if (k == 0 && (!mpz_cmp_ui(n,11) || !mpz_cmp_ui(n,13) || !mpz_cmp_ui(n,17)))
+      { mpz_clear(t); return 1; }
   } else {
     D = P*P-4*Q;
     mpz_set_si(t, D);
@@ -795,6 +796,101 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
   mpz_clear(Vcomp); mpz_clear(t);
 
   return rval;
+}
+
+/* Use Crandall/Pomerance, steps from Loebenberger 2008 */
+int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
+{
+  gmp_randstate_t* p_randstate = get_randstate();
+  mpz_t t, a, b, d, w1, wm, wm1, m;
+  UV tn;
+  int j;
+  int result = 1;
+
+  if (mpz_cmp_ui(n, 100) < 0)     /* tiny n */
+    return (_GMP_is_prob_prime(n) > 0);
+  if (mpz_even_p(n))
+    return 0;
+
+  mpz_init(t);  mpz_init(a);  mpz_init(b);  mpz_init(d);
+  mpz_init(w1);  mpz_init(wm);  mpz_init(wm1);  mpz_init(m);
+  for (tn = 0; tn < ntests; tn++) {
+    /* Step 1: choose a and b in 1..n-1 and d=a^2-4b not square and coprime */
+    do {
+      mpz_sub_ui(t, n, 1);
+      mpz_urandomm(a, *p_randstate, t);
+      mpz_add_ui(a, a, 1);
+      mpz_urandomm(b, *p_randstate, t);
+      mpz_add_ui(b, b, 1);
+      /* Check d and gcd */
+      mpz_mul(d, a, a);
+      mpz_mul_ui(t, b, 4);
+      mpz_sub(d, d, t);
+    } while (mpz_perfect_square_p(d));
+    mpz_mul(t, a, b);
+    mpz_mul(t, t, d);
+    mpz_gcd(t, t, n);
+    if (mpz_cmp_ui(t, 1) != 0 && mpz_cmp(t, n) != 0)
+      { result = 0; break; }
+    /* Step 2: W1 = a^2b^-1 - 2 mod n */
+    if (!mpz_invert(t, b, n))
+      { result = 0; break; }
+    mpz_mul(w1, a, a);
+    mpz_mul(w1, w1, t);
+    mpz_sub_ui(w1, w1, 2);
+    mpz_mod(w1, w1, n);
+    /* Step 3: m = (n-(d|n))/2 */
+    j = mpz_jacobi(d, n);
+    if (j == -1)     mpz_add_ui(m, n, 1);
+    else if (j == 0) mpz_set(m, n);
+    else if (j == 1) mpz_sub_ui(m, n, 1);
+    mpz_tdiv_q_2exp(m, m, 1);
+    /* Step 8 here:  B = b^(n-1)/2 mod n  (stored in d) */
+    mpz_sub_ui(t, n, 1);
+    mpz_tdiv_q_2exp(t, t, 1);
+    mpz_powm(d, b, t, n);
+    /* Quick Euler test */
+    mpz_sub_ui(t, n, 1);
+    if (mpz_cmp_ui(d, 1) != 0 && mpz_cmp(d, t) != 0)
+      { result = 0; break; }
+    /* Step 4: calculate Wm,Wm+1 */
+    mpz_set_ui(wm, 2);
+    mpz_set(wm1, w1);
+    {
+      UV b = mpz_sizeinbase(m, 2);
+      while (b-- > 0) {
+        if (mpz_tstbit(m, b)) {
+          mpz_mul(t, wm, wm1);
+          mpz_sub(wm, t, w1);
+          mpz_mul(t, wm1, wm1);
+          mpz_sub_ui(wm1, t, 2);
+        } else {
+          mpz_mul(t, wm, wm1);
+          mpz_sub(wm1, t, w1);
+          mpz_mul(t, wm, wm);
+          mpz_sub_ui(wm, t, 2);
+        }
+        mpz_mod(wm, wm, n);
+        mpz_mod(wm1, wm1, n);
+      }
+    }
+    /* Step 5-7: compare w1/wm */
+    mpz_mul(t, w1, wm);
+    mpz_mod(t, t, n);
+    mpz_mul_ui(wm1, wm1, 2);
+    mpz_mod(wm1, wm1, n);
+    if (mpz_cmp(t, wm1) != 0)
+      { result = 0; break; }
+    /* Step 8 was earlier */
+    /* Step 9: See if Bwm = 2 mod n */
+    mpz_mul(wm, wm, d);
+    mpz_mod(wm, wm, n);
+    if (mpz_cmp_ui(wm, 2) != 0)
+      { result = 0; break; }
+  }
+  mpz_clear(w1);  mpz_clear(wm);  mpz_clear(wm1);  mpz_clear(m);
+  mpz_clear(t);  mpz_clear(a);  mpz_clear(b);  mpz_clear(d);
+  return result;
 }
 
 /* New code based on draft paper */

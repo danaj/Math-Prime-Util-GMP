@@ -13,6 +13,7 @@ extern int  _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV incr);
 extern int  _GMP_is_frobenius_underwood_pseudoprime(mpz_t n);
 extern int  is_perrin_pseudoprime(mpz_t n);
 extern int  is_frobenius_pseudoprime(mpz_t n, IV P, IV Q);
+extern int  is_frobenius_cp_pseudoprime(mpz_t n, UV ntests);
 extern int  _GMP_miller_rabin_random(mpz_t n, UV numbases, char* seedstr);
 
 extern void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
