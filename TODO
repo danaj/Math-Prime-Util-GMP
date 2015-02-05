@@ -73,3 +73,7 @@
 
 - merge the two frobenius tests.  cp is faster, needs the deterministic
   version, we should switch to the two input version (allow GMP), etc.
+
+- GMP 5.1 added mpz_primorial_ui.  We should use it when possible, as its
+  internal product tree is faster than our external-API shallow product tree.
+  Also investigate sieving and product tree.
