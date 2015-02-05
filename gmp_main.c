@@ -2722,24 +2722,28 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 /* See if n is a perfect power */
 UV power_factor(mpz_t n, mpz_t f)
 {
-  if (mpz_cmp_ui(n, 1) <= 0) return 0;
-  if (mpz_perfect_power_p(n)) {
-    UV k;
-    mpz_set_ui(f, 1);
-    for (k = 2; mpz_sgn(f); k++) {
-      if (mpz_root(f, n, k)) {
-        if (mpz_perfect_power_p(f)) {  /* If root is a power, recurse */
-          mpz_t nf;
-          mpz_init_set(nf, f);
-          k *= power_factor(nf, f);
-          mpz_clear(nf);
-        }
-        return k;
+  UV k = 1, b = 2;
+  if (mpz_cmp_ui(n, 1) > 0 && mpz_perfect_power_p(n)) {
+    mpz_t nf, tf;
+    PRIME_ITERATOR(iter);
+
+    mpz_init_set(nf, n);
+    mpz_init(tf);
+    while (1) {
+      UV ok = k;
+      while (mpz_root(tf, nf, b)) {
+        mpz_set(f, tf);
+        mpz_set(nf, tf);
+        k *= b;
       }
+      if (ok != k && !mpz_perfect_power_p(nf)) break;
+      if (mpz_cmp_ui(tf, 1) <= 0) break; /* Exit if we can't find the power */
+      b = prime_iterator_next(&iter);
     }
-    /* GMP says it's a perfect power, but we couldn't find an integer root? */
+    mpz_clear(tf);  mpz_clear(nf);
+    prime_iterator_destroy(&iter);
   }
-  return 0;
+  return (k == 1) ? 0 : k;
 }
 
 /* a=0, return power.  a>1, return bool if an a-th power */
