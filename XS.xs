@@ -388,6 +388,15 @@ primorial(IN char* strn)
     mpz_clear(n);
     mpz_clear(res);
 
+void harmreal(IN char* strn, IN UV prec = 40)
+  PREINIT:
+    mpz_t n;
+    char* res;
+  PPCODE:
+    VALIDATE_AND_SET("harmreal", n, strn);
+    res = harmreal(n, prec);
+    XPUSHs(sv_2mortal(newSVpv(res, 0)));
+    Safefree(res);
 
 void
 gcd(...)

@@ -53,7 +53,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      factorial
                      consecutive_integer_lcm
-                     partitions bernfrac harmfrac stirling
+                     partitions bernfrac harmfrac harmreal stirling
                      gcd lcm kronecker valuation invmod binomial gcdext
                      vecsum vecprod
                      exp_mangoldt
@@ -168,7 +168,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac stirling lucasu lucasv OpenPFGW gmpy2
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac stirling lucasu lucasv OpenPFGW gmpy2
 
 =head1 NAME
 
@@ -826,9 +826,23 @@ C<n E<lt> 0, k > 0> are undefined.
 =head2 bernfrac
 
 Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
-rational number represented by two L<Math::BigInt> objects.  B_1 = 1/2.
+rational number.  Two values are returned, the numerator and denominator.
+B_1 = 1/2.
 This corresponds to Pari's C<bernfrac(n)> and Mathematica's C<BernoulliB>
 functions.
+
+=head2 harmfrac
+
+Returns the Harmonic number C<H_n> for an integer argument C<n>, as a
+rational number.  Two values are returned, the numerator and denominator.
+numbers are the sum of reciprocals of the first C<n> natural numbers:
+C<1 + 1/2 + 1/3 + ... + 1/n>.
+
+=head2 harmreal
+
+Returns the Harmonic number C<H_n> for an integer argument C<n>, as a
+string floating point.  An optional second argument indicates the number
+of digits to be preserved past the decimal place, with a default of 40.
 
 =head2 stirling
 

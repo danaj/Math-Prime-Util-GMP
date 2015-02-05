@@ -1884,6 +1884,34 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_clear(t);
 }
 
+char* harmreal(mpz_t zn, unsigned long prec) {
+  char* out;
+  mpz_t num, den;
+  mpf_t fnum, fden, res;
+  unsigned long numsize, densize;
+
+  mpz_init(num); mpz_init(den);
+  harmfrac(num, den, zn);
+
+  numsize = mpz_sizeinbase(num, 10);
+  densize = mpz_sizeinbase(den, 10);
+
+  mpf_init2(fnum, 1 + mpz_sizeinbase(num,2));
+  mpf_init2(fden, 1 + mpz_sizeinbase(den,2));
+  mpf_set_z(fnum, num);  mpf_set_z(fden, den);
+  mpz_clear(den); mpz_clear(num);
+
+  mpf_init2(res, (mp_bitcnt_t) (8+prec*3.4) );
+  mpf_div(res, fnum, fden);
+  mpf_clear(fnum);  mpf_clear(fden);
+
+  New(0, out, (10+numsize-densize)+prec, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec), res);
+  mpf_clear(res);
+
+  return out;
+}
+
 void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
 {
   mpz_t t, t2;
