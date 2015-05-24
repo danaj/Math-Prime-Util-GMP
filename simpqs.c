@@ -58,8 +58,7 @@
 #include <gmp.h>
 
 #ifdef STANDALONE_SIMPQS
-  typedef unsigned long UV;
-  typedef   signed long IV;
+  #include "ptypes.h"
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   /*
