@@ -192,9 +192,10 @@ is_prime(IN char* strn)
     is_prob_prime = 1
     is_aks_prime = 2
     is_llr_prime = 3
-    is_nminus1_prime = 4
-    is_ecpp_prime = 5
-    is_bpsw_prime = 6
+    is_proth_prime = 4
+    is_nminus1_prime = 5
+    is_ecpp_prime = 6
+    is_bpsw_prime = 7
   PREINIT:
     mpz_t n;
     int ret;
@@ -206,9 +207,10 @@ is_prime(IN char* strn)
       case 1: ret = _GMP_is_prob_prime(n); break;
       case 2: ret = _GMP_is_aks_prime(n); break;
       case 3: ret = llr(n); break;
-      case 4: ret = _GMP_primality_bls_nm1(n, 100, 0); break;
-      case 5: ret = _GMP_ecpp(n, 0); break;
-      case 6:
+      case 4: ret = proth(n); break;
+      case 5: ret = _GMP_primality_bls_nm1(n, 100, 0); break;
+      case 6: ret = _GMP_ecpp(n, 0); break;
+      case 7:
       default:ret = _GMP_BPSW(n); break;
     }
     RETVAL = ret;
@@ -731,7 +733,6 @@ lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
     VALIDATE_AND_SET("lucas_sequence", n, strn);
     VALIDATE_AND_SET("lucas_sequence", k, strk);
     mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(t);
-
     _GMP_lucas_seq(U, V, n, P, Q, k, Qk, t);
     XPUSH_MPZ(U);
     XPUSH_MPZ(V);
