@@ -382,8 +382,8 @@ int lucas_lehmer(UV p)
 /* Returns:  -1 unknown, 0 composite, 2 definitely prime */
 int llr(mpz_t N)
 {
-  mpz_t v, k, V;
-  UV i, n;
+  mpz_t v, k, V, U, Qk, t;
+  UV i, n, P;
   int res = -1;
 
   if (mpz_cmp_ui(N,100) <= 0) return (_GMP_is_prob_prime(N) ? 2 : 0);
@@ -401,18 +401,30 @@ int llr(mpz_t N)
     goto DONE_LLR;
 
   mpz_init(V);
+  mpz_init(U); mpz_init(Qk); mpz_init(t);
   if (!mpz_divisible_ui_p(k, 3)) { /* Select V for 3 not divis k */
-    mpz_t U, Qk, t;
-    mpz_init(U); mpz_init(Qk); mpz_init(t);
     _GMP_lucas_seq(U, V, N, 4, 1, k, Qk, t);
-    mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
   } else if ((n % 4 == 0 || n % 4 == 3) && mpz_cmp_ui(k,3)==0) {
     mpz_set_ui(V, 5778);
   } else {
-    /* TODO: No logic for the k | 3 case yet. */
-    mpz_clear(V);
-    goto DONE_LLR;
+    /* Öystein J. Rödseth: http://www.uib.no/People/nmaoy/papers/luc.pdf */
+    for (P=5; P < 1000; P++) {
+      mpz_set_ui(t, P-2);
+      if (mpz_jacobi(t, N) == 1) {
+        mpz_set_ui(t, P+2);
+        if (mpz_jacobi(t, N) == -1) {
+          break;
+        }
+      }
+    }
+    if (P >= 1000) {
+      mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
+      mpz_clear(V);
+      goto DONE_LLR;
+    }
+    _GMP_lucas_seq(U, V, N, P, 1, k, Qk, t);
   }
+  mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
 
   for (i = 3; i <= n; i++) {
     mpz_mul(V, V, V);
@@ -425,6 +437,41 @@ int llr(mpz_t N)
 DONE_LLR:
   if (res != -1 && get_verbose_level() > 1) printf("N shown %s with LLR\n", res ? "prime" : "composite");
   mpz_clear(k); mpz_clear(v);
+  return res;
+}
+/* Returns:  -1 unknown, 0 composite, 2 definitely prime */
+int proth(mpz_t N)
+{
+  mpz_t v, k, a;
+  UV n;
+  int i, res = -1;
+  if (mpz_cmp_ui(N,100) <= 0) return (_GMP_is_prob_prime(N) ? 2 : 0);
+  if (mpz_even_p(N) || mpz_divisible_ui_p(N, 3)) return 0;
+  mpz_init(v); mpz_init(k);
+  mpz_sub_ui(v, N, 1);
+  n = mpz_scan1(v, 0);
+  mpz_tdiv_q_2exp(k, v, n);
+  /* N = k * 2^n + 1 */
+  if (mpz_sizeinbase(k,2) <= n) {
+    const unsigned char sprimes[25] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97};
+    mpz_init(a);
+    for (i = 0; i < 25 && res == -1; i++) {
+      mpz_set_ui(a, sprimes[i]);
+      if (mpz_jacobi(a, N) == -1)
+        res = 0;
+    }
+    /* (a,N) = -1 if res=0.  Do Proth primality test. */
+    if (res == 0) {
+      mpz_tdiv_q_2exp(k, v, 1);
+      mpz_powm(a, a, k, N);
+      if (mpz_cmp(a, v) == 0)
+        res = 2;
+    }
+    mpz_clear(a);
+  }
+  mpz_clear(k); mpz_clear(v);
+  if (res != -1 && get_verbose_level() > 1) printf("N shown %s with Proth\n", res ? "prime" : "composite");
+  fflush(stdout);
   return res;
 }
 static int is_proth_form(mpz_t N)
@@ -1257,6 +1304,10 @@ int _GMP_is_prime(mpz_t n)
   prob_prime = llr(n);
   if (prob_prime == 0 || prob_prime == 2) return prob_prime;
 
+  /* If the number is of form N=k*2^n+1 and we have a fast proof, do it. */
+  prob_prime = proth(n);
+  if (prob_prime == 0 || prob_prime == 2) return prob_prime;
+
   /* Start with BPSW */
   prob_prime = _GMP_BPSW(n);
   nbits = mpz_sizeinbase(n, 2);
@@ -1323,9 +1374,11 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   int prob_prime = primality_pretest(n);
   if (prob_prime != 1)  return prob_prime;
 
-  /* Try LLR if they don't need a proof certificate. */
+  /* Try LLR and Proth if they don't need a proof certificate. */
   if (prooftext == 0) {
     prob_prime = llr(n);
+    if (prob_prime == 0 || prob_prime == 2) return prob_prime;
+    prob_prime = proth(n);
     if (prob_prime == 0 || prob_prime == 2) return prob_prime;
   }
 

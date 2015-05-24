@@ -1,10 +1,18 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.30 2014-?
+0.30 2015-?
 
     [ADDED]
 
     - harmfrac                            returns (num,den) of Harmonic number
+
+    [PERFORMANCE]
+
+    - A Proth test was added to quickly prove numbers of the form k*2^n+1.
+
+    - LLR testing was improved using a method by Rödseth.  This allows proofs
+      of k*2^n-1.  The old method is still used, but was unable to quickly
+      test cases where k was divisible by 3.  The new method handles these.
 
 0.29 2014-11-26
 
