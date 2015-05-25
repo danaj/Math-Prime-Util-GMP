@@ -1663,7 +1663,7 @@ int _GMP_is_aks_prime(mpz_t n)
 
 #elif AKS_VARIANT == AKS_VARIANT_BERNEXAMPLE
   {
-    double slim, x;
+    double slim, scmp, x;
     mpz_t t, t2;
     PRIME_ITERATOR(iter);
     mpz_init(t);  mpz_init(t2);
@@ -1671,25 +1671,21 @@ int _GMP_is_aks_prime(mpz_t n)
     s = 0;
     while (1) {
       UV q, tmp;
+      /* todo: Check r|n and r >= sqrt(n) */
       if (mpz_cmp_ui(n, r) <= 0) break;
       r = prime_iterator_next(&iter);
       q = largest_factor(r-1);
       mpz_set_ui(t, r);
       mpz_powm_ui(t, n, (r-1)/q, t);
-      /* gmp_printf("r %lu  q %lu  t %Zd\n", r, q, t); */
       if (mpz_cmp_ui(t, 1) <= 0) continue;
-      /* printf("trying r=%lu\n", r); */
 
-      s = 2;
-      slim = 2 * floor(sqrt(r)) * log(mpz_get_d(n));
-      while (1) {
+      slim = 40 * (r-1);
+      scmp = 2 * floor(sqrt(r)) * log(mpz_get_d(n))/log(2);
+      for (s = 2; s < slim; s++) {
         mpz_bin_uiui(t, q+s-1, s);
-        x = log(mpz_get_d(t)) / slim - 1.0;
-        if (x > 0) break;
-        s++;
-        if (s > 1000000) { s=0; break; }
+        if (log(mpz_get_d(t))/log(2) > scmp) break;
       }
-      if (s != 0) break;
+      if (s < slim) break;
     }
     mpz_clear(t);  mpz_clear(t2);
     prime_iterator_destroy(&iter);
