@@ -7,6 +7,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - harmfrac                  returns (num,den) of Harmonic number
     - is_proth_prime(p)         For k*2^n+1, returns -1, 0, or 2
 
+    [FIXES]
+
+    - lucas sequence with even n fixed.
+
     [PERFORMANCE]
 
     - A Proth test was added to quickly prove numbers of the form k*2^n+1.

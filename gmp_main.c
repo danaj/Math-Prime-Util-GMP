@@ -162,8 +162,8 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
 }
 
 /* Returns Lucas sequence  U_k mod n and V_k mod n  defined by P,Q */
-void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
-                    mpz_t Qk, mpz_t t)
+void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
+               mpz_t Qk, mpz_t t)
 {
   UV b = mpz_sizeinbase(k, 2);
   IV D = P*P - 4*Q;
@@ -179,6 +179,12 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
     mpz_set_ui(V, 2);
     return;
   }
+  if (mpz_even_p(n)) {
+    /* If n is even, then we can't divide by 2.  Do it differently. */
+    alt_lucas_seq(U, V, n, P, Q, k, Qk, t);
+    return;
+  }
+
   mpz_set_ui(U, 1);
   mpz_set_si(V, P);
   mpz_set_si(Qk, Q);
@@ -254,6 +260,61 @@ void _GMP_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   }
   mpz_mod(U, U, n);
   mpz_mod(V, V, n);
+}
+
+void alt_lucas_seq(mpz_t Uh, mpz_t Vl, mpz_t n, IV P, IV Q, mpz_t k,
+                   mpz_t Ql, mpz_t t)
+{
+  mpz_t Vh, Qh;
+  int j, s = mpz_scan1(k,0), b = mpz_sizeinbase(k,2);
+
+  if (mpz_sgn(k) <= 0) {
+    mpz_set_ui(Uh, 0);
+    mpz_set_ui(Vl, 2);
+    return;
+  }
+
+  mpz_set_ui(Uh, 1);
+  mpz_set_ui(Vl, 2);
+  mpz_set_ui(Ql, 1);
+  mpz_init_set_si(Vh,P);
+  mpz_init_set_ui(Qh,1);
+
+  for (j = b; j > s; j--) {
+    mpz_mul(Ql, Ql, Qh);
+    if (mpz_tstbit(k, j)) {
+      mpz_mul_si(Qh, Ql, Q);
+      mpz_mul(Uh, Uh, Vh);
+      mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh); mpz_sub(Vl, Vl, t);
+      mpz_mul(Vh, Vh, Vh); mpz_sub(Vh, Vh, Qh); mpz_sub(Vh, Vh, Qh);
+    } else {
+      mpz_set(Qh, Ql);
+      mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
+      mpz_mul_si(t, Ql, P);  mpz_mul(Vh, Vh, Vl); mpz_sub(Vh, Vh, t);
+      mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
+    }
+    mpz_mod(Qh, Qh, n);
+    mpz_mod(Uh, Uh, n);
+    mpz_mod(Vh, Vh, n);
+    mpz_mod(Vl, Vl, n);
+  }
+  mpz_mul(Ql, Ql, Qh);
+  mpz_mul_si(Qh, Ql, Q);
+  mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
+  mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh);  mpz_sub(Vl, Vl, t);
+  mpz_mul(Ql, Ql, Qh);
+  mpz_clear(Qh);  mpz_clear(Vh);
+  mpz_mod(Ql, Ql, n);
+  mpz_mod(Uh, Uh, n);
+  mpz_mod(Vl, Vl, n);
+  for (j = 0; j < s; j++) {
+    mpz_mul(Uh, Uh, Vl);
+    mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
+    mpz_mul(Ql, Ql, Ql);
+    mpz_mod(Ql, Ql, n);
+    mpz_mod(Uh, Uh, n);
+    mpz_mod(Vl, Vl, n);
+  }
 }
 
 void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
@@ -403,7 +464,7 @@ int llr(mpz_t N)
   mpz_init(V);
   mpz_init(U); mpz_init(Qk); mpz_init(t);
   if (!mpz_divisible_ui_p(k, 3)) { /* Select V for 3 not divis k */
-    _GMP_lucas_seq(U, V, N, 4, 1, k, Qk, t);
+    lucas_seq(U, V, N, 4, 1, k, Qk, t);
   } else if ((n % 4 == 0 || n % 4 == 3) && mpz_cmp_ui(k,3)==0) {
     mpz_set_ui(V, 5778);
   } else {
@@ -422,7 +483,7 @@ int llr(mpz_t N)
       mpz_clear(V);
       goto DONE_LLR;
     }
-    _GMP_lucas_seq(U, V, N, P, 1, k, Qk, t);
+    lucas_seq(U, V, N, P, 1, k, Qk, t);
   }
   mpz_clear(t);  mpz_clear(Qk); mpz_clear(U);
 
@@ -587,7 +648,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
     mpz_tdiv_q_2exp(d, d, s);
   }
 
-  _GMP_lucas_seq(U, V, n, P, Q, d, Qk, t);
+  lucas_seq(U, V, n, P, Q, d, Qk, t);
   mpz_clear(d);
 
   rval = 0;
@@ -836,7 +897,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
   if (k == 1) mpz_sub_ui(d, n, 1);
   else        mpz_add_ui(d, n, 1);
 
-  _GMP_lucas_seq(U, V, n, P, Q, d, Qk, t);
+  lucas_seq(U, V, n, P, Q, d, Qk, t);
   rval = ( mpz_sgn(U) == 0 && mpz_cmp(V, Vcomp) == 0 );
 
   mpz_clear(d); mpz_clear(Qk); mpz_clear(V); mpz_clear(U);

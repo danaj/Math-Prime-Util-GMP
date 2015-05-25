@@ -661,10 +661,10 @@ int _GMP_primality_bls_15(mpz_t n, mpz_t f, IV* lp, IV* lq)
         continue;
       /* we have a d/p/q where d = -1.  Check the Lucas sequences. */
       mpz_divexact_ui(k, m, 2);
-      _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
+      lucas_seq(U, V, n, p, q, k,    t, t2);
       if (mpz_sgn(V) != 0) {
         mpz_divexact_ui(k, np1, 2);
-        _GMP_lucas_seq(U, V, n, p, q, k,    t, t2);
+        lucas_seq(U, V, n, p, q, k,    t, t2);
         if (mpz_sgn(V) == 0) {
           rval = 2;
           if (lp) *lp = p;
