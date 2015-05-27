@@ -172,7 +172,14 @@ static void small_factor(mpz_t F, mpz_t R, UV B1)
  *   (2) way too much copy/paste between Pocklington and BLS
  *   (3) Pocklington has code rotted, so fix before using
  */
-#define PRIM_STACK_SIZE 128
+#define ADD_TO_STACK(val, stack, cur, max) \
+  if (cur == max) \
+    Renew(stack, max += 10, mpz_t); \
+  mpz_init_set( stack[cur++], val );
+#define ADD_TO_STACK_UI(val, stack, cur, max) \
+  if (cur == max) \
+    Renew(stack, max += 10, mpz_t); \
+  mpz_init_set_ui( stack[cur++], val );
 
 #define primality_handle_factor(f, primality_func, factor_prob) \
   { \
@@ -180,15 +187,13 @@ static void small_factor(mpz_t F, mpz_t R, UV B1)
     if ( (f_prob_prime == 1) && (primality_func(f, effort, prooftextptr) == 2) ) \
       f_prob_prime = 2; \
     if (f_prob_prime == 2) { \
-      if (fsp >= PRIM_STACK_SIZE) { success = 0; } \
-      else                        { mpz_init_set(fstack[fsp++], f); } \
+      ADD_TO_STACK( f, fstack, fsp, fsmax ); \
       while (mpz_divisible_p(B, f)) { \
         mpz_mul(A, A, f); \
         mpz_divexact(B, B, f); \
       } \
     } else if ( (f_prob_prime == 0) || (factor_prob) ) { \
-      if (msp >= PRIM_STACK_SIZE) { success = 0; } \
-      else                        { mpz_init_set(mstack[msp++], f); } \
+      ADD_TO_STACK( f, mstack, msp, msmax ); \
     } \
   }
 
@@ -355,12 +360,12 @@ static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
 int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, A, B, t, m, f, r, s;
-  mpz_t mstack[PRIM_STACK_SIZE];
-  mpz_t fstack[PRIM_STACK_SIZE];
-  int msp = 0;
-  int fsp = 0;
+  mpz_t* fstack;
+  mpz_t* mstack;
+  int fsp = 0, fsmax = 10;
+  int msp = 0, msmax = 10;
   int success = 1;
-  UV B1 = 2000;
+  UV B1 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 2000;
 
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return 0;
@@ -375,14 +380,16 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   mpz_init(r);
   mpz_init(s);
 
+  New(0, fstack, fsmax, mpz_t);
+  New(0, mstack, msmax, mpz_t);
+
   { /* Pull small factors out */
     PRIME_ITERATOR(iter);
     UV tf;
     for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
       if (mpz_cmp_ui(B, tf*tf) < 0) break;
       if (mpz_divisible_ui_p(B, tf)) {
-        if (fsp >= PRIM_STACK_SIZE) { success = 0; break; }
-        mpz_init_set_ui(fstack[fsp++], tf);
+        ADD_TO_STACK_UI( tf, fstack, fsp, fsmax );
         do {
           mpz_mul_ui(A, A, tf);
           mpz_divexact_ui(B, B, tf);
@@ -482,12 +489,16 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   }
 
   if (success > 0) {
-    int pcount, a;
+    int pcount, a, starta;
     int const alimit = (effort <= 2) ? 200 : 10000;
+    char afermat[10000+1];
     mpz_t p, ap;
 
     mpz_init(p);
     mpz_init(ap);
+
+    /* Cache result that doesn't depend on factor */
+    for (a = 0; a <= alimit; a++)  afermat[a] = -1;
 
     for (pcount = 0; success && pcount < fsp; pcount++) {
       PRIME_ITERATOR(iter);
@@ -496,8 +507,11 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
       for (a = 2; !success && a <= alimit; a = prime_iterator_next(&iter)) {
         mpz_set_ui(ap, a);
         /* Does a^(n-1) % n = 1 ? */
-        mpz_powm(t, ap, nm1, n);
-        if (mpz_cmp_ui(t, 1) != 0)
+        if (afermat[a] == -1) {
+          mpz_powm(t, ap, nm1, n);
+          afermat[a] = (mpz_cmp_ui(t, 1) == 0);
+        }
+        if (afermat[a] == 0)
           continue;
         /* Does gcd(a^((n-1)/f)-1,n) = 1 ? */
         mpz_divexact(B, nm1, p);
@@ -507,7 +521,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
         if (mpz_cmp_ui(t, 1) != 0)
           continue;
         success = 1;   /* We found an a for this p */
-        mpz_init_set(mstack[msp++], ap);
+        ADD_TO_STACK( ap, mstack, msp, msmax );
       }
       prime_iterator_destroy(&iter);
     }
@@ -546,8 +560,10 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   }
   while (fsp-- > 0)
     mpz_clear(fstack[fsp]);
+  Safefree(fstack);
   while (msp-- > 0)
     mpz_clear(mstack[msp]);
+  Safefree(mstack);
   mpz_clear(nm1);
   mpz_clear(A);
   mpz_clear(B);

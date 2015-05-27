@@ -19,6 +19,11 @@ Revision history for Perl module Math::Prime::Util::GMP
       of k*2^n-1.  The old method is still used, but was unable to quickly
       test cases where k was divisible by 3.  The new method handles these.
 
+    - BLS75-5 proof: use an expanding stack, allowing it to work on inputs
+      like:  'k * n# + 1'.
+
+    - BLS75-5 proof: remove some redundant computations.
+
 0.29 2014-11-26
 
     [ADDED]
