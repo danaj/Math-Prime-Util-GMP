@@ -7,7 +7,7 @@ fi
 
 cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] ecm.[ch] prime_iterator.[ch] standalone/
-cp -p gmp_main.[ch] small_factor.[ch] utility.[ch] standalone/
+cp -p gmp_main.[ch] factor.[ch] small_factor.[ch] utility.[ch] standalone/
 cp -p xt/expr.[ch] xt/expr-impl.h standalone/
 cp -p xt/proof-text-format.txt standalone/
 cp -p examples/verify-cert.pl standalone/
@@ -41,8 +41,8 @@ DEFINES = -DSTANDALONE -DSTANDALONE_ECPP
 CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
-OBJ = ecpp.o bls75.o ecm.o prime_iterator.o gmp_main.o small_factor.o \
-      utility.o expr.o
+OBJ = ecpp.o bls75.o ecm.o prime_iterator.o gmp_main.o \
+      small_factor.o factor.o utility.o expr.o
 HEADERS = ptypes.h class_poly_data.h
 
 .PHONY: default all clean
