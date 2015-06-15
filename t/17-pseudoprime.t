@@ -11,8 +11,11 @@ use Math::Prime::Util::GMP qw/
    is_extra_strong_lucas_pseudoprime
    is_almost_extra_strong_lucas_pseudoprime
    is_frobenius_pseudoprime
+   is_frobenius_khashin_pseudoprime
+   is_frobenius_underwood_pseudoprime
    is_perrin_pseudoprime
    is_prime
+   is_bpsw_prime
    lucas_sequence lucasu lucasv
    miller_rabin_random
    primes/;
@@ -94,6 +97,31 @@ my %lucas_sequences = (
   "18971 10001 -1 4743" => [5866,14421,18970],
 );
 
+my @primes128 = (qw/
+  216807359884357411648908138950271200947
+  339168371495941440319562622097823889491
+  175647712566579256193079384409148729569
+  213978050035770705635718665804334250861
+  282014465653257435172223280631326130957
+  285690571631805499387265005140705006349
+  197905182544375865664507026666258550257
+  257978530672690459726721542547822424119
+  271150181404520740107101159842415035273
+  262187868871349017397376949493643287923
+/);
+my @comp128 = (qw/
+  331692821169251128612023074084933636563
+  291142820834608911820232911620629416673
+  222553723073325022732878644722536036431
+  325464724689480915638128579172743588243
+  326662586910428159613180378374675586479
+  197395185602458924846767613337087999977
+  194157480002729115387621030269291379439
+  180664716097986611402007784149669477223
+  248957328957166865967197552940796547567
+  276174467950103435998583356206846142651
+/);
+
 
 plan tests => 0 + 9
                 + 3
@@ -107,6 +135,8 @@ plan tests => 0 + 9
               # + $num_large_pseudoprime_tests
                 + 12*$extra  # Large Carmichael numbers
                 + 2 # M-R-random
+                + 4 * scalar(@primes128)  # strong probable prime tests
+                + 4 * scalar(@comp128)    # strong probable prime tests
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -283,4 +313,17 @@ if ($extra) {
   # This is why we use k random bases and not the first k bases.
   my $isprime = miller_rabin_random($n, 33);
   is($isprime, 0, "Miller-Rabin with 100 uniform random bases for n returns prime" );
+}
+
+for my $p (@primes128) {
+  is( is_frobenius_pseudoprime($p), 1, "prime $p passes Frobenius primality test");
+  is( is_frobenius_khashin_pseudoprime($p), 1, "prime $p passes Frobenius Khashin primality test");
+  is( is_frobenius_underwood_pseudoprime($p), 1, "prime $p passes Frobenius Underwood primality test");
+  is( is_bpsw_prime($p), 1, "prime $p passes BPSW primality test");
+}
+for my $p (@comp128) {
+  is( is_frobenius_pseudoprime($p), 0, "composite $p fails Frobenius primality test");
+  is( is_frobenius_khashin_pseudoprime($p), 0, "composite $p fails Frobenius Khashin primality test");
+  is( is_frobenius_underwood_pseudoprime($p), 0, "composite $p fails Frobenius Underwood primality test");
+  is( is_bpsw_prime($p), 0, "composite $p fails BPSW primality test");
 }

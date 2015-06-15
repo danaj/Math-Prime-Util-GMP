@@ -29,6 +29,7 @@ our @EXPORT_OK = qw(
                      is_perrin_pseudoprime
                      is_frobenius_pseudoprime
                      is_frobenius_underwood_pseudoprime
+                     is_frobenius_khashin_pseudoprime
                      is_mersenne_prime
                      is_llr_prime
                      is_proth_prime
@@ -549,9 +550,19 @@ C<(x+2)^(n+1) = 2a + 5 mod (x^2-ax+1,n)>.  This combines a Fermat and Lucas
 test at a computational cost of about 2.5x a strong pseudoprime test.  This
 makes it similar to, but faster than, a Frobenius test.
 
-There are no known pseudoprimes to this test.  This test also has no overlap
-with the BPSW test, making it a very effective method for adding additional
-certainty.
+This test is deterministic (no randomness is used).  There are no known
+pseudoprimes to this test.  This test also has no overlap with the BPSW
+test, making it a very effective method for adding additional certainty.
+
+=head2 is_frobenius_khashin_pseudoprime
+
+Takes a positive number as input, and returns 1 if the input passes the
+Frobenius test of Sergey Khashin.  This ensures C<n> is not a perfect square,
+selects the parameter C<c> as the smallest odd prime such that C<(c|n)=-1>,
+then verifies that C<(1+D)^n = (1-D) mod n> where C<D = sqrt(c) mod n>.
+
+This test is deterministic (no randomness is used).
+There are no known pseudoprimes to this test.
 
 =head2 is_bpsw_prime
 
