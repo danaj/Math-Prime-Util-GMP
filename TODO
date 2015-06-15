@@ -77,3 +77,5 @@
 - GMP 5.1 added mpz_primorial_ui.  We should use it when possible, as its
   internal product tree is faster than our external-API shallow product tree.
   Also investigate sieving and product tree.
+
+- New version of Pi code using Chudnovsky.  See Pari.

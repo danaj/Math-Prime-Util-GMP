@@ -1098,40 +1098,36 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
     return 0;
   }
 
-  mpz_init_set_ui(ta, 1);   mpz_init_set_ui(tb, 1);
   mpz_init_set_ui(ra, 1);   mpz_init_set_ui(rb, 1);
   mpz_init_set_ui(a, 1);    mpz_init_set_ui(b, 1);
+  mpz_init(ta);   mpz_init(tb);
   mpz_init(d);
   mpz_sub_ui(d, n, 1);
 
   while (mpz_sgn(d)) {
     if (mpz_odd_p(d)) {
-      mpz_set(ta, ra);  mpz_set(tb, rb);
-
-      mpz_mul(ra, ta, a);
-      mpz_mul(t, tb, b);
-      mpz_mul_ui(t, t, c);
-      mpz_add(ra, ra, t);
-      mpz_mod(ra, ra, n);
-
-      mpz_mul(rb, tb, a);
-      mpz_mul(t, ta, b);
-      mpz_add(rb, rb, t);
+      mpz_mul(ta, ra, a);
+      mpz_mul(tb, rb, b);
+      mpz_add(t, ra, rb);
+      mpz_add(rb, a, b);
+      mpz_mul(rb, rb, t);
+      mpz_sub(rb, rb, ta);
+      mpz_sub(rb, rb, tb);
       mpz_mod(rb, rb, n);
+      mpz_mul_ui(tb, tb, c);
+      mpz_add(ra, ta, tb);
+      mpz_mod(ra, ra, n);
     }
     mpz_tdiv_q_2exp(d, d, 1);
     if (mpz_sgn(d)) {
-      mpz_set(ta, a);  mpz_set(tb, b);
-
-      mpz_mul(a, ta, ta);
-      mpz_mul(t, tb, tb);
+      mpz_mul(t, b, b);
       mpz_mul_ui(t, t, c);
-      mpz_add(a, a, t);
-      mpz_mod(a, a, n);
-
-      mpz_mul(b, ta, tb);
+      mpz_mul(b, b, a);
       mpz_add(b, b, b);
       mpz_mod(b, b, n);
+      mpz_mul(a, a, a);
+      mpz_add(a, a, t);
+      mpz_mod(a, a, n);
     }
   }
   mpz_sub_ui(d, n, 1);
