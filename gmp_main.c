@@ -1073,6 +1073,78 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
   return rval;
 }
 
+int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
+{
+  mpz_t t, ta, tb, ra, rb, a, b, d;
+  unsigned long c = 1;
+  int k, rval = 0;
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+  }
+  if (mpz_perfect_square_p(n)) return 0;
+
+  mpz_init(t);
+  do {
+    c += 2;
+    mpz_set_ui(t, c);
+    k = mpz_jacobi(t, n);
+  } while (k == 1);
+  if (k == 0) {
+    mpz_clear(t);
+    return 0;
+  }
+
+  mpz_init_set_ui(ta, 1);   mpz_init_set_ui(tb, 1);
+  mpz_init_set_ui(ra, 1);   mpz_init_set_ui(rb, 1);
+  mpz_init_set_ui(a, 1);    mpz_init_set_ui(b, 1);
+  mpz_init(d);
+  mpz_sub_ui(d, n, 1);
+
+  while (mpz_sgn(d)) {
+    if (mpz_odd_p(d)) {
+      mpz_set(ta, ra);  mpz_set(tb, rb);
+
+      mpz_mul(ra, ta, a);
+      mpz_mul(t, tb, b);
+      mpz_mul_ui(t, t, c);
+      mpz_add(ra, ra, t);
+      mpz_mod(ra, ra, n);
+
+      mpz_mul(rb, tb, a);
+      mpz_mul(t, ta, b);
+      mpz_add(rb, rb, t);
+      mpz_mod(rb, rb, n);
+    }
+    mpz_tdiv_q_2exp(d, d, 1);
+    if (mpz_sgn(d)) {
+      mpz_set(ta, a);  mpz_set(tb, b);
+
+      mpz_mul(a, ta, ta);
+      mpz_mul(t, tb, tb);
+      mpz_mul_ui(t, t, c);
+      mpz_add(a, a, t);
+      mpz_mod(a, a, n);
+
+      mpz_mul(b, ta, tb);
+      mpz_add(b, b, b);
+      mpz_mod(b, b, n);
+    }
+  }
+  mpz_sub_ui(d, n, 1);
+  if ( (mpz_cmp_ui(ra,1) == 0) && (mpz_cmp(rb, d) == 0) )
+    rval = 1;
+
+  mpz_clear(ta); mpz_clear(tb);
+  mpz_clear(ra); mpz_clear(rb);
+  mpz_clear(a); mpz_clear(b);
+  mpz_clear(t);
+  return rval;
+}
+
 
 UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
 {
