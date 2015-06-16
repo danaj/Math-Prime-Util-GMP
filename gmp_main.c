@@ -2079,7 +2079,7 @@ char* harmreal(mpz_t zn, unsigned long prec) {
   mpf_set_z(fnum, num);  mpf_set_z(fden, den);
   mpz_clear(den); mpz_clear(num);
 
-  mpf_init2(res, (mp_bitcnt_t) (8+prec*3.4) );
+  mpf_init2(res, (unsigned long) (8+prec*3.4) );
   mpf_div(res, fnum, fden);
   mpf_clear(fnum);  mpf_clear(fden);
 
