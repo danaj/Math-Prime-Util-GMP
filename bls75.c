@@ -489,7 +489,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   }
 
   if (success > 0) {
-    int pcount, a, starta;
+    int pcount, a;
     int const alimit = (effort <= 2) ? 200 : 10000;
     char afermat[10000+1];
     mpz_t p, ap;

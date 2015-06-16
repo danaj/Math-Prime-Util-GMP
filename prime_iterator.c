@@ -205,7 +205,7 @@ static unsigned char* sieve_erat30(UV end)
   /* Fill buffer with marked 7, 11, and 13 */
   sieve_prefill(mem, 0, max_buf-1);
 
-  limit = sqrt((double) end);  /* prime*prime can overflow */
+  limit = (UV) sqrt((double) end);  /* prime*prime can overflow */
   for (prime = 17; prime <= limit; prime = next_prime_in_sieve(mem,prime)) {
     UV d = (prime*prime)/30;
     UV m = (prime*prime) - d*30;
@@ -249,7 +249,7 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
   /* Fill buffer with marked 7, 11, and 13 */
   sieve_prefill(mem, startd, endd);
 
-  limit = sqrt((double) endp);
+  limit = (UV) sqrt((double) endp);
   if (limit*limit < endp) limit++;  /* ceil(sqrt(endp)) */
   /* printf("segment sieve from %"UVuf" to %"UVuf" (aux sieve to %"UVuf")\n", startp, endp, limit); */
   if ( (prim_sieve != 0) && (limit <= prim_limit) ) {
