@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.31 2015-?
+
+    [OTHER]
+
+    - Allow working on old GMP versions.
+
 0.30 2015-06-15
 
     [ADDED]

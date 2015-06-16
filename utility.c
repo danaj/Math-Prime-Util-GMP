@@ -19,7 +19,12 @@ void set_verbose_level(int level) { _verbose = level; }
 static gmp_randstate_t _randstate;
 gmp_randstate_t* get_randstate(void) { return &_randstate; }
 void init_randstate(unsigned long seed) {
+#if (__GNU_MP_VERSION > 4) || (__GNU_MP_VERSION == 4 && __GNU_MP_VERSION_MINOR >= 2)
+  /* MT was added in GMP 4.2 released in 2006. */
   gmp_randinit_mt(_randstate);
+#else
+  gmp_randinit_default(_randstate);
+#endif
   gmp_randseed_ui(_randstate, seed);
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
@@ -356,9 +361,10 @@ void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
 }
 #endif
 
-#if 0
+#if (__GNU_MP_VERSION < 4) || (__GNU_MP_VERSION == 4 && __GNU_MP_VERSION_MINOR < 1)
 /* Binary segmentation, using simple shift+add method for processing p.
  * Faster than twiddling bits, but not nearly as fast as import/export.
+ * mpz_import and mpz_export were added in GMP 4.1 released in 2002.
  */
 void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
 {
@@ -397,7 +403,8 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
   for (i = 0; i < r; i++)
     mpz_mod(px[i], px[i], mod);
 }
-#endif
+
+#else
 
 /* Binary segmentation, using import/export method for processing p.
  * Thanks to Dan Bernstein's 2007 Quartic paper.
@@ -448,6 +455,7 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
     Safefree(s);
   }
 }
+#endif
 
 void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod)
 {
