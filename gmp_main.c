@@ -1958,15 +1958,18 @@ void _GMP_pn_primorial(mpz_t prim, UV n)
   }
   prime_iterator_destroy(&iter);
 }
-void _GMP_primorial(mpz_t prim, mpz_t n)
+void _GMP_primorial(mpz_t prim, UV n)
 {
+#if (__GNU_MP_VERSION > 5) || (__GNU_MP_VERSION == 5 && __GNU_MP_VERSION_MINOR >= 1)
+  mpz_primorial_ui(prim, n);
+#else
   UV p = 2;
   PRIME_ITERATOR(iter);
 
-  if (mpz_cmp_ui(n, 1000) < 0) {
+  if (n < 1000) {
     /* Simple linear multiplication, one at a time */
     mpz_set_ui(prim, 1);
-    while (mpz_cmp_ui(n, p) >= 0) {
+    while (p <= n) {
       mpz_mul_ui(prim, prim, p);
       p = prime_iterator_next(&iter);
     }
@@ -1976,7 +1979,7 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
     UV i;
     for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
     i = 0;
-    while (mpz_cmp_ui(n, p) >= 0) {
+    while (p <= n) {
       mpz_mul_ui(t[i&15], t[i&15], p);
       p = prime_iterator_next(&iter);
       i++;
@@ -1986,6 +1989,7 @@ void _GMP_primorial(mpz_t prim, mpz_t n)
     for (i = 0; i < 16; i++)  mpz_clear(t[i]);
   }
   prime_iterator_destroy(&iter);
+#endif
 }
 
 /* Luschny's version of the "Brent-Harvey" method */

@@ -370,13 +370,13 @@ primorial(IN char* strn)
     un = mpz_get_ui(n);
     mpz_init(res);
     switch (ix) {
-      case 0:  _GMP_primorial(res, n);  break;
+      case 0:  _GMP_primorial(res, un);  break;
       case 1:  _GMP_pn_primorial(res, un);  break;
       case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
       case 3:  exp_mangoldt(res, n);  break;
       case 4:  totient(res, n);  break;
       case 5:  carmichael_lambda(res, n);  break;
-      case 6:  mpz_fac_ui(res, un);  break;  /* Uses swing, so let's use it */
+      case 6:  mpz_fac_ui(res, un);  break;  /* swing impl in 5.1+, so fast */
       case 7:  bernfrac(n, res, n);
                XPUSH_MPZ(n);
                break;
