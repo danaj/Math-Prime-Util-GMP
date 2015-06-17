@@ -665,7 +665,6 @@ int _GMP_primality_bls_15(mpz_t n, mpz_t f, IV* lp, IV* lq)
     IV d, p, q;
     mpz_t U, V, k;
 
-    q = 2;
     mpz_init(U);  mpz_init(V);  mpz_init(k);
 
     /* Primo gave me the idea of this p/q selection method */
@@ -693,6 +692,8 @@ int _GMP_primality_bls_15(mpz_t n, mpz_t f, IV* lp, IV* lq)
   }
 
 end_bls15:
+  /* Somehow there is a tester getting 0 for LQ */
+  if (rval && lq && *lq < 2) croak("Internal error in BLS15\n");
   mpz_clear(np1);  mpz_clear(m);  mpz_clear(t);  mpz_clear(t2);
   return rval;
 }
