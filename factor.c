@@ -225,14 +225,14 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
        * amount of work.  Go to some trouble to use them. */
       if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
         mpz_t farray[66];
-        int i, nfactors;
+        int i, qs_nfactors;
         for (i = 0; i < 66; i++)
           mpz_init(farray[i]);
-        nfactors = _GMP_simpqs(n, farray);
+        qs_nfactors = _GMP_simpqs(n, farray);
         mpz_set(f, farray[0]);
-        if (nfactors > 2) {
+        if (qs_nfactors > 2) {
           /* We found multiple factors */
-          for (i = 2; i < nfactors; i++) {
+          for (i = 2; i < qs_nfactors; i++) {
             if (o){gmp_printf("SIMPQS found extra factor %Zd\n",farray[i]);}
             if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
             mpz_init_set(tofac_stack[ntofac], farray[i]);
@@ -243,7 +243,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         }
         for (i = 0; i < 66; i++)
           mpz_clear(farray[i]);
-        success = nfactors > 1;
+        success = qs_nfactors > 1;
         if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
       }
 
