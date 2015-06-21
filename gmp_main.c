@@ -1134,9 +1134,10 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
   if ( (mpz_cmp_ui(ra,1) == 0) && (mpz_cmp(rb, d) == 0) )
     rval = 1;
 
+  mpz_clear(d);
   mpz_clear(ta); mpz_clear(tb);
+  mpz_clear(a);  mpz_clear(b);
   mpz_clear(ra); mpz_clear(rb);
-  mpz_clear(a); mpz_clear(b);
   mpz_clear(t);
   return rval;
 }

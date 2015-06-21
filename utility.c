@@ -971,6 +971,23 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
   if (dP == 0)
     return;
 
+  /* Do degree 1 or 2 explicitly */
+  if (dP == 1) {
+    New(0, *roots, 1, mpz_t);
+    mpz_init((*roots)[0]);
+    polyz_root_deg1( (*roots)[0], pP, NMOD );
+    *nroots = 1;
+    return;
+  }
+  if (dP == 2) {
+    New(0, *roots, 2, mpz_t);
+    mpz_init((*roots)[0]);
+    mpz_init((*roots)[1]);
+    polyz_root_deg2( (*roots)[0], (*roots)[1], pP, NMOD );
+    *nroots = 2;
+    return;
+  }
+
   /* Allocate space for the maximum number of roots (plus 1 for safety) */
   New(0, *roots, dP+1, mpz_t);
   for (i = 0; i <= dP; i++)
@@ -978,18 +995,6 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
 
   if (maxroots > dP || maxroots == 0)
     maxroots = dP;
-
-  /* Do degree 1 or 2 explicitly */
-  if (dP == 1) {
-    polyz_root_deg1( (*roots)[0], pP, NMOD );
-    *nroots = 1;
-    return;
-  }
-  if (dP == 2) {
-    polyz_root_deg2( (*roots)[0], (*roots)[1], pP, NMOD );
-    *nroots = 2;
-    return;
-  }
 
   polyz_roots(*roots, nroots, maxroots, pP, dP, NMOD, p_randstate);
   /* This could be just really bad luck.  Let the caller handle it. */

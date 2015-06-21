@@ -401,6 +401,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
     res = harmreal(n, prec);
     XPUSHs(sv_2mortal(newSVpv(res, 0)));
     Safefree(res);
+    mpz_clear(n);
 
 void
 gcd(...)
