@@ -2999,8 +2999,9 @@ void exp_mangoldt(mpz_t res, mpz_t n)
 
 uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 {
-  UV p, m, pos;
+  uint32_t const premark[3] = { 0x92492492, 0x24924924, 0x49249249 };
   uint32_t* comp;
+  UV p, m, pos;
   mpz_t t;
   PRIME_ITERATOR(iter);
 
@@ -3011,14 +3012,19 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   MPUassert(length > 0, "partial sieve given zero length");
   mpz_sub_ui(start, start, 1);
   if (length & 1) length++;
-  Newz(0, comp, (length+63)/64, uint32_t);
   mpz_init(t);
 
+  /* Allocate odds-only array, and pre-mark with 3s */
+  New(0, comp, (length+63)/64, uint32_t);
+  pos = (3 - (mpz_fdiv_ui(start, 6) >> 1)) % 3;
+  for (m = 0; m < (length+63)/64; m++)
+    comp[m] = premark[ (pos++) % 3 ];
+
   p = prime_iterator_next(&iter);
-  for (p = 3; p <= maxprime; p = prime_iterator_next(&iter)) {
-    m = mpz_mod_ui(t, start, p);
-    pos = (m == 0) ? 0 : p-m;    /* First multiple of p after start  */
-    if (!(pos & 1)) pos += p;    /* Make sure it is odd.             */
+  p = prime_iterator_next(&iter);
+  for (p = 5; p <= maxprime; p = prime_iterator_next(&iter)) {
+    pos = p - mpz_fdiv_ui(start,p);  /* First multiple of p after start  */
+    if (!(pos & 1)) pos += p;        /* Make sure it is odd.             */
     while (pos < length) {
       SETAVAL(comp, pos);
       pos += 2*p;

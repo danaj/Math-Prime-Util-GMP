@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.31 2015-?
 
+    [PERFORMANCE]
+
+    - Minor speedup to partial sieve.
+
     [OTHER]
 
     - Allow working on old GMP versions.
