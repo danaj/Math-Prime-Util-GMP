@@ -406,10 +406,10 @@ int lucas_lehmer(UV p)
     if ( (q%8==1 || q%8==7) &&                 /* factor must be 1 or 7 mod 8 */
          q % 3 && q % 5 && q % 7 && q % 11 && q % 13) {  /* and must be prime */
       if (1 && q < (1ULL << (BITS_PER_WORD/2)) ) {
-        UV b = 1, k = pbits;
-        while (k--) {
+        UV b = 1, j = pbits;
+        while (j--) {
           b = (b*b) % q;
-          if (p & (UVCONST(1) << k)) { b *= 2; if (b >= q) b -= q; }
+          if (p & (UVCONST(1) << j)) { b *= 2; if (b >= q) b -= q; }
         }
         if (b == 1)
           { mpz_clear(mp); mpz_clear(t); return 0; }
@@ -965,9 +965,9 @@ int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
     mpz_set_ui(wm, 2);
     mpz_set(wm1, w1);
     {
-      UV b = mpz_sizeinbase(m, 2);
-      while (b-- > 0) {
-        if (mpz_tstbit(m, b)) {
+      UV bit = mpz_sizeinbase(m, 2);
+      while (bit-- > 0) {
+        if (mpz_tstbit(m, bit)) {
           mpz_mul(t, wm, wm1);
           mpz_sub(wm, t, w1);
           mpz_mul(t, wm1, wm1);
@@ -1706,16 +1706,16 @@ int _GMP_is_aks_prime(mpz_t n)
     slim = (UV) (2*t*(r-1));
     c2 = dlogn * floor(sqrt(r));
     { /* Binary search for first s in [1,slim] where x >= 0 */
-      UV i = 1;
-      UV j = slim;
-      while (i < j) {
-        s = i + (j-i)/2;
+      UV bi = 1;
+      UV bj = slim;
+      while (bi < bj) {
+        s = bi + (bj-bi)/2;
         mpz_bin_uiui(tmp, r+s-1, s);
         x = mpz_logn(tmp) / c2 - 1.0;
-        if (x < 0)  i = s+1;
-        else        j = s;
+        if (x < 0)  bi = s+1;
+        else        bj = s;
       }
-      s = i-1;
+      s = bi-1;
     }
     s = (s+3) >> 1;
     /* Bornemann checks factors up to (s-1)^2, we check to max(r,s) */
@@ -2180,10 +2180,10 @@ void binomial(mpz_t r, UV n, UV k)
       if (n % prime < k % prime)
         PUSHP(prime);
     } else {
-      UV N = n, K = k, p = 1, r = 0;
+      UV N = n, K = k, p = 1, s = 0;
       while (N > 0) {
-        r = (N % prime) < (K % prime + r) ? 1 : 0;
-        if (r == 1)  p *= prime;
+        s = (N % prime) < (K % prime + s) ? 1 : 0;
+        if (s == 1)  p *= prime;
         N /= prime;
         K /= prime;
       }
