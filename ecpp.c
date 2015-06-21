@@ -847,13 +847,15 @@ end_down:
         int myprooflen = 20 + 2*(4 + mpz_sizeinbase(Ni, 10)) + 1*21;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
         proofptr = proofstr;
-        proofptr += gmp_sprintf(proofptr, "Type BLS3\nN  %Zd\nQ  %Zd\nA  %"UVuf"\n", Ni, q, nm1a);
+        proofptr += gmp_sprintf(proofptr, "Type BLS3\nN  %Zd\nQ  %Zd\n", Ni,q);
+        proofptr += sprintf(proofptr, "A  %"UVuf"\n", nm1a);
       } else if (D == -1) {
         int myprooflen = 20 + 2*(4 + mpz_sizeinbase(Ni, 10)) + 2*21;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
         proofptr = proofstr;
         if (np1lq < 2)  croak("Error in BLS15 proof: LQ < 2\n");
-        proofptr += gmp_sprintf(proofptr, "Type BLS15\nN  %Zd\nQ  %Zd\nLP %"IVdf"\nLQ %"IVdf"\n", Ni, q, np1lp, np1lq);
+        proofptr += gmp_sprintf(proofptr, "Type BLS15\nN  %Zd\nQ  %Zd\n", Ni,q);
+        proofptr += sprintf(proofptr, "LP %"IVdf"\nLQ %"IVdf"\n", np1lp, np1lq);
       } else {
         int myprooflen = 20 + 7*(4 + mpz_sizeinbase(Ni, 10)) + 0;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
