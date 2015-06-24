@@ -49,6 +49,7 @@ our @EXPORT_OK = qw(
                      ecm_factor
                      qs_factor
                      factor
+                     chinese
                      moebius
                      prime_count
                      primorial

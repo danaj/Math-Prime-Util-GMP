@@ -267,6 +267,84 @@ unsigned long modinverse(unsigned long a, unsigned long p)
  return u1;
 }
 
+int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
+{
+  mpz_t sum, gcd, u, v, s, t, temp1, temp2;
+  int i, rval = 1;
+
+#if 0
+  if (items >= 128) {
+    int first = items/2;
+    mpz_t ca[2], cm[2];
+
+    for (i = 0; i < 2; i++)
+      { mpz_init(ca[i]); mpz_init(cm[i]); }
+    rval = chinese(ca[0], cm[0], a, m, first);
+    if (rval == 1)
+      rval = chinese(ca[1], cm[1], a+first, m+first, items-first);
+    if (rval == 1)
+      rval = chinese(ret, lcm, ca, cm, 2);
+    for (i = 0; i < 2; i++)
+      { mpz_clear(ca[i]); mpz_clear(cm[i]); }
+    return rval;
+  }
+#else
+#define CRTN 8
+  if (items >= 64) {
+    int start = 0, step = items/CRTN;
+    mpz_t ca[CRTN], cm[CRTN];
+
+    for (i = 0; i < CRTN; i++)
+      { mpz_init(ca[i]); mpz_init(cm[i]); }
+    for (i = 0; rval && i < CRTN; i++) {
+      int citems = (i==CRTN-1) ? items-(CRTN-1)*step : step;
+      rval = chinese(ca[i], cm[i], a+i*step, m+i*step, citems);
+    }
+    if (rval) rval = chinese(ret, lcm, ca, cm, CRTN);
+    for (i = 0; i < CRTN; i++)
+      { mpz_clear(ca[i]); mpz_clear(cm[i]); }
+    return rval;
+  }
+#endif
+
+  mpz_init(temp1); mpz_init(temp2);
+  mpz_init(sum); mpz_init(gcd);
+  mpz_init(s); mpz_init(t);
+  mpz_init(u); mpz_init(v);
+
+  mpz_set(lcm, m[0]);
+  mpz_mod(sum, a[0], m[0]);
+  for (i = 1; i < items; i++) {
+    mpz_gcdext(gcd, u, v, lcm, m[i]);
+    mpz_divexact(s, m[i], gcd);
+    mpz_divexact(t, lcm, gcd);
+    if (mpz_cmp_ui(gcd,1) != 0) {
+      mpz_mod(temp1, sum, gcd);
+      mpz_mod(temp2, a[i], gcd);
+      if (mpz_cmp(temp1, temp2) != 0) {
+        rval = 0;
+        break;
+      }
+    }
+    if (mpz_sgn(s) < 0) mpz_neg(s,s);
+    if (mpz_sgn(t) < 0) mpz_neg(t,t);
+    mpz_mul(lcm, lcm, s);
+    if (mpz_sgn(u) < 0) mpz_add(u, u, lcm);
+    if (mpz_sgn(v) < 0) mpz_add(v, v, lcm);
+    mpz_mul(temp1, v, s);
+    mpz_mul(v, temp1, sum);
+    mpz_mul(temp1, u, t);
+    mpz_mul(u, temp1, a[i]);
+    mpz_add(temp1, v, u);
+    mpz_mod(sum, temp1, lcm);
+  }
+  mpz_set(ret, sum);
+  mpz_clear(sum); mpz_clear(gcd);
+  mpz_clear(s); mpz_clear(t);
+  mpz_clear(u); mpz_clear(v);
+  mpz_clear(temp1); mpz_clear(temp2);
+  return rval;
+}
 
 
 UV mpz_order_ui(UV r, mpz_t n, UV limit) {

@@ -24,6 +24,8 @@ extern int sqrtmod(mpz_t s, mpz_t a, mpz_t p,
 
 extern unsigned long modinverse(unsigned long a, unsigned long p);
 
+extern int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items);
+
 extern UV mpz_order_ui(UV r, mpz_t n, UV limit);
 
 extern void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);

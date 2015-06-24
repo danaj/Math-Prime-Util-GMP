@@ -639,6 +639,43 @@ stirling(IN UV n, IN UV m, IN UV type = 1)
     XPUSH_MPZ( r );
     mpz_clear(r);
 
+void
+chinese(...)
+  PROTOTYPE: @
+  PREINIT:
+    int i;
+    mpz_t* an;
+    mpz_t ret, lcm;
+  PPCODE:
+    mpz_init_set_ui(ret, 0);
+    New(0, an, 2*items, mpz_t);
+    for (i = 0; i < items; i++) {
+      AV* av;
+      SV** psva;
+      SV** psvn;
+      char* strn;
+      if (!SvROK(ST(i)) || SvTYPE(SvRV(ST(i))) != SVt_PVAV || av_len((AV*)SvRV(ST(i))) != 1)
+        croak("chinese arguments are two-element array references");
+      av = (AV*) SvRV(ST(i));
+      psva = av_fetch(av, 0, 0);
+      psvn = av_fetch(av, 1, 0);
+
+      strn = SvPV_nolen(*psva);
+      validate_string_number("chinese", (strn[0]=='-') ? strn+1 : strn);
+      mpz_init_set_str(an[i+0], strn, 10);
+
+      strn = SvPV_nolen(*psvn);
+      validate_string_number("chinese", (strn[0]=='-') ? strn+1 : strn);
+      mpz_init_set_str(an[i+items], strn, 10);
+    }
+    mpz_init(lcm);
+    i = chinese(ret, lcm, an, an+items, items);
+    if (i) XPUSH_MPZ(ret);
+    Safefree(an);
+    mpz_clear(lcm);
+    mpz_clear(ret);
+    if (!i) XSRETURN_UNDEF;
+
 SV*
 _GMP_trial_primes(IN char* strlow, IN char* strhigh)
   PREINIT:
