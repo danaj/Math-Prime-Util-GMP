@@ -1107,7 +1107,7 @@ static int mainRoutine(
 
     mpz_mul_ui(temp,n,2);
     mpz_sqrt(temp,temp);
-    mpz_div_ui(nsqrtdiv,temp,Mdiv2);
+    mpz_tdiv_q_ui(nsqrtdiv,temp,Mdiv2);
     mpz_root(temp,nsqrtdiv,s);
     for (fact = 0; mpz_cmp_ui(temp,factorBase[fact])>=0; fact++);
     span = numPrimes/s/s/2;
@@ -1166,7 +1166,7 @@ static int mainRoutine(
         for (i=0; i<s; i++)
         {
            p = factorBase[aind[i]+min];
-           mpz_div_ui(temp,A,p);
+           mpz_tdiv_q_ui(temp,A,p);
            amodp[i] = mpz_fdiv_r_ui(temp,temp,p);
 
            mpz_set_ui(temp,modinverse(mpz_get_ui(temp),p));
@@ -1178,7 +1178,7 @@ static int mainRoutine(
               mpz_neg(temp,temp);
            }
            mpz_mul(temp,temp,A);
-           mpz_div_ui(Bterms[i],temp,p);
+           mpz_tdiv_q_ui(Bterms[i],temp,p);
         }
 
         mpz_set(B,Bterms[0]);
@@ -1242,7 +1242,7 @@ static int mainRoutine(
               mpz_mul(temp,Bdivp2,Bdivp2);
               mpz_sub(temp,temp,D);
               mpz_neg(temp,temp);
-              mpz_div_ui(temp,temp,p);
+              mpz_tdiv_q_ui(temp,temp,p);
               mpz_mul_ui(temp,temp,u1);
               mpz_add_ui(temp,temp,Mdiv2);
               mpz_add_ui(temp,temp,p);
@@ -1356,7 +1356,7 @@ static int mainRoutine(
 
     /* We want factors of n, not kn, so divide out by the multiplier */
 
-    mpz_div_ui(n,n,multiplier);
+    mpz_tdiv_q_ui(n,n,multiplier);
 
     /* Now do the "sqrt" and GCD steps hopefully obtaining factors of n */
     mpz_set(farray[0], n);
