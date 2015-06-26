@@ -27,7 +27,7 @@ WriteMakefile1(
                       'Test::More'       => '0.45',
                     },
     PREREQ_PM    => {
-                      'Exporter'         => '5.562',
+                      'Exporter'         => '5.57',
                       'XSLoader'         => '0.01',
                       'Carp'             => 0,
                       'base'             => 0,
