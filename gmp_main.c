@@ -1075,9 +1075,9 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
 
 int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
 {
-  mpz_t t, ta, tb, ra, rb, a, b, d;
+  mpz_t t, ta, tb, ra, rb, a, b, n_minus_1;
   unsigned long c = 1;
-  int k, rval = 0;
+  int bit, len, k, rval = 0;
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -1101,11 +1101,12 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
   mpz_init_set_ui(ra, 1);   mpz_init_set_ui(rb, 1);
   mpz_init_set_ui(a, 1);    mpz_init_set_ui(b, 1);
   mpz_init(ta);   mpz_init(tb);
-  mpz_init(d);
-  mpz_sub_ui(d, n, 1);
+  mpz_init(n_minus_1);
+  mpz_sub_ui(n_minus_1, n, 1);
 
-  while (mpz_sgn(d)) {
-    if (mpz_odd_p(d)) {
+  len = mpz_sizeinbase(n_minus_1, 2);
+  for (bit = 0; bit < len; bit++) {
+    if ( mpz_tstbit(n_minus_1, bit) ) {
       mpz_mul(ta, ra, a);
       mpz_mul(tb, rb, b);
       mpz_add(t, ra, rb);
@@ -1118,8 +1119,7 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
       mpz_add(ra, ta, tb);
       mpz_mod(ra, ra, n);
     }
-    mpz_tdiv_q_2exp(d, d, 1);
-    if (mpz_sgn(d)) {
+    if (bit < len-1) {
       mpz_mul(t, b, b);
       mpz_mul_ui(t, t, c);
       mpz_mul(b, b, a);
@@ -1130,11 +1130,10 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
       mpz_mod(a, a, n);
     }
   }
-  mpz_sub_ui(d, n, 1);
-  if ( (mpz_cmp_ui(ra,1) == 0) && (mpz_cmp(rb, d) == 0) )
+  if ( (mpz_cmp_ui(ra,1) == 0) && (mpz_cmp(rb, n_minus_1) == 0) )
     rval = 1;
 
-  mpz_clear(d);
+  mpz_clear(n_minus_1);
   mpz_clear(ta); mpz_clear(tb);
   mpz_clear(a);  mpz_clear(b);
   mpz_clear(ra); mpz_clear(rb);
