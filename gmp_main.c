@@ -1452,17 +1452,25 @@ int _GMP_is_prime(mpz_t n)
       prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* cert */);
   }
 
-  /* If prob_prime is still 1, let's run some extra tests.  We could run
-   * a Frobenius test or some random-base M-R tests.  The FU test is
-   * attractive as it does not overlap with the BPSW test and gives very
-   * strong assurances.  However for small sizes it can take 6x more time
-   * than a random-base MR test (this narrows to ~2.5x at large sizes).  It
-   * also has the advantage of being deterministic.
+  /* If prob_prime is still 1, let's run some extra tests.
+   * Argument against:  Nobody has yet found a BPSW counterexample, so
+   *                    this is wasted time.  They can make a call to one of
+   *                    the other tests themselves if they care.
+   * Argument for:      is_prime() should be as correct as reasonably possible.
+   *                    They can call is_prob_prime() to skip extra tests.
    *
-   * For performance reasons, we'll use random-base MRs.
-   * Assuming we are choosing uniformly random bases and the caller cannot
-   * predict our random numbers (not guaranteed), then there is less than
-   * a 1 in 595,000 chance that a composite will pass the extra tests.
+   * Choices include:
+   *
+   *   - A number of fixed-base Miller-Rabin tests.
+   *   - A number of random-base Miller-Rabin tests.
+   *   - A Frobenius-Underwood test.
+   *   - A Frobenius-Khashin test.
+   *
+   * The Miller-Rabin tests have better performance.
+   *
+   * We will use random bases to make it more difficult to get a false
+   * result even if someone has a way to generate BPSW pseudoprimes.
+   * We use enough bases to keep the probability below 1/595,000.
    */
 
   if (prob_prime == 1) {
@@ -1474,6 +1482,7 @@ int _GMP_is_prime(mpz_t n)
     else                  ntests = 1;  /* p < .00000159 */
     prob_prime = _GMP_miller_rabin_random(n, ntests, 0);
     /* prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n); */
+    /* prob_prime = _GMP_is_frobenius_khashin_pseudoprime(n); */
   }
 
   /* Using Damgård, Landrock, and Pomerance, we get upper bounds:
