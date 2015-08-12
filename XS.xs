@@ -358,6 +358,7 @@ primorial(IN char* strn)
     bernfrac = 7
     harmfrac = 8
     znprimroot = 9
+    ramanujan_tau = 10
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -383,8 +384,9 @@ primorial(IN char* strn)
       case 8:  harmfrac(n, res, n);
                XPUSH_MPZ(n);
                break;
-      case 9:
-      default: znprimroot(res, n);  break;
+      case 9:  znprimroot(res, n);  break;
+      case 10:
+      default: ramanujan_tau(res, n);  break;
     }
     if (ix == 9 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
@@ -907,4 +909,13 @@ _GMP_factor(IN char* strn)
       }
     }
     clear_factors(nfactors, &factors, &exponents);
+    mpz_clear(n);
+
+void sigma(IN char* strn, IN UV k = 1)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    VALIDATE_AND_SET("sigma", n, strn);
+    sigma(n, n, k);
+    XPUSH_MPZ(n);
     mpz_clear(n);

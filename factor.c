@@ -362,6 +362,68 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
 }
 
 
+void sigma(mpz_t res, mpz_t n, UV k)
+{
+  mpz_t* factors;
+  mpz_t pk, pke, fmult;
+  int* exponents;
+  int i, j, nfactors;
+
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(res, 1);
+    if (k == 0 && mpz_cmp_ui(n,1) < 0)
+      mpz_set_ui(res, 2);
+    return;
+  }
+
+  if (_GMP_is_prob_prime(n)) {
+    mpz_pow_ui(res, n, k);
+    mpz_add_ui(res, res, 1);
+    return;
+  }
+
+  nfactors = factor(n, &factors, &exponents);
+  if (k == 0) {
+    for (i = 0; i < nfactors; i++) {
+      mpz_set_ui(factors[i], exponents[i]+1);
+    }
+  } else if (k == 1) {
+    mpz_init(pke);
+    mpz_init(fmult);
+    for (i = 0; i < nfactors; i++) {
+      mpz_set(pke, factors[i]);
+      mpz_add_ui(fmult, factors[i], 1);
+      for (j = 1; j < exponents[i]; j++) {
+        mpz_mul(pke, pke, factors[i]);
+        mpz_add(fmult, fmult, pke);
+      }
+      mpz_set(factors[i], fmult);
+    }
+    mpz_clear(fmult);
+    mpz_clear(pke);
+  } else {
+    mpz_init(pk);
+    mpz_init(pke);
+    mpz_init(fmult);
+    for (i = 0; i < nfactors; i++) {
+      mpz_pow_ui(pk, factors[i], k);
+      mpz_add_ui(fmult, pk, 1);
+      mpz_set(pke, pk);
+      for (j = 1; j < exponents[i]; j++) {
+        mpz_mul(pke, pke, pk);
+        mpz_add(fmult, fmult, pke);
+      }
+      mpz_set(factors[i], fmult);
+    }
+    mpz_clear(fmult);
+    mpz_clear(pke);
+    mpz_clear(pk);
+  }
+  mpz_product(factors, 0, nfactors-1);
+  mpz_set(res, factors[0]);
+  clear_factors(nfactors, &factors, &exponents);
+}
+
 
 static const unsigned long smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
 int moebius(mpz_t n)
@@ -583,4 +645,86 @@ void znprimroot(mpz_t root, mpz_t n)
     }
     mpz_clear(t);  mpz_clear(phi);
   }
+}
+
+void ramanujan_tau(mpz_t res, mpz_t n)
+{
+  mpz_t* factors;
+  mpz_t t, t1, t2, t3, t4;
+  int* exponents;
+  int i, nfactors;
+  UV j, p2;
+
+  if (mpz_cmp_ui(n, 2) <= 0) {
+    if      (mpz_cmp_ui(n,2) == 0)  mpz_set_si(res, -24);
+    else if (mpz_cmp_ui(n,1) == 0)  mpz_set_si(res,   1);
+    else                            mpz_set_si(res,   0);
+    return;
+  }
+
+  mpz_init(t);
+  mpz_init(t1); mpz_init(t2); mpz_init(t3); mpz_init(t4);
+  nfactors = factor(n, &factors, &exponents);
+  for (i = 0; i < nfactors; i++) {
+    /* t = tau(p) */
+    if (mpz_cmp_ui(factors[i], 2) == 0) {
+      mpz_set_si(t, -24);
+    } else {
+      mpz_pow_ui(t, factors[i], 11);   mpz_add_ui(t, t, 1); /* sigma(t,f,11) */
+      mpz_mul_ui(t1, t, 65);
+      mpz_pow_ui(t, factors[i],  5);   mpz_add_ui(t, t, 1); /* sigma(t,f, 5) */
+      mpz_mul_ui(t2, t, 691);
+
+      mpz_sub_ui(t, factors[i], 1);
+      mpz_tdiv_q_2exp(t, t, 1);
+      p2 = mpz_get_ui(t);
+      mpz_set_ui(t3, 0);
+      for (j = 1; j <= p2; j++) {
+        mpz_set_ui(t, j);
+        sigma(t, t, 5);
+        mpz_mul_ui(t4, t, 2);
+        mpz_sub_ui(t, factors[i], j);
+        sigma(t, t, 5);
+        mpz_mul(t4, t4, t);
+        mpz_add(t3, t3, t4);
+      }
+      mpz_mul_ui(t3, t3, 691*252);
+      mpz_add(t, t1, t2);
+      mpz_sub(t, t, t3);
+      mpz_tdiv_q_ui(t, t, 756);
+    }
+
+    if (exponents[i] > 1) {
+      mpz_pow_ui(t1, t, exponents[i]);
+      if (exponents[i] == 2) {
+        mpz_pow_ui(t2, factors[i], 11);
+        mpz_sub(t, t1, t2);
+      } else if (exponents[i] == 3) {
+        mpz_pow_ui(t2, factors[i], 11);
+        mpz_mul(t2, t2, t);
+        mpz_mul_ui(t2, t2, 2);
+        mpz_sub(t, t1, t2);
+      } else {
+        /* t1 = t^e  t2 = sum,  t3 = prod,  t4 = temp */
+        mpz_set_ui(t2, 0);
+        for (j = 1; j <= (exponents[i]>>1); j++) {
+          mpz_set_si(t3, (j&1) ? -1 : 1);
+          mpz_pow_ui(t4, factors[i], 11*j);
+          mpz_mul(t3, t3, t4);
+          mpz_bin_uiui(t4, exponents[i]-j, exponents[i]-2*j);
+          mpz_mul(t3, t3, t4);
+          mpz_pow_ui(t4, t, exponents[i]-2*j);
+          mpz_mul(t3, t3, t4);
+          mpz_add(t2, t2, t3);
+        }
+        mpz_add(t, t1, t2);
+      }
+    }
+    mpz_set(factors[i], t);
+  }
+  mpz_product(factors, 0, nfactors-1);
+  mpz_set(res, factors[0]);
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(t1); mpz_clear(t2); mpz_clear(t3); mpz_init(t4);
+  mpz_clear(t);
 }

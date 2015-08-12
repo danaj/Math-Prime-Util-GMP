@@ -5,6 +5,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - chinese                   chinese remainder theorem
+    - sigma                     divisor sums
+    - ramanujan_tau             Ramanujan's Tau function
 
 0.31 2015-06-21
 

@@ -49,6 +49,7 @@ our @EXPORT_OK = qw(
                      ecm_factor
                      qs_factor
                      factor
+                     sigma
                      chinese
                      moebius
                      prime_count
@@ -67,6 +68,7 @@ our @EXPORT_OK = qw(
                      is_power
                      znorder
                      znprimroot
+                     ramanujan_tau
                      Pi
                    );
                    # Should add:
@@ -915,6 +917,30 @@ L<OEIS A033948|http://oeis.org/A033948> is a sequence of integers where
 the primitive root exists, while L<OEIS A046145|http://oeis.org/A046145>
 is a list of the smallest primitive roots, which is what this function
 produces.
+
+
+=head2 divisor_sum
+
+  say "Sum of divisors of $n:", divisor_sum( $n );
+  say "sigma_2($n) = ", divisor_sum($n, 2);
+  say "Number of divisors: sigma_0($n) = ", divisor_sum($n, 0);
+
+This function takes a positive integer as input and returns the sum of
+its divisors, including 1 and itself.  An optional second argument C<k>
+may be given, which will result in the sum of the C<k-th> powers of the
+divisors to be returned.
+
+This is known as the sigma function (see Hardy and Wright section 16.7,
+or OEIS A000203).  The API is identical to Pari/GP's C<sigma> function.
+This function is useful for calculating things like aliquot sums, abundant
+numbers, perfect numbers, etc.
+
+
+=head2 ramanujan_tau
+
+Takes a positive integer as input and returns the value of Ramanujan's tau
+function.  The result is a signed integer.
+This corresponds to Mathematica's C<RamanujanTau> function.
 
 
 =head2 valuation
