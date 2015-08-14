@@ -80,3 +80,8 @@
 - tests for sigma
 - tests for ramanujan_tau
 - More efficient version of ramanujan_tau?
+
+- Consider ranged ramanujan_tau.  See:
+  https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
+  Where we could compute a number of hclassno values, then generate the
+  tau values.  This might be more efficient.
