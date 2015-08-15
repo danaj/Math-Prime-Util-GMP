@@ -291,7 +291,7 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
 #else
 #define CRTN 8
   if (items >= 64) {
-    int start = 0, step = items/CRTN;
+    int step = items/CRTN;
     mpz_t ca[CRTN], cm[CRTN];
 
     for (i = 0; i < CRTN; i++)

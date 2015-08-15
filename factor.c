@@ -707,7 +707,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
       } else {
         /* t1 = t^e  t2 = sum,  t3 = prod,  t4 = temp */
         mpz_set_ui(t2, 0);
-        for (j = 1; j <= (exponents[i]>>1); j++) {
+        for (j = 1; j <= (UV) (exponents[i]>>1); j++) {
           mpz_set_si(t3, (j&1) ? -1 : 1);
           mpz_pow_ui(t4, factors[i], 11*j);
           mpz_mul(t3, t3, t4);
