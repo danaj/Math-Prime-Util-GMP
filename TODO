@@ -77,8 +77,6 @@
   time mpu 'use bigint; my $n = 10**20; say join "\n",Math::Prime::Util::GMP::sieve_primes($n,$n+8e9,0);' >foo
   takes ~35 minutes.  NewPGen can do it in less than 4.  At 10^22 it is closer.
 
-- tests for sigma
-- tests for ramanujan_tau
 - More efficient version of ramanujan_tau?
 
 - Consider ranged ramanujan_tau.  See:

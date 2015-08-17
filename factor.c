@@ -370,9 +370,7 @@ void sigma(mpz_t res, mpz_t n, UV k)
   int i, j, nfactors;
 
   if (mpz_cmp_ui(n, 1) <= 0) {
-    mpz_set_ui(res, 1);
-    if (k == 0 && mpz_cmp_ui(n,1) < 0)
-      mpz_set_ui(res, 2);
+    mpz_set_ui(res, (k == 0 && mpz_cmp_ui(n,1) < 0) ? 2 : 1);
     return;
   }
 

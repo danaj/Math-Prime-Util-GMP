@@ -173,7 +173,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese
 
 =head1 NAME
 
@@ -816,6 +816,19 @@ the values satisfying Bézout's Identity.
 This corresponds to Pari's C<gcdext> function, which was renamed from
 C<bezout> out Pari 2.6.  The results will hence match L<Math::Pari/bezout>.
 
+=head2 chinese
+
+  say chinese( [14,643], [254,419], [87,733] );  # 87041638
+
+Solves a system of simultaneous congruences using the Chinese Remainder
+Theorem (with extension to non-coprime moduli).  A list of C<[a,n]> pairs
+are taken as input, each representing an equation C<x ≡ a mod n>.  If no
+solution exists, C<undef> is returned.  If a solution is returned, the
+modulus is equal to the lcm of all the given moduli (see L</lcm>.  In
+the standard case where all values of C<n> are coprime, this is just the
+product.  The C<n> values must be positive integers, while the C<a> values
+are integers.
+
 =head2 vecsum
 
 Returns the sum of all arguments, each of which must be an integer.
@@ -919,11 +932,11 @@ is a list of the smallest primitive roots, which is what this function
 produces.
 
 
-=head2 divisor_sum
+=head2 sigma
 
-  say "Sum of divisors of $n:", divisor_sum( $n );
-  say "sigma_2($n) = ", divisor_sum($n, 2);
-  say "Number of divisors: sigma_0($n) = ", divisor_sum($n, 0);
+  say "Sum of divisors of $n:", sigma( $n );
+  say "sigma_2($n) = ", sigma($n, 2);
+  say "Number of divisors: sigma_0($n) = ", sigma($n, 0);
 
 This function takes a positive integer as input and returns the sum of
 its divisors, including 1 and itself.  An optional second argument C<k>

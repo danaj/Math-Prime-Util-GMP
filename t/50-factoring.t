@@ -3,7 +3,23 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/factor is_prime/;
+use Math::Prime::Util::GMP qw/factor is_prime sigma/;
+
+my %sigmas = (
+  0 => [2,1,1,1],
+  1 => [1,1,1,1],
+  2 => [2,3,5,9],
+  3 => [2,4,10,28],
+  4 => [3,7,21,73],
+  5 => [2,6,26,126],
+  6 => [4,12,50,252],
+  7 => [2,8,50,344],
+  8 => [4,15,85,585],
+  46 => [4,72,2650,109512],
+  189 => [8,320,41000,7031360],
+  23948 => [6,41916,752727570,"15665729905692"],
+  2394823486 => [8,"3918802104","7228222133779519700","15463194466651766947470799224"],
+);
 
 plan tests => 0 + 57
                 + 24
@@ -11,6 +27,7 @@ plan tests => 0 + 57
                 + 6    # individual tets for factoring methods
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
+                + scalar(keys %sigmas)
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -163,3 +180,9 @@ is( scalar factor(5), 1, "scalar factor(5) should be 1" );
 is( scalar factor(6), 2, "scalar factor(6) should be 2" );
 is( scalar factor(30107), 4, "scalar factor(30107) should be 4" );
 is( scalar factor(174636000), 15, "scalar factor(174636000) should be 15" );
+
+# Sigma
+while (my($n, $s4) = each (%sigmas)) {
+  my @s = map { sigma($n, $_) } 0 .. 3;
+  is_deeply( \@s, $s4, "sigma_{0..3}($n)" );
+}
