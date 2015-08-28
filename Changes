@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.33 2015-?
+
+    [ADDED]
+
+    - sieve_twin_primes(low,high)         sieve for twin primes
+
 0.32 2015-08-16
 
     [ADDED]
