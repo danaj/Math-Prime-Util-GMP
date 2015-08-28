@@ -3,9 +3,9 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/primes/;
+use Math::Prime::Util::GMP qw/primes sieve_twin_primes/;
 
-plan tests => 12 + 12 + 1 + 1 + 19 + 1 + 1 + 13*5;
+plan tests => 12 + 12 + 1 + 1 + 19 + 1 + 1 + 13*5 + 2;
 
 ok(!eval { primes(undef); },   "primes(undef)");
 ok(!eval { primes("a"); },     "primes(a)");
@@ -122,3 +122,6 @@ foreach my $method (qw/trial erat segment sieve dynamic/) {
   is_deeply( primes({method=>$method}, 3089, 3163), [3089,3109,3119,3121,3137,3163], "Primes between 3089 and 3163" );
   is_deeply( primes({method=>$method}, 3090, 3162), [3109,3119,3121,3137], "Primes between 3090 and 3162" );
 }
+
+is_deeply( [sieve_twin_primes("1000000000000000000000000000000","1000000000000000000000000020000")], [qw/1000000000000000000000000001681 1000000000000000000000000004831 1000000000000000000000000018739 1000000000000000000000000019171/], "Sieve twin primes 10^30 10^30+20000");
+is_deeply( [sieve_twin_primes("1000000000000000000000000004832","1000000000000000000000000018738")], [], "Sieve twin primes 10^30+4832 10^20+18738 should be empty");

@@ -37,6 +37,7 @@ our @EXPORT_OK = qw(
                      lucas_sequence  lucasu  lucasv
                      primes
                      sieve_primes
+                     sieve_twin_primes
                      next_prime
                      prev_prime
                      trial_factor
@@ -702,6 +703,18 @@ functionality.  The three-argument version is quite useful for applications
 that want to apply their own primality or other tests, and wish to have a
 list of values in the range with no small factors.  This is quite common
 for applications involving prime gaps.
+
+=head2 sieve_twin_primes
+
+  my @primes = sieve_twin_primes(2**1000, 2**1000 + 500000);
+
+Given two arguments C<low> and C<high>, this returns each lower twin prime
+in the interval (inclusive).  The result is a list, not a reference.
+
+This does a partial sieve of the range, removes any non-twin candidates,
+then checks that each pair are both BPSW probable primes.  This is
+substantially more efficient than sieving for all primes followed by
+removing those that are not twin primes.
 
 
 =head2 next_prime

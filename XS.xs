@@ -770,6 +770,55 @@ sieve_primes(IN char* strlow, IN char* strhigh, IN UV k = 0)
     mpz_clear(high);
 
 void
+sieve_twin_primes(IN char* strlow, IN char* strhigh)
+  PREINIT:
+    mpz_t low, high, t;
+    UV last, k, i, length;
+    uint32_t* comp;
+  PPCODE:
+    VALIDATE_AND_SET("sieve_twin_primes", low, strlow);
+    VALIDATE_AND_SET("sieve_twin_primes", high, strhigh);
+    /* Use a much higher k value */
+    k = 80000 * mpz_sizeinbase(high,2);
+
+    if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
+    if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+    if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+    if (mpz_cmp(low, high) <= 0) {
+      mpz_init(t);
+
+      mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
+      if (mpz_cmp_ui(t, k) < 0)
+        k = mpz_get_ui(t);
+
+      mpz_sub(t, high, low);
+      length = mpz_get_ui(t) + 1;
+
+      /* Get bit array of odds marked with composites(k) marked with 1 */
+      comp = partial_sieve(low, length+2, k);
+      last = 0;
+      for (i = 1; i <= length+2; i += 2) {
+        if (!TSTAVAL(comp, i)) {
+          if (i == last+2) {
+             mpz_add_ui(t, low, i);       /* last and last+2 might be prime */
+             if (_GMP_BPSW(t)) {
+               mpz_add_ui(t, low, last);  /* last+2 is a PRP */
+               if (_GMP_BPSW(t)) {
+                 XPUSH_MPZ( t );          /* last and last+2 are both PRPs */
+               }
+             }
+          }
+          last = i;
+        }
+      }
+      mpz_clear(t);
+      Safefree(comp);
+    }
+    mpz_clear(low);
+    mpz_clear(high);
+
+void
 lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
   PREINIT:
     mpz_t U, V, Qk, n, k, t;

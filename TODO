@@ -83,3 +83,5 @@
   https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
   Where we could compute a number of hclassno values, then generate the
   tau values.  This might be more efficient.
+
+- Frobenius test checks if the input is a perfect square.  We shouldn't.
