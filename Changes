@@ -5,6 +5,12 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - sieve_twin_primes(low,high)         sieve for twin primes
+    - is_miller_prime(n[,assumeGRH])      deterministic Miller test
+
+    [PERFORMANCE]
+
+    - New results from Sorenson and Webster let us give faster deterministic
+      results for 65-82 bits.  is_prime always returns {0,2} for this range.
 
 0.32 2015-08-16
 

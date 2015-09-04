@@ -31,6 +31,8 @@ static mpz_t _bgcd3;
 #define BGCD3_PRIMES     4203
 #define BGCD3_NEXTPRIME 40009
 
+static const unsigned char sprimes[25] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97};
+
 #define TSTAVAL(arr, val)   (arr[(val) >> 6] & (1U << (((val)>>1) & 0x1F)))
 #define SETAVAL(arr, val)   arr[(val) >> 6] |= 1U << (((val)>>1) & 0x1F)
 
@@ -158,6 +160,70 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
     }
   }
   mpz_clear(nminus1); mpz_clear(x);
+  return rval;
+}
+
+int is_miller_prime(mpz_t n, int assume_grh)
+{
+  mpz_t nminus1, d, x;
+  UV s, r, logn, maxa, a;
+  int rval;
+
+  {
+    int cmpr = mpz_cmp_ui(n, 2);
+    if (cmpr == 0)     return 1;  /* 2 is prime */
+    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+  }
+  mpz_init_set(nminus1, n);
+  mpz_sub_ui(nminus1, nminus1, 1);
+
+  mpz_init_set(d, nminus1);
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
+  logn = mpz_sizeinbase(n, 2);
+
+  if (mpz_cmp_ui(n, 1373653) < 0) {
+    maxa = 3;
+  } else if (assume_grh) {
+    /* Rough computation of ln(n), slightly high */
+    logn = 1 + (0.69314718056 * ((double)logn));
+    if (logn > ((BITS_PER_WORD == 32) ? 46340UL : 3037000499UL))
+      croak("is_miller_prime: n is too large for GRH DMR");
+    maxa = 2*logn*logn;
+  } else { /* Bober and Goldmakher 2015 (http://arxiv.org/abs/1311.7556) */
+    logn = 1 + ((1/6.59) * ((double)logn));
+    if (logn >= BITS_PER_WORD)
+      croak("is_miller_prime: n is too large for unconditional DMR");
+    maxa = 1UL << logn;
+  }
+  if (mpz_cmp_ui(n, maxa) <= 0)
+    maxa = mpz_get_ui(n) - 1;
+  if (get_verbose_level() > 1)
+    printf("Deterministic Miller-Rabin testing bases from 2 to %lu\n", maxa);
+
+  mpz_init(x);
+  rval = 1;
+  for (a = 2; rval && a <= maxa; a++) {
+    rval = 0;
+    mpz_set_ui(x, a);
+    mpz_powm(x, x, d, n);
+    if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
+      rval = 1;
+    } else {
+      for (r = 1; r < s; r++) {
+        mpz_powm_ui(x, x, 2, n);
+        if (!mpz_cmp_ui(x, 1)) {
+          break;
+        }
+        if (!mpz_cmp(x, nminus1)) {
+          rval = 1;
+          break;
+        }
+      }
+    }
+  }
+  mpz_clear(nminus1); mpz_clear(x); mpz_clear(d);
   return rval;
 }
 
@@ -514,7 +580,6 @@ int proth(mpz_t N)
   mpz_tdiv_q_2exp(k, v, n);
   /* N = k * 2^n + 1 */
   if (mpz_sizeinbase(k,2) <= n) {
-    const unsigned char sprimes[25] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97};
     mpz_init(a);
     for (i = 0; i < 25 && res == -1; i++) {
       mpz_set_ui(a, sprimes[i]);
@@ -1440,6 +1505,25 @@ int _GMP_is_prime(mpz_t n)
   /* Start with BPSW */
   prob_prime = _GMP_BPSW(n);
   nbits = mpz_sizeinbase(n, 2);
+
+  /* Use Sorenson/Webster 2015 deterministic M-R if possible */
+  if (prob_prime == 1 && nbits < 83) {
+    mpz_t t;
+    int i, maxp = 0;
+    mpz_init_set_str(t, "3317044064679887385961981", 10);
+    if (mpz_cmp(n, t) < 0) maxp = 13;
+    mpz_set_str(t,       "318665857834031151167461", 10);
+    if (mpz_cmp(n, t) < 0) maxp = 12;
+    if (maxp > 0) {
+      for (i = 1; i < maxp && prob_prime; i++) {
+        mpz_set_ui(t, sprimes[i]);
+        prob_prime = _GMP_miller_rabin(n, t);
+      }
+      if (prob_prime)  prob_prime = 2;
+      else             gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", n);
+    }
+    mpz_clear(t);
+  }
 
   /* n has passed the ES BPSW test, making it quite unlikely it is a
    * composite (and it cannot be if n < 2^64). */

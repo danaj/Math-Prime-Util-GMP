@@ -33,6 +33,7 @@ our @EXPORT_OK = qw(
                      is_mersenne_prime
                      is_llr_prime
                      is_proth_prime
+                     is_miller_prime
                      miller_rabin_random
                      lucas_sequence  lucasu  lucasv
                      primes
@@ -634,6 +635,25 @@ indicates primality.
 While not as fast as the Lucas-Lehmer test for Mersenne
 numbers, it is almost as fast as a single strong pseudoprime test (i.e.
 Miller-Rabin test) while giving a certain answer.
+
+is_miller_prime
+
+  say "$n is definitely prime" if is_miller_prime($n);
+  say "$n is definitely prime assuming the GRH" if is_miller_prime($n, 1);
+
+Takes a positive number as input, and returns 1 if the input passes the
+deterministic Miller test.  An optional second argument indicates whether
+the Generalized Riemann Hypothesis should be assumed, and defaults to 0.
+Setting the verbose flag to 2 or higher will show how many bases are used.
+The unconditional test is exponential time, while the conditional test
+(assuming the GRH) is polynomial time.
+
+This is a very slow method in practice, and generally should not be used.
+The asymptotic complexity of the GRH version is good in theory, matching
+ECPP, but in practice it is much slower.  The number of bases used by
+the unconditional test grows quite rapidly, impractically many past about
+160 bits, and overflows a 64-bit integer at 456 bits -- sizes that are
+trivial for the unconditional APR-CL and ECPP tests.
 
 =head2 is_nminus1_prime
 

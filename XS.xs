@@ -223,11 +223,17 @@ is_prime(IN char* strn)
 
 void
 _is_provable_prime(IN char* strn, IN int wantproof = 0)
+  ALIAS:
+    is_miller_prime = 1
   PREINIT:
     int result;
     mpz_t n;
   PPCODE:
     PRIMALITY_START("is_provable_prime", 2, 1);
+    if (ix == 1) {
+      result = is_miller_prime(n, wantproof);  /* Assume GRH or not */
+      XSRETURN_IV(result);
+    }
     if (wantproof == 0) {
       result = _GMP_is_provable_prime(n, 0);
       XPUSHs(sv_2mortal(newSViv( result )));

@@ -4,7 +4,8 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert
-                              is_aks_prime is_nminus1_prime is_ecpp_prime/;
+                              is_aks_prime is_nminus1_prime is_ecpp_prime
+                              is_miller_prime/;
 
 plan tests => 0 + 6
                 + 38
@@ -12,7 +13,7 @@ plan tests => 0 + 6
                 + 34
                 + 2
                 + 7   # _with_cert
-                + 3   # AKS, N-1, ECPP
+                + 5   # AKS, Miller, N-1, ECPP
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -178,6 +179,10 @@ if ($cert =~ /\bType BLS5\b/) {
 # Individual routines
 # AKS.  Sigh, so freaking slow.  2/3 of the time for the whole suite is here.
 ok( is_aks_prime(74017), "is_aks_prime(74017)" );
+
+# Unconditional and conditional Miller test
+ok( is_miller_prime("4835703278458516698824747"), "is_miller_prime(4835703278458516698824747)" );
+ok( is_miller_prime("4835703278458516698824747",1), "is_miller_prime(4835703278458516698824747,1)" );
 
 # BLS75 n-1
 ok( is_nminus1_prime("340282366920938463463374607431768211507"), "is_nminus1_prime(340282366920938463463374607431768211507)" );
