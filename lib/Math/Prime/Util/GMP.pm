@@ -315,12 +315,19 @@ tuning of this tradeoff, especially if performance is critical for
 by additional probable prime tests such as L</miller_rabin_random>
 and/or L</is_frobenius_underwood_pseudoprime>.
 
-As with L</is_prob_prime>, a BPSW test is first performed.  If this
-indicates "probably prime" then a small number of Miller-Rabin tests
-with random bases are performed.  For numbers under 200 bits, a quick
+As with L</is_prob_prime>, a BPSW test is first performed.  This is
+deterministic for all 64-bit numbers.  Next, if the number is a
+Proth or LLR form, then a proof is constructed.  If the result is
+still "probably prime" and the input is smaller than the
+Sorenson/Webster (2015) deterministic Miller-Rabin limit
+(approximately 82 bits) then the 11 or 12 Miller-Rabin tests are
+performed and the result is confirmed.  For larger inputs that are
+still "probably prime" but under 200 bits, a quick
 BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
 if the result cannot be quickly determined, and results in success
 rates of ~80% at 80 bits, ~30% at 128 bits, and ~13% at 160 bits.
+Lastly, for results still "probably prime", a small number of
+Miller-Rabin tests with random bases are performed.
 
 The result is that many numbers will return 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through
@@ -345,10 +352,12 @@ Takes a positive number as input and returns back either 0 (composite),
 2 (definitely prime), or 1 (probably prime).  A great deal of effort is
 taken to return either 0 or 2 for all numbers.
 
-The current method first uses BPSW and a small number of Miller-Rabin
-tests with random bases to weed out composites and provide a
-deterministic answer for tiny numbers (under C<2^64>).  A quick BLS75
-C<n-1> test is attempted, followed by ECPP.
+The current method first uses BPSW to find composites and provide a
+deterministic answer for tiny numbers (under C<2^64>).  If no
+certificate is required, LLR and Proth tests can be run, and small
+numbers (under approximately C<2^82>) can be satisfied with a
+deterministic Miller-Rabin test.  If the result is still not determined,
+a quick  BLS75 C<n-1> test is attempted, followed by ECPP.
 
 The time required for primes of different input sizes on a circa-2009
 workstation averages about C<3ms> for 30-digits, C<5ms> for 40-digit,

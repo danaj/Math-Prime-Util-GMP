@@ -19,7 +19,7 @@ plan tests => 0 + 6
                 + 8
                 + 6
                 + 10
-                + 1
+                + 2
                 + 0;
 
 # Some of these tests were inspired by Math::Primality's tests
@@ -140,3 +140,5 @@ map { ok(!is_prime($_), "Large composite $_ is not prime" ) }
     /;
 
 is(is_prime('43556142965880123323311949751266331066401'), 2, "is_prime(2**135+33) = 2");
+
+is(is_prime('2417860862601296277930091'), 2, "is_prime is deterministic for 81-bit input");
