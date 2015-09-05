@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.32';
+  $Math::Prime::Util::GMP::VERSION = '0.33';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -184,7 +184,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.32
+Version 0.33
 
 
 =head1 SYNOPSIS
@@ -636,7 +636,7 @@ While not as fast as the Lucas-Lehmer test for Mersenne
 numbers, it is almost as fast as a single strong pseudoprime test (i.e.
 Miller-Rabin test) while giving a certain answer.
 
-is_miller_prime
+=head2 is_miller_prime
 
   say "$n is definitely prime" if is_miller_prime($n);
   say "$n is definitely prime assuming the GRH" if is_miller_prime($n, 1);

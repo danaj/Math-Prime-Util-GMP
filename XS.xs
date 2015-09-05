@@ -656,7 +656,7 @@ chinese(...)
     mpz_t ret, lcm;
   PPCODE:
     if (items == 0)
-      XSRETURN_UV(0);
+      XSRETURN_IV(0);
     mpz_init_set_ui(ret, 0);
     New(0, an, 2*items, mpz_t);
     for (i = 0; i < items; i++) {
