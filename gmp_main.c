@@ -1470,6 +1470,31 @@ int _GMP_BPSW(mpz_t n)
   return 1;
 }
 
+/* Assume n is a BPSW PRP, return 1 (no result), 0 (composite), 2 (prime) */
+static int is_deterministic_miller_rabin_prime(mpz_t n)
+{
+  mpz_t t;
+  int i, res = 1, maxp = 0;
+
+  if (mpz_sizeinbase(n, 2) <= 82) {
+    mpz_init(t);
+    /* n < 3825123056546413051  =>  maxp=9, but BPSW should have handled */
+    if      (mpz_set_str(t, "318665857834031151167461",10), mpz_cmp(n,t) < 0)
+      maxp = 12;
+    else if (mpz_set_str(t,"3317044064679887385961981",10), mpz_cmp(n,t) < 0)
+      maxp = 13;
+    if (maxp > 0) {
+      for (i = 1; i < maxp && res; i++) {
+        mpz_set_ui(t, sprimes[i]);
+        res = _GMP_miller_rabin(n, t);
+      }
+      if (res == 1) res = 2;
+    }
+    mpz_clear(t);
+  }
+  return res;
+}
+
 
 int _GMP_is_prob_prime(mpz_t n)
 {
@@ -1483,7 +1508,6 @@ int _GMP_is_prob_prime(mpz_t n)
   /*  Step 2: The BPSW test.  spsp base 2 and slpsp. */
   return _GMP_BPSW(n);
 }
-
 
 int _GMP_is_prime(mpz_t n)
 {
@@ -1507,22 +1531,9 @@ int _GMP_is_prime(mpz_t n)
   nbits = mpz_sizeinbase(n, 2);
 
   /* Use Sorenson/Webster 2015 deterministic M-R if possible */
-  if (prob_prime == 1 && nbits < 83) {
-    mpz_t t;
-    int i, maxp = 0;
-    mpz_init_set_str(t, "3317044064679887385961981", 10);
-    if (mpz_cmp(n, t) < 0) maxp = 13;
-    mpz_set_str(t,       "318665857834031151167461", 10);
-    if (mpz_cmp(n, t) < 0) maxp = 12;
-    if (maxp > 0) {
-      for (i = 1; i < maxp && prob_prime; i++) {
-        mpz_set_ui(t, sprimes[i]);
-        prob_prime = _GMP_miller_rabin(n, t);
-      }
-      if (prob_prime)  prob_prime = 2;
-      else             gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", n);
-    }
-    mpz_clear(t);
+  if (prob_prime == 1) {
+    prob_prime = is_deterministic_miller_rabin_prime(n);
+    if (prob_prime == 0) gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", n);
   }
 
   /* n has passed the ES BPSW test, making it quite unlikely it is a
@@ -1607,6 +1618,12 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   /* Start with BPSW */
   prob_prime = _GMP_BPSW(n);
   if (prob_prime != 1)  return prob_prime;
+
+  /* Use Sorenson/Webster 2015 deterministic M-R if possible */
+  if (prooftext == 0) {
+    prob_prime = is_deterministic_miller_rabin_prime(n);
+    if (prob_prime != 1)  return prob_prime;
+  }
 
   /* Run one more M-R test, just in case. */
   prob_prime = _GMP_miller_rabin_random(n, 1, 0);
