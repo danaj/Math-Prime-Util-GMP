@@ -3107,12 +3107,24 @@ void exp_mangoldt(mpz_t res, mpz_t n)
   mpz_set_ui(res, 1);
 }
 
+
+static void word_tile(uint32_t* source, uint32_t from, uint32_t to) {
+  while (from < to) {
+    uint32_t words = (2*from > to) ? to-from : from;
+    memcpy(source+from, source, sizeof(uint32_t)*words);
+    from += words;
+  }
+}
+static void sievep(uint32_t* comp, mpz_t start, UV p, UV len) {
+  UV pos = p - mpz_fdiv_ui(start,p);  /* First multiple of p after start  */
+  if (!(pos & 1)) pos += p;           /* Make sure it is odd.             */
+  for ( ; pos < len; pos += 2*p )
+    SETAVAL(comp, pos);
+}
 uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 {
-  uint32_t const premark[3] = { 0x92492492, 0x24924924, 0x49249249 };
   uint32_t* comp;
-  UV p, m, pos;
-  mpz_t t;
+  UV p, m, pos, wlen, pwlen;
   PRIME_ITERATOR(iter);
 
   /* mpz_init(t);
@@ -3122,28 +3134,32 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   MPUassert(length > 0, "partial sieve given zero length");
   mpz_sub_ui(start, start, 1);
   if (length & 1) length++;
-  mpz_init(t);
 
-  /* Allocate odds-only array, and pre-mark with 3s */
-  New(0, comp, (length+63)/64, uint32_t);
-  pos = (3 - (mpz_fdiv_ui(start, 6) >> 1)) % 3;
-  for (m = 0; m < (length+63)/64; m++)
-    comp[m] = premark[ (pos++) % 3 ];
+  /* Allocate odds-only array in uint32_t units */
+  wlen = (length+63)/64;
+  New(0, comp, wlen, uint32_t);
+  p = prime_iterator_next(&iter);
 
-  p = prime_iterator_next(&iter);
-  p = prime_iterator_next(&iter);
-  for (p = 5; p <= maxprime; p = prime_iterator_next(&iter)) {
-    pos = p - mpz_fdiv_ui(start,p);  /* First multiple of p after start  */
-    if (!(pos & 1)) pos += p;        /* Make sure it is odd.             */
-    while (pos < length) {
-      SETAVAL(comp, pos);
-      pos += 2*p;
-    }
+  /* Mark 3, 5, ... by tiling as long as we can. */
+  pwlen = (wlen < 3) ? wlen : 3;
+  memset(comp, 0x00, pwlen*sizeof(uint32_t));
+  while (p <= maxprime) {
+    sievep(comp, start, p, pwlen*64);
+    p = prime_iterator_next(&iter);
+    if (pwlen*p >= wlen) break;
+    word_tile(comp, pwlen, pwlen*p);
+    pwlen *= p;
   }
-  mpz_clear(t);
+  word_tile(comp, pwlen, wlen);
+
+  /* Sieve up to their limit */
+  for ( ; p <= maxprime; p = prime_iterator_next(&iter))
+    sievep(comp, start, p, length);
+
   prime_iterator_destroy(&iter);
   return comp;
 }
+
 
 char* pidigits(UV n) {
   char* out;
@@ -3224,7 +3240,7 @@ char* pidigits(UV n) {
     /* Störmer 1896 */
     mpz_arctan(term1,      57, pows, t1, t2);  mpz_mul_ui(term1, term1, 44);
     mpz_arctan(term2,     239, pows, t1, t2);  mpz_mul_ui(term2, term2, 7);
-    mpz_add(term1, term1, term2); 
+    mpz_add(term1, term1, term2);
     mpz_arctan(term2,     682, pows, t1, t2);  mpz_mul_ui(term2, term2, 12);
     mpz_sub(term1, term1, term2);
     mpz_arctan(term2,   12943, pows, t1, t2);  mpz_mul_ui(term2, term2, 24);
@@ -3276,7 +3292,7 @@ char* pidigits(UV n) {
     mpf_init(t);  mpf_init(prev_an);
     mpf_init_set_d(an, 1);  mpf_init_set_d(bn, 0.5);  mpf_init_set_d(tn, 0.25);
     mpf_sqrt(bn, bn);
- 
+
     while ((n >> k) > 0) {
       mpf_set(prev_an, an);
       mpf_add(t, an, bn);

@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.34 2015-?
+
+    [PERFORMANCE]
+
+    - Speedup partial sieve with large range.
+
 0.33 2015-09-04
 
     [ADDED]
