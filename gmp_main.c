@@ -1379,7 +1379,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
  * probability once we've somehow found a BPSW pseudoprime.
  */
 
-static int primality_pretest(mpz_t n)
+int primality_pretest(mpz_t n)
 {
   /* If less than 1009, make trial factor handle it. */
   if (mpz_cmp_ui(n, BGCD_NEXTPRIME) < 0)

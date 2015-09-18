@@ -660,6 +660,14 @@ void ramanujan_tau(mpz_t res, mpz_t n)
     return;
   }
 
+  /* We are doing far too much work here for sigma5.  We could do it just
+   * for primes then use the multiplicative property.  However that works
+   * for prime *powers*, so it isn't quite so simple.  This solution also
+   * gets to be high memory use. */
+
+  /* Pari/GP does this using Hurwitz class numbers.  That is a more
+   * complicated but far more efficient solution. */
+
   mpz_init(t); mpz_init(t1); mpz_init(t2); mpz_init(t3); mpz_init(t4);
   nfactors = factor(n, &factors, &exponents);
   for (i = 0; i < nfactors; i++) {

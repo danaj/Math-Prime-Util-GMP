@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.34 2015-?
 
+    [ADDED]
+
+    - sieve_prime_cluster(low,high,...)   sieve clusters/constellations
+
     [PERFORMANCE]
 
     - Speedup partial sieve with large range.

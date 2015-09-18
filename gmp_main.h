@@ -28,6 +28,7 @@ extern int proth(mpz_t N);
 
 extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
 
+extern int  primality_pretest(mpz_t n);
 extern int  _GMP_is_prime(mpz_t n);
 extern int  _GMP_is_prob_prime(mpz_t n);
 extern int  _GMP_is_provable_prime(mpz_t n, char ** prooftext);

@@ -825,6 +825,138 @@ sieve_twin_primes(IN char* strlow, IN char* strhigh)
     mpz_clear(high);
 
 void
+sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
+  PREINIT:
+    mpz_t low, high, t;
+    UV cl[30];
+    UV i, c, k, length, nc, maxc, modv, modn, starti;
+    int test_primality;
+    uint32_t* comp;
+  PPCODE:
+    VALIDATE_AND_SET("sieve_prime_cluster", low, strlow);
+    VALIDATE_AND_SET("sieve_prime_cluster", high, strhigh);
+    if (items > 30) croak("sieve_prime_cluster: too many entries");
+    nc = items-2;
+    for (i = 0, maxc = 0; i < nc; i++) {
+      cl[i] = SvUV(ST(2+i));
+      if (cl[i] & 1) croak("sieve_prime_cluster: values must be even");
+      if (i > 0 && cl[i] <= cl[i-1]) croak("sieve_prime_cluster: values must be increasing");
+      if (cl[i] > maxc) maxc = cl[i];
+    }
+
+    /* TODO: Admissible test. */
+    /* forprime(p=2,#v,if(#Set(v%p)==p,return(0)));1 */
+
+
+    if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
+    if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+    if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+    if (mpz_cmp(low, high) <= 0) {
+      mpz_init(t);
+
+      /* Choose a mod value based on admissibility.  This is very important
+       * for performance.  We really should do this programatically. */
+
+      starti = 1;
+      modv = 1;
+      modn = 2;
+      {
+#define NCMODS (sizeof(cmods)/sizeof(cmods[0]))
+        typedef struct {
+          unsigned short modv;
+          unsigned short modn;
+          unsigned char nc;
+          unsigned char cl[11];
+        } clustermod;
+        static clustermod cmods[] = {
+          { 997, 2310, 12, {6, 10, 12, 16, 22, 24, 30, 34, 36, 40, 42} },
+          { 169,  210,  9, {4, 10, 12, 18, 22, 24, 28, 30} },
+          {  13,   30,  9, {4, 6, 10, 16, 18, 24, 28, 30} },
+          { 173,  210,  8, {6, 8, 14, 18, 20, 24, 26} },
+          {  17,   30,  8, {2, 6, 12, 14, 20, 24, 26} },
+          {  11,  210,  7, {2, 6, 8, 12, 18, 20} },
+          { 179,  210,  7, {2, 8, 12, 14, 18, 20} },
+          {  97,  210,  6, {4, 6, 10, 12, 16} },
+          {   7,   30,  5, {4, 6, 10, 12} },
+          {  11,   30,  4, {2, 6, 8} },
+          {   5,    6,  2, {2} },
+          {   1,    6,  2, {4} },
+        };
+        for (i = 0; i < NCMODS; i++) {
+          UV ncmod = cmods[i].nc - 1;
+          if (nc < ncmod) continue;
+          for (c = 0; c < ncmod; c++)
+            if (cl[c] != cmods[i].cl[c])
+              break;
+          if (c == ncmod) {
+            modv = cmods[i].modv;
+            modn = cmods[i].modn;
+            break;
+          }
+        }
+      }
+      /* How deep should we sieve? */
+      if (modn >= 210) {
+        k = 19;
+      } else {
+        k = 5 * mpz_sizeinbase(high,2);
+      }
+
+      mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
+      if (mpz_cmp_ui(t, k) < 0)
+        k = mpz_get_ui(t);
+      comp = 0;
+
+      gmp_printf("Values tested at %lu mod %lu, sieve to %lu\n", modv, modn, k);
+
+      while (mpz_cmp(low, high) <= 0) {
+        mpz_add_ui(t, low, 200000000);
+        if (mpz_cmp(t, high) > 0)
+          mpz_set(t, high);
+        //gmp_printf("looking from %Zd to %Zd...\n", low, t);
+        mpz_sub(t, t, low);
+        length = mpz_get_ui(t) + 1;
+
+        if (modn != 2)
+          starti = ( (modv+modn) - mpz_fdiv_ui(low,modn) + 1) % modn;
+        //gmp_printf("starti = %lu  skipi = %lu\n", starti, modn);
+
+        /* Get bit array of odds marked with composites(k) marked with 1 */
+        if (k > 0) comp = partial_sieve(low, length + maxc + 1, k);
+        else       mpz_sub_ui(low, low, 1);
+        //gmp_printf("done sieving, search ...\n");
+        for (i = starti; i <= length; i += modn) {
+          /* Test cluster */
+          if (k > 0) {
+            if (TSTAVAL(comp, i)) continue;
+            for (c = 0; c < nc; c++)
+              if (TSTAVAL(comp, i+cl[c])) break;
+            if (c != nc) continue;
+          }
+          /* Sieve positions look good.  Do quick tests. */
+          if (! (mpz_add_ui(t, low, i), primality_pretest(t)) ) continue;
+          for (c = 0; c < nc; c++)
+            if (! (mpz_add_ui(t, low, i+cl[c]), primality_pretest(t)) ) break;
+          if (c != nc) continue;
+          /* Looks likely.  Time for PRP tests */
+          for (c = 0; c < nc; c++)
+            if (! (mpz_add_ui(t, low, i+cl[c]), _GMP_BPSW(t)) ) break;
+          if (c != nc) continue;
+          /* Everything but i+0 has passed BPSW */
+          if (mpz_add_ui(t, low, i), _GMP_BPSW(t))
+            XPUSH_MPZ( t );
+        }
+        mpz_add_ui(low, low, length+1);
+        if (mpz_even_p(low)) mpz_add_ui(low, low, 1);
+        if (comp) Safefree(comp);
+      }
+      mpz_clear(t);
+    }
+    mpz_clear(low);
+    mpz_clear(high);
+
+void
 lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
   PREINIT:
     mpz_t U, V, Qk, n, k, t;
