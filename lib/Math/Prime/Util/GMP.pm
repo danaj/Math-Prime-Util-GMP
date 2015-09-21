@@ -39,6 +39,7 @@ our @EXPORT_OK = qw(
                      primes
                      sieve_primes
                      sieve_twin_primes
+                     sieve_prime_cluster
                      next_prime
                      prev_prime
                      trial_factor
@@ -744,6 +745,34 @@ This does a partial sieve of the range, removes any non-twin candidates,
 then checks that each pair are both BPSW probable primes.  This is
 substantially more efficient than sieving for all primes followed by
 removing those that are not twin primes.
+
+
+=head2 sieve_prime_cluster
+
+  # Find some prime septuplets
+  my @s = sieve_prime_cluster(2**100, 2**100+1e12, 2,6,8,12,18,20);
+
+Efficiently finds prime clusters between the first two arguments C<low>
+and C<high>.  The remainining arguments describe the cluster.  A cluster
+is a strictly increasing sequence of primes, not necessarily the minimal
+distance.  The cluster values must be even, less than 31 bits, and
+strictly increasing.  The returned values are the start of the cluster
+(C<p+0>).
+
+The cluster is described as offsets from 0, with the implicit prime
+at 0.  Hence an empty list is asking for all primes (the cluster
+C<p+0>).  A list with the single value C<2> will find all twin primes
+(the cluster where C<p+0> and C<p+2> are prime).  The list C<2,6,8>
+will find prime quadruplets.  Note that there is no requirement that
+the list denote a constellation (a cluster with minimal distance) --
+the list C<42,92,606> is just fine.
+
+For long clusters, e.g. L<OEIS series A213601|http://oeis.org/A213601>
+prime 12-tuplets, this will be immensely more efficient than filtering
+out the cluster from a list of primes.  For that example, a range of
+C<10^13> takes about 2 seconds to search.  Shorter clusters are not
+quite this efficient, and the overhead for returning large arrays
+should not be ignored.
 
 
 =head2 next_prime

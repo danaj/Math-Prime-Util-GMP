@@ -62,4 +62,8 @@ extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
 extern char* pidigits(UV n);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 
+extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
+extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);
+extern UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn);
+
 #endif

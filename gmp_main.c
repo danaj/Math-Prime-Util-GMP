@@ -31,7 +31,8 @@ static mpz_t _bgcd3;
 #define BGCD3_PRIMES     4203
 #define BGCD3_NEXTPRIME 40009
 
-static const unsigned char sprimes[25] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97};
+#define NSMALLPRIMES 168
+static const unsigned short sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997};
 
 #define TSTAVAL(arr, val)   (arr[(val) >> 6] & (1U << (((val)>>1) & 0x1F)))
 #define SETAVAL(arr, val)   arr[(val) >> 6] |= 1U << (((val)>>1) & 0x1F)
@@ -3316,4 +3317,232 @@ char* pidigits(UV n) {
   }
 #endif
   return out;
+}
+
+typedef struct {
+  uint32_t nmax;
+  uint32_t nsize;
+  UV* list;
+} vlist;
+#define INIT_VLIST(v) \
+  v.nsize = 0; \
+  v.nmax = 100; \
+  New(0, v.list, v.nmax, UV);
+#define PUSH_VLIST(v, n) \
+  do { \
+    if (v.nsize >= v.nmax) \
+      Renew(v.list, v.nmax += 100, UV); \
+    v.list[v.nsize++] = n; \
+  } while (0)
+
+UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn) {
+  mpz_t t;
+  UV i, length;
+  int test_primality = 0;
+  uint32_t* comp;
+  vlist retlist;
+
+  if (k < 2) {
+    test_primality = 1;
+    k = 5000 * mpz_sizeinbase(high,2);
+  }
+
+  if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
+  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+  if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
+
+  mpz_init(t);
+  mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
+  if (mpz_cmp_ui(t, k) < 0)
+    k = mpz_get_ui(t);
+
+  mpz_sub(t, high, low);
+  length = mpz_get_ui(t) + 1;
+
+  INIT_VLIST(retlist);
+  /* Get bit array of odds marked with composites(k) marked with 1 */
+  comp = partial_sieve(low, length, k);
+  for (i = 1; i <= length; i += 2) {
+    if (!TSTAVAL(comp, i)) {
+      if (!test_primality || (mpz_add_ui(t,low,i),_GMP_BPSW(t)))
+        PUSH_VLIST(retlist, i);
+    }
+  }
+  Safefree(comp);
+  mpz_clear(t);
+  *rn = retlist.nsize;
+  return retlist.list;
+}
+
+UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
+  mpz_t t;
+  UV i, length, k;
+  int test_primality = 0;
+  uint32_t* comp;
+  vlist retlist;
+
+  /* Use a much higher k value */
+  k = 80000 * mpz_sizeinbase(high,2);
+
+  if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
+  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+  if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
+  /* If no way to match the offset, leave now */
+  if (i = twin % 6, (i == 1 || i == 3 || i == 5)) { *rn = 0; return 0; }
+
+  mpz_init(t);
+  mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
+  if (mpz_cmp_ui(t, k) < 0)
+    k = mpz_get_ui(t);
+
+  mpz_sub(t, high, low);
+  length = mpz_get_ui(t) + 1;
+
+  INIT_VLIST(retlist);
+  /* Get bit array of odds marked with composites(k) marked with 1 */
+  comp = partial_sieve(low, length + twin, k);
+  for (i = 1; i <= length; i += 2) {
+    if (!TSTAVAL(comp, i) && !TSTAVAL(comp, i+twin)) {
+      mpz_add_ui(t, low, i);
+      if (_GMP_BPSW(t)) {
+        mpz_add_ui(t, t, twin);
+        if (_GMP_BPSW(t)) {
+          PUSH_VLIST(retlist, i);
+        }
+      }
+    }
+  }
+  Safefree(comp);
+  mpz_clear(t);
+  *rn = retlist.nsize;
+  return retlist.list;
+}
+
+UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
+  mpz_t t, savelow;
+  vlist retlist;
+  uint32_t* comp;
+  uint32_t pp = 11, ppr = 2310, nres, allocres, maxppr;
+  uint32_t const targres = 50000;
+  uint32_t *residues, *cres;
+  uint32_t starti = 1, skipi = 2;
+  uint32_t pi, startpi = 1, maxpi = NSMALLPRIMES;
+  UV c, maxc, i, ibase = 0;
+  UV nprps = 0;
+  int run_pretests = 0;
+  int _verbose = get_verbose_level();
+
+  if (nc == 1) return sieve_primes(low, high, 0, rn);
+  if (nc == 2) return sieve_twin_primes(low, high, cl[1], rn);
+
+  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+  if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
+
+  mpz_init(t);
+  mpz_sub(t, high, low);
+  maxppr = (mpz_sizeinbase(t,2) >= 32) ? 4294967295U : (1U << mpz_sizeinbase(t,2));
+
+  /* Determine the primorial size and acceptable residues */
+  starti = ((starti+skipi) - mpz_fdiv_ui(low,skipi) + 1) % skipi;
+  for (c = 1, maxc = 0; c < nc; c++)
+    if (cl[c] > maxc) maxc = cl[c];
+  New(0, residues, allocres = 1024, uint32_t);
+  ppr = 6;
+  for (pi = 1; pi <= 8; pi++) {
+    if (ppr * sprimes[pi+1] > maxppr) break;
+    for (i=0, ppr=1; i <= pi; i++)  { pp = sprimes[i]; ppr *= pp; }
+    nres = 0;
+    if (mpz_even_p(low)) mpz_add_ui(low, low, 1);
+    comp = partial_sieve(low, ppr+maxc+1, pp);
+    for (i = starti; i <= ppr; i += skipi) {
+       for (c = 0; c < nc; c++)
+         if (TSTAVAL(comp, i+cl[c])) break;
+       if (c != nc) continue;
+       if (nres >= allocres)  Renew(residues, allocres += 1024, uint32_t);
+       residues[nres++] = i;
+    }
+    Safefree(comp);
+    if (nres == 0 || nres > targres/10 || pi >= 8) break;
+    if (_verbose > 1) printf("cluster sieve found %u residues mod %u\n", nres, ppr);
+    if (nres == 1) {  skipi = ppr; starti = residues[0]; }
+    /* Accelerate by skipping some large intermediate clusters */
+    if (nres > 1 && pi == 5 && nres < targres/1000 && maxppr > 9699690) pi++;
+    if (nres > 1 && pi == 6 && nres < targres/100 && maxppr > 223092870) pi++;
+  }
+
+  if (_verbose) printf("cluster sieve using %u residues mod %u\n", nres, ppr);
+  /* Choose first prime to start sieving with each chunk */
+  while (sprimes[startpi] <= pp) startpi++;
+
+  /* We could croak if not admissible */
+  if (nres == 0) mpz_add_ui(low, high, 1);
+
+  INIT_VLIST(retlist);
+  New(0, cres, nres, uint32_t);
+  mpz_init_set(savelow, low);
+  if (mpz_sizeinbase(low, 2) > 260) run_pretests = 1;
+  if (run_pretests && mpz_sgn(_bgcd2) == 0) {
+    _GMP_pn_primorial(_bgcd2, BGCD2_PRIMES);
+    mpz_divexact(_bgcd2, _bgcd2, _bgcd);
+  }
+
+  /* Loop over their range in chunks of size 'ppr' */
+  while (mpz_cmp(low, high) <= 0) {
+
+    uint32_t r, nr, ncres = nres;
+    char acrem[1000];
+
+    /* Reduce the allowed residues for this chunk using more primes */
+    memcpy(cres, residues, nres * sizeof(uint32_t) );
+    for (pi = startpi; pi < maxpi; pi++) {
+      uint32_t rem, p = sprimes[pi];
+      rem = mpz_fdiv_ui(low,p);
+      /* Mask out unacceptable remainders for p */
+      memset(acrem, 1, p);
+      acrem[0] = 0;
+      for (c = 1; c < nc; c++)
+        acrem[ (cl[c] < p) ? (p-cl[c]) : (p-(cl[c]%p)) ] = 0;
+      /* Check divisibility of each remaining residue with this p */
+      for (r = 0, nr = 0; r < ncres; r++) {
+        if (acrem[ (rem+cres[r]) % p ])
+          cres[nr++] = cres[r];
+      }
+      ncres = nr;
+    }
+
+    /* Now check each of the remaining residues for inclusion */
+    for (r = 0; r < ncres; r++) {
+      i = cres[r];
+      mpz_add_ui(t, low, i);
+      if (mpz_cmp(t, high) > 0) break;
+      /* Pretest each element if the input is large enough */
+      if (run_pretests) {
+        for (c = 0; c < nc; c++)
+          if (mpz_add_ui(t, low, i+cl[c]), mpz_gcd(t,t,_bgcd2), mpz_cmp_ui(t,1)) break;
+        if (c != nc) continue;
+      }
+      /* PRP test */
+      for (c = 0; c < nc; c++)
+        if (! (mpz_add_ui(t, low, i+cl[c]), nprps++, _GMP_BPSW(t)) ) break;
+      if (c != nc) continue;
+      PUSH_VLIST(retlist, ibase + i);
+    }
+    ibase += ppr;
+    mpz_add_ui(low, low, ppr);
+  }
+
+  if (_verbose) printf("cluster sieve ran %lu BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
+  mpz_set(low, savelow);
+  Safefree(cres);
+  Safefree(residues);
+  mpz_clear(savelow);
+  mpz_clear(t);
+  *rn = retlist.nsize;
+  return retlist.list;
 }

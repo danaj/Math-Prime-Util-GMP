@@ -94,13 +94,7 @@
   a similar issue.  e.g.:
   mpu 'forprimes { die $_ unless is_frobenius_pseudoprime($_,37,-13) } 1e6'
 
-- finish sieve_prime_cluster.
-- documentation
-- tests
-- speedups.  In particular, for long clusters it would be better to take a
-  primorial (e.g.k=17-23), sieve it to k, find acceptable residues, then
-  look at just those residues.  We could do a sieve that just looks at the
-  small clusters, removing residues as they fail.  Then full test the
-  remainder.  This should run much faster.  We can iterate over their range
-  using this mod (223092870 values), without having to sieve and walk the
-  whole range.
+- cluster sieve add low < 1000 by hand
+- cluster sieve tests
+- More tuning and possible speedups for cluster sieve.
+- primes and twin primes with small low values.
