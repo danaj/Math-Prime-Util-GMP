@@ -94,7 +94,7 @@
   a similar issue.  e.g.:
   mpu 'forprimes { die $_ unless is_frobenius_pseudoprime($_,37,-13) } 1e6'
 
-- cluster sieve add low < 1000 by hand
+- prime_sieve and twin_prime_sieve can call cluster for small inputs
 - cluster sieve tests
 - More tuning and possible speedups for cluster sieve.
 - primes and twin primes with small low values.

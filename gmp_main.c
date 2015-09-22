@@ -3436,17 +3436,35 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   int run_pretests = 0;
   int _verbose = get_verbose_level();
 
-  if (nc == 1) return sieve_primes(low, high, 0, rn);
-  if (nc == 2) return sieve_twin_primes(low, high, cl[1], rn);
+  if (mpz_cmp_ui(low, 1e9) > 0) {
+    if (nc == 1) return sieve_primes(low, high, 0, rn);
+    if (nc == 2) return sieve_twin_primes(low, high, cl[1], rn);
+  }
 
   if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
   if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
 
   if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
 
+  INIT_VLIST(retlist);
   mpz_init(t);
   mpz_sub(t, high, low);
   maxppr = (mpz_sizeinbase(t,2) >= 32) ? 4294967295U : (1U << mpz_sizeinbase(t,2));
+
+  /* Handle small values that would get sieved away */
+  if (mpz_cmp_ui(low, 997) <= 0) {
+    UV ui_low = mpz_get_ui(low);
+    UV ui_high = (mpz_cmp_ui(high,997) > 0) ? 997 : mpz_get_ui(high);
+    for (pi = 0; pi < 168; pi++) {
+      UV p = sprimes[pi];
+      if (p > ui_high) break;
+      if (p < ui_low) continue;
+      for (c = 1; c < nc; c++)
+        if (!(mpz_set_ui(t, p+cl[c]), _GMP_is_prob_prime(t))) break;
+      if (c != nc) continue;
+      PUSH_VLIST(retlist, p-ui_low+1);
+    }
+  }
 
   /* Determine the primorial size and acceptable residues */
   starti = ((starti+skipi) - mpz_fdiv_ui(low,skipi) + 1) % skipi;
@@ -3455,7 +3473,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   New(0, residues, allocres = 1024, uint32_t);
   ppr = 6;
   for (pi = 1; pi <= 8; pi++) {
-    if (ppr * sprimes[pi+1] > maxppr) break;
+    if (pi > 1 && ppr * sprimes[pi+1] > maxppr) break;
     for (i=0, ppr=1; i <= pi; i++)  { pp = sprimes[i]; ppr *= pp; }
     nres = 0;
     if (mpz_even_p(low)) mpz_add_ui(low, low, 1);
@@ -3483,7 +3501,6 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   /* We could croak if not admissible */
   if (nres == 0) mpz_add_ui(low, high, 1);
 
-  INIT_VLIST(retlist);
   New(0, cres, nres, uint32_t);
   mpz_init_set(savelow, low);
   if (mpz_sizeinbase(low, 2) > 260) run_pretests = 1;
