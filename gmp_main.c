@@ -3426,13 +3426,14 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
   uint32_t* comp;
-  uint32_t pp = 11, ppr = 2310, nres, allocres, maxppr;
+  uint32_t pp, ppr, nres, allocres, maxppr;
   uint32_t const targres = 50000;
   uint32_t *residues, *cres;
   uint32_t starti = 1, skipi = 2;
-  uint32_t pi, startpi = 1, maxpi = NSMALLPRIMES;
-  UV c, maxc, i, ibase = 0;
-  UV nprps = 0;
+  uint32_t pi, startpi = 1, maxpi = 168;
+  uint32_t lastspr = sprimes[maxpi-1];
+  uint32_t i, c, maxc;
+  UV ibase = 0, nprps = 0;
   int run_pretests = 0;
   int _verbose = get_verbose_level();
 
@@ -3452,10 +3453,10 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   maxppr = (mpz_sizeinbase(t,2) >= 32) ? 4294967295U : (1U << mpz_sizeinbase(t,2));
 
   /* Handle small values that would get sieved away */
-  if (mpz_cmp_ui(low, 997) <= 0) {
+  if (mpz_cmp_ui(low, lastspr) <= 0) {
     UV ui_low = mpz_get_ui(low);
-    UV ui_high = (mpz_cmp_ui(high,997) > 0) ? 997 : mpz_get_ui(high);
-    for (pi = 0; pi < 168; pi++) {
+    UV ui_high = (mpz_cmp_ui(high,lastspr) > 0) ? lastspr : mpz_get_ui(high);
+    for (pi = 0; pi < maxpi; pi++) {
       UV p = sprimes[pi];
       if (p > ui_high) break;
       if (p < ui_low) continue;
@@ -3512,14 +3513,36 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   /* Loop over their range in chunks of size 'ppr' */
   while (mpz_cmp(low, high) <= 0) {
 
-    uint32_t r, nr, ncres = nres;
-    char acrem[1000];
+    uint32_t j, r, nr, ncres = nres;
+    char acrem[2100];
+    unsigned long ui_low = (mpz_sizeinbase(low,2) > 8*sizeof(unsigned long)) ? 0 : mpz_get_ui(low);
 
     /* Reduce the allowed residues for this chunk using more primes */
     memcpy(cres, residues, nres * sizeof(uint32_t) );
-    for (pi = startpi; pi < maxpi; pi++) {
-      uint32_t rem, p = sprimes[pi];
-      rem = mpz_fdiv_ui(low,p);
+    /* Knock out two at a time while we fit */
+    for (j = 0; j < 3; j++) {
+      uint32_t p1 = sprimes[startpi + 2*j];
+      uint32_t p2 = sprimes[startpi + 2*j + 1];
+      uint32_t p1p2 = p1*p2;
+      uint32_t rem = (ui_low) ? (ui_low % p1p2) : mpz_fdiv_ui(low,p1p2);
+      memset(acrem, 1, p1p2);
+      for (i = 0; i < p1; i++) { acrem[i*p1]=0; acrem[i*p2]=0; }
+      for (     ; i < p2; i++) { acrem[i*p1]=0;                }
+      for (c = 1; c < nc; c++) {
+        uint32_t r1 = (cl[c] < p1) ? (p1-cl[c]) : (p1-(cl[c]%p1));
+        uint32_t r2 = (cl[c] < p2) ? (p2-cl[c]) : (p2-(cl[c]%p2));
+        for (i = 0; i < p1; i++) { acrem[i*p1+r1]=0; acrem[i*p2+r2]=0; }
+        for (     ; i < p2; i++) { acrem[i*p1+r1]=0;                   }
+      }
+      for (r = 0, nr = 0; r < ncres; r++) {
+        if (acrem[ (rem+cres[r]) % p1p2 ])
+          cres[nr++] = cres[r];
+      }
+      ncres = nr;
+    }
+    for (pi = startpi+2*j; pi < maxpi; pi++) {
+      uint32_t p = sprimes[pi];
+      uint32_t rem = (ui_low) ? (ui_low % p) : mpz_fdiv_ui(low,p);
       /* Mask out unacceptable remainders for p */
       memset(acrem, 1, p);
       acrem[0] = 0;
