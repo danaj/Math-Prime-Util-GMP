@@ -3496,11 +3496,9 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   }
   if (_verbose) printf("cluster sieve using %u residues mod %u\n", nres, ppr);
 
-  /* We could croak if not admissible, or just return */
+  /* Return if not admissible, maybe with a single small value */
   if (nres == 0) {
     Safefree(residues);
-    mpz_set(low, savelow);
-    mpz_clear(savelow);
     mpz_clear(t);
     *rn = retlist.nsize;
     return retlist.list;
