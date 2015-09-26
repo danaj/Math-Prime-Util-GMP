@@ -3429,15 +3429,16 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
   uint32_t* comp;
-  uint32_t pp, ppr, nres, allocres, maxppr;
+  uint32_t ppr, nres, allocres, maxppr;
   uint32_t const targres = 50000;
-  uint32_t p1p2, p3p4, *residues, *cres, *resmodp1p2, *resmodp3p4;
+  uint32_t *residues, *cres;
+  uint32_t pp_0, pp_1, pp_2, *resmod_0, *resmod_1, *resmod_2;
   uint32_t starti = 1, skipi = 2;
   uint32_t pi, startpi = 1, maxpi = 168;
   uint32_t lastspr = sprimes[maxpi-1];
-  uint32_t i, c, maxc;
+  uint32_t i, c, maxc, smallnc;
   UV ibase = 0, nprps = 0;
-  char Acrem[1600], Bcrem[1600];
+  char crem_0[29*31], crem_1[37*41], crem_2[43*47], *VPrem;
   int run_pretests = 0;
   int _verbose = get_verbose_level();
 
@@ -3478,6 +3479,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   New(0, residues, allocres = 1024, uint32_t);
   ppr = 6;
   for (pi = 1; pi <= 8; pi++) {
+    uint32_t pp;
     if (pi > 1 && ppr * sprimes[pi+1] > maxppr) break;
     for (i=0, ppr=1; i <= pi; i++)  { pp = sprimes[i]; ppr *= pp; }
     nres = 0;
@@ -3498,6 +3500,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     if (nres > 1 && pi == 5 && nres < targres/1200 && maxppr > 9699690) pi++;
     if (nres > 1 && pi == 6 && nres < targres/120 && maxppr > 223092870) pi++;
   }
+  startpi = pi+1;
   if (_verbose) printf("cluster sieve using %u residues mod %u\n", nres, ppr);
 
   /* Return if not admissible, maybe with a single small value */
@@ -3507,9 +3510,6 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     *rn = retlist.nsize;
     return retlist.list;
   }
-
-  /* Choose first prime to start sieving with each chunk */
-  while (sprimes[startpi] <= pp) startpi++;
 
   New(0, cres, nres, uint32_t);
   mpz_init_set(savelow, low);
@@ -3523,71 +3523,93 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   {
     uint32_t p1 = sprimes[startpi+0], p2 = sprimes[startpi+1];
     uint32_t p3 = sprimes[startpi+2], p4 = sprimes[startpi+3];
-    p1p2 = p1*p2; p3p4 = p3*p4;
-    memset(Acrem, 1, p1p2);
-    memset(Bcrem, 1, p3p4);
+    uint32_t p5 = sprimes[startpi+4], p6 = sprimes[startpi+5];
+    pp_0 = p1*p2; pp_1 = p3*p4; pp_2 = p5*p6;
+    memset(crem_0, 1, pp_0);
+    memset(crem_1, 1, pp_1);
+    memset(crem_2, 1, pp_2);
     /* Mark remainders that indicate a composite for this residue. */
-    for (i = 0; i < p1; i++) { Acrem[i*p1]=0; Acrem[i*p2]=0; }
-    for (     ; i < p2; i++) { Acrem[i*p1]=0;                }
-    for (i = 0; i < p3; i++) { Bcrem[i*p3]=0; Bcrem[i*p4]=0; }
-    for (     ; i < p4; i++) { Bcrem[i*p3]=0;                }
+    for (i = 0; i < p1; i++) { crem_0[i*p1]=0; crem_0[i*p2]=0; }
+    for (     ; i < p2; i++) { crem_0[i*p1]=0;                }
+    for (i = 0; i < p3; i++) { crem_1[i*p3]=0; crem_1[i*p4]=0; }
+    for (     ; i < p4; i++) { crem_1[i*p3]=0;                }
+    for (i = 0; i < p5; i++) { crem_2[i*p5]=0; crem_2[i*p6]=0; }
+    for (     ; i < p6; i++) { crem_2[i*p5]=0;                }
     for (c = 1; c < nc; c++) {
-      uint32_t c1 = cl[c], c2 = cl[c], c3 = cl[c], c4 = cl[c];
+      uint32_t c1=cl[c], c2=cl[c], c3=cl[c], c4=cl[c], c5=cl[c], c6=cl[c];
       if (c1 >= p1) c1 %= p1;
       if (c2 >= p2) c2 %= p2;
-      for (i = 1; i <= p1; i++) { Acrem[i*p1-c1]=0; Acrem[i*p2-c2]=0; }
-      for (     ; i <= p2; i++) { Acrem[i*p1-c1]=0;                   }
+      for (i = 1; i <= p1; i++) { crem_0[i*p1-c1]=0; crem_0[i*p2-c2]=0; }
+      for (     ; i <= p2; i++) { crem_0[i*p1-c1]=0;                   }
       if (c3 >= p3) c3 %= p3;
       if (c4 >= p4) c4 %= p4;
-      for (i = 1; i <= p3; i++) { Bcrem[i*p3-c3]=0; Bcrem[i*p4-c4]=0; }
-      for (     ; i <= p4; i++) { Bcrem[i*p3-c3]=0;                   }
+      for (i = 1; i <= p3; i++) { crem_1[i*p3-c3]=0; crem_1[i*p4-c4]=0; }
+      for (     ; i <= p4; i++) { crem_1[i*p3-c3]=0;                   }
+      if (c5 >= p5) c5 %= p5;
+      if (c6 >= p6) c6 %= p6;
+      for (i = 1; i <= p5; i++) { crem_2[i*p5-c5]=0; crem_2[i*p6-c6]=0; }
+      for (     ; i <= p6; i++) { crem_2[i*p5-c5]=0;                   }
     }
-
-    New(0, resmodp1p2, nres, uint32_t);
-    New(0, resmodp3p4, nres, uint32_t);
+    New(0, resmod_0, nres, uint32_t);
+    New(0, resmod_1, nres, uint32_t);
+    New(0, resmod_2, nres, uint32_t);
     for (i = 0; i < nres; i++) {
-      resmodp1p2[i] = residues[i] % p1p2;
-      resmodp3p4[i] = residues[i] % p3p4;
+      resmod_0[i] = residues[i] % pp_0;
+      resmod_1[i] = residues[i] % pp_1;
+      resmod_2[i] = residues[i] % pp_2;
     }
+  }
+
+  /* Precalculate acceptable residues for more primes */
+  New(0, VPrem, maxpi * 1024, char);
+  memset(VPrem, 1, maxpi * 1024);
+  for (pi = startpi+6; pi < maxpi; pi++)
+    VPrem[pi*1024] = 0;
+  for (pi = startpi+6, smallnc = 0; pi < maxpi; pi++) {
+    uint32_t p = sprimes[pi];
+    char* prem = VPrem + pi*1024;
+    while (smallnc < nc && cl[smallnc] < p)   smallnc++;
+    for (c = 1; c < smallnc; c++) prem[p-cl[c]] = 0;
+    for (     ; c <      nc; c++) prem[p-(cl[c]%p)] = 0;
   }
 
   /* Loop over their range in chunks of size 'ppr' */
   while (mpz_cmp(low, high) <= 0) {
 
     uint32_t r, nr, ncres = nres;
-    char acrem[1000];
     unsigned long ui_low = (mpz_sizeinbase(low,2) > 8*sizeof(unsigned long)) ? 0 : mpz_get_ui(low);
 
     /* Reduce the allowed residues for this chunk using more primes */
     memcpy(cres, residues, nres * sizeof(uint32_t) );
-    /* Take care of the first four primes as pairs */
-    {
-      uint32_t rem12 = (ui_low) ? (ui_low % p1p2) : mpz_fdiv_ui(low,p1p2);
-      uint32_t rem34 = (ui_low) ? (ui_low % p3p4) : mpz_fdiv_ui(low,p3p4);
-      /* Create the reduced set with four primes removed.  No mods needed. */
+    /* Take care of the first primes as pairs */
+    { uint32_t remr;
+      uint32_t rem_0 = (ui_low) ? (ui_low % pp_0) : mpz_fdiv_ui(low,pp_0);
+      uint32_t rem_1 = (ui_low) ? (ui_low % pp_1) : mpz_fdiv_ui(low,pp_1);
+      uint32_t rem_2 = (ui_low) ? (ui_low % pp_2) : mpz_fdiv_ui(low,pp_2);
+      /* Create the reduced set with primes removed.  No mods needed. */
       for (r = 0, nr = 0; r < ncres; r++) {
-        uint32_t remr = rem12 + resmodp1p2[r];
-        if (Acrem[ (remr < p1p2) ? remr : remr-p1p2 ]) {
-          remr = rem34 + resmodp3p4[r];
-          if (Bcrem[ (remr < p3p4) ? remr : remr-p3p4 ]) {
-            cres[nr++] = cres[r];
+        remr = rem_0 + resmod_0[r];
+        if (crem_0[ (remr < pp_0) ? remr : remr-pp_0 ]) {
+          remr = rem_1 + resmod_1[r];
+          if (crem_1[ (remr < pp_1) ? remr : remr-pp_1 ]) {
+            remr = rem_2 + resmod_2[r];
+            if (crem_2[ (remr < pp_2) ? remr : remr-pp_2 ]) {
+              cres[nr++] = cres[r];
+            }
           }
         }
       }
       ncres = nr;
     }
+
     /* Sieve through more primes one at a time, removing residues. */
-    for (pi = startpi+4; pi < maxpi && ncres > 0; pi++) {
+    for (pi = startpi+6; pi < maxpi && ncres > 0; pi++) {
       uint32_t p = sprimes[pi];
       uint32_t rem = (ui_low) ? (ui_low % p) : mpz_fdiv_ui(low,p);
-      /* Mask out unacceptable remainders for p */
-      memset(acrem, 1, p);
-      acrem[0] = 0;
-      for (c = 1; c < nc; c++)
-        acrem[ (cl[c] < p) ? (p-cl[c]) : (p-(cl[c]%p)) ] = 0;
+      char* prem = VPrem + pi*1024;
       /* Check divisibility of each remaining residue with this p */
       for (r = 0, nr = 0; r < ncres; r++) {
-        if (acrem[ (rem+cres[r]) % p ])
+        if (prem[ (rem+cres[r]) % p ])
           cres[nr++] = cres[r];
       }
       ncres = nr;
@@ -3617,8 +3639,10 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
 
   if (_verbose) printf("cluster sieve ran %lu BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
   mpz_set(low, savelow);
-  Safefree(resmodp1p2);
-  Safefree(resmodp3p4);
+  Safefree(VPrem);
+  Safefree(resmod_0);
+  Safefree(resmod_1);
+  Safefree(resmod_2);
   Safefree(cres);
   Safefree(residues);
   mpz_clear(savelow);
