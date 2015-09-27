@@ -3425,6 +3425,9 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
   return retlist.list;
 }
 
+
+#define addmodded(r,a,b,n)  do { r = a + b; if (r >= n) r -= n; } while(0)
+
 UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
@@ -3433,6 +3436,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   uint32_t const targres = 50000;
   uint32_t *residues, *cres;
   uint32_t pp_0, pp_1, pp_2, *resmod_0, *resmod_1, *resmod_2;
+  uint32_t rem_0, rem_1, rem_2, remadd_0, remadd_1, remadd_2;
   uint32_t starti = 1, skipi = 2;
   uint32_t pi, startpi = 1, maxpi = 168;
   uint32_t lastspr = sprimes[maxpi-1];
@@ -3561,6 +3565,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   }
 
   /* Precalculate acceptable residues for more primes */
+  MPUassert( lastspr <= 1024, "cluster sieve internal" );
   New(0, VPrem, maxpi * 1024, char);
   memset(VPrem, 1, maxpi * 1024);
   for (pi = startpi+6; pi < maxpi; pi++)
@@ -3573,33 +3578,37 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     for (     ; c <      nc; c++) prem[p-(cl[c]%p)] = 0;
   }
 
+  rem_0 = mpz_fdiv_ui(low,pp_0);
+  rem_1 = mpz_fdiv_ui(low,pp_1);
+  rem_2 = mpz_fdiv_ui(low,pp_2);
+  remadd_0 = ppr % pp_0;
+  remadd_1 = ppr % pp_1;
+  remadd_2 = ppr % pp_2;
+
   /* Loop over their range in chunks of size 'ppr' */
   while (mpz_cmp(low, high) <= 0) {
 
-    uint32_t r, nr, ncres = nres;
+    uint32_t r, nr, remr, ncres;
     unsigned long ui_low = (mpz_sizeinbase(low,2) > 8*sizeof(unsigned long)) ? 0 : mpz_get_ui(low);
 
     /* Reduce the allowed residues for this chunk using more primes */
-    memcpy(cres, residues, nres * sizeof(uint32_t) );
-    /* Take care of the first primes as pairs */
-    { uint32_t remr;
-      uint32_t rem_0 = (ui_low) ? (ui_low % pp_0) : mpz_fdiv_ui(low,pp_0);
-      uint32_t rem_1 = (ui_low) ? (ui_low % pp_1) : mpz_fdiv_ui(low,pp_1);
-      uint32_t rem_2 = (ui_low) ? (ui_low % pp_2) : mpz_fdiv_ui(low,pp_2);
-      /* Create the reduced set with primes removed.  No mods needed. */
-      for (r = 0, nr = 0; r < ncres; r++) {
-        remr = rem_0 + resmod_0[r];
-        if (crem_0[ (remr < pp_0) ? remr : remr-pp_0 ]) {
-          remr = rem_1 + resmod_1[r];
-          if (crem_1[ (remr < pp_1) ? remr : remr-pp_1 ]) {
-            remr = rem_2 + resmod_2[r];
-            if (crem_2[ (remr < pp_2) ? remr : remr-pp_2 ]) {
-              cres[nr++] = cres[r];
+
+    { /* Start making a list of this chunk's residues using three pairs */
+      for (r = 0, ncres = 0; r < nres; r++) {
+        addmodded(remr, rem_0, resmod_0[r], pp_0);
+        if (crem_0[remr]) {
+          addmodded(remr, rem_1, resmod_1[r], pp_1);
+          if (crem_1[remr]) {
+            addmodded(remr, rem_2, resmod_2[r], pp_2);
+            if (crem_2[remr]) {
+              cres[ncres++] = residues[r];
             }
           }
         }
       }
-      ncres = nr;
+      addmodded(rem_0, rem_0, remadd_0, pp_0);
+      addmodded(rem_1, rem_1, remadd_1, pp_1);
+      addmodded(rem_2, rem_2, remadd_2, pp_2);
     }
 
     /* Sieve through more primes one at a time, removing residues. */
