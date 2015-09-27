@@ -3440,7 +3440,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   uint32_t starti = 1, skipi = 2;
   uint32_t pi, startpi = 1, maxpi = 168;
   uint32_t lastspr = sprimes[maxpi-1];
-  uint32_t i, c, maxc, smallnc;
+  uint32_t i, c, smallnc;
   UV ibase = 0, nprps = 0;
   char crem_0[29*31], crem_1[37*41], crem_2[43*47], *VPrem;
   int run_pretests = 0;
@@ -3478,20 +3478,20 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
 
   /* Determine the primorial size and acceptable residues */
   starti = ((starti+skipi) - mpz_fdiv_ui(low,skipi) + 1) % skipi;
-  for (c = 1, maxc = 0; c < nc; c++)
-    if (cl[c] > maxc) maxc = cl[c];
   New(0, residues, allocres = 1024, uint32_t);
   ppr = 6;
   for (pi = 1; pi <= 8; pi++) {
-    uint32_t pp;
+    uint32_t pp, j;
     if (pi > 1 && ppr * sprimes[pi+1] > maxppr) break;
     for (i=0, ppr=1; i <= pi; i++)  { pp = sprimes[i]; ppr *= pp; }
     nres = 0;
     if (mpz_even_p(low)) mpz_add_ui(low, low, 1);
-    comp = partial_sieve(low, ppr+maxc+1, pp);
+    comp = partial_sieve(low, ppr, pp);
     for (i = starti; i <= ppr; i += skipi) {
-       for (c = 0; c < nc; c++)
-         if (TSTAVAL(comp, i+cl[c])) break;
+       for (c = 0; c < nc; c++) {
+         uint32_t j = i + cl[c];   if (j >= ppr) j %= ppr;
+         if (TSTAVAL(comp, j)) break;
+       }
        if (c != nc) continue;
        if (nres >= allocres)  Renew(residues, allocres += 1024, uint32_t);
        residues[nres++] = i;
@@ -3499,7 +3499,8 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     Safefree(comp);
     if (nres == 0 || nres > targres/10 || pi >= 8) break;
     if (_verbose > 1) printf("cluster sieve found %u residues mod %u\n", nres, ppr);
-    if (nres == 1) {  skipi = ppr; starti = residues[0]; }
+    if (nres == 1) skipi = ppr;
+    if (starti != residues[0]) starti = residues[0];
     /* Accelerate by skipping some large intermediate clusters */
     if (nres > 1 && pi == 5 && nres < targres/1200 && maxppr > 9699690) pi++;
     if (nres > 1 && pi == 6 && nres < targres/120 && maxppr > 223092870) pi++;
