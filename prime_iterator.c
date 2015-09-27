@@ -7,9 +7,11 @@
 #include "prime_iterator.h"
 
 
+#if 0
 /* Add this to a number and you'll ensure you're on a wheel location */
 static const unsigned char distancewheel30[30] =
     {1,0,5,4,3,2,1,0,3,2,1,0,1,0,3,2,1,0,1,0,3,2,1,0,5,4,3,2,1,0};
+#endif
 /* The bit mask within a byte */
 static const unsigned char masktab30[30] = {
     0,  1,  0,  0,  0,  0,  0,  2,  0,  0,  0,  4,  0,  8,  0,
@@ -17,9 +19,11 @@ static const unsigned char masktab30[30] = {
 static const unsigned char nextwheel30[30] = {
     1,  7,  7,  7,  7,  7,  7, 11, 11, 11, 11, 13, 13, 17, 17,
    17, 17, 19, 19, 23, 23, 23, 23, 29, 29, 29, 29, 29, 29,  1 };
+#if 0
 static const unsigned char prevwheel30[30] = {
    29, 29,  1,  1,  1,  1,  1,  1,  7,  7,  7,  7, 11, 11, 13,
    13, 13, 13, 17, 17, 19, 19, 19, 19, 23, 23, 23, 23, 23, 23 };
+#endif
 
 static INLINE UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
 {

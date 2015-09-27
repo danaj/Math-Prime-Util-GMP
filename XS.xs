@@ -749,11 +749,11 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
       if (items > 100) croak("sieve_prime_cluster: too many entries");
       cl[0] = 0;
       for (i = 1; i < nc; i++) {
-        UV cv = SvUV(ST(1+i));
-        if (cv & 1) croak("sieve_prime_cluster: values must be even");
-        if (cv > 2147483647UL) croak("sieve_prime_cluster: values must be 31-bit");
-        if (cv <= cl[i-1]) croak("sieve_prime_cluster: values must be increasing");
-        cl[i] = cv;
+        UV cval = SvUV(ST(1+i));
+        if (cval & 1) croak("sieve_prime_cluster: values must be even");
+        if (cval > 2147483647UL) croak("sieve_prime_cluster: values must be 31-bit");
+        if (cval <= cl[i-1]) croak("sieve_prime_cluster: values must be increasing");
+        cl[i] = cval;
       }
       list = sieve_cluster(low, high, cl, nc, &nprimes);
     }

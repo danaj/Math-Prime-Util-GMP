@@ -732,7 +732,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
 
       choose_m(mlist, D, u, v, Ni, t, t2);
       if (allq) {
-        int i, j;
+        int x, y;
         /* We have 0 to 6 m values.  Try to factor them, put in qlist. */
         for (k = 0; k < 6; k++) {
           mpz_set_ui(qlist[k], 0);
@@ -744,12 +744,12 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
           }
         }
         /* Sort any q values by size, so we work on the smallest first */
-        for (i = 0; i < 5; i++)
-          if (mpz_sgn(qlist[i]))
-            for (j = i+1; j < 6; j++)
-              if (mpz_sgn(qlist[j]) && mpz_cmp(qlist[i],qlist[j]) > 0) {
-                mpz_swap( qlist[i], qlist[j] );
-                mpz_swap( mlist[i], mlist[j] );
+        for (x = 0; x < 5; x++)
+          if (mpz_sgn(qlist[x]))
+            for (y = x+1; y < 6; y++)
+              if (mpz_sgn(qlist[y]) && mpz_cmp(qlist[x],qlist[y]) > 0) {
+                mpz_swap( qlist[x], qlist[y] );
+                mpz_swap( mlist[x], mlist[y] );
               }
       }
       /* Try to make a proof with the first (smallest) q value.
