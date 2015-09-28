@@ -76,4 +76,72 @@ extern int* poly_class_nums(void);
  */
 extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
 
+#if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)
+static UV isqrt(UV n) {
+  UV root;
+#if BITS_PER_WORD == 32
+  if (n >= UVCONST(4294836225)) return UVCONST(65535);
+#else
+  if (n >= UVCONST(18446744065119617025)) return UVCONST(4294967295);
+#endif
+  root = (UV) sqrt((double)n);
+  while (root*root > n)  root--;
+  while ((root+1)*(root+1) <= n)  root++;
+  return root;
+}
+#endif
+
+#if defined(FUNC_gcd_ui) || defined(FUNC_lcm_ui)
+/* If we have a very fast ctz, then use the fast FLINT version of gcd */
+#if defined(__GNUC__) && (__GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4))
+#define gcd_ui(x,y) gcdz(x,y)
+#else
+static UV gcd_ui(UV x, UV y) {
+  UV t;
+  if (y < x) { t = x; x = y; y = t; }
+  while (y > 0) {
+    t = y;  y = x % y;  x = t;  /* y1 <- x0 % y0 ; x1 <- y0 */
+  }
+  return x;
+}
+#endif
+#endif
+
+#ifdef FUNC_lcm_ui
+static UV lcm_ui(UV x, UV y) {
+  /* Can overflow if lcm(x,y) > 2^64 (e.g. two primes each > 2^32) */
+  return x * (y / gcd_ui(x,y));
+}
+#endif
+
+#ifdef FUNC_is_perfect_square
+/* Return 0 if n is not a perfect square.  Set sqrtn to int(sqrt(n)) if so.
+ * See:  http://mersenneforum.org/showpost.php?p=110896
+ */
+static int is_perfect_square(UV n, UV* sqrtn)
+{
+  UV m;
+  m = n & 127;
+  if ((m*0x8bc40d7d) & (m*0xa1e2f5d1) & 0x14020a)  return 0;
+  /* This cuts out another 80%: */
+  m = n % 63; if ((m*0x3d491df7) & (m*0xc824a9f9) & 0x10f14008) return 0;
+  /* m = n % 25; if ((m*0x1929fc1b) & (m*0x4c9ea3b2) & 0x51001005) return 0; */
+  m = isqrt(n);
+  if (n != m*m) return 0;
+  if (sqrtn != 0) *sqrtn = m;
+  return 1;
+}
+#endif
+
+#if defined(FUNC_gcd_ui)
+static UV gcd_ui(UV x, UV y) {
+  UV t;
+  if (y < x) { t = x; x = y; y = t; }
+  while (y > 0) {
+    t = y;  y = x % y;  x = t;  /* y1 <- x0 % y0 ; x1 <- y0 */
+  }
+  return x;
+}
+#endif
+
 #endif

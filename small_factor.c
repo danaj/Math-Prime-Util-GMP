@@ -5,45 +5,10 @@
 
 #include "ptypes.h"
 #include "small_factor.h"
-
-static UV isqrt(UV n) {
-  UV root;
-#if BITS_PER_WORD == 32
-  if (n >= UVCONST(4294836225)) return UVCONST(65535);
-#else
-  if (n >= UVCONST(18446744065119617025)) return UVCONST(4294967295);
-#endif
-  root = (UV) sqrt((double)n);
-  while (root*root > n)  root--;
-  while ((root+1)*(root+1) <= n)  root++;
-  return root;
-}
-
-/* Return 0 if n is not a perfect square.  Set sqrtn to int(sqrt(n)) if so.
- * See Math::Prime::Util factor.c for more info on this.
- */
-static int is_perfect_square(UV n, UV* sqrtn)
-{
-  UV m;
-  m = n & 127;
-  if ((m*0x8bc40d7d) & (m*0xa1e2f5d1) & 0x14020a)  return 0;
-  /* This cuts out another 80%: */
-  m = n % 63; if ((m*0x3d491df7) & (m*0xc824a9f9) & 0x10f14008) return 0;
-  /* m = n % 25; if ((m*0x1929fc1b) & (m*0x4c9ea3b2) & 0x51001005) return 0; */
-  m = isqrt(n);
-  if (n != m*m) return 0;
-  if (sqrtn != 0) *sqrtn = m;
-  return 1;
-}
-
-static UV gcd_ui(UV x, UV y) {
-  UV t;
-  if (y < x) { t = x; x = y; y = t; }
-  while (y > 0) {
-    t = y;  y = x % y;  x = t;  /* y1 <- x0 % y0 ; x1 <- y0 */
-  }
-  return x;
-}
+#define FUNC_gcd_ui 1
+#define FUNC_isqrt 1
+#define FUNC_is_perfect_square 1
+#include "utility.h"
 
 typedef struct
 {
