@@ -3338,11 +3338,11 @@ typedef struct {
   } while (0)
 
 #define ADDVAL32(v, n, max, val) \
-  do { if (n >= max) Renew(v, max += 512, uint32_t);  v[n++] = val; } while (0)
+  do { if (n >= max) Renew(v, max += 512, UV);  v[n++] = val; } while (0)
 #define SWAPL32(l1, n1, m1,  l2, n2, m2) \
-  { uint32_t t_, *u_ = l1;  l1 = l2;  l2 = u_; \
-                  t_ = n1;  n1 = n2;  n2 = t_; \
-                  t_ = m1;  m1 = m2;  m2 = t_; }
+  { UV t_, *u_ = l1;  l1 = l2;  l2 = u_; \
+            t_ = n1;  n1 = n2;  n2 = t_; \
+            t_ = m1;  m1 = m2;  m2 = t_; }
 
 UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn) {
   mpz_t t;
@@ -3439,16 +3439,16 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
 UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
-  uint32_t ppr, nres, allocres, maxppr;
-  uint32_t const targres = 50000;
-  uint32_t *residues, *cres;
+  UV i, ppr, nres, allocres;
+  uint32_t const targres = 500000;   /* Arguably this should be higher */
+  UV *residues, *cres;
   uint32_t pp_0, pp_1, pp_2, *resmod_0, *resmod_1, *resmod_2;
   uint32_t rem_0, rem_1, rem_2, remadd_0, remadd_1, remadd_2;
   uint32_t pi, startpi = 1, maxpi = 168;
   uint32_t lastspr = sprimes[maxpi-1];
-  uint32_t i, c, smallnc;
+  uint32_t c, smallnc;
   UV ibase = 0, nprps = 0;
-  char crem_0[29*31], crem_1[37*41], crem_2[43*47], *VPrem;
+  char crem_0[53*59], crem_1[61*67], crem_2[71*73], *VPrem;
   int run_pretests = 0;
   int _verbose = get_verbose_level();
 
@@ -3487,36 +3487,41 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   }
 
   /* Determine the primorial size and acceptable residues */
-  New(0, residues, allocres = 1024, uint32_t);
-  mpz_sub(t, high, low);
-  maxppr = (mpz_sizeinbase(t,2) >= 32) ? 4294967295U : (1U << mpz_sizeinbase(t,2));
+  New(0, residues, allocres = 1024, UV);
   {
-    uint32_t remr, *res2, allocres2, nres2;
+    UV remr, *res2, allocres2, nres2, maxppr;
     /* Calculate residues for a small primorial */
     for (pi = 2, ppr = 1, i = 0;  i <= pi;  i++) ppr *= sprimes[i];
     remr = mpz_fdiv_ui(low, ppr);
     nres = 0;
     for (i = 1; i <= ppr; i += 2) {
       for (c = 0; c < nc; c++) {
-        uint32_t v = (remr + i + cl[c]) % ppr;
+        UV v = (remr + i + cl[c]) % ppr;
         if (gcd_ui(v, ppr) != 1) break;
       }
       if (c == nc)
         ADDVAL32(residues, nres, allocres, i);
     }
     /* Raise primorial size until we have plenty of residues */
-    New(0, res2, allocres2 = 1024, uint32_t);
+    New(0, res2, allocres2 = 1024, UV);
+    mpz_sub(t, high, low);
+    maxppr = (mpz_sizeinbase(t,2) >= BITS_PER_WORD) ? UV_MAX : (1UL << mpz_sizeinbase(t,2));
+#if BITS_PER_WORD == 64
+    while (pi++ < 14) {
+#else
     while (pi++ < 8) {
-      uint32_t j, r, p = sprimes[pi], newppr = ppr * p;
-      if (nres == 0 || nres > targres/10 || newppr > maxppr) break;
-      if (_verbose > 1) printf("cluster sieve found %u residues mod %u\n", nres, ppr);
+#endif
+      uint32_t j, p = sprimes[pi];
+      UV r, newppr = ppr * p;
+      if (nres == 0 || nres > targres/(p/2) || newppr > maxppr) break;
+      if (_verbose > 1) printf("cluster sieve found %lu residues mod %lu\n", nres, ppr);
       remr = mpz_fdiv_ui(low, newppr);
       nres2 = 0;
       for (i = 0; i < p; i++) {
         for (j = 0; j < nres; j++) {
           r = i*ppr + residues[j];
           for (c = 0; c < nc; c++) {
-            uint32_t v = remr + r + cl[c];
+            UV v = remr + r + cl[c];
             if ((v % p) == 0) break;
           }
           if (c == nc)
@@ -3529,7 +3534,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     startpi = pi;
     Safefree(res2);
   }
-  if (_verbose) printf("cluster sieve using %u residues mod %u\n", nres, ppr);
+  if (_verbose) printf("cluster sieve using %lu residues mod %lu\n", nres, ppr);
 
   /* Return if not admissible, maybe with a single small value */
   if (nres == 0) {
@@ -3539,7 +3544,6 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     return retlist.list;
   }
 
-  New(0, cres, nres, uint32_t);
   mpz_init_set(savelow, low);
   if (mpz_sizeinbase(low, 2) > 260) run_pretests = 1;
   if (run_pretests && mpz_sgn(_bgcd2) == 0) {
@@ -3602,12 +3606,11 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     for (     ; c <      nc; c++) prem[p-(cl[c]%p)] = 0;
   }
 
-  rem_0 = mpz_fdiv_ui(low,pp_0);
-  rem_1 = mpz_fdiv_ui(low,pp_1);
-  rem_2 = mpz_fdiv_ui(low,pp_2);
-  remadd_0 = ppr % pp_0;
-  remadd_1 = ppr % pp_1;
-  remadd_2 = ppr % pp_2;
+  New(0, cres, nres, UV);
+
+  rem_0 = mpz_fdiv_ui(low,pp_0);  remadd_0 = ppr % pp_0;
+  rem_1 = mpz_fdiv_ui(low,pp_1);  remadd_1 = ppr % pp_1;
+  rem_2 = mpz_fdiv_ui(low,pp_2);  remadd_2 = ppr % pp_2;
 
   /* Loop over their range in chunks of size 'ppr' */
   while (mpz_cmp(low, high) <= 0) {
@@ -3641,9 +3644,16 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
       uint32_t rem = (ui_low) ? (ui_low % p) : mpz_fdiv_ui(low,p);
       char* prem = VPrem + pi*1024;
       /* Check divisibility of each remaining residue with this p */
-      for (r = 0, nr = 0; r < ncres; r++) {
-        if (prem[ (rem+cres[r]) % p ])
-          cres[nr++] = cres[r];
+      if (startpi <= 9) {   /* Residues are 32-bit */
+        for (r = 0, nr = 0; r < ncres; r++) {
+          if (prem[ (rem+(uint32_t)cres[r]) % p ])
+            cres[nr++] = cres[r];
+        }
+      } else {              /* Residues are 64-bit */
+        for (r = 0, nr = 0; r < ncres; r++) {
+          if (prem[ (rem+cres[r]) % p ])
+            cres[nr++] = cres[r];
+        }
       }
       ncres = nr;
     }
