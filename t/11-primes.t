@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/primes sieve_twin_primes/;
 
-plan tests => 12 + 12 + 1 + 1 + 19 + 1 + 1 + 13*5 + 2;
+plan tests => 12 + 12 + 1 + 19 + 1 + 1 + 13*1 + 2;
 
 ok(!eval { primes(undef); },   "primes(undef)");
 ok(!eval { primes("a"); },     "primes(a)");
@@ -67,8 +67,6 @@ while (my($high, $expect) = each (%small_single)) {
   is_deeply( primes($high), $expect, "primes($high) should return [@{$expect}]");
 }
 
-is_deeply( primes(0, 3572), \@small_primes, "Primes between 0 and 3572" );
-
 my %small_range = (
   "3 to 9" => [3,5,7],
   "2 to 20" => [2,3,5,7,11,13,17,19],
@@ -107,20 +105,20 @@ is_deeply( primes('73786976294838206464', '73786976294838206564'), ['73786976294
 is( scalar @{primes(474973,538390)}, 44454 - 39617, "count primes within a range" );
 
 
-foreach my $method (qw/trial erat segment sieve dynamic/) {
-  is_deeply( primes({method=>$method}, 0, 3572), \@small_primes, "Primes between 0 and 3572" );
-  is_deeply( primes({method=>$method}, 2, 20), [2,3,5,7,11,13,17,19], "Primes between 2 and 20" );
-  is_deeply( primes({method=>$method}, 30, 70), [31,37,41,43,47,53,59,61,67], "Primes between 30 and 70" );
-  is_deeply( primes({method=>$method}, 30, 70), [31,37,41,43,47,53,59,61,67], "Primes between 30 and 70" );
-  is_deeply( primes({method=>$method}, 20, 2), [], "Primes between 20 and 2" );
-  is_deeply( primes({method=>$method}, 1, 1), [], "Primes ($method) between 1 and 1" );
-  is_deeply( primes({method=>$method}, 2, 2), [2], "Primes ($method) between 2 and 2" );
-  is_deeply( primes({method=>$method}, 3, 3), [3], "Primes ($method) between 3 and 3" );
-  is_deeply( primes({method=>$method}, 2010733, 2010733+148), [2010733,2010733+148], "Primegap 21 inclusive" );
-  is_deeply( primes({method=>$method}, 2010733+1, 2010733+148-2), [], "Primegap 21 exclusive" );
-  is_deeply( primes({method=>$method}, 3088, 3164), [3089,3109,3119,3121,3137,3163], "Primes between 3088 and 3164" );
-  is_deeply( primes({method=>$method}, 3089, 3163), [3089,3109,3119,3121,3137,3163], "Primes between 3089 and 3163" );
-  is_deeply( primes({method=>$method}, 3090, 3162), [3109,3119,3121,3137], "Primes between 3090 and 3162" );
+{
+  is_deeply( primes(0, 3572), \@small_primes, "Primes between 0 and 3572" );
+  is_deeply( primes(2, 20), [2,3,5,7,11,13,17,19], "Primes between 2 and 20" );
+  is_deeply( primes(30, 70), [31,37,41,43,47,53,59,61,67], "Primes between 30 and 70" );
+  is_deeply( primes(30, 70), [31,37,41,43,47,53,59,61,67], "Primes between 30 and 70" );
+  is_deeply( primes(20, 2), [], "Primes between 20 and 2" );
+  is_deeply( primes(1, 1), [], "Primes between 1 and 1" );
+  is_deeply( primes(2, 2), [2], "Primes between 2 and 2" );
+  is_deeply( primes(3, 3), [3], "Primes between 3 and 3" );
+  is_deeply( primes(2010733, 2010733+148), [2010733,2010733+148], "Primegap 21 inclusive" );
+  is_deeply( primes(2010733+1, 2010733+148-2), [], "Primegap 21 exclusive" );
+  is_deeply( primes(3088, 3164), [3089,3109,3119,3121,3137,3163], "Primes between 3088 and 3164" );
+  is_deeply( primes(3089, 3163), [3089,3109,3119,3121,3137,3163], "Primes between 3089 and 3163" );
+  is_deeply( primes(3090, 3162), [3109,3119,3121,3137], "Primes between 3090 and 3162" );
 }
 
 is_deeply( [sieve_twin_primes("1000000000000000000000000000000","1000000000000000000000000020000")], [qw/1000000000000000000000000001681 1000000000000000000000000004831 1000000000000000000000000018739 1000000000000000000000000019171/], "Sieve twin primes 10^30 10^30+20000");
