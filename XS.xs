@@ -686,47 +686,6 @@ chinese(...)
     mpz_clear(ret);
     if (!i) XSRETURN_UNDEF;
 
-SV*
-_GMP_trial_primes(IN char* strlow, IN char* strhigh)
-  PREINIT:
-    mpz_t low, high;
-    AV* av = newAV();
-  CODE:
-    VALIDATE_AND_SET("trial_primes", low, strlow);
-    VALIDATE_AND_SET("trial_primes", high, strhigh);
-
-    if (mpz_cmp(low, high) <= 0) {
-      mpz_t curprime;
-      char* str;
-      int nsize = mpz_sizeinbase(high, 10) + 2;
-
-      New(0, str, nsize, char);
-      if (str == 0)  croak("Could not allocate space for return string");
-
-      mpz_init_set(curprime, low);
-      if (mpz_cmp_ui(curprime, 2) >= 0)
-        mpz_sub_ui(curprime, curprime, 1);  /* Make sure low gets included */
-      _GMP_next_prime(curprime);
-
-      while (mpz_cmp(curprime, high) <= 0) {
-        UV v = mpz_get_ui(curprime);     /* mpz_fits_ulong_p is nice, but if */
-        if (!mpz_cmp_ui(curprime, v)) {  /* UV_MAX < ULONG_MAX then it fails */
-          av_push(av,newSVuv(v));
-        } else {
-          mpz_get_str(str, 10, curprime);
-          av_push(av,newSVpv(str, 0));
-        }
-        _GMP_next_prime(curprime);
-      }
-      Safefree(str);
-      mpz_clear(curprime);
-    }
-    mpz_clear(low);
-    mpz_clear(high);
-    RETVAL = newRV_noinc( (SV*) av );
-  OUTPUT:
-    RETVAL
-
 void
 sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
   ALIAS:

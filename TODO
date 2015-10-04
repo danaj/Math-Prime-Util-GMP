@@ -93,6 +93,3 @@
   a single small prime (different for each P,Q combo).  The non-GMP has
   a similar issue.  e.g.:
   mpu 'forprimes { die $_ unless is_frobenius_pseudoprime($_,37,-13) } 1e6'
-
-- cluster sieve tests
-- More tuning and possible speedups for cluster sieve.

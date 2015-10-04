@@ -10,6 +10,11 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Speedup partial sieve with large range.
 
+    [OTHER]
+
+    - Remove _GMP_trial_primes(), which was never exported.
+    - Internal restructuring of sieve_primes and sieve_twin_primes.
+
 0.33 2015-09-04
 
     [ADDED]
