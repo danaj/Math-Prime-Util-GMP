@@ -253,10 +253,10 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
 int
 _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx, IN char* strpy, IN char* strm, IN char* strq)
   PREINIT:
-    mpz_t a, n, px, py, m, q, t1, t2;
+    mpz_t a, b, n, px, py, m, q, t1, t2;
   CODE:
     VALIDATE_AND_SET("_validate_ecpp_curve", a, stra);
-    /* ignore b */
+    VALIDATE_AND_SET("_validate_ecpp_curve", b, strb);  /* Unused */
     VALIDATE_AND_SET("_validate_ecpp_curve", n, strn);
     VALIDATE_AND_SET("_validate_ecpp_curve", px, strpx);
     VALIDATE_AND_SET("_validate_ecpp_curve", py, strpy);
@@ -265,7 +265,7 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
     mpz_init(t1);  mpz_init(t2);
     RETVAL = (ecpp_check_point(px, py, m, q, a, n, t1, t2) == 2) ? 1 : 0;
     mpz_clear(t1); mpz_clear(t2);
-    mpz_clear(a); mpz_clear(n); mpz_clear(px); mpz_clear(py);
+    mpz_clear(a); mpz_clear(b); mpz_clear(n); mpz_clear(px); mpz_clear(py);
     mpz_clear(m); mpz_clear(q);
   OUTPUT:
     RETVAL
@@ -740,7 +740,7 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     VALIDATE_AND_SET("sieve_primes", high, strhigh);
     nc = items-1;
     if (ix == 1) {
-      UV k = (nc == 0) ? 0 : SvUV(ST(2));
+      UV k = (nc <= 1) ? 0 : SvUV(ST(2));
       list = sieve_primes(low, high, k, &nprimes);
     } else if (ix == 2) {
       list = sieve_twin_primes(low, high, 2, &nprimes);
