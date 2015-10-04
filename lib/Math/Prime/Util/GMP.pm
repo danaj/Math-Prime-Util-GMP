@@ -147,21 +147,11 @@ sub factor {
 }
 
 sub primes {
-  my $optref = (ref $_[0] eq 'HASH')  ?  shift  :  {};
-  croak "no parameters to primes" unless scalar @_ > 0;
-  croak "too many parameters to primes" unless scalar @_ <= 2;
-  my $low = (@_ == 2)  ?  shift  :  2;
-  my $high = shift;
+  my($low,$high) = (scalar(@_) == 1) ? (2,$_[0]) : ($_[0], $_[1]);
 
   _validate_positive_integer($low);
   _validate_positive_integer($high);
 
-  return [] if $low > $high || $high < 2;
-
-  # Trial if small size.
-  return _GMP_trial_primes($low, $high) if $low < 2_000_000_000;
-
-  # Use the partial sieve with BPSW post-filter.
   [ sieve_primes($low, $high, 0) ];
 }
 
@@ -176,7 +166,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets
 
 =head1 NAME
 
@@ -707,8 +697,10 @@ Typically you should use L</is_provable_prime> and let it decide the method.
 Returns all the primes between the lower and upper limits (inclusive), with
 a lower limit of C<2> if none is given.
 
-An array reference is returned (with large lists this is much faster and uses
-less memory than returning an array directly).
+An array reference is returned, matching the signature of the function
+of the same name in L<Math::Prime::Util>.
+
+Values above 64-bit are extra-strong BPSW probable primes.
 
 
 =head2 sieve_primes
@@ -717,10 +709,8 @@ less memory than returning an array directly).
   my @candidates = sieve_primes(2**1000, 2**1000 + 10000, 40000);
 
 Given two arguments C<low> and C<high>, this returns the primes in the
-interval (inclusive).  It is somewhat similar to L<primes> in this regard,
-although it must have two arguments and returns a list rather than a reference.
-Additionally, the method will always be that of a partial-sieve followed
-by primality test.
+interval (inclusive) as a list.  It operates similar to L<primes>, though
+must always have an lower and upper bound and returns a list.
 
 With three arguments C<low>, C<high>, and C<limit>, this does a partial
 sieve over the inclusive range and returns the list that pass the sieve.
@@ -733,6 +723,7 @@ functionality.  The three-argument version is quite useful for applications
 that want to apply their own primality or other tests, and wish to have a
 list of values in the range with no small factors.  This is quite common
 for applications involving prime gaps.
+
 
 =head2 sieve_twin_primes
 
@@ -753,7 +744,7 @@ removing those that are not twin primes.
   my @s = sieve_prime_cluster(2**100, 2**100+1e12, 2,6,8,12,18,20);
 
 Efficiently finds prime clusters between the first two arguments C<low>
-and C<high>.  The remainining arguments describe the cluster.  A cluster
+and C<high>.  The remaining arguments describe the cluster.  A cluster
 is a strictly increasing sequence of primes, not necessarily the minimal
 distance.  The cluster values must be even, less than 31 bits, and
 strictly increasing.  The returned values are the start of the cluster
@@ -770,9 +761,10 @@ the list C<42,92,606> is just fine.
 For long clusters, e.g. L<OEIS series A213601|http://oeis.org/A213601>
 prime 12-tuplets, this will be immensely more efficient than filtering
 out the cluster from a list of primes.  For that example, a range of
-C<10^13> takes about 2 seconds to search.  Shorter clusters are not
-quite this efficient, and the overhead for returning large arrays
-should not be ignored.
+C<10^13> takes less than a second to search -- thousands of times faster
+than filtering results from primes or twin primes.
+Shorter clusters are not quite this efficient, and the overhead for
+returning large arrays should not be ignored.
 
 
 =head2 next_prime

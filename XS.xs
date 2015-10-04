@@ -745,8 +745,8 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     } else if (ix == 2) {
       list = sieve_twin_primes(low, high, 2, &nprimes);
     } else {
-      uint32_t cl[100];
-      if (items > 100) croak("sieve_prime_cluster: too many entries");
+      uint32_t *cl;
+      New(0, cl, nc, uint32_t);
       cl[0] = 0;
       for (i = 1; i < nc; i++) {
         UV cval = SvUV(ST(1+i));
@@ -756,6 +756,7 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
         cl[i] = cval;
       }
       list = sieve_cluster(low, high, cl, nc, &nprimes);
+      Safefree(cl);
     }
 
     if (list != 0) {

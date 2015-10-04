@@ -96,5 +96,3 @@
 
 - cluster sieve tests
 - More tuning and possible speedups for cluster sieve.
-- primes and twin primes with small low values.  The could call cluster,
-  or make a simple method.

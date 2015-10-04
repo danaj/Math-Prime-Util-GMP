@@ -3328,26 +3328,28 @@ typedef struct {
 } vlist;
 #define INIT_VLIST(v) \
   v.nsize = 0; \
-  v.nmax = 128; \
+  v.nmax = 1024; \
   New(0, v.list, v.nmax, UV);
+#define RESIZE_VLIST(v, size) \
+  do { if (v.nmax < size) Renew(v.list, v.nmax = size, UV); } while (0)
 #define PUSH_VLIST(v, n) \
   do { \
     if (v.nsize >= v.nmax) \
-      Renew(v.list, v.nmax += 128, UV); \
+      Renew(v.list, v.nmax += 1024, UV); \
     v.list[v.nsize++] = n; \
   } while (0)
 
 #define ADDVAL32(v, n, max, val) \
-  do { if (n >= max) Renew(v, max += 512, UV);  v[n++] = val; } while (0)
+  do { if (n >= max) Renew(v, max += 1024, UV);  v[n++] = val; } while (0)
 #define SWAPL32(l1, n1, m1,  l2, n2, m2) \
   { UV t_, *u_ = l1;  l1 = l2;  l2 = u_; \
             t_ = n1;  n1 = n2;  n2 = t_; \
             t_ = m1;  m1 = m2;  m2 = t_; }
 
-UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn) {
-  mpz_t t;
-  UV i, length;
+UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
+  mpz_t t, low;
   int test_primality = 0;
+  int k_primality = 0;
   uint32_t* comp;
   vlist retlist;
 
@@ -3356,30 +3358,72 @@ UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn) {
     k = 5000 * mpz_sizeinbase(high,2);
   }
 
-  if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
-  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
-  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
-
-  if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
+  if (mpz_cmp_ui(inlow, 2) < 0) mpz_set_ui(inlow, 2);
+  if (mpz_cmp(inlow, high) > 0) { *rn = 0; return 0; }
 
   mpz_init(t);
   mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
   if (mpz_cmp_ui(t, k) < 0)
     k = mpz_get_ui(t);
-
-  mpz_sub(t, high, low);
-  length = mpz_get_ui(t) + 1;
+  if (mpz_cmp_ui(t, k) <= 0) {
+    k_primality = 1;           /* Our sieve is complete */
+    test_primality = 0;        /* Don't run BPSW */
+  }
 
   INIT_VLIST(retlist);
-  /* Get bit array of odds marked with composites(k) marked with 1 */
-  comp = partial_sieve(low, length, k);
-  for (i = 1; i <= length; i += 2) {
-    if (!TSTAVAL(comp, i)) {
-      if (!test_primality || (mpz_add_ui(t,low,i),_GMP_BPSW(t)))
-        PUSH_VLIST(retlist, i);
+
+  /* If we want small primes, do it quickly */
+  if ( (k_primality || test_primality) && mpz_cmp_ui(high,2000000000U) <= 0 ) {
+    UV ulow = mpz_get_ui(inlow), uhigh = mpz_get_ui(high);
+    if (uhigh < 1000000U || uhigh/ulow >= 4) {
+      UV n, Pi, *primes;
+      primes = sieve_to_n(mpz_get_ui(high), &Pi);
+      RESIZE_VLIST(retlist, Pi);
+      for (n = 0; n < Pi; n++) {
+        if (primes[n] >= ulow)
+          PUSH_VLIST(retlist, primes[n]-ulow);
+      }
+      Safefree(primes);
+      mpz_clear(t);
+      *rn = retlist.nsize;
+      return retlist.list;
     }
   }
-  Safefree(comp);
+
+  mpz_init_set(low, inlow);
+  if (k < 2) k = 2;   /* Should have been handled by quick return */
+
+  /* Include all primes up to k, since they will get filtered */
+  if (mpz_cmp_ui(low, k) <= 0) {
+    UV n, Pi, *primes, ulow = mpz_get_ui(low);
+    primes = sieve_to_n(k, &Pi);
+    RESIZE_VLIST(retlist, Pi);
+    for (n = 0; n < Pi; n++) {
+      if (primes[n] >= ulow)
+        PUSH_VLIST(retlist, primes[n]-ulow);
+    }
+    Safefree(primes);
+  }
+
+  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
+  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+
+  if (mpz_cmp(low, high) <= 0) {
+    UV i, length, offset;
+    mpz_sub(t, high, low); length = mpz_get_ui(t) + 1;
+    /* Get bit array of odds marked with composites(k) marked with 1 */
+    comp = partial_sieve(low, length, k);
+    mpz_sub(t, low, inlow); offset = mpz_get_ui(t);
+    for (i = 1; i <= length; i += 2) {
+      if (!TSTAVAL(comp, i)) {
+        if (!test_primality || (mpz_add_ui(t,low,i),_GMP_BPSW(t)))
+          PUSH_VLIST(retlist, i - offset);
+      }
+    }
+    Safefree(comp);
+  }
+
+  mpz_clear(low);
   mpz_clear(t);
   *rn = retlist.nsize;
   return retlist.list;
@@ -3391,29 +3435,46 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
   uint32_t* comp;
   vlist retlist;
 
-  /* Use a much higher k value */
-  k = 80000 * mpz_sizeinbase(high,2);
+  /* Twin offset will always be even, so we will never return 2 */
+  MPUassert( !(twin & 1), "twin prime offset is even" );
+  if (mpz_cmp_ui(low, 3) <= 0) mpz_set_ui(low, 3);
 
-  if (mpz_cmp_ui(low, k) < 0)    croak("TODO: small sieves");
-  if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
-  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+  if (mpz_even_p(low))  mpz_add_ui(low, low, 1);
+  if (mpz_even_p(high)) mpz_sub_ui(high, high, 1);
 
-  if (mpz_cmp(low, high) > 0) { *rn = 0; return 0; }
-  /* If no way to match the offset, leave now */
   i = twin % 6;
-  if (i == 1 || i == 3 || i == 5) { *rn = 0; return 0; }
   if (i == 2 || i == 4) { skipi = 6; starti = ((twin%6)==2) ? 5 : 1; }
 
+  /* If no way to return any more results, leave now */
+  if (mpz_cmp(low, high) > 0 || (i == 1 || i == 3 || i == 5))
+    { *rn = 0; return 0; }
+
+  INIT_VLIST(retlist);
   mpz_init(t);
-  mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
+
+  /* Use a much higher k value than we do for primes */
+  k = 80000 * mpz_sizeinbase(high,2);
+  /* No need for k to be > sqrt(high) */
+  mpz_sqrt(t, high);
   if (mpz_cmp_ui(t, k) < 0)
     k = mpz_get_ui(t);
+
+  /* Handle small primes that will get sieved out */
+  if (mpz_cmp_ui(low, k) <= 0) {
+    UV p, ulow = mpz_get_ui(low);
+    PRIME_ITERATOR(iter);
+    for (p = 2; p <= k; p = prime_iterator_next(&iter)) {
+      if (p < ulow) continue;
+      if (mpz_set_ui(t, p+twin), _GMP_BPSW(t))
+        PUSH_VLIST(retlist, p-ulow+1);
+    }
+    prime_iterator_destroy(&iter);
+  }
 
   mpz_sub(t, high, low);
   length = mpz_get_ui(t) + 1;
   starti = ((starti+skipi) - mpz_fdiv_ui(low,skipi) + 1) % skipi;
 
-  INIT_VLIST(retlist);
   /* Get bit array of odds marked with composites(k) marked with 1 */
   comp = partial_sieve(low, length + twin, k);
   for (i = starti; i <= length; i += skipi) {
@@ -3440,11 +3501,12 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
   UV i, ppr, nres, allocres;
-  uint32_t const targres = 500000;   /* Arguably this should be higher */
+  uint32_t const targres = 1000000;
+  uint32_t const maxpi = 168;
   UV *residues, *cres;
   uint32_t pp_0, pp_1, pp_2, *resmod_0, *resmod_1, *resmod_2;
   uint32_t rem_0, rem_1, rem_2, remadd_0, remadd_1, remadd_2;
-  uint32_t pi, startpi = 1, maxpi = 168;
+  uint32_t pi, startpi = 1;
   uint32_t lastspr = sprimes[maxpi-1];
   uint32_t c, smallnc;
   UV ibase = 0, nprps = 0;
@@ -3452,10 +3514,8 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   int run_pretests = 0;
   int _verbose = get_verbose_level();
 
-  if (mpz_cmp_ui(low, 1e9) > 0) {
-    if (nc == 1) return sieve_primes(low, high, 0, rn);
-    if (nc == 2) return sieve_twin_primes(low, high, cl[1], rn);
-  }
+  if (nc == 1) return sieve_primes(low, high, 0, rn);
+  if (nc == 2) return sieve_twin_primes(low, high, cl[1], rn);
 
   if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
   if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
@@ -3682,11 +3742,11 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
 
   if (_verbose) printf("cluster sieve ran %lu BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
   mpz_set(low, savelow);
+  Safefree(cres);
   Safefree(VPrem);
   Safefree(resmod_0);
   Safefree(resmod_1);
   Safefree(resmod_2);
-  Safefree(cres);
   Safefree(residues);
   mpz_clear(savelow);
   mpz_clear(t);
