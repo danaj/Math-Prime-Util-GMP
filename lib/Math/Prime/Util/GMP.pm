@@ -744,11 +744,10 @@ removing those that are not twin primes.
   my @s = sieve_prime_cluster(2**100, 2**100+1e12, 2,6,8,12,18,20);
 
 Efficiently finds prime clusters between the first two arguments C<low>
-and C<high>.  The remaining arguments describe the cluster.  A cluster
-is a strictly increasing sequence of primes, not necessarily the minimal
-distance.  The cluster values must be even, less than 31 bits, and
-strictly increasing.  The returned values are the start of the cluster
-(C<p+0>).
+and C<high> (inclusive).  The remaining arguments describe the cluster.
+The cluster values must be even, less than 31 bits, and strictly increasing.
+Given a cluster set C<C>, the returned values are all primes in the
+range where C<p+c> is prime for all C<c> in the cluster set C<C>.
 
 The cluster is described as offsets from 0, with the implicit prime
 at 0.  Hence an empty list is asking for all primes (the cluster
