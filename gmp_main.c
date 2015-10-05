@@ -202,7 +202,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
   if (mpz_cmp_ui(n, maxa) <= 0)
     maxa = mpz_get_ui(n) - 1;
   if (get_verbose_level() > 1)
-    printf("Deterministic Miller-Rabin testing bases from 2 to %lu\n", maxa);
+    printf("Deterministic Miller-Rabin testing bases from 2 to %"UVuf"\n", maxa);
 
   mpz_init(x);
   rval = 1;
@@ -704,7 +704,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
     mpz_clear(t);
     return 0;
   }
-  if (_verbose>3) gmp_printf("N: %Zd  D: %ld  P: %lu  Q: %ld\n", n, P*P-4*Q, P, Q);
+  if (_verbose>3) gmp_printf("N: %Zd  D: %"IVdf"  P: %"UVuf"  Q: %"IVdf"\n", n, P*P-4*Q, P, Q);
 
   mpz_init(U);  mpz_init(V);  mpz_init(Qk);
   mpz_init_set(d, n);
@@ -1134,7 +1134,7 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
   mpz_mod(temp1, temp1, n);
   if (mpz_cmp_ui(s, 0) == 0 && mpz_cmp(t, temp1) == 0)
     rval = 1;
-  if (_verbose>1) gmp_printf("%Zd is %s with a = %lu\n", n, (rval) ? "probably prime" : "composite", a);
+  if (_verbose>1) gmp_printf("%Zd is %s with a = %"UVuf"\n", n, (rval) ? "probably prime" : "composite", a);
 
   mpz_clear(temp1); mpz_clear(temp2); mpz_clear(n_plus_1);
   mpz_clear(s); mpz_clear(t);
@@ -1773,7 +1773,7 @@ int _GMP_is_aks_prime(mpz_t n)
     limit = (UV) floor( log2n * log2n );
     mpz_clear(t);
 
-    if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %lu\n", n, (unsigned long) limit);
+    if (_verbose>1) gmp_printf("# AKS checking order_r(%Zd) to %"UVuf"\n", n, (unsigned long) limit);
 
     /* Using a native r limits us to ~2000 digits in the worst case (r ~ log^5n)
      * but would typically work for 100,000+ digits (r ~ log^3n).  This code is
@@ -1833,7 +1833,7 @@ int _GMP_is_aks_prime(mpz_t n)
     /* Bornemann checks factors up to (s-1)^2, we check to max(r,s) */
     /* slim = (s-1)*(s-1); */
     slim = (r > s) ? r : s;
-    if (_verbose > 1) printf("# aks trial to %lu\n", slim);
+    if (_verbose > 1) printf("# aks trial to %"UVuf"\n", slim);
     if (_GMP_trial_factor(n, 2, slim) > 1)
       { mpz_clear(tmp); return 0; }
     mpz_sqrt(tmp, n);
@@ -1875,7 +1875,7 @@ int _GMP_is_aks_prime(mpz_t n)
   }
 #endif
 
-  if (_verbose) gmp_printf("# AKS %Zd.  r = %lu s = %lu\n", n, (unsigned long) r, (unsigned long) s);
+  if (_verbose) gmp_printf("# AKS %Zd.  r = %"UVuf" s = %"UVuf"\n", n, (unsigned long) r, (unsigned long) s);
 
   /* Create the three polynomials we will use */
   New(0, px, r, mpz_t);
@@ -2487,7 +2487,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_init(savea);
   mpz_init(t);
 
-  if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%lu B2=%lu)\n", n, (unsigned long)B1, (unsigned long)B2);
+  if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%"UVuf" B2=%"UVuf")\n", n, (unsigned long)B1, (unsigned long)B2);
 
   /* STAGE 1
    * Montgomery 1987 p249-250 and Brent 1990 p5 both indicate we can calculate
@@ -3574,7 +3574,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
       uint32_t j, p = sprimes[pi];
       UV r, newppr = ppr * p;
       if (nres == 0 || nres > targres/(p/2) || newppr > maxppr) break;
-      if (_verbose > 1) printf("cluster sieve found %lu residues mod %lu\n", nres, ppr);
+      if (_verbose > 1) printf("cluster sieve found %"UVuf" residues mod %"UVuf"\n", nres, ppr);
       remr = mpz_fdiv_ui(low, newppr);
       nres2 = 0;
       for (i = 0; i < p; i++) {
@@ -3594,7 +3594,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     startpi = pi;
     Safefree(res2);
   }
-  if (_verbose) printf("cluster sieve using %lu residues mod %lu\n", nres, ppr);
+  if (_verbose) printf("cluster sieve using %"UVuf" residues mod %"UVuf"\n", nres, ppr);
 
   /* Return if not admissible, maybe with a single small value */
   if (nres == 0) {
@@ -3740,7 +3740,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     mpz_add_ui(low, low, ppr);
   }
 
-  if (_verbose) printf("cluster sieve ran %lu BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
+  if (_verbose) printf("cluster sieve ran %"UVuf" BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
   mpz_set(low, savelow);
   Safefree(cres);
   Safefree(VPrem);
