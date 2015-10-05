@@ -197,7 +197,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
     logn = 1 + ((1/6.59) * ((double)logn));
     if (logn >= BITS_PER_WORD)
       croak("is_miller_prime: n is too large for unconditional DMR");
-    maxa = 1UL << logn;
+    maxa = UVCONST(1) << logn;
   }
   if (mpz_cmp_ui(n, maxa) <= 0)
     maxa = mpz_get_ui(n) - 1;
@@ -473,7 +473,7 @@ int lucas_lehmer(UV p)
     UV q = 2*p*k+1;
     if ( (q%8==1 || q%8==7) &&                 /* factor must be 1 or 7 mod 8 */
          q % 3 && q % 5 && q % 7 && q % 11 && q % 13) {  /* and must be prime */
-      if (1 && q < (1ULL << (BITS_PER_WORD/2)) ) {
+      if (1 && q < (UVCONST(1) << (BITS_PER_WORD/2)) ) {
         UV b = 1, j = pbits;
         while (j--) {
           b = (b*b) % q;
@@ -3565,7 +3565,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     /* Raise primorial size until we have plenty of residues */
     New(0, res2, allocres2 = 1024, UV);
     mpz_sub(t, high, low);
-    maxppr = (mpz_sizeinbase(t,2) >= BITS_PER_WORD) ? UV_MAX : (1UL << mpz_sizeinbase(t,2));
+    maxppr = (mpz_sizeinbase(t,2) >= BITS_PER_WORD) ? UV_MAX : (UVCONST(1) << mpz_sizeinbase(t,2));
 #if BITS_PER_WORD == 64
     while (pi++ < 14) {
 #else
