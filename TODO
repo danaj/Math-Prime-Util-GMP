@@ -84,12 +84,5 @@
   Where we could compute a number of hclassno values, then generate the
   tau values.  This might be more efficient.
 
-- Frobenius test checks if the input is a perfect square.  We shouldn't.
-
 - We could do LLR and Proth in prob_prime and return 1 instead of 2, leaving
   certs possible.
-
-- is_frobenius_pseudoprime using a specified equation has issues with
-  a single small prime (different for each P,Q combo).  The non-GMP has
-  a similar issue.  e.g.:
-  mpu 'forprimes { die $_ unless is_frobenius_pseudoprime($_,37,-13) } 1e6'

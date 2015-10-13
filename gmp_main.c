@@ -7,6 +7,7 @@
 #include <gmp.h>
 
 #define FUNC_gcd_ui 1
+#define FUNC_is_perfect_square 1
 #include "ptypes.h"
 #include "gmp_main.h"
 #include "prime_iterator.h"
@@ -912,7 +913,6 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
     if (cmpr == 0)     return 1;  /* 2 is prime */
     if (cmpr < 0)      return 0;  /* below 2 is composite */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-    if (mpz_perfect_square_p(n))  return 0;
   }
   mpz_init(t);
   if (P == 0 && Q == 0) {
@@ -920,32 +920,39 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
     do {
       P += 2;
       if (P == 3) P = 5;  /* P=3,Q=2 -> D=9-8=1 => k=1, so skip */
+      if (P == 21 && mpz_perfect_square_p(n))
+        { mpz_clear(t); return 0; }
       D = P*P-4*Q;
       if (mpz_cmp_ui(n, P >= 0 ? P : -P) <= 0) break;
       if (mpz_cmp_ui(n, D >= 0 ? D : -D) <= 0) break;
       mpz_set_si(t, D);
       k = mpz_jacobi(t, n);
     } while (k == 1);
-    if (k == 0 && (!mpz_cmp_ui(n,11) || !mpz_cmp_ui(n,13) || !mpz_cmp_ui(n,17)))
-      { mpz_clear(t); return 1; }
   } else {
     D = P*P-4*Q;
-    /* TODO: Use UV function */
-    mpz_set_si(t, D);
-    if (mpz_perfect_square_p(t))
+    if (is_perfect_square( D >= 0 ? D : -D, 0 ))
       croak("Frobenius invalid P,Q: (%"IVdf",%"IVdf")", P, Q);
+    mpz_set_si(t, D);
     k = mpz_jacobi(t, n);
   }
-  if (k == 0) { mpz_clear(t); return 0; }
 
+  /* Check initial conditions */
   {
     UV Pu = P >= 0 ? P : -P;
     UV Qu = Q >= 0 ? Q : -Q;
     UV Du = D >= 0 ? D : -D;
+
+    /* If abs(P) or abs(Q) or abs(D) >= n, exit early. */
     if (mpz_cmp_ui(n, Pu) <= 0 || mpz_cmp_ui(n, Qu) <= 0 || mpz_cmp_ui(n, Du) <= 0) {
       mpz_clear(t);
       return _GMP_trial_factor(n, 2, Du+Pu+Qu) ? 0 : 1;
     }
+    /* If k = 0, then D divides n */
+    if (k == 0) {
+      mpz_clear(t);
+      return 0;
+    }
+    /* If n is not coprime to P*Q*D then we found a factor */
     if (mpz_gcd_ui(NULL, n, Du*Pu*Qu) > 1) {
       mpz_clear(t);
       return 0;
@@ -3704,7 +3711,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
       uint32_t rem = (ui_low) ? (ui_low % p) : mpz_fdiv_ui(low,p);
       char* prem = VPrem + pi*1024;
       /* Check divisibility of each remaining residue with this p */
-      if (startpi <= 9) {   /* Residues are 32-bit */
+      if (startpi <= 9 || cres[ncres-1] < 4294967295U) {   /* Residues are 32-bit */
         for (r = 0, nr = 0; r < ncres; r++) {
           if (prem[ (rem+(uint32_t)cres[r]) % p ])
             cres[nr++] = cres[r];

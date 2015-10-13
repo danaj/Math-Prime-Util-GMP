@@ -137,6 +137,7 @@ plan tests => 0 + 9
                 + 2 # M-R-random
                 + 4 * scalar(@primes128)  # strong probable prime tests
                 + 4 * scalar(@comp128)    # strong probable prime tests
+                + 15  # Check Frobenius for small primes
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -326,4 +327,9 @@ for my $p (@comp128) {
   is( is_frobenius_khashin_pseudoprime($p), 0, "composite $p fails Frobenius Khashin primality test");
   is( is_frobenius_underwood_pseudoprime($p), 0, "composite $p fails Frobenius Underwood primality test");
   is( is_bpsw_prime($p), 0, "composite $p fails BPSW primality test");
+}
+
+# Frobenius has some issues.  Test
+for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
+  is( is_frobenius_pseudoprime($p,37,-13), 1, "prime $p is a Frobenius (37,-13) pseudoprime" );
 }
