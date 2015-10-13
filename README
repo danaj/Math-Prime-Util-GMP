@@ -1,4 +1,4 @@
-Math::Prime::Util::GMP version 0.33
+Math::Prime::Util::GMP version 0.34
 
 A module for number theory in Perl using GMP.  This includes primality tests,
 getting primes in a range, factoring, and more.

@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.34 2015-?
+0.34 2015-10-13
 
     [ADDED]
 
@@ -14,6 +14,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Remove _GMP_trial_primes(), which was never exported.
     - Internal restructuring of sieve_primes and sieve_twin_primes.
+    - is_frobenius_pseudoprime with arguments doesn't check for perfect
+      square, and works for small primes plus large params.
 
 0.33 2015-09-04
 
