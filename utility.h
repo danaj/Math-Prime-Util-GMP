@@ -92,10 +92,6 @@ static UV isqrt(UV n) {
 #endif
 
 #if defined(FUNC_gcd_ui) || defined(FUNC_lcm_ui)
-/* If we have a very fast ctz, then use the fast FLINT version of gcd */
-#if defined(__GNUC__) && (__GNUC__ >= 4 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4))
-#define gcd_ui(x,y) gcdz(x,y)
-#else
 static UV gcd_ui(UV x, UV y) {
   UV t;
   if (y < x) { t = x; x = y; y = t; }
@@ -104,7 +100,6 @@ static UV gcd_ui(UV x, UV y) {
   }
   return x;
 }
-#endif
 #endif
 
 #ifdef FUNC_lcm_ui
@@ -130,17 +125,6 @@ static int is_perfect_square(UV n, UV* sqrtn)
   if (n != m*m) return 0;
   if (sqrtn != 0) *sqrtn = m;
   return 1;
-}
-#endif
-
-#if defined(FUNC_gcd_ui)
-static UV gcd_ui(UV x, UV y) {
-  UV t;
-  if (y < x) { t = x; x = y; y = t; }
-  while (y > 0) {
-    t = y;  y = x % y;  x = t;  /* y1 <- x0 % y0 ; x1 <- y0 */
-  }
-  return x;
 }
 #endif
 
