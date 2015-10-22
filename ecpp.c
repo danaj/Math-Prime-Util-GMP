@@ -949,6 +949,7 @@ static void dieusage(char* prog) {
   printf("   -c     print certificate to stdout (redirect to save to a file)\n");
   printf("   -bpsw  use the extra strong BPSW test (probable prime test)\n");
   printf("   -nm1   use n-1 proof only (BLS75 theorem 5)\n");
+  printf("   -ecpp  use ECPP proof only\n");
   printf("   -aks   use AKS for proof\n");
 #ifdef USE_APRCL
   printf("   -aprcl use APR-CL for proof\n");
@@ -968,6 +969,7 @@ int main(int argc, char **argv)
   int do_nminus1 = 0;
   int do_aks = 0;
   int do_aprcl = 0;
+  int do_ecpp = 0;
   int do_bpsw = 0;
   int be_quiet = 0;
   int retcode = 3;
@@ -996,6 +998,8 @@ int main(int argc, char **argv)
         do_nminus1 = 1;
       } else if (strcmp(argv[i], "-aks") == 0) {
         do_aks = 1;
+      } else if (strcmp(argv[i], "-ecpp") == 0) {
+        do_ecpp = 1;
       } else if (strcmp(argv[i], "-aprcl") == 0) {
         do_aprcl = 1;
       } else if (strcmp(argv[i], "-bpsw") == 0) {
@@ -1038,8 +1042,10 @@ int main(int argc, char **argv)
         croak("Compiled without USE_APRCL.  Sorry.");
 #endif
       } else {
-        /* Quick n-1 test */
-        isprime = _GMP_primality_bls_nm1(n, 1, &cert);
+        if (!do_ecpp) {
+          /* Quick n-1 test */
+          isprime = _GMP_primality_bls_nm1(n, 1, &cert);
+        }
         if (isprime == 1)
           isprime = _GMP_ecpp(n, &cert);
       }
