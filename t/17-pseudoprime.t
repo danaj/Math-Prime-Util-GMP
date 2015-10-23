@@ -133,7 +133,7 @@ plan tests => 0 + 9
                 + scalar(keys %lucas_sequences)
                 + 7  # lucasu lucasv
               # + $num_large_pseudoprime_tests
-                + 12*$extra  # Large Carmichael numbers
+                + 18*$extra  # Large Carmichael numbers
                 + 2 # M-R-random
                 + 4 * scalar(@primes128)  # strong probable prime tests
                 + 4 * scalar(@comp128)    # strong probable prime tests
@@ -271,6 +271,18 @@ while (my($params, $expect) = each (%lucas_sequences)) {
 
 if ($extra) {
   my $n;
+  # Jacobsen 2015, using Bleichenbacher method
+  $n = "341627175004511735787409078802107169251";
+  is( is_strong_pseudoprime($n, 2..52), 1, "341..251 is spsp(1..52)" );
+  is( is_strong_pseudoprime($n, 53),    0, "341..251 is found composite by base 53" );
+  $n = "18424122547908777179569267097345139960751";
+  is( is_strong_pseudoprime($n, 2..66), 1, "184..751 is spsp(1..66)" );
+  is( is_strong_pseudoprime($n, 67),    0, "184..751 is found composite by base 67" );
+  # my $p1 = Math::BigInt->new("2059068011050051");
+  # $n = $p1 * (49*($p1-1)+1) * (125*($p1-1)+1);
+  $n = "53470982963692324858209985576229320155194985131251";
+  is( is_strong_pseudoprime($n, 2..72), 1, "534..251 is spsp(1..72)" );
+  is( is_strong_pseudoprime($n, 73),    0, "534..251 is found composite by base 73" );
   # Zhang 2004
   $n = "9688312712744590973050578123260748216127001625571";
   is( is_strong_pseudoprime($n, 2..70), 1, "968..571 is spsp(1..70)" );
