@@ -571,7 +571,11 @@ invmod(IN char* stra, IN char* strb)
       }
     } else if (ix == 2) {
       mpz_init(t);
-      gcdext(a, t, b, a, b);
+      if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
+        mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
+      } else {
+        gcdext(a, t, b, a, b);
+      }
       XPUSH_MPZ(t);  XPUSH_MPZ(b);
       mpz_clear(t);
     } else if (ix == 3) {
