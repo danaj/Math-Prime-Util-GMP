@@ -571,7 +571,7 @@ invmod(IN char* stra, IN char* strb)
       }
     } else if (ix == 2) {
       mpz_init(t);
-      mpz_gcdext(a, t, b, a, b);
+      gcdext(a, t, b, a, b);
       XPUSH_MPZ(t);  XPUSH_MPZ(b);
       mpz_clear(t);
     } else if (ix == 3) {

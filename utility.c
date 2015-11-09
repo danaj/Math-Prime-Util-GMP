@@ -267,6 +267,50 @@ unsigned long modinverse(unsigned long a, unsigned long p)
  return u1;
 }
 
+#if __GNU_MP_VERSION < 5
+extern void gcdext(mpz_t g, mpz_t s, mpz_t t, const mpz_t ia, const mpz_t ib)
+{
+  mpz_t a, b;
+  mpz_init_set(a, ia);
+  mpz_init_set(b, ib);
+
+  if (mpz_sgn(a) == 0 || mpz_cmp(a,b) == 0) {
+    mpz_set_si(s, 0);
+    mpz_set_si(t, mpz_sgn(b));
+    mpz_abs(g, b);
+  } else if (mpz_sgn(b) == 0) {
+    mpz_set_si(s, mpz_sgn(a));
+    mpz_set_si(t, 0);
+    mpz_abs(g, a);
+  } else {
+    mpz_t os, ot, or, r, q, tmp;
+    mpz_init(os);  mpz_init(ot);  mpz_init(or);
+    mpz_init(r);  mpz_init(q);  mpz_init(tmp);
+    mpz_set_ui(s,0);  mpz_set_ui(os,1);
+    mpz_set_ui(t,1);  mpz_set_ui(ot,0);
+    mpz_set(r,b);  mpz_set(or,a);
+    while (mpz_sgn(r)) {
+      mpz_tdiv_q(q, or, r);
+      mpz_set(tmp, r); mpz_mul(r, r, q); mpz_sub(r, or, r); mpz_set(or, tmp);
+      mpz_set(tmp, s); mpz_mul(s, s, q); mpz_sub(s, os, s); mpz_set(os, tmp);
+      mpz_set(tmp, t); mpz_mul(t, t, q); mpz_sub(t, ot, t); mpz_set(ot, tmp);
+    }
+    mpz_set(s, os);
+    mpz_set(t, ot);
+    mpz_set(g, or);
+    mpz_clear(r);  mpz_clear(q);  mpz_clear(tmp);
+    mpz_clear(os);  mpz_clear(ot);  mpz_clear(or);
+
+    if (mpz_sgn(g) < 0) {
+      mpz_neg(s, s);
+      mpz_neg(t, t);
+      mpz_neg(g, g);
+    }
+  }
+  mpz_clear(a); mpz_clear(b);
+}
+#endif
+
 int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
 {
   mpz_t sum, gcd, u, v, s, t, temp1, temp2;

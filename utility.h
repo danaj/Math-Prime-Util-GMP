@@ -24,6 +24,13 @@ extern int sqrtmod(mpz_t s, mpz_t a, mpz_t p,
 
 extern unsigned long modinverse(unsigned long a, unsigned long p);
 
+#if __GNU_MP_VERSION < 5
+/* Older versions left out a normalization step */
+extern void gcdext(mpz_t g, mpz_t s, mpz_t t, const mpz_t a, const mpz_t b);
+#else
+#define gcdext(g,s,t,a,b) mpz_gcdext(g,s,t,a,b)
+#endif
+
 extern int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items);
 
 extern UV mpz_order_ui(UV r, mpz_t n, UV limit);

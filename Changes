@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.35 2015-?
+
+    [FIXES]
+
+    - gcdext done manually for old GMP.
+
 0.34 2015-10-14
 
     [ADDED]
