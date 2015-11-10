@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - gcdext done manually for old GMP.
 
+    - fix memory leak in chinese
+
 0.34 2015-10-14
 
     [ADDED]

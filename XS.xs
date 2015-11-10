@@ -685,6 +685,10 @@ chinese(...)
     mpz_init(lcm);
     i = chinese(ret, lcm, an, an+items, items);
     if (i) XPUSH_MPZ(ret);
+    for (i = 0; i < items; i++) {
+      mpz_clear(an[i+0]);
+      mpz_clear(an[i+items]);
+    }
     Safefree(an);
     mpz_clear(lcm);
     mpz_clear(ret);
