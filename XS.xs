@@ -472,10 +472,13 @@ kronecker(IN char* stra, IN char* strb)
     } else {
       mpz_abs(a,a);
       mpz_abs(b,b);
-      if (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0)
+      if (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0) {
         RETVAL = 0;
-      else
+      } else if (mpz_cmp_ui(b,2) == 0) {
+        RETVAL = mpz_scan1(a, 0);
+      } else {
         RETVAL = mpz_remove(a, a, b);
+      }
     }
     mpz_clear(b);
     mpz_clear(a);
