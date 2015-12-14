@@ -3508,7 +3508,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   mpz_t t, savelow;
   vlist retlist;
   UV i, ppr, nres, allocres;
-  uint32_t const targres = 1000000;
+  uint32_t const targres = 4000000;
   uint32_t const maxpi = 168;
   UV *residues, *cres;
   uint32_t pp_0, pp_1, pp_2, *resmod_0, *resmod_1, *resmod_2;
@@ -3562,9 +3562,9 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     remr = mpz_fdiv_ui(low, ppr);
     nres = 0;
     for (i = 1; i <= ppr; i += 2) {
+      UV remi = remr + i;
       for (c = 0; c < nc; c++) {
-        UV v = (remr + i + cl[c]) % ppr;
-        if (gcd_ui(v, ppr) != 1) break;
+        if (gcd_ui(remi + cl[c], ppr) != 1) break;
       }
       if (c == nc)
         ADDVAL32(residues, nres, allocres, i);
