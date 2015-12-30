@@ -41,8 +41,12 @@ static void validate_string_number(const char* f, const char* s)
 }
 
 #define VALIDATE_AND_SET(func, var, str) \
-  validate_string_number(func " (" #var ")", str); \
-  mpz_init_set_str(var, str, 10);
+  do { \
+    const char* s = str; \
+    if (*s == '+') s++; \
+    validate_string_number(func " (" #var ")", s); \
+    mpz_init_set_str(var, s, 10); \
+  } while (0)
 
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP

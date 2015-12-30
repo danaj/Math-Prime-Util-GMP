@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.36 ?
+
+    [FIXES]
+
+    - Allow a leading '+' in inputs.
+
 0.35 2015-12-13
 
     [FIXES]
