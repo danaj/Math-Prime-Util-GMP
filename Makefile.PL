@@ -24,6 +24,7 @@ WriteMakefile1(
     LIBS         => ['-lgmp -lm'],
 
     TEST_REQUIRES=> {
+                      'Math::BigInt'     => '1.88',  # try && bug fixes
                       'Test::More'       => '0.45',
                     },
     PREREQ_PM    => {
