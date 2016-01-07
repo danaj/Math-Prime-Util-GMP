@@ -1,12 +1,16 @@
 language: "perl"
 perl:
+  - "5.22"
   - "5.16"
-  - "5.14"
-  - "5.12"
   - "5.10"
 
+addons:
+  apt:
+    packages:
+      - libgmp-dev
+      - libmpfr-dev
+
 before_install:
-    - sudo apt-get install libgmp-dev
     - cpanm Test::Pod # optional dependency
 
 install:
