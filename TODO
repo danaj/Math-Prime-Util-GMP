@@ -86,3 +86,5 @@
 
 - We could do LLR and Proth in prob_prime and return 1 instead of 2, leaving
   certs possible.
+
+- Add functions:  addmod, mulmod, divmod, powmod, sqrtmod

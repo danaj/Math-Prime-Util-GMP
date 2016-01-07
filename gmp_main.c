@@ -1920,15 +1920,20 @@ int _GMP_is_aks_prime(mpz_t n)
 /* Controls how many numbers to sieve.  Little time impact. */
 #define NPS_MERIT  30.0
 /* Controls how many primes to use.  Big time impact. */
-#define NPS_DEPTH  (log2n > 200000 ? 4200000000UL : log2n * (log2n/10))
+#define NPS_DEPTH(log2n, log2log2n) \
+  (log2n < 100) ? 1000 : \
+  (BITS_PER_WORD == 32 && log2n > 9000U) ? UVCONST(2500000000) : \
+  (BITS_PER_WORD == 64 && log2n > 4294967294U) ? UVCONST(9300000000000000000) :\
+  ((log2n * (log2n >> 5) * log2log2n) >> 1)
 
 static void next_prime_with_sieve(mpz_t n) {
+  UV i, log2n, log2log2n, width, depth;
   uint32_t* comp;
   mpz_t t, base;
-  UV i;
-  UV log2n = mpz_sizeinbase(n, 2);
-  UV width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
-  UV depth = NPS_DEPTH;
+  log2n = mpz_sizeinbase(n, 2);
+  for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
+  width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
+  depth = NPS_DEPTH(log2n, log2log2n);
 
   if (width & 1) width++;                     /* Make width even */
   mpz_add_ui(n, n, mpz_even_p(n) ? 1 : 2);    /* Set n to next odd */
@@ -1953,12 +1958,13 @@ static void next_prime_with_sieve(mpz_t n) {
 }
 
 static void prev_prime_with_sieve(mpz_t n) {
+  UV i, j, log2n, log2log2n, width, depth;
   uint32_t* comp;
   mpz_t t, base;
-  UV i, j;
-  UV log2n = mpz_sizeinbase(n, 2);
-  UV width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
-  UV depth = NPS_DEPTH;
+  log2n = mpz_sizeinbase(n, 2);
+  for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
+  width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
+  depth = NPS_DEPTH(log2n, log2log2n);
 
   mpz_sub_ui(n, n, mpz_even_p(n) ? 1 : 2);       /* Set n to prev odd */
   width = 64 * ((width+63)/64);                /* Round up to next 64 */
@@ -3131,6 +3137,11 @@ static void sievep(uint32_t* comp, mpz_t start, UV p, UV len) {
   for ( ; pos < len; pos += 2*p )
     SETAVAL(comp, pos);
 }
+static void sievep_ui(uint32_t* comp, UV pos, UV p, UV len) {
+  if (!(pos & 1)) pos += p;
+  for ( ; pos < len; pos += 2*p )
+    SETAVAL(comp, pos);
+}
 uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 {
   uint32_t* comp;
@@ -3162,9 +3173,29 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   }
   word_tile(comp, pwlen, wlen);
 
-  /* Sieve up to their limit */
-  for ( ; p <= maxprime; p = prime_iterator_next(&iter))
-    sievep(comp, start, p, length);
+  /* Sieve up to their limit.
+   *
+   * Simple code for this:
+   *    for ( ; p <= maxprime; p = prime_iterator_next(&iter))
+   *      sievep(comp, start, p, length);
+   * We'll save some time for large start values by doubling up primes.
+   */
+  {
+    UV p1, p2, doublelim = (1UL << (sizeof(unsigned long) * 4)) - 1;
+    if (doublelim > maxprime) doublelim = maxprime;
+    /* Do 2 primes at a time.  Fewer mpz remainders. */
+    for ( p1 = p, p2 = prime_iterator_next(&iter);
+          p2 <= doublelim;
+          p1 = prime_iterator_next(&iter), p2 = prime_iterator_next(&iter) ) {
+      UV p1p2 = p1 * p2;
+      UV ddiv = mpz_fdiv_ui(start, p1p2);
+      sievep_ui(comp, p1 - (ddiv % p1), p1, length);
+      sievep_ui(comp, p2 - (ddiv % p2), p2, length);
+    }
+    if (p1 <= maxprime) sievep(comp, start, p1, length);
+    for (p = p2; p <= maxprime; p = prime_iterator_next(&iter))
+      sievep(comp, start, p, length);
+  }
 
   prime_iterator_destroy(&iter);
   return comp;
