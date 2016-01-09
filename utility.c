@@ -40,6 +40,19 @@ int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
   return 1;
 }
 
+/* set x to sqrt(a) mod p.  Returns 0 if a is not a square root mod p
+ * See Cohen section 1.5 and http://www.math.vt.edu/people/brown/doc/sqrts.pdf
+ */
+int sqrtmod(mpz_t s, mpz_t a, mpz_t p) {
+  int res;
+  mpz_t x, t1, t2, t3, t4;
+  mpz_init(x); mpz_init(t1); mpz_init(t2); mpz_init(t3); mpz_init(t4);
+  res = sqrtmod_t(x, a, p, t1, t2, t3, t4);
+  mpz_set(s, x);
+  mpz_clear(x); mpz_clear(t1); mpz_clear(t2); mpz_clear(t3); mpz_clear(t4);
+  return res;
+}
+
 /* Returns 1 if x^2 = a mod p, otherwise set x to 0 and return 0. */
 static int verify_sqrt(mpz_t x, mpz_t a, mpz_t p, mpz_t t, mpz_t t2) {
   mpz_mulmod(t, x, x, p, t2);
@@ -49,14 +62,16 @@ static int verify_sqrt(mpz_t x, mpz_t a, mpz_t p, mpz_t t, mpz_t t2) {
   return 0;
 }
 
-/* set x to sqrt(a) mod p.  Returns 0 if a is not a square root mod p */
-/* See Cohen section 1.5.
- * See http://www.math.vt.edu/people/brown/doc/sqrts.pdf
- */
-int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
-            mpz_t t, mpz_t q, mpz_t b, mpz_t z) /* 4 temp variables */
+/* Internal version that takes temp variables and x cannot overlap args */
+int sqrtmod_t(mpz_t x, mpz_t a, mpz_t p,
+              mpz_t t, mpz_t q, mpz_t b, mpz_t z) /* 4 temp variables */
 {
   int r, e, m;
+
+  if (!mpz_cmp_ui(p,2)) {
+    mpz_mod(x, a, p);
+    return verify_sqrt(x, a, p, t, q);
+  }
 
   /* Easy cases from page 31 (or Menezes 3.36, 3.37) */
   if (mpz_congruent_ui_p(p, 3, 4)) {
@@ -70,7 +85,7 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
     mpz_sub_ui(t, p, 1);
     mpz_tdiv_q_2exp(t, t, 2);
     mpz_powm(q, a, t, p);
-    if (mpz_cmp_si(q, 1) == 0) { /* s = a^((p+3)/8) mod p */
+    if (mpz_cmp_si(q, 1) == 0) {  /* s = a^((p+3)/8) mod p */
       mpz_add_ui(t, p, 3);
       mpz_tdiv_q_2exp(t, t, 3);
       mpz_powm(x, a, t, p);
@@ -97,11 +112,31 @@ int sqrtmod(mpz_t x, mpz_t a, mpz_t p,
   }
 
   mpz_sub_ui(q, p, 1);
-  e = mpz_scan1(q, 0);              /* Remove 2^e from q */
+  e = mpz_scan1(q, 0);                 /* Remove 2^e from q */
   mpz_tdiv_q_2exp(q, q, e);
   mpz_set_ui(t, 2);
-  while (mpz_legendre(t, p) != -1)  /* choose t "at random" */
+  while (mpz_kronecker(t, p) != -1) {  /* choose t "at random" */
     mpz_add_ui(t, t, 1);
+    if (!mpz_cmp_ui(t,133)) {
+      /* If a root of p exists, then our chances are 1/2 that we'll get
+       * a Jacobi symbol of -1.  After this many tries it seems dubious
+       * that a root exists.  It's likely that p is not prime. */
+      if (mpz_even_p(p)) { mpz_set_ui(x,0); return 0; }
+      /* Euler probable prime test with base t.  (t|p) = 1 or t divides p */
+      if (mpz_divisible_p(p, t)) { mpz_set_ui(x,0); return 0; }
+      mpz_sub_ui(z, p, 1);  mpz_fdiv_q_2exp(b,z,1);  mpz_powm(z, t, b, p);
+      if (mpz_cmp_ui(z,1)) { mpz_set_ui(x,0); return 0; }
+      /* Fermat base 2 */
+      mpz_set_ui(b,2);  mpz_sub_ui(z, p, 1);  mpz_powm(z, b, z, p);
+      if (mpz_cmp_ui(z,1)) { mpz_set_ui(x,0); return 0; }
+    }
+    if (!mpz_cmp_ui(t,286)) {
+      /* Another Euler probable prime test, p not even so t can't divide. */
+      mpz_sub_ui(z, p, 1);  mpz_fdiv_q_2exp(b,z,1);  mpz_powm(z, t, b, p);
+      if (mpz_cmp_ui(z,1)) { mpz_set_ui(x,0); return 0; }
+    }
+    if (!mpz_cmp_ui(t,20000)) { mpz_set_ui(x,0); return 0; }
+  }
   mpz_powm(z, t, q, p);                     /* Step 1 complete */
   r = e;
 
@@ -141,7 +176,7 @@ int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
 
   mpz_init(a); mpz_init(b); mpz_init(c); mpz_init(d);
 
-  sqrtmod(x, D, p, a, b, c, d);
+  sqrtmod_t(x, D, p, a, b, c, d);
   mpz_set(a, p);
   mpz_set(b, x);
   mpz_sqrt(c, p);
@@ -191,7 +226,7 @@ int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
 
   mpz_init(a); mpz_init(b); mpz_init(c); mpz_init(d);
 
-  sqrtmod(x, D, p, a, b, c, d);
+  sqrtmod_t(x, D, p, a, b, c, d);
   if ( (mpz_even_p(D) && mpz_odd_p(x)) || (mpz_odd_p(D) && mpz_even_p(x)) )
     mpz_sub(x, p, x);
 
@@ -950,7 +985,7 @@ void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD)
   mpz_mul_ui(t, t, 4);
   mpz_mul(d, pn[1], pn[1]);
   mpz_sub(d, d, t);
-  sqrtmod(e, d, NMOD, t, t2, t3, t4);
+  sqrtmod_t(e, d, NMOD, t, t2, t3, t4);
 
   mpz_neg(t4, pn[1]);                    /* t4 = -a_1      */
   mpz_mul_ui(t3, pn[2], 2);              /* t3 = 2a_2      */

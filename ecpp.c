@@ -426,7 +426,7 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
       mpz_mod(Q, t, N);
     } while (mpz_jacobi(Q, N) == -1);
     /* Select Y */
-    sqrtmod(y, Q, N, t, t2, t3, t4);
+    sqrtmod_t(y, Q, N, t, t2, t3, t4);
     /* TODO: if y^2 mod Ni != t, return composite */
     if (mpz_sgn(y) == 0) croak("y == 0 in point selection\n");
   }
