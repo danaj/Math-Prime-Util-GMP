@@ -621,7 +621,8 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
       else                             retundef = !mpz_invert(b,b,n);
     }
     if (!retundef && ix == 2 && mpz_sgn(b) < 0) {
-      retundef = !mpz_invert(a,a,n);
+      if (!mpz_cmp_ui(n,1))       mpz_set_ui(b,0);
+      else                        retundef = !mpz_invert(a,a,n);
       mpz_abs(b,b);
     }
     if (retundef) {
