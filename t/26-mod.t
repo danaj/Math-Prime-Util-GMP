@@ -71,10 +71,13 @@ is_deeply(\@exp, [map { mulmod($_ & 3, ($_>>2)-3, 0) } 0..27], "mulmod(..,0)");
 is_deeply(\@exp, [map { divmod($_ & 3, ($_>>2)-3, 0) } 0..27], "divmod(..,0)");
 is_deeply(\@exp, [map { powmod($_ & 3, ($_>>2)-3, 0) } 0..27], "powmod(..,0)");
 
-@exp = ();  @exp = map { 0 } 0..27;
-is_deeply(\@exp, [map { addmod($_ & 3, ($_>>2)-3, 1) } 0..27], "addmod(..,1)");
-is_deeply(\@exp, [map { mulmod($_ & 3, ($_>>2)-3, 1) } 0..27], "mulmod(..,1)");
-is_deeply(\@exp, [map { powmod($_ & 3, ($_>>2)-3, 1) } 0..27], "powmod(..,1)");
+# Travis is doing bizarre things here.  Work around?
+{
+  my @e = map { 0 } 0..27;
+  is_deeply(\@e, [map { addmod($_ & 3, ($_>>2)-3, 1) } 0..27], "addmod(..,1)");
+  is_deeply(\@e, [map { mulmod($_ & 3, ($_>>2)-3, 1) } 0..27], "mulmod(..,1)");
+  is_deeply(\@e, [map { powmod($_ & 3, ($_>>2)-3, 1) } 0..27], "powmod(..,1)");
+}
 # TODO divmod
 
 
