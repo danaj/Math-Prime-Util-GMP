@@ -2,6 +2,15 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.36 2016-?
 
+    [ADDED]
+
+    - addmod                    (a + b) % n
+    - mulmod                    (a * b) % n
+    - divmod                    (a / b) % n
+    - powmod                    (a ^ b) % n
+    - invmod                    (1 / b) % n
+    - sqrtmod                   square root modulo a prime
+
     [FIXES]
 
     - Allow a leading '+' in inputs.

@@ -55,6 +55,9 @@ int sqrtmod(mpz_t s, mpz_t a, mpz_t p) {
 
 /* Returns 1 if x^2 = a mod p, otherwise set x to 0 and return 0. */
 static int verify_sqrt(mpz_t x, mpz_t a, mpz_t p, mpz_t t, mpz_t t2) {
+  /* reflect to get the smaller of +/- x */
+  mpz_sub(t, p, x); if (mpz_cmp(t,x) < 0) mpz_set(x,t);
+
   mpz_mulmod(t, x, x, p, t2);
   mpz_mod(t2, a, p);
   if (mpz_cmp(t, t2) == 0) return 1;
@@ -68,8 +71,16 @@ int sqrtmod_t(mpz_t x, mpz_t a, mpz_t p,
 {
   int r, e, m;
 
-  if (!mpz_cmp_ui(p,2)) {
+  if (mpz_cmp_ui(p,2) <= 0) {
+    if (mpz_cmp_ui(p,0) <= 0) {
+      mpz_set_ui(x,0);
+      return 0;
+    }
     mpz_mod(x, a, p);
+    return verify_sqrt(x, a, p, t, q);
+  }
+  if (!mpz_cmp_ui(a,0) || !mpz_cmp_ui(a,1)) {
+    mpz_set(x,a);
     return verify_sqrt(x, a, p, t, q);
   }
 
@@ -118,9 +129,9 @@ int sqrtmod_t(mpz_t x, mpz_t a, mpz_t p,
   while (mpz_kronecker(t, p) != -1) {  /* choose t "at random" */
     mpz_add_ui(t, t, 1);
     if (!mpz_cmp_ui(t,133)) {
-      /* If a root of p exists, then our chances are 1/2 that we'll get
-       * a Jacobi symbol of -1.  After this many tries it seems dubious
-       * that a root exists.  It's likely that p is not prime. */
+      /* If a root of p exists, then our chances are nearly 1/2 that
+       * (t|p) = -1.  After 133 tries it seems dubious that a root
+       * exists.  It's likely that p is not prime. */
       if (mpz_even_p(p)) { mpz_set_ui(x,0); return 0; }
       /* Euler probable prime test with base t.  (t|p) = 1 or t divides p */
       if (mpz_divisible_p(p, t)) { mpz_set_ui(x,0); return 0; }

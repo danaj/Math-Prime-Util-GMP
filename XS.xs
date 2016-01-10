@@ -544,6 +544,7 @@ invmod(IN char* stra, IN char* strb)
     gcdext = 2
     jordan_totient = 3
     znorder = 4
+    sqrtmod = 5
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -587,13 +588,57 @@ invmod(IN char* stra, IN char* strb)
       mpz_clear(t);
     } else if (ix == 3) {
       jordan_totient(a, b, mpz_get_ui(a));
-    } else {
+    } else if (ix == 4) {
       znorder(a, a, b);
       if (!mpz_sgn(a)) retundef = 1;
+    } else {
+      retundef = !sqrtmod(a, a, b);
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
+
+void
+addmod(IN char* stra, IN char* strb, IN char* strn)
+  ALIAS:
+    mulmod = 1
+    powmod = 2
+    divmod = 3
+  PREINIT:
+    mpz_t a, b, n, t;
+    int retundef;
+  PPCODE:
+    validate_string_number("addmod", (stra[0]=='-') ? stra+1 : stra);
+    validate_string_number("addmod", (strb[0]=='-') ? strb+1 : strb);
+    validate_string_number("addmod", strn);
+    mpz_init_set_str(a, stra, 10);
+    mpz_init_set_str(b, strb, 10);
+    mpz_init_set_str(n, strn, 10);
+    retundef = (mpz_sgn(n) <= 0);
+    if (!retundef && ix == 3) {
+      if (!mpz_sgn(n) || !mpz_sgn(b))  retundef = 1;
+      else if (!mpz_cmp_ui(b,1))       mpz_set_ui(b,0);
+      else                             retundef = !mpz_invert(b,b,n);
+    }
+    if (!retundef && ix == 2 && mpz_sgn(b) < 0) {
+      retundef = !mpz_invert(a,a,n);
+      mpz_abs(b,b);
+    }
+    if (retundef) {
+      mpz_clear(n); mpz_clear(b); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    if (ix == 0) {
+      mpz_add(a,a,b);
+      mpz_mod(a,a,n);
+    } else if (ix == 1 || ix == 3) {
+      mpz_mul(a,a,b);
+      mpz_mod(a,a,n);
+    } else if (ix == 2) {
+      mpz_powm(a, a, b, n);
+    }
+    XPUSH_MPZ(a);
+    mpz_clear(n); mpz_clear(b); mpz_clear(a);
 
 void partitions(IN UV n)
   ALIAS:

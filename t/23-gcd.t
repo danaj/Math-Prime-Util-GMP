@@ -83,18 +83,6 @@ my @valuations = (
   [96552,6, 3],
   [1879048192,2, 28],
 );
-my @invmods = (
- [ 0, 0, undef],
- [ 1, 0, undef],
- [ 0, 1, undef],
- [ 1, 1, 0],
- [ 45, 59, 21],
- [  42,  2017, 1969],
- [  42, -2017, 1969],
- [ -42,  2017, 48],
- [ -42, -2017, 48],
- [ 14, 28474, undef],
-);
 my @binomials = (
  [ 0,0, 1 ],
  [ 0,1, 0 ],
@@ -168,7 +156,6 @@ plan tests => scalar(@gcds)
             + scalar(@lcms)
             + scalar(@kroneckers)
             + scalar(@valuations)
-            + scalar(@invmods)
             + 2 + scalar(@binomials)
             + scalar(@gcdexts)
             + scalar(@vecsums)
@@ -196,11 +183,6 @@ foreach my $karg (@kroneckers) {
 foreach my $r (@valuations) {
   my($n, $k, $exp) = @$r;
   is( valuation($n, $k), $exp, "valuation($n,$k) = $exp" );
-}
-
-foreach my $r (@invmods) {
-  my($a, $n, $exp) = @$r;
-  is( invmod($a,$n), $exp, "invmod($a,$n) = ".((defined $exp)?$exp:"<undef>") );
 }
 
 foreach my $r (@binomials) {

@@ -61,7 +61,8 @@ our @EXPORT_OK = qw(
                      factorial
                      consecutive_integer_lcm
                      partitions bernfrac harmfrac harmreal stirling
-                     gcd lcm kronecker valuation invmod binomial gcdext
+                     gcd lcm kronecker valuation binomial gcdext
+                     invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
                      exp_mangoldt
                      liouville
@@ -166,7 +167,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod
 
 =head1 NAME
 
@@ -1052,6 +1053,47 @@ from low to high inclusive.
 Given two integers C<a> and C<n>, return the inverse of C<a> modulo C<n>.
 If not defined, undef is returned.  If defined, then the return value
 multiplied by C<a> equals C<1> modulo C<n>.
+
+=head2 sqrtmod
+
+Given two integers C<a> and C<p>, return the square root of C<a> mod C<p>.
+If no square root exists, undef is returned.  If defined, the return value
+C<s> will always satisfy C<mulmod(s,s,p) = a>.
+
+If C<p> is not a prime, it is possible no result will be returned even
+though a modular root exists.
+
+Only one root is returned, even though there are at least two.  In the
+case of C<p> a prime and a return value C<s>, then both C<+s mod n> and
+C<-s mod n> are roots.  The least C<s> will be returned.  In the case of
+composites, many roots may exist, but only one will be returned.
+
+=head2 addmod
+
+Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+return C<(a+b) mod n>.  This is particularly useful when dealing with
+numbers that are larger than a half-word but still native size.  No
+bigint package is needed and this can be 10-200x faster than using one.
+
+=head2 mulmod
+
+Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+return C<(a*b) mod n>.  This is particularly useful when C<n> fits in a
+native integer.  No bigint package is needed and this can be 10-200x
+faster than using one.
+
+=head2 powmod
+
+Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+return C<(a ** b) mod n>.  Typically binary exponentiation is used, so
+the process is very efficient.  With native size inputs, no bigint
+library is needed.
+
+=head2 divmod
+
+Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+return C<(a/b) mod n>.  This is done as C<(a * (1/b mod n)) mod n>.  If
+no inverse of C<b> mod C<n> exists then undef if returned.
 
 
 =head2 consecutive_integer_lcm
