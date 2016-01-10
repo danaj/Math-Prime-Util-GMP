@@ -60,7 +60,7 @@ my $num = 99;
 my @i1 = map { nrand() } 0 .. $num;
 my @i2 = map { nrand() } 0 .. $num;
 my @i2t= map { $i2[$_] >> 1 } 0 .. $num;
-my @i3 = map { nrand() } 0 .. $num;
+my @i3 = map { my $r = 0; $r = nrand() until $r > 1; $r; } 0 .. $num;
 my(@exp,@res);
 
 
@@ -71,7 +71,7 @@ is_deeply(\@exp, [map { mulmod($_ & 3, ($_>>2)-3, 0) } 0..27], "mulmod(..,0)");
 is_deeply(\@exp, [map { divmod($_ & 3, ($_>>2)-3, 0) } 0..27], "divmod(..,0)");
 is_deeply(\@exp, [map { powmod($_ & 3, ($_>>2)-3, 0) } 0..27], "powmod(..,0)");
 
-@exp = map { 0 } 0..27;
+@exp = ();  @exp = map { 0 } 0..27;
 is_deeply(\@exp, [map { addmod($_ & 3, ($_>>2)-3, 1) } 0..27], "addmod(..,1)");
 is_deeply(\@exp, [map { mulmod($_ & 3, ($_>>2)-3, 1) } 0..27], "mulmod(..,1)");
 is_deeply(\@exp, [map { powmod($_ & 3, ($_>>2)-3, 1) } 0..27], "powmod(..,1)");
