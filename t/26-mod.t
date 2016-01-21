@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/invmod sqrtmod addmod mulmod divmod powmod/;
-use Math::BigInt try=>"GMP,Pari";
+use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my @invmods = (
  [ 0, 0, undef],
