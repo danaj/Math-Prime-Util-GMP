@@ -588,12 +588,17 @@ Takes a positive number as input, and returns 1 if the input passes the
 Agrawal-Kayal-Saxena (AKS) primality test.  This is a deterministic
 unconditional primality test which runs in polynomial time for general input.
 
-In theory, AKS is extremely important.  In practice, it is essentially
-useless.  Estimated run time for a 150 digit input is about 9 years,
-making the case that while the algorithmic complexity I<growth> is
-polynomial, the constants are ludicrously high.  There are some ideas
-of Bernstein that can reduce this a little, but it would still take years
-for numbers that ECPP or APR-CL can prove in seconds.
+The particular method used is theorem 4.1 from Bernstein (2003).  This is
+substantially faster than the original AKS publication, the later version
+with improvements by Lenstra (sometimes called the V6 paper), or the later
+improvements of Voloch and Bornemann.  It is, by a large order, faster than
+any other known implementation as of early 2016.
+
+For theoretical analysis of the primality task, AKS is extremely important.
+In practice, it is essentially useless.  Estimated run time for a 150 digit
+input is over 2 days, making the case that while the algorithmic complexity
+I<growth> is polynomial, the constants are extremely high.  It will take
+years for for numbers that ECPP or APR-CL can prove in seconds.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
 
@@ -1499,6 +1504,9 @@ There are now better alternatives.
 
 =item Robert Baillie and Samuel S. Wagstaff, Jr., "Lucas Pseudoprimes", Mathematics of Computation, v35 n152, October 1980, pp 1391-1417.  L<http://mpqs.free.fr/LucasPseudoprimes.pdf>
 
+=item Daniel J. Bernstein, "Proving Primality After Agrawal-Kayal-Saxena",
+preprint, Jan 2003.  L<http://cr.yp.to/papers/aks.pdf>
+
 =item Jon Grantham, "Frobenius Pseudoprimes", Mathematics of Computation, v70 n234, March 2000, pp 873-891.  L<http://www.ams.org/journals/mcom/2001-70-234/S0025-5718-00-01197-2/>
 
 =item John Brillhart, D. H. Lehmer, and J. L. Selfridge, "New Primality Criteria and Factorizations of 2^m +/- 1", Mathematics of Computation, v29, n130, Apr 1975, pp 620-647.  L<http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf>
@@ -1558,7 +1566,7 @@ ECM implementation, as well as the papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2015 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2016 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
