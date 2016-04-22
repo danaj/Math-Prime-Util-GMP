@@ -1694,6 +1694,21 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
 
 /* TODO: is_primitive_root, mpz_logn, mpz_log2 should move to utilities */
 
+static double mpz_logn(mpz_t n)
+{
+  long exp;
+  double logn = mpz_get_d_2exp(&exp, n);
+  logn = log(logn) + (log(2) * exp);
+  return logn;
+}
+
+static double mpz_log2(mpz_t n) {
+  long exp;
+  double logn = mpz_get_d_2exp(&exp, n);
+  logn = exp + log(logn)/log(2);
+  return logn;
+}
+
 #if AKS_VARIANT != AKS_VARIANT_V6
 static int is_primitive_root(mpz_t n, UV r)
 {
@@ -1723,22 +1738,6 @@ END_PRIMROOT:
   return ret;
 }
 #endif
-
-static double mpz_logn(mpz_t n)
-{
-  long exp;
-  double logn = mpz_get_d_2exp(&exp, n);
-  logn = log(logn) + (log(2) * exp);
-  return logn;
-}
-
-static double mpz_log2(mpz_t n) {
-  long exp;
-  double logn = mpz_get_d_2exp(&exp, n);
-  logn = exp + log(logn)/log(2);
-  return logn;
-}
-
 #if AKS_VARIANT == AKS_VARIANT_BERN21
 static UV largest_factor(UV n) {
   UV p = 2;
@@ -1751,6 +1750,26 @@ static UV largest_factor(UV n) {
   return n;
 }
 #endif
+#if AKS_VARIANT == AKS_VARIANT_BERN41
+int bern41_acceptable(mpz_t n, UV r, UV s, mpz_t t1, mpz_t t2)
+{
+  double scmp = ceil(sqrt( (r-1)/3.0 )) * mpz_log2(n);
+  UV d = (UV) (0.5 * (r-1));
+  UV i = (UV) (0.475 * (r-1));
+  UV j = i;
+  /* Ensure conditions are correct */
+  if (d > r-2)     d = r-2;
+  if (i > d)       i = d;
+  if (j > (r-2-d)) j = r-2-d;
+
+  mpz_bin_uiui(t2, 2*s, i);
+  mpz_bin_uiui(t1, d, i);       mpz_mul(t2, t2, t1);
+  mpz_bin_uiui(t1, 2*s-i, j);   mpz_mul(t2, t2, t1);
+  mpz_bin_uiui(t1, r-2-d, j);   mpz_mul(t2, t2, t1);
+  return (mpz_log2(t2) >= scmp);
+}
+#endif
+
 
 
 int _GMP_is_aks_prime(mpz_t n)
@@ -1980,54 +1999,42 @@ int _GMP_is_aks_prime(mpz_t n)
 #elif AKS_VARIANT == AKS_VARIANT_BERN41
   {
     double const log2n = mpz_log2(n);
-    double const r0 = 0.010 * log2n * log2n;
-    double scmp;
+    /* Tuning: Initial 'r' selection */
+    double const r0 = 0.008 * log2n * log2n;
+    /* Tuning: Try a larger 'r' if 's' looks very large */
+    UV const rmult = 8;
     UV d, j, slim;
     mpz_t tmp, tmp2;
     PRIME_ITERATOR(iter);
 
     mpz_init(tmp);  mpz_init(tmp2);
-    prime_iterator_setprime(&iter, (UV) r0);
+    /* r has to be at least 3.  Overshoot for tiny numbers. */
+    prime_iterator_setprime(&iter, (r0 < 2) ? 2 : (UV) r0);
     r = prime_iterator_next(&iter);
-    while (!is_primitive_root(n,r) || r < 3)
+
+    /* r must be a primitive root.  For performance, skip if s looks too big. */
+    while ( !is_primitive_root(n, r) ||
+            !bern41_acceptable(n, r, rmult*(r-1), tmp, tmp2) )
       r = prime_iterator_next(&iter);
     prime_iterator_destroy(&iter);
 
-    d = (UV) (0.5 * (r-1) + 0.5);
-    i = (UV) (0.475 * (r-1) + 0.5);
-    j = i;
-
-    /*gmp_printf("for n=%Zd chose r=%lu d=%lu i=%lu j=%lu\n", n, r, d, i, j);*/
-    /* Ensure conditions are correct */
-    if (d > r-2)     d = r-2;
-    if (i > d)       i = d;
-    if (j > (r-2-d)) j = r-2-d;
-
-    /* Find a suitable s */
-
-    slim = (UV) (8*(r-1));   /* This could be tightened up.  Depends on r0! */
-    scmp = ceil(sqrt( (r-1)/3.0 )) * mpz_log2(n);
-    { /* Binary search for first s in [1,slim] where x >= 0 */
+    { /* Binary search for first s in [1,slim] where conditions met */
       UV bi = 1;
-      UV bj = slim;
+      UV bj = rmult * (r-1);
       while (bi < bj) {
         s = bi + (bj-bi)/2;
-        mpz_bin_uiui(tmp2, 2*s, i);
-        mpz_bin_uiui(tmp, d, i);       mpz_mul(tmp2, tmp2, tmp);
-        mpz_bin_uiui(tmp, 2*s-i, j);   mpz_mul(tmp2, tmp2, tmp);
-        mpz_bin_uiui(tmp, r-2-d, j);   mpz_mul(tmp2, tmp2, tmp);
-        double left = mpz_log2(tmp2);
-        if (left < scmp)  bi = s+1;
-        else              bj = s;
+        if (!bern41_acceptable(n,r,s,tmp,tmp2))  bi = s+1;
+        else                                     bj = s;
       }
+      s = bj;
       /* Our S goes from 2 to s+1. */
       starta = 2;
       s = s+1;
     }
     /* printf("chose r=%lu s=%lu d = %lu i = %lu j = %lu\n", r, s, d, i, j); */
 
-    /* Check divisibility to (s-1)^2 to cover both gcd conditions */
-    slim = (s-1)*(s-1);
+    /* Check divisibility to s(s-1) to cover both gcd conditions */
+    slim = s * (s-1);
     if (_verbose > 1) printf("# aks trial to %"UVuf"\n", slim);
     if (_GMP_trial_factor(n, 2, slim) > 1)
       { mpz_clear(tmp); mpz_clear(tmp2); return 0; }
