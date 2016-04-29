@@ -8,6 +8,8 @@
 
 #define FUNC_gcd_ui 1
 #define FUNC_is_perfect_square 1
+#define FUNC_mpz_logn 1
+#define FUNC_mpz_log2 1
 #include "ptypes.h"
 #include "gmp_main.h"
 #include "prime_iterator.h"
@@ -1692,50 +1694,15 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
   return retval;
 }
 
-/* TODO: is_primitive_root, mpz_logn, mpz_log2 should move to utilities */
-
-static double mpz_logn(mpz_t n)
-{
-  long exp;
-  double logn = mpz_get_d_2exp(&exp, n);
-  logn = log(logn) + (log(2) * exp);
-  return logn;
-}
-
-static double mpz_log2(mpz_t n) {
-  long exp;
-  double logn = mpz_get_d_2exp(&exp, n);
-  logn = exp + log(logn)/log(2);
-  return logn;
-}
-
 #if AKS_VARIANT != AKS_VARIANT_V6
-static int is_primitive_root(mpz_t n, UV r)
+static int is_primitive_root_uiprime(mpz_t n, UV r)
 {
-  mpz_t m, modr;
-  UV p, rm1 = r-1;
-  UV lim = (UV) (sqrt(rm1) + 0.00001);
-  UV ret = 0;
-
-  mpz_init(m);
-  mpz_init_set_ui(modr, r);
-  if ((rm1 % 2) == 0) {
-    mpz_powm_ui(m, n, (rm1/2), modr);
-    if (!mpz_cmp_ui(m,1))
-      goto END_PRIMROOT;
-  }
-  for (p = 3; p <= lim; p += 2) {
-    if ((rm1 % p) == 0) {
-      mpz_powm_ui(m, n, (rm1/p), modr);
-      if (!mpz_cmp_ui(m,1))
-        goto END_PRIMROOT;
-    }
-  }
-  ret = 1;
-END_PRIMROOT:
-  mpz_clear(m);
-  mpz_clear(modr);
-  return ret;
+  int res;
+  mpz_t zr;
+  mpz_init_set_ui(zr, r);
+  res = is_primitive_root(n, zr, 1);
+  mpz_clear(zr);
+  return res;
 }
 #endif
 #if AKS_VARIANT == AKS_VARIANT_BERN21
@@ -1843,7 +1810,7 @@ int _GMP_is_aks_prime(mpz_t n)
     mpz_init(tmp);
     prime_iterator_setprime(&iter, (UV) (t1*t1 * dlogn*dlogn) );
     r = prime_iterator_next(&iter);
-    while (!is_primitive_root(n,r))
+    while (!is_primitive_root_uiprime(n,r))
       r = prime_iterator_next(&iter);
     prime_iterator_destroy(&iter);
 
@@ -1919,7 +1886,7 @@ int _GMP_is_aks_prime(mpz_t n)
       /* todo: Check r|n and r >= sqrt(n) here instead of waiting */
       if (mpz_cmp_ui(n, r) <= 0) break;
       r = prime_iterator_next(&iter);
-      if (!is_primitive_root(n,r)) continue;
+      if (!is_primitive_root_uiprime(n,r)) continue;
       q = r-1;   /* Since r is prime, phi(r) = r-1 */
       scmp = 2 * floor(sqrt(r-1)) * mpz_log2(n);
 
@@ -2013,7 +1980,7 @@ int _GMP_is_aks_prime(mpz_t n)
     r = prime_iterator_next(&iter);
 
     /* r must be a primitive root.  For performance, skip if s looks too big. */
-    while ( !is_primitive_root(n, r) ||
+    while ( !is_primitive_root_uiprime(n, r) ||
             !bern41_acceptable(n, r, rmult*(r-1), tmp, tmp2) )
       r = prime_iterator_next(&iter);
     prime_iterator_destroy(&iter);

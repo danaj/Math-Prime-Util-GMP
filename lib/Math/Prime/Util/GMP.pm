@@ -70,6 +70,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      is_power
+                     is_primitive_root
                      znorder
                      znprimroot
                      ramanujan_tau

@@ -87,4 +87,10 @@
 - We could do LLR and Proth in prob_prime and return 1 instead of 2, leaving
   certs possible.
 
-- Add functions:  addmod, mulmod, divmod, powmod, sqrtmod
+- doc and tests for is_primitive_root
+
+- consider probabilistic is_primitive_root for large inputs
+
+- Move AKS out of gmp_main.c
+
+- Move factoring out of gmp_main.c

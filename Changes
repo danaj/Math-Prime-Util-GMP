@@ -10,6 +10,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - powmod                    (a ^ b) % n
     - invmod                    (1 / b) % n
     - sqrtmod                   square root modulo a prime
+    - is_primitive_root(a,n)    return 1 if 'a' is a primitive root mod n
 
     [FIXES]
 
@@ -22,6 +23,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - next_prime and prev_prime sieve deeper.  ~5% faster with large inputs.
 
     - AKS using Bernstein (2003) theorem 4.1.  10-20x faster.
+
 
 0.35 2015-12-13
 

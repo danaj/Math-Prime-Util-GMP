@@ -11,6 +11,8 @@ extern gmp_randstate_t* get_randstate(void);
 extern void init_randstate(unsigned long seed);
 extern void clear_randstate(void);
 
+int is_primitive_root(mpz_t a, mpz_t b, int nprime);
+
 /* tdiv_r is faster, but we'd need to guarantee the input is positive */
 #define mpz_mulmod(r, a, b, n, t)  \
   do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
@@ -133,6 +135,26 @@ static int is_perfect_square(UV n, UV* sqrtn)
   if (n != m*m) return 0;
   if (sqrtn != 0) *sqrtn = m;
   return 1;
+}
+#endif
+
+#ifdef FUNC_mpz_logn
+static double mpz_logn(mpz_t n)
+{
+  long exp;
+  double logn = mpz_get_d_2exp(&exp, n);
+  logn = log(logn) + (log(2) * exp);
+  return logn;
+}
+#endif
+
+#ifdef FUNC_mpz_log2
+static double mpz_log2(mpz_t n)
+{
+  long exp;
+  double logn = mpz_get_d_2exp(&exp, n);
+  logn = exp + log(logn)/log(2);
+  return logn;
 }
 #endif
 

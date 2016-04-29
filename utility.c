@@ -11,6 +11,7 @@
 
 /* includes mpz_mulmod(r, a, b, n, temp) */
 #include "utility.h"
+#include "factor.h"
 
 static int _verbose = 0;
 int get_verbose_level(void) { return _verbose; }
@@ -28,6 +29,55 @@ void init_randstate(unsigned long seed) {
   gmp_randseed_ui(_randstate, seed);
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
+
+
+int is_primitive_root(mpz_t a, mpz_t n, int nprime)
+{
+  const unsigned char pr[10] = {2,3,5,7,11,13,17,19,23,29};
+  mpz_t s, t, *factors;
+  int ret, i, nfactors, *exponents;
+
+  mpz_init(s);  mpz_init(t);
+  mpz_gcd(s, a, n);
+  if (mpz_cmp_ui(s,1) != 0) {
+    mpz_clear(s);  mpz_clear(t);
+    return 0;
+  }
+  if (nprime) {
+    mpz_sub_ui(s, n, 1);
+  } else {
+    totient(s, n);
+  }
+  ret = 1;
+  /* Try a few small primes first before complete factoring */
+  for (i = 0; i < 10; i++) {
+    unsigned long p = pr[i];
+    if (mpz_cmp_ui(s, p) < 0) break;
+    if (mpz_divisible_ui_p(s, p) ) {
+      mpz_divexact_ui(t, s, p);
+      mpz_powm(t, a, t, n);
+      if (mpz_cmp_ui(t, 1) == 0) {
+        ret = 0;
+        break;
+      }
+    }
+  }
+  if (ret == 1) {
+    nfactors = factor(s, &factors, &exponents);
+    for (i = 0; i < nfactors; i++) {
+      if (mpz_cmp_ui(factors[i],30) < 0) continue;
+      mpz_divexact(t, s, factors[i]);
+      mpz_powm(t, a, t, n);
+      if (mpz_cmp_ui(t,1) == 0) {
+        ret = 0;
+        break;
+      }
+    }
+    clear_factors(nfactors, &factors, &exponents);
+  }
+  mpz_clear(s);  mpz_clear(t);
+  return ret;
+}
 
 
 int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)

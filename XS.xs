@@ -545,6 +545,7 @@ invmod(IN char* stra, IN char* strb)
     jordan_totient = 3
     znorder = 4
     sqrtmod = 5
+    is_primitive_root = 6
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -591,8 +592,11 @@ invmod(IN char* stra, IN char* strb)
     } else if (ix == 4) {
       znorder(a, a, b);
       if (!mpz_sgn(a)) retundef = 1;
-    } else {
+    } else if (ix == 5) {
       retundef = !sqrtmod(a, a, b);
+    } else {
+      int ret = is_primitive_root(a, b, 0);
+      mpz_set_si(a, ret);
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
