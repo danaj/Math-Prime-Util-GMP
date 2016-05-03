@@ -87,10 +87,12 @@
 - We could do LLR and Proth in prob_prime and return 1 instead of 2, leaving
   certs possible.
 
-- doc and tests for is_primitive_root
-
 - consider probabilistic is_primitive_root for large inputs
 
 - Move AKS out of gmp_main.c
 
 - Move factoring out of gmp_main.c
+
+- Verify speed and memory use of GMP's two binomials for various versions
+  and compare.  Looks like Luschny sent his changes after 5.0.0.
+  https://gmplib.org/list-archives/gmp-discuss/2010-February/004036.html

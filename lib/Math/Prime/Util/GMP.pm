@@ -1001,6 +1001,13 @@ is a list of the smallest primitive roots, which is what this function
 produces.
 
 
+=head2 is_primitive_root
+
+Given two non-negative numbers C<a> and C<n>, returns C<1> if C<a> is a
+primitive root modulo C<n>, and C<0> if not.  If C<a> is a primitive root,
+then C<euler_phi(n)> is the smallest C<e> for which C<a^e = 1 mod n>.
+
+
 =head2 sigma
 
   say "Sum of divisors of $n:", sigma( $n );

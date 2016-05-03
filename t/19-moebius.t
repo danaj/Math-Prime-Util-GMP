@@ -5,7 +5,8 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/moebius liouville totient jordan_totient
                               exp_mangoldt carmichael_lambda
-                              znorder znprimroot chinese ramanujan_tau/;
+                              znorder znprimroot is_primitive_root
+                              chinese ramanujan_tau/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @moeb_vals = (qw/ 1 -1 -1 0 -1 1 -1 0 0 1 -1 0 -1 1 1 0 -1 0 -1 0 /);
@@ -185,6 +186,7 @@ plan tests => 1
             + scalar(keys %mangoldt)
             + scalar(@mult_orders)
             + scalar(keys %primroots) + 1
+            + 3 # is_primitive_root
             + scalar(keys %rtau)
             + scalar(@crts)
             + 10;
@@ -242,6 +244,10 @@ while (my($n, $root) = each (%primroots)) {
   is( znprimroot($n), $root, "znprimroot($n) == " . ((defined $root) ? $root : "<undef>") );
 }
 is( znprimroot("-100000898"), 31, "znprimroot(\"-100000898\") == 31" );
+###### is_primitive_root
+ok(!is_primitive_root(3,"1000000000000000000000000000057"), "3 is not a primitive root mod 10^30+57");
+ok( is_primitive_root(5,"1000000000000000000000000000057"), "5 is     a primitive root mod 10^30+57");
+ok( is_primitive_root(3,"1000000000000000000000000000066"), "3 is     a primitive root mod 10^30+66");
 
 ###### Various with specific values
 is(totient("9082348072348972344232348972345"),"6196599862139600370393700256064", "totient(9082348072348972344232348972345)");
