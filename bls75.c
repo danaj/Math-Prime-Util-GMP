@@ -529,6 +529,8 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
      * since we did not perform an exhaustive search.  It would be quite
      * unusual to find a prime that didn't have an 'a' in the first 10,000
      * primes, but it could happen.  It's a "dubiously prime" :) */
+    if (get_verbose_level() > 0)
+      printf("N-1 factored but failed to prove.  Perhaps composite.\n");
     mpz_clear(p);
     mpz_clear(ap);
   }
