@@ -24,6 +24,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - AKS using Bernstein (2003) theorem 4.1.  10-20x faster.
 
+    - Speedup for large pn_primorial and primorial.  Much faster for very
+      large values, though it will all get swamped by the overhead in
+      returning the large value.  This is a great reason to return mpz objects.
+
 
 0.35 2015-12-13
 

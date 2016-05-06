@@ -2191,71 +2191,99 @@ void _GMP_prev_prime(mpz_t n)
   }
 }
 
+#define LAST_TRIPLE_PROD \
+  ((BITS_PER_WORD == 32) ? UVCONST(1619) : UVCONST(2642231))
 #define LAST_DOUBLE_PROD \
   ((BITS_PER_WORD == 32) ? UVCONST(65521) : UVCONST(4294967291))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
-  UV p = 2;
-  PRIME_ITERATOR(iter);
+  UV i = 0, al = 0, p = 2;
+  mpz_t* A;
 
-  if (n < 800) {  /* Don't go above 6500 to prevent overflow below */
-    /* Simple linear multiplication, two at a time */
+  if (n <= 4) {                 /* tiny input */
+
+    p = (n == 0) ? 1 : (n == 1) ? 2 : (n == 2) ? 6 : (n == 3) ? 30 : 210;
+    mpz_set_ui(prim, p);
+
+  } else if (n < 200) {         /* simple linear multiply */
+
+    PRIME_ITERATOR(iter);
     mpz_set_ui(prim, 1);
     while (n-- > 0) {
       if (n > 0) { p *= prime_iterator_next(&iter); n--; }
       mpz_mul_ui(prim, prim, p);
       p = prime_iterator_next(&iter);
     }
-  } else {
-    /* Shallow product tree, ~10x faster for large values */
-    mpz_t t[16];
-    UV i;
-    for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
-    i = 0;
+    prime_iterator_destroy(&iter);
+
+  } else {                      /* tree mult array of products of 8 UVs */
+
+    PRIME_ITERATOR(iter);
+    New(0, A, n, mpz_t);
     while (n-- > 0) {
+      if (p <= LAST_TRIPLE_PROD && n > 0)
+        { p *= prime_iterator_next(&iter); n--; }
       if (p <= LAST_DOUBLE_PROD && n > 0)
         { p *= prime_iterator_next(&iter); n--; }
-      mpz_mul_ui(t[i&15], t[i&15], p);
-      p = prime_iterator_next(&iter);
+      /* each array entry holds the product of 8 UVs */
+      if ((i & 7) == 0) mpz_init_set_ui( A[al++], p );
+      else              mpz_mul_ui(A[al-1],A[al-1], p );
       i++;
+      p = prime_iterator_next(&iter);
     }
-    mpz_product(t, 0, 16-1);
-    mpz_set(prim, t[0]);
-    for (i = 0; i < 16; i++)  mpz_clear(t[i]);
+    mpz_product(A, 0, al-1);
+    mpz_set(prim, A[0]);
+    for (i = 0; i < al; i++)  mpz_clear(A[i]);
+    Safefree(A);
+    prime_iterator_destroy(&iter);
+
   }
-  prime_iterator_destroy(&iter);
 }
 void _GMP_primorial(mpz_t prim, UV n)
 {
 #if (__GNU_MP_VERSION > 5) || (__GNU_MP_VERSION == 5 && __GNU_MP_VERSION_MINOR >= 1)
   mpz_primorial_ui(prim, n);
 #else
-  UV p = 2;
-  PRIME_ITERATOR(iter);
+  if (n <= 4) {
 
-  if (n < 1000) {
-    /* Simple linear multiplication, one at a time */
-    mpz_set_ui(prim, 1);
-    while (p <= n) {
-      mpz_mul_ui(prim, prim, p);
-      p = prime_iterator_next(&iter);
-    }
+    UV p = (n == 0) ? 1 : (n == 1) ? 1 : (n == 2) ? 2 : (n == 3) ? 6 : 6;
+    mpz_set_ui(prim, p);
+
   } else {
-    /* Shallow product tree, ~10x faster for large values */
-    mpz_t t[16];
-    UV i;
-    for (i = 0; i < 16; i++)  mpz_init_set_ui(t[i], 1);
-    i = 0;
-    while (p <= n) {
-      mpz_mul_ui(t[i&15], t[i&15], p);
-      p = prime_iterator_next(&iter);
-      i++;
+
+    mpz_t *A;
+    UV nprimes, i, al;
+    UV *primes = sieve_to_n(n, &nprimes);
+
+    /* Multiply native pairs until we overflow the native type */
+    while (nprimes > 1 && UV_MAX/primes[0] > primes[nprimes-1]) {
+      i = 0;
+      while (nprimes > i+1 && UV_MAX/primes[i] > primes[nprimes-1])
+        primes[i++] *= primes[--nprimes];
     }
-    mpz_product(t, 0, 16-1);
-    mpz_set(prim, t[0]);
-    for (i = 0; i < 16; i++)  mpz_clear(t[i]);
+
+    if (nprimes <= 8) {
+      /* Just multiply if there are only a few native values left */
+      mpz_set_ui(prim, primes[0]);
+      for (i = 1; i < nprimes; i++)
+        mpz_mul_ui(prim, prim, primes[i]);
+    } else {
+      /* Create n/4 4-way products, then use product tree */
+      New(0, A, nprimes/4 + 1, mpz_t);
+      for (i = 0, al = 0; i < nprimes; al++) {
+        mpz_init_set_ui(A[al], primes[i++]);
+        if (i < nprimes) mpz_mul_ui(A[al], A[al], primes[i++]);
+        if (i < nprimes) mpz_mul_ui(A[al], A[al], primes[i++]);
+        if (i < nprimes) mpz_mul_ui(A[al], A[al], primes[i++]);
+      }
+      mpz_product(A, 0, al-1);
+      mpz_set(prim, A[0]);
+      for (i = 0; i < al; i++)  mpz_clear(A[i]);
+      Safefree(A);
+    }
+    Safefree(primes);
+
   }
-  prime_iterator_destroy(&iter);
 #endif
 }
 
