@@ -3041,10 +3041,6 @@ static int shanks_mult(mpz_t n, mpz_t f)
    mpz_init(So);
    mpz_init(bbn);
 
-   mpz_mod_ui(t1, n, 4);
-   if (mpz_cmp_ui(t1, 3))
-     croak("Incorrect call to shanks\n");
-
    mpz_sqrt(b0, n);
    mpz_sqrt(tmp, b0);
    mpz_mul_ui(imax, tmp, 3);
@@ -3154,8 +3150,13 @@ static int shanks_mult(mpz_t n, mpz_t f)
 int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 {
    const UV multipliers[] = {
-      3*5*7*11, 3*5*7, 3*5*11, 3*5, 3*7*11, 3*7, 5*7*11, 5*7,
-      3*11,     3,     5*11,   5,   7*11,   7,   11,     1   };
+      3*5*7*11, 3*5*7,  3*5*7*11*13, 3*5*7*13, 3*5*7*11*17, 3*5*11,
+      3*5*7*17, 3*5,    3*5*7*11*19, 3*5*11*13,3*5*7*19,    3*5*7*13*17,
+      3*5*13,   3*7*11, 3*7,         5*7*11,   3*7*13,      5*7,
+      3*5*17,   5*7*13, 3*5*19,      3*11,     3*7*17,      3,
+      3*11*13,  5*11,   3*7*19,      3*13,     5,           5*11*13,
+      5*7*19,   5*13,   7*11,        7,        3*17,        7*13,
+      11,       1 };
    const size_t sz_mul = sizeof(multipliers)/sizeof(multipliers[0]);
    size_t i;
    int result;
@@ -3170,9 +3171,6 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
 
    for (i = 0; i < sz_mul; i++) {
       UV mult = multipliers[i];
-      /* Only use multipliers where n*m = 3 mod 4 */
-      if (nmod4 == (mult % 4))
-        continue;
       /* Only run when 64*m^3 < n */
       mpz_set_ui(t, mult);
       mpz_pow_ui(t, t, 3);
@@ -3183,7 +3181,7 @@ int _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds)
       mpz_mul_ui(nm, n, mult);
       result = shanks_mult(nm, f);
       if (result == -1)
-        break;
+        continue;
       if ( (result == 1) && (mpz_cmp_ui(f, mult) != 0) ) {
         unsigned long gcdf = mpz_gcd_ui(NULL, f, mult);
         mpz_divexact_ui(f, f, gcdf);
