@@ -6,6 +6,8 @@ use Test::More;
 use Math::Prime::Util::GMP qw/invmod sqrtmod addmod mulmod divmod powmod/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
+my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
+
 my @invmods = (
  [ 0, 0, undef],
  [ 1, 0, undef],
@@ -149,6 +151,6 @@ is_deeply( \@res, \@exp, "powmod with negative exponent on ".($num+1)." random i
 
 sub nrand {
   my $r = int(rand(4294967296));
-  $r = ($r << 32) + int(rand(4294967296)) if ~0 > 4294967296;
+  $r = ($r << 32) + int(rand(4294967296)) if $use64;
   $r;
 }
