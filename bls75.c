@@ -1,14 +1,12 @@
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <gmp.h>
-
 #include "ptypes.h"
-#include "gmp_main.h"
+
+#include "bls75.h"
+#include "primality.h"
 #include "prime_iterator.h"
 #include "small_factor.h"
+#include "factor.h"
 #include "simpqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \

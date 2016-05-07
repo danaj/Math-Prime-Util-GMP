@@ -19,4 +19,14 @@ extern void znorder(mpz_t res, mpz_t a, mpz_t n);
 extern void znprimroot(mpz_t root, mpz_t n);
 extern void ramanujan_tau(mpz_t res, mpz_t n);
 
+extern UV   _GMP_trial_factor(mpz_t n, UV from_n, UV to_n);
+extern int  _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds);
+extern int  _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds);
+extern int  _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2);
+extern int  _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2);
+extern int  _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds);
+extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
+
+extern UV   power_factor(mpz_t n, mpz_t f);
+
 #endif

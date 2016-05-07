@@ -64,11 +64,13 @@
 
 #include "ptypes.h"
 #include "ecpp.h"
-#include "gmp_main.h"  /* is_prob_prime, pminus1_factor, miller_rabin_random */
+#include "gmp_main.h"  /* primorial */
 #include "ecm.h"
 #include "utility.h"
 #include "prime_iterator.h"
 #include "bls75.h"
+#include "factor.h"
+#include "primality.h"
 
 #define MAX_SFACS 1000
 
@@ -961,6 +963,8 @@ static void dieusage(char* prog) {
 }
 
 #include "expr.h"
+#include "aks.h"
+#include "bls75.h"
 
 int main(int argc, char **argv)
 {
@@ -1031,7 +1035,7 @@ int main(int argc, char **argv)
       } else if (do_nminus1) {
         isprime = _GMP_primality_bls_nm1(n, 100, &cert);
       } else if (do_aks) {
-        isprime = 2 * _GMP_is_aks_prime(n);
+        isprime = 2 * is_aks_prime(n);
         do_printcert = 0;
       } else if (do_aprcl) {
 #ifdef USE_APRCL

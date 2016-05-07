@@ -10,6 +10,8 @@ XS.xs
 ptypes.h
 gmp_main.h
 gmp_main.c
+primality.h
+primality.c
 prime_iterator.h
 prime_iterator.c
 small_factor.h
@@ -23,6 +25,8 @@ bls75.h
 bls75.c
 ecpp.h
 ecpp.c
+aks.h
+aks.c
 simpqs.h
 simpqs.c
 utility.h

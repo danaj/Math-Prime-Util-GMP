@@ -1,6 +1,7 @@
 #ifndef MPU_UTILITY_H
 #define MPU_UTILITY_H
 
+#include <math.h>
 #include <gmp.h>
 #include "ptypes.h"
 

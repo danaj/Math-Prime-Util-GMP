@@ -14,10 +14,12 @@ WriteMakefile1(
     OBJECT       => 'prime_iterator.o ' .
                     'small_factor.o '   .
                     'utility.o '        .
+                    'primality.o '      .
                     'factor.o '         .
                     'ecm.o '            .
                     'bls75.o '          .
                     'ecpp.o '           .
+                    'aks.o '            .
                     'simpqs.o '         .
                     'gmp_main.o '       .
                     'XS.o',

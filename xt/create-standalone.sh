@@ -6,8 +6,9 @@ then
 fi
 
 cp -p ptypes.h standalone/
-cp -p ecpp.[ch] bls75.[ch] ecm.[ch] prime_iterator.[ch] standalone/
+cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] factor.[ch] small_factor.[ch] utility.[ch] standalone/
+cp -p primality.[ch] standalone/
 cp -p xt/expr.[ch] xt/expr-impl.h standalone/
 cp -p xt/proof-text-format.txt standalone/
 cp -p examples/verify-cert.pl standalone/
@@ -32,7 +33,7 @@ static int _GMP_simpqs(mpz_t n, mpz_t* farray) { return 0; }
 #endif
 EOSIMPQSH
 
-# gcc -O3 -fomit-frame-pointer -DSTANDALONE -DSTANDALONE_ECPP ecpp.c bls75.c ecm.c prime_iterator.c gmp_main.c small_factor.c utility.c expr.c -o ecpp-dj -lgmp -lm
+# gcc -O3 -fomit-frame-pointer -DSTANDALONE -DSTANDALONE_ECPP ecpp.c bls75.c aks.c primality.c ecm.c prime_iterator.c gmp_main.c small_factor.c utility.c expr.c -o ecpp-dj -lgmp -lm
 
 cat << 'EOM' > standalone/Makefile
 TARGET = ecpp-dj
@@ -41,7 +42,7 @@ DEFINES = -DSTANDALONE -DSTANDALONE_ECPP
 CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
-OBJ = ecpp.o bls75.o ecm.o prime_iterator.o gmp_main.o \
+OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
       small_factor.o factor.o utility.o expr.o
 HEADERS = ptypes.h class_poly_data.h
 

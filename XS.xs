@@ -9,11 +9,13 @@
 
 #include "ptypes.h"
 #include "gmp_main.h"
+#include "primality.h"
 #include "small_factor.h"
 #include "ecm.h"
 #include "simpqs.h"
 #include "bls75.h"
 #include "ecpp.h"
+#include "aks.h"
 #include "utility.h"
 #include "factor.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
@@ -211,7 +213,7 @@ is_prime(IN char* strn)
     switch (ix) {
       case 0: ret = _GMP_is_prime(n); break;
       case 1: ret = _GMP_is_prob_prime(n); break;
-      case 2: ret = _GMP_is_aks_prime(n); break;
+      case 2: ret = is_aks_prime(n); break;
       case 3: ret = llr(n); break;
       case 4: ret = proth(n); break;
       case 5: ret = _GMP_primality_bls_nm1(n, 100, 0); break;

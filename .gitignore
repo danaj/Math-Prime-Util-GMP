@@ -6,12 +6,14 @@ MYMETA.*
 GMP.bs
 XS.[co]
 gmp_main.o
+primality.o
 prime_iterator.o
 small_factor.o
 factor.o
 ecm.o
 bls75.o
 ecpp.o
+aks.o
 simpqs.o
 utility.o
 blib*
