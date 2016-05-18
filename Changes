@@ -4,13 +4,14 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [ADDED]
 
-    - addmod                    (a + b) % n
-    - mulmod                    (a * b) % n
-    - divmod                    (a / b) % n
-    - powmod                    (a ^ b) % n
-    - invmod                    (1 / b) % n
-    - sqrtmod                   square root modulo a prime
-    - is_primitive_root(a,n)    return 1 if 'a' is a primitive root mod n
+    - addmod                      (a + b) % n
+    - mulmod                      (a * b) % n
+    - divmod                      (a / b) % n
+    - powmod                      (a ^ b) % n
+    - invmod                      (1 / b) % n
+    - sqrtmod                     square root modulo a prime
+    - is_primitive_root(a,n)      return 1 if 'a' is a primitive root mod n
+    - sieve_range(n,width,depth)  sieve from n, returning candidate offsets
 
     [FIXES]
 

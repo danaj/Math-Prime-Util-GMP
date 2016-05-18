@@ -96,3 +96,5 @@
 - Verify speed and memory use of GMP's two binomials for various versions
   and compare.  Looks like Luschny sent his changes after 5.0.0.
   https://gmplib.org/list-archives/gmp-discuss/2010-February/004036.html
+
+- faster znprimroot

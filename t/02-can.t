@@ -31,6 +31,9 @@ my @functions = qw(
                      lucas_sequence  lucasu  lucasv
                      primes
                      sieve_primes
+                     sieve_twin_primes
+                     sieve_prime_cluster
+                     sieve_range
                      next_prime
                      prev_prime
                      trial_factor
@@ -43,6 +46,8 @@ my @functions = qw(
                      ecm_factor
                      qs_factor
                      factor
+                     sigma
+                     chinese
                      moebius
                      prime_count
                      primorial
@@ -51,6 +56,7 @@ my @functions = qw(
                      consecutive_integer_lcm
                      partitions bernfrac harmfrac harmreal stirling
                      gcd lcm kronecker valuation invmod binomial gcdext
+                     invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
                      exp_mangoldt
                      liouville
@@ -58,8 +64,10 @@ my @functions = qw(
                      jordan_totient
                      carmichael_lambda
                      is_power
+                     is_primitive_root
                      znorder
                      znprimroot
+                     ramanujan_tau
                      Pi
 );
 can_ok( 'Math::Prime::Util::GMP', @functions);

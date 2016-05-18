@@ -812,6 +812,45 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     mpz_clear(low);
 
 void
+sieve_range(IN char* strn, IN UV width, IN UV depth)
+  PREINIT:
+    mpz_t low, seghigh, high, t;
+    UV i, nprimes, maxseg, offset, *list;
+  PPCODE:
+    if (width == 0) XSRETURN(0);
+
+    VALIDATE_AND_SET("sieve_range", low, strn);
+    mpz_init(high);
+    mpz_add_ui(high, low, width-1);
+    mpz_init(seghigh);
+    mpz_init(t);
+    maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
+    offset = 0;
+
+    /* Loop as needed */
+    while (mpz_cmp(low, high) <= 0) {
+      mpz_add_ui(seghigh, low, maxseg - 1);
+      if (mpz_cmp(seghigh, high) > 0)
+        mpz_set(seghigh, high);
+      mpz_set(t, seghigh);  /* Save in case it is modified */
+      list = sieve_primes(low, seghigh, depth, &nprimes);
+      mpz_set(seghigh, t);  /* Restore the value we used */
+
+      if (list != 0) {
+        for (i = 0; i < nprimes; i++) {
+          XPUSHs(sv_2mortal(newSVuv( offset + list[i] )));
+        }
+        Safefree(list);
+      }
+      mpz_add_ui(low, seghigh, 1);
+      offset += maxseg;
+    }
+    mpz_clear(t);
+    mpz_clear(seghigh);
+    mpz_clear(high);
+    mpz_clear(low);
+
+void
 lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
   PREINIT:
     mpz_t U, V, Qk, n, k, t;

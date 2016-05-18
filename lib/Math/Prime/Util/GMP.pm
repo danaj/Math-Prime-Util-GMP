@@ -40,6 +40,7 @@ our @EXPORT_OK = qw(
                      sieve_primes
                      sieve_twin_primes
                      sieve_prime_cluster
+                     sieve_range
                      next_prime
                      prev_prime
                      trial_factor
@@ -730,6 +731,26 @@ functionality.  The three-argument version is quite useful for applications
 that want to apply their own primality or other tests, and wish to have a
 list of values in the range with no small factors.  This is quite common
 for applications involving prime gaps.
+
+Also see L</sieve_range>.
+
+
+=head2 sieve_range
+
+  my @candidates = sieve_range(2**1000, 10000, 40000);
+
+Given a start value C<n>, and native unsigned integers C<width> and C<depth>,
+a sieve of maximum depth C<depth> is done for the C<width> consecutive
+numbers beginning with C<n>.  An array of offsets from the start is returned.
+
+The returned list contains those offsets in the range C<n> to C<n+width-1>
+where C<n + offset> has no prime factors less than C<depth>.
+
+This function is very similar to the three argument form of L</sieve_primes>.
+The differences are using C<(n,width)> instead of C<(low,high)>, and most
+importantly returning small offsets from the start value rather than the
+values themselves.  This can substantially reduce overhead for
+multi-thousand digit numbers.
 
 
 =head2 sieve_twin_primes
