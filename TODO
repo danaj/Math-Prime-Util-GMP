@@ -76,8 +76,11 @@
   speed up range sieving.
   time mpu 'use bigint; my $n = 10**20; say join "\n",Math::Prime::Util::GMP::sieve_primes($n,$n+8e9,0);' >foo
   takes ~35 minutes.  NewPGen can do it in less than 4.  At 10^22 it is closer.
+  This is an artifact of the sieve/primality tradeoff, as doing a pure sieve
+  can finish in under 5 minutes.
 
-- More efficient version of ramanujan_tau?
+- More efficient version of ramanujan_tau?  MPU has an hclassno implementation
+  now.
 
 - Consider ranged ramanujan_tau.  See:
   https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
@@ -88,10 +91,6 @@
   certs possible.
 
 - consider probabilistic is_primitive_root for large inputs
-
-- Move AKS out of gmp_main.c
-
-- Move factoring out of gmp_main.c
 
 - Verify speed and memory use of GMP's two binomials for various versions
   and compare.  Looks like Luschny sent his changes after 5.0.0.

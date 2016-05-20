@@ -818,6 +818,7 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
     UV i, nprimes, maxseg, offset, *list;
   PPCODE:
     if (width == 0) XSRETURN(0);
+    if (depth == 0) depth = 1;
 
     VALIDATE_AND_SET("sieve_range", low, strn);
     mpz_init(high);
@@ -827,6 +828,18 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
     maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
     offset = 0;
 
+    /* Deal with 0 and 1 inside range */
+    if (mpz_cmp_ui(low,2) < 0) {
+      offset = 2 - mpz_get_ui(low);
+      width = (width < offset) ? 0 : width - offset;
+      mpz_set_ui(low,2);
+    }
+    /* Deal with depth < 2 (no sieving) */
+    if (depth < 2) {
+      for (i = 0; i < width; i++)
+        XPUSHs(sv_2mortal(newSVuv(offset + i)));
+      mpz_add_ui(low, high, 1);
+    }
     /* Loop as needed */
     while (mpz_cmp(low, high) <= 0) {
       mpz_add_ui(seghigh, low, maxseg - 1);
