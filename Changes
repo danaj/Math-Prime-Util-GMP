@@ -19,6 +19,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [PERFORMANCE]
 
+    - znprimroot is much faster with large inputs.
+
     - Speedup partial sieve with large input.
 
     - next_prime and prev_prime sieve deeper.  ~5% faster with large inputs.

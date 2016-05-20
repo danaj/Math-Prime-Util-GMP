@@ -604,51 +604,61 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
 
 void znprimroot(mpz_t root, mpz_t n)
 {
-  if (mpz_cmp_ui(n, 4) <= 0) {
-    if (mpz_sgn(n) <= 0)  mpz_set_ui(root, 0);
-    else                  mpz_sub_ui(root, n, 1);
-  } else if (mpz_divisible_ui_p(n, 4)) {
-    mpz_set_ui(root, 0);
-  } else {
-    mpz_t* factors;
-    int* exponents;
-    int i, nfactors;
-    mpz_t t, phi, a;
+  UV k;
+  mpz_t t, phi, a, on, r, *factors;
+  int i, nfactors, *exponents;
 
-    mpz_init(phi);  mpz_init(t);
-    nfactors = 1;
-    mpz_sub_ui(phi, n, 1);
-    if (!_GMP_is_prob_prime(n)) {
-      if (mpz_even_p(n)) mpz_tdiv_q_2exp(t, n, 1);
-      else               mpz_set(t, n);
-      nfactors = factor(t, &factors, &exponents);
-      mpz_sub_ui(phi, factors[0], 1);
-      for (i = 1; i < exponents[0]; i++)
-        mpz_mul(phi, phi, factors[0]);
-      clear_factors(nfactors, &factors, &exponents);
-    }
-    if (nfactors != 1) {
-      mpz_set_ui(root, 0);
-    } else {
-      nfactors = factor(phi, &factors, &exponents);
-      i = 0;
-      for (mpz_init_set_ui(a,2);  mpz_cmp(a, n) < 0;  mpz_add_ui(a, a, 1)) {
-        if (mpz_kronecker(a, n) == 0) continue;
-        for (i = 0; i < nfactors; i++) {
-          mpz_divexact(t, phi, factors[i]);
-          mpz_powm(t, a, t, n);
-          if (mpz_cmp_ui(t, 1) == 0)
-            break;
-        }
-        if (i == nfactors) break;
-      }
-      if (i == nfactors)  mpz_set(root, a);
-      else                mpz_set_ui(root, 0);
-      mpz_clear(a);
-      clear_factors(nfactors, &factors, &exponents);
-    }
-    mpz_clear(t);  mpz_clear(phi);
+  mpz_set_ui(root, 0);
+  if (mpz_cmp_ui(n, 4) <= 0) {
+    if (mpz_sgn(n) > 0)
+      mpz_sub_ui(root, n, 1);
+    return;
   }
+  if (mpz_divisible_ui_p(n, 4))
+    return;
+
+  mpz_init(r);
+  mpz_init_set(on, n);
+  if (mpz_even_p(on))
+    mpz_tdiv_q_2exp(on, on, 1);
+  if (!power_factor(on, r))
+    mpz_set(r, on);
+  if (!_GMP_is_prob_prime(r)) {
+    mpz_clear(on);
+    mpz_clear(r);
+    return;
+  }
+
+  mpz_init(phi);
+  mpz_sub_ui(phi, r, 1);
+  mpz_divexact(on, on, r);
+  mpz_mul(phi, phi, on);
+
+  mpz_clear(on);
+  mpz_clear(r);
+
+  mpz_init(t);
+  mpz_init(a);
+  nfactors = factor(phi, &factors, &exponents);
+
+  /* Replace each factor with phi/factor */
+  for (i = 0; i < nfactors; i++)
+    mpz_divexact(factors[i], phi, factors[i]);
+
+  for (mpz_set_ui(a,2);  mpz_cmp(a,n) < 0;  mpz_add_ui(a,a,1)) {
+    if (!mpz_cmp_ui(a,4) || !mpz_cmp_ui(a,8) || !mpz_cmp_ui(a,9)) continue;
+    if (mpz_kronecker(a, n) == 0) continue;
+    for (i = 0; i < nfactors; i++) {
+      mpz_powm(t, a, factors[i], n);
+      if (mpz_cmp_ui(t, 1) == 0)
+        break;
+    }
+    if (i == nfactors) { mpz_set(root, a); break; }
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(a);
+  mpz_clear(t);
+  mpz_clear(phi);
 }
 
 static const int32_t tau_table[] = {
