@@ -604,7 +604,6 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
 
 void znprimroot(mpz_t root, mpz_t n)
 {
-  UV k;
   mpz_t t, phi, a, on, r, *factors;
   int i, nfactors, *exponents;
 

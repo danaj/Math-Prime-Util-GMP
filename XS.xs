@@ -611,7 +611,7 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     powmod = 2
     divmod = 3
   PREINIT:
-    mpz_t a, b, n, t;
+    mpz_t a, b, n;
     int retundef;
   PPCODE:
     validate_string_number("addmod", (stra[0]=='-') ? stra+1 : stra);
