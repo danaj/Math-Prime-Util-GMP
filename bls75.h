@@ -27,4 +27,10 @@ extern int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* lp, IV
 /* BLS75 theorem 5/7 complete proof */
 extern int _GMP_primality_bls_nm1(mpz_t n, int effort, char ** prooftextptr);
 
+/* BLS75 theorem 17 complete proof (N+1) */
+extern int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr);
+
+/* BLS75 theorem 20 complete proof (N-1 and N+1) */
+extern int bls75_hybrid(mpz_t n, int effort, char** prooftextptr);
+
 #endif
