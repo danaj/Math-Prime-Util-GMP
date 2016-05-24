@@ -284,9 +284,9 @@ void _GMP_prev_prime(mpz_t n)
 
 
 #define LAST_TRIPLE_PROD \
-  ((BITS_PER_WORD == 32) ? UVCONST(1619) : UVCONST(2642231))
+  ((ULONG_MAX <= 4294967295UL) ? UVCONST(1619) : UVCONST(2642231))
 #define LAST_DOUBLE_PROD \
-  ((BITS_PER_WORD == 32) ? UVCONST(65521) : UVCONST(4294967291))
+  ((ULONG_MAX <= 4294967295UL) ? UVCONST(65521) : UVCONST(4294967291))
 void _GMP_pn_primorial(mpz_t prim, UV n)
 {
   UV i = 0, al = 0, p = 2;
@@ -348,9 +348,9 @@ void _GMP_primorial(mpz_t prim, UV n)
     UV *primes = sieve_to_n(n, &nprimes);
 
     /* Multiply native pairs until we overflow the native type */
-    while (nprimes > 1 && UV_MAX/primes[0] > primes[nprimes-1]) {
+    while (nprimes > 1 && ULONG_MAX/primes[0] > primes[nprimes-1]) {
       i = 0;
-      while (nprimes > i+1 && UV_MAX/primes[i] > primes[nprimes-1])
+      while (nprimes > i+1 && ULONG_MAX/primes[i] > primes[nprimes-1])
         primes[i++] *= primes[--nprimes];
     }
 
