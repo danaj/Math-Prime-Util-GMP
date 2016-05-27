@@ -1,12 +1,12 @@
 /*
  * Verify Cert
- * version 0.95
+ * version 0.96
  *
- * Copyright (c) 2013 Dana Jacobsen (dana@acm.org).
+ * Copyright (c) 2013-2016 Dana Jacobsen (dana@acm.org).
  * This is free software; you can redistribute it and/or modify it under
  * the same terms as the Perl 5 programming language system itself.
  *
- * Verifies Primo and MPU certificates.
+ * Verifies Primo v3, Primo v4, and MPU certificates.
  *
  * Return values:
  *   0  all numbers are verified prime.
@@ -39,7 +39,8 @@
 
 #define CERT_UNKNOWN 0
 #define CERT_PRIMO   1
-#define CERT_MPU     2
+#define CERT_PRIMO42 2
+#define CERT_MPU     3
 
 #define MAX_LINE_LEN 60000
 #define MAX_STEPS    20000
@@ -77,7 +78,7 @@ char _line[MAX_LINE_LEN+1];
 char _vstr[MAX_LINE_LEN+1];
 const char* _filename;
 FILE* _fh;
-mpz_t PROOFN, N, A, B, M, Q, X, Y, LQ, LP, S, R, T, J, T1, T2;
+mpz_t PROOFN, N, A, B, M, Q, X, Y, LQ, LP, S, R, T, J, W, T1, T2;
 mpz_t QARRAY[MAX_QARRAY];
 mpz_t AARRAY[MAX_QARRAY];
 mpz_t _bgcd;
@@ -104,6 +105,7 @@ static void var_init(void) {
   mpz_init(R);
   mpz_init(T);
   mpz_init(J);
+  mpz_init(W);
 
   mpz_init(_bgcd);
   GMP_pn_primorial(_bgcd, BGCD_PRIMES);
@@ -132,6 +134,7 @@ static void var_free(void) {
   mpz_clear(R);
   mpz_clear(T);
   mpz_clear(J);
+  mpz_clear(W);
 
   mpz_clear(_bgcd);
 
@@ -386,7 +389,6 @@ static void pec_mult(mpz_t a, mpz_t b, mpz_t k, mpz_t n, mpz_t x, mpz_t z)
   }
   mpz_clear(r);
 
-  //gmp_printf("x is %Zd  z is %Zd  k is %Zd\n", x, z, k);
   if (mpz_tstbit(k, l)) {
     pec_double(x2, z2, x, z, b, n, u, v, w);
     pec_add3(x1, z1, x2, z2, x, z, x, z, n, u, v, w);
@@ -500,6 +502,9 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
     mpz_set_ui(V, 2);
     return;
   }
+
+  MPUassert( mpz_odd_p(n), "lucas_seq: implementation is for odd n" );
+
   mpz_set_ui(U, 1);
   mpz_set_si(V, P);
   mpz_set_si(Qk, Q);
@@ -626,7 +631,7 @@ static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
 int is_lucas_pseudoprime(mpz_t n, int strength)
 {
   mpz_t d, U, V, Qk, t;
-  IV P, Q;
+  IV P = 0, Q = 0;
   UV s = 0;
   int rval;
 
@@ -940,17 +945,13 @@ void verify_ecpp(void) {
     mpz_mul(PA, PA, T1);
     mpz_mod(PA, PA, N);
 
-    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
-
     mpz_divexact(T1, M, Q);
     pec_mult(PA, PB, T1, N, PX, PY);
-    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
     /* Check that point is not (0,0) */
     if (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0)
       quit_invalid("ECPP", "(M/Q) * EC(A,B,N,X,Y) is not identity");
     mpz_set(T1, Q);
     pec_mult(PA, PB, T1, N, PX, PY);
-    //gmp_printf("PX: %Zd  PY: %Zd\n", PX, PY);
     /* Check that point is (0, 0) */
     if (! (mpz_cmp_ui(PX, 0) == 0 && mpz_cmp_ui(PY, 0) == 0) )
       quit_invalid("ECPP", "M * EC(A,B,N,X,Y) is identity");
@@ -1046,6 +1047,7 @@ void verify_pocklington(void)
   mpz_add_ui(T1, T1, 1);
   if (mpz_cmp(T1, N) != 0)      quit_invalid("Pocklington", "MQ+1 = N");
   if (mpz_cmp_ui(A, 1) <= 0)    quit_invalid("Pocklington", "A > 1");
+  if (mpz_cmp(A, N) >= 0)       quit_invalid("Pocklington", "A < N");
   mpz_powm(T1, A, T2, N);
   if (mpz_cmp_ui(T1, 1) != 0)   quit_invalid("Pocklington", "A^(N-1) mod N = 1");
   mpz_powm(T1, A, M, N);
@@ -1214,6 +1216,7 @@ void verify_primo_ecpp(void) {
   mpz_mul(T1, T1, T);
   mpz_add(T1, T1, B);
   mpz_mod(T1, T1, N);   /* L = T1 = T^3 + AT + B mod N */
+  if (mpz_sgn(T1) <= 0) quit_invalid("Primo ECPP", "L > 0");
 
   mpz_mul(T2, T1, T1);
   mpz_mul(A, A, T2);
@@ -1253,7 +1256,6 @@ void verify_ecpp4(void) {
 }
 
 void verify_ecpp3(void) {
-  /* TODO: The latest primo.html doesn't require A,B to meet these conditions */
   mpz_mul_ui(T1, A, 2);
   mpz_mul_ui(T2, B, 2);
   if (mpz_cmpabs(T1, N) > 0) quit_invalid("Primo Type 3", "|A| <= N/2");
@@ -1279,6 +1281,62 @@ void verify_primo1(void) {
   if (mpz_cmp(T1, N) != 0)  quit_invalid("Primo Type 1", "SR+1 = N");
   verify_pocklington();  /* N, Q, A */
 }
+
+void verify_ecpp4_42(void) {
+  if (mpz_cmp_ui(S, 0) <= 0)  quit_invalid("Primo Type 4", "S > 0");
+  mpz_mul(T1, W, W);
+  mpz_mul_ui(T2, N, 4);
+  if (mpz_cmp(T1, T2) >= 0)   quit_invalid("Primo Type 4", "W^2 < 4*N");
+  mpz_add_ui(R, N, 1);
+  mpz_sub(R, R, W);
+  if (!mpz_divisible_p(R, S)) quit_invalid("Primo Type 4", "(N+1-W) mod S = 0");
+  mpz_divexact(R, R, S);
+
+  verify_ecpp4();
+}
+void verify_ecpp3_42(void) {
+  if (mpz_cmp_ui(S, 0) <= 0)  quit_invalid("Primo Type 4", "S > 0");
+  mpz_mul(T1, W, W);
+  mpz_mul_ui(T2, N, 4);
+  if (mpz_cmp(T1, T2) >= 0)   quit_invalid("Primo Type 4", "W^2 < 4*N");
+  mpz_add_ui(R, N, 1);
+  mpz_sub(R, R, W);
+  if (!mpz_divisible_p(R, S)) quit_invalid("Primo Type 4", "(N+1-W) mod S = 0");
+  mpz_divexact(R, R, S);
+
+  verify_ecpp3();
+}
+void verify_primo2_42(void) {
+  mpz_add_ui(R, N, 1);
+  if (!mpz_even_p(S))          quit_invalid("Primo N+1", "S is even");
+  if (mpz_cmp_ui(S,1) <= 0)    quit_invalid("Primo N+1", "S > 1");
+  if (!mpz_divisible_p(R, S))  quit_invalid("Primo N+1", "(N+1) mod S = 0");
+  if (mpz_cmp_ui(Q,0) <= 0)    quit_invalid("Primo N+1", "Q > 0");
+  if (mpz_cmp(Q,N) >= 0)       quit_invalid("Primo N+1", "Q < N");
+  mpz_divexact(R, R, S);
+  if (mpz_jacobi(Q, N) != -1)  quit_invalid("Primo N+1", "jacobi(Q,N) = -1");
+
+  mpz_set(LQ, Q);
+  mpz_set_ui(LP, mpz_odd_p(LQ) ? 2 : 1);
+  mpz_set(Q, R);
+  verify_bls15();  /* N, Q, LP, LQ */
+}
+
+void verify_primo1_42(void) {
+  mpz_sub_ui(R, N, 1);
+  if (!mpz_even_p(S))          quit_invalid("Primo N-1", "S is even");
+  if (mpz_cmp_ui(S,1) <= 0)    quit_invalid("Primo N-1", "S > 1");
+  if (!mpz_divisible_p(R, S))  quit_invalid("Primo N-1", "(N-1) mod S = 0");
+  if (mpz_cmp_ui(B,1) <= 0)    quit_invalid("Primo N-1", "B > 1");
+  if (mpz_cmp(B,N) >= 0)       quit_invalid("Primo N-1", "B < N");
+  mpz_divexact(R, R, S);
+
+  mpz_set(Q, R);
+  mpz_set(A, B);
+  verify_pocklington();  /* N, Q, A */
+}
+
+
 
 void verify_small(void) {
   if (mpz_sizeinbase(N, 2) > 64)  quit_invalid("Small", "N <= 2^64");
@@ -1325,6 +1383,8 @@ void verify_final(void) {
         !miller_rabin_ui(N, 11) || !miller_rabin_ui(N, 13) ||
         !miller_rabin_ui(N, 17))
       quit_invalid("Primo Type 0", "N is SPSP(2,3,5,7,11,13,17)");
+  } else if (_format == CERT_PRIMO42) {
+    verify_small();
   } else {
     verify_chain(PROOFN);
     free_chains();
@@ -1433,6 +1493,73 @@ void read_vars(const char* vars) {
   free(varstring);
 }
 
+/* Primo version 4.2 doesn't give us a step type, but infers it from which
+ * variables appear.  We have to use a different processing method. */
+int read42_vars(void) {
+  char  varname;
+  int i;
+  int bad_lines = 0;
+  int varsign, fS = 0, fW = 0, fT = 0, fJ = 0, fA = 0, fB = 0, fQ = 0;
+
+  MPUassert( _format == CERT_PRIMO42, "wrong parse routine for cert type");
+  while (1) {
+    varsign = 0;
+    get_line(0);
+    if (strlen(_line) == 0)    /* Skip extrenuous blank lines */
+      continue;
+
+    if (sscanf(_line, "[%d]", &i) == 1)
+      quit_error("Variables missing from proof step", "");
+
+    /* TODO: Hacky even for this file.  More robust method would be nice. */
+    if      (sscanf(_line, "%c=-$%s",  &varname, _vstr) == 2)  varsign =-1;
+    else if (sscanf(_line, "%c=$%s",   &varname, _vstr) == 2)  varsign = 1;
+    else if (sscanf(_line, "%c=-0x%s", &varname, _vstr) == 2)  varsign =-1;
+    else if (sscanf(_line, "%c=0x%s",  &varname, _vstr) == 2)  varsign = 1;
+    else if (sscanf(_line, "%c=%s",    &varname, _vstr) == 2)  varsign = 2;
+
+    if (varsign != 0) { /* Process variable found */
+      mpz_set_str(T1, _vstr, (varsign == 2) ? 10 : 16);
+      if (varsign < 0) mpz_neg(T1, T1);
+      switch (varname) {
+        case 'S': mpz_set(S,T1);  fS=1;  break;
+        case 'W': mpz_set(W,T1);  fW=1;  break;
+        case 'T': mpz_set(T,T1);  fT=1;  break;
+        case 'J': mpz_set(J,T1);  fJ=1;  break;
+        case 'A': mpz_set(A,T1);  fA=1;  break;
+        case 'B': mpz_set(B,T1);  fB=1;  break;
+        case 'Q': mpz_set(Q,T1);  fQ=1;  break;
+        default: quit_error("Internal error: bad Primo variable type","");
+                 break;
+      }
+      bad_lines = 0;
+    } else {
+      if (_verbose) { printf("%60s\r", ""); printf("skipping bad line: %s\n", _line); }
+      if (bad_lines++ >= BAD_LINES_ALLOWED)
+        quit_error("Too many bad lines reading variables", "");
+    }
+    if (fS && fW && fT && fJ) break;
+    if (fS && fW && fT && fA && fB) break;
+    if (fS && !fW && fQ) break;
+    if (fS && !fW && fB) break;
+  }
+  if (!fS) quit_error("Invalid file: no S", "");
+  if (fW) {
+    if (!fT) quit_error("Invalid file: W no T", "");
+    if (fJ)
+      return 4;     /* type 4: ECPP */
+    if (!fA) quit_error("Invalid file: W no A", "");
+    if (!fB) quit_error("Invalid file: W no B", "");
+      return 3;     /* type 3: ECPP */
+  } else if (fQ) {
+    return 2;       /* type 2: n+1 */
+  } else if (fB) {
+    return 1;       /* type 2: n-1 */
+  }
+  quit_error("Invalid file: no {W,Q,B}", "");
+  return 0;
+}
+
 /* TODO:
  * rearrange so we (1) open and read everything up to proof for / candidate.
  * then (2) func that does the proof
@@ -1455,11 +1582,23 @@ void parse_top(void)
 
   if (_format == CERT_PRIMO) {
     int items_found = 0;
+    int format_ver;
     while (items_found < 3) {
       get_line(0);
+      if (sscanf(_line, "Format=%d", &format_ver) == 1) {
+        switch (format_ver) {
+          case 3: break;
+          case 4: _format = CERT_PRIMO42; break;
+          default: quit_error("Unknown version number", "");
+        }
+      }
       if (sscanf(_line, "TestCount=%d", &_testcount) == 1) items_found++;
       if (strcmp(_line, "[Candidate]") == 0)  items_found++;
-      if (sscanf(_line, "N$=%s", _vstr) == 1) items_found++;
+      if (_format == CERT_PRIMO42) {
+        if (sscanf(_line, "N=$%s", _vstr) == 1) items_found++;
+      } else {
+        if (sscanf(_line, "N$=%s", _vstr) == 1) items_found++;
+      }
     }
     mpz_set_str(PROOFN, _vstr, 16);
   } else {
@@ -1521,6 +1660,31 @@ void process_file(const char* filename)
         if (type == 0) break;
         mpz_set(N, R);
       }
+    }
+  } else if (_format == CERT_PRIMO42) {
+    int type, rstep, rvars = 0;
+    while (_step < _testcount) {
+      get_line(0);
+      if (sscanf(_line, "[%d]", &rstep) == 1) {
+        if (rstep != _step+1)
+          quit_error("Wrong step number found", "");
+        _step++;
+        rvars = 1;
+      }
+      if (!rvars) continue;  /* skip until we find a section */
+      type = read42_vars();
+      if (!_quiet) { printf("%60s\r", ""); printf("Step %3d/%-3d %5d digits  Type %d\r", _step, _testcount, (int)mpz_sizeinbase(N,10), type); fflush(stdout); }
+      switch (type) {
+        case 4:  verify_ecpp4_42();  break;
+        case 3:  verify_ecpp3_42();  break;
+        case 2:  verify_primo2_42(); break;
+        case 1:  verify_primo1_42(); break;
+        case 0:  /* verify_small */ break;
+        default: quit_error("Parsing", "Unknown type");   break;
+      }
+      mpz_set(N, R);
+      rvars = 0;
+      if (type == 0) break;
     }
   } else {
     char type[MAX_LINE_LEN+1];
@@ -1614,7 +1778,7 @@ void process_file(const char* filename)
 }
 
 static void dieusage(const char* prog) {
-  printf("Verify Cert version 0.9.  Dana Jacobsen\n\n");
+  printf("Verify Cert version 0.96.  Dana Jacobsen\n\n");
   printf("Usage: %s [options] <file>\n\n", prog);
   printf("Options:\n");
   printf("   -v     set verbose\n");
