@@ -1,10 +1,17 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.37 2016-?
+0.37 2016-06-06
+
+    [ADDED]
+
+    - is_nplus1_prime(n)         BLS75 N+1 deterministic primality test
+    - is_bls75_prime(n)          BLS75 N-1, N+1, combined primality tests
 
     [FIXES]
 
     - Fixed primorial on systems with not-new GMP, 8-byte UV, and 4-byte long.
+
+    - sieve_range should work with >32-bit depths on 64-bit Perl + 32-bit GMP.
 
 
 0.36 2016-05-21

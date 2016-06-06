@@ -727,7 +727,9 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
    * We'll save some time for large start values by doubling up primes.
    */
   {
-    UV p1, p2, doublelim = (1UL << (sizeof(unsigned long) * 4)) - 1;
+    UV p1, p2;
+    UV doublelim = (1UL << (sizeof(unsigned long) * 4)) - 1;
+    UV ulim = (maxprime > ULONG_MAX) ? ULONG_MAX : maxprime;
     if (doublelim > maxprime) doublelim = maxprime;
     /* Do 2 primes at a time.  Fewer mpz remainders. */
     for ( p1 = p, p2 = prime_iterator_next(&iter);
@@ -739,8 +741,31 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
       sievep_ui(comp, p2 - (ddiv % p2), p2, length);
     }
     if (p1 <= maxprime) sievep(comp, start, p1, length);
-    for (p = p2; p <= maxprime; p = prime_iterator_next(&iter))
+    for (p = p2; p <= ulim; p = prime_iterator_next(&iter))
       sievep(comp, start, p, length);
+    if (p < maxprime) {
+      /* UV is 64-bit, GMP's ui functions are 32-bit.  Sigh. */
+      UV lastp, pos;
+      mpz_t mp, rem;
+      mpz_init(rem);
+      mpz_init_set_ui(mp, p >> 32);
+      mpz_mul_2exp(mp, mp, 32);
+      mpz_add_ui(mp, mp, p & 0xFFFFFFFFUL);
+      for (lastp = p;  p <= maxprime;  lastp=p, p=prime_iterator_next(&iter)) {
+        mpz_add_ui(mp, mp, p-lastp);                 /* Calc mp = p */
+        mpz_fdiv_r(rem, start, mp);                  /* Calc start % mp */
+        if (mpz_cmp_ui(rem, ULONG_MAX) <= 0) {       /* pos = p - (start % p) */
+          pos = p - mpz_get_ui(rem);
+        } else {
+          p1 = mpz_fdiv_q_ui(rem, rem, 2147483648UL);
+          p1 += ((UV)mpz_get_ui(rem)) << 31;
+          pos = p - p1;
+        }
+        sievep_ui(comp, pos, p, length);
+      }
+      mpz_clear(mp);
+      mpz_clear(rem);
+    }
   }
 
   prime_iterator_destroy(&iter);
