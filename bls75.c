@@ -93,15 +93,11 @@ static int try_factor(mpz_t f, mpz_t n, int effort)
     }
   }
 
+  if (!success)  success = (int)power_factor(n, f);
+
   if (effort >= 1) {
     if (!success)  success = _GMP_pminus1_factor(n, f, 1000, 10000);
-    //if (!success)  success = _GMP_pminus1_factor(n, f, 4000, 4000);
-    //if (!success)  success = _GMP_pminus1_factor(n, f, 2000, 2000);
-    //if (!success)  success = _GMP_pminus1_factor(n, f, 1000, 1000);
-    //if (!success)  success = _GMP_pminus1_factor(n, f, 400, 400);
   }
-
-  if (!success)  success = (int)power_factor(n, f);
 
   if (!success && effort == 2) {
     UV brent_rounds = (log2n <= 64) ? 100000 : 100000 / (log2n-63);
@@ -197,7 +193,7 @@ static void small_factor(mpz_t F, mpz_t R, UV B1)
 
 #define primality_handle_factor(f, R, F, fstack, fsp, fsmax, primality_func, factor_prob) \
   { \
-    int f_prob_prime = _GMP_is_prob_prime(f); \
+    int f_prob_prime = _GMP_BPSW(f); \
     if ( (f_prob_prime == 1) && (primality_func(f, effort, prooftextptr) == 2) ) \
       f_prob_prime = 2; \
     if (f_prob_prime == 2) { \
@@ -270,44 +266,75 @@ static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B,
 
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
-static int bls_theorem17_limit(mpz_t n, mpz_t A, mpz_t B,
+static int bls_theorem7_limit(mpz_t n, mpz_t F1, mpz_t R1, UV B1,
+                              mpz_t t, mpz_t y, mpz_t r, mpz_t s)
+{
+  mpz_mul(t, F1, R1);
+  mpz_add_ui(t, t, 1);
+  if (mpz_cmp(t, n) != 0) croak("BLS75 internal error: F1*R1 != n-1\n");
+
+  mpz_mul_ui(t, F1, 2);
+  mpz_tdiv_qr(s, r, R1, t);
+
+  mpz_add(y, t, r);
+  mpz_sub_ui(y, y, B1);
+  mpz_mul(y, y, F1);
+  mpz_add_ui(y, y, 1);   /* y = 2F1^2 + (r - B1)F1 + 1 */
+  mpz_mul_ui(t, F1, B1);
+  mpz_add_ui(t, t, 1);
+  mpz_mul(y, y, t);      /* times (B1F1+1) */
+
+  return (mpz_cmp(n, y) < 0) ? 1 : 0;
+}
+static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2,
                                mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
-  mpz_mul(t, A, B);
+  mpz_mul(t, F2, R2);
   mpz_sub_ui(t, t, 1);
-  if (mpz_cmp(t, n) != 0) croak("BLS75 internal error: A*B != n+1\n");
+  if (mpz_cmp(t, n) != 0) croak("BLS75 internal error: F2*R2 != n+1\n");
 
-  mpz_mul_ui(t, A, 2);
-  mpz_tdiv_qr(s, r, B, t);
+  mpz_mul_ui(t, F2, 2);
+  mpz_tdiv_qr(s, r, R2, t);
+  /* Let m = 1 */
+  mpz_add_ui(y, t, 1);
+  mpz_sub(y, y, r);
+  mpz_mul(y, y, F2);
+  mpz_add_ui(y, y, 1);   /* y = 2F2^2 + (m-r)F2 + 1 */
+  mpz_sub_ui(t, F2, 1);
+  mpz_mul(y, y, t);      /* times (mF2-1) */
 
-  mpz_mul(y, t, A);     /* y = 2*A*A              */
-  mpz_add(y, y, A);     /* y = 2A^2 + A           */
-  mpz_mul(t, A, r);     /* t = rA                 */
-  mpz_sub(y, y, t);     /* y = 2A^2 + A(1-r)      */
-  mpz_add_ui(y, y, 1);  /* y = 2A^2 + A(1-r) + 1  */
-  mpz_sub_ui(t, A, 1);  /* t = A-1                */
-  mpz_mul(y, y, t);     /* y = (A-1)*(2A^2+(1-r)A+1) */
+  return (mpz_cmp(n, y) < 0) ? 1 : 0;
+}
+static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
+                               mpz_t t, mpz_t y, mpz_t r, mpz_t s)
+{
+  mpz_mul(t, F2, R2);
+  mpz_sub_ui(t, t, 1);
+  if (mpz_cmp(t, n) != 0) croak("BLS75 internal error: F2*R2 != n+1\n");
+
+  mpz_mul_ui(t, F2, 2);
+  mpz_tdiv_qr(s, r, R2, t);
+
+  mpz_add_ui(y, t, B2);
+  mpz_sub(y, y, r);
+  mpz_mul(y, y, F2);
+  mpz_add_ui(y, y, 1);   /* y = 2F2^2 + (B2 - r)F2 + 1 */
+  mpz_mul_ui(t, F2, B2);
+  mpz_sub_ui(t, t, 1);
+  mpz_mul(y, y, t);      /* times (B2F2-1) */
 
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
 
-static int bls_corollary11_limit(mpz_t n, mpz_t F1, mpz_t F2, UV B,
-                                 mpz_t m, mpz_t t)
-{
-  mpz_mul(m, F1, F2);
-  mpz_mul_ui(m, m, B);
-  mpz_mul_ui(m, m, B);
-  mpz_mul_ui(m, m, B);
-  mpz_tdiv_q_2exp(m, m, 1);
-  mpz_mul(t, m, F1);
-  if (mpz_cmp(n, t) >= 0) {
-    mpz_mul(t, m, F2);
-    if (mpz_cmp(n, t) >= 0) {
-      return 0;  /* We need more factoring or a higher B */
-    }
-  }
-  return 1;
-}
+/*
+17:  N < (m F2 - 1)  ( 2 F2 F2 + m F2 - |r| F2 + 1 )
+     (III) test (l*F2+1) doesn't divide N for 1 .. m
+
+19:  N < (B2 F2 - 1) ( 2 F2 F2 + B2 F2 - |r| F2 + 1 )
+     (III) (IV) R2 factors > B2
+*/
+
+
 static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
                                UV B, UV m,
                                mpz_t t, mpz_t g, mpz_t r, mpz_t s)
@@ -392,7 +419,69 @@ static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, ch
  *       sequence U_k with discriminant D for which D/N = -1, N divides
  *       U_{N+1} and gcd(U_{(N+1)/q_i},N} = 1.
  */
-static int _verify_cond_III_q(mpz_t n, mpz_t qi, IV* lp, IV* lq)
+static int _verify_cond_III_q2(mpz_t n, mpz_t qi, IV p, IV q, mpz_t U, mpz_t V, mpz_t k, mpz_t t1, mpz_t t2)
+{
+  mpz_add_ui(k, n, 1);
+  mpz_divexact(k, k, qi);
+  lucas_seq(U, V, n, p, q, k,  t1, t2);
+  mpz_gcd(k, U, n);
+  return (mpz_cmp_ui(k, 1) == 0) ? 1 : 0;
+}
+
+#define MAXQV 50
+
+static int _verify_cond_III_q(mpz_t n, mpz_t qi, IV* qv, int* numqv, IV* lp, IV* lq)
+{
+  int i, rval = 0;
+  IV d, p, q, startq;
+  mpz_t U, V, k, t1, t2;
+
+  mpz_init(U);  mpz_init(V);  mpz_init(k);  mpz_init(t1);  mpz_init(t2);
+
+  /* Try previous q values with (D|n)=-1 and U_(n+1) = 0 mod n */
+  for (i = 0; i < *numqv; i++) {
+    q = qv[i];
+    p = (q % 2) ? 2 : 1;
+    if (_verify_cond_III_q2(n, qi, p, q, U, V, k, t1, t2)) {
+      rval = 2;
+      break;
+    }
+  }
+
+  if (rval == 0) {
+    /* Search for a q value */
+    startq = (numqv > 0) ? qv[*numqv-1]+1 : 2;
+    for (q = startq; q < startq+1000; q++) {
+      p = (q % 2) ? 2 : 1;
+      d = p*p - 4*q;
+      mpz_set_si(t1, d);
+      if (mpz_jacobi(t1, n) != -1)
+        continue;
+      /* we have a d/p/q where d = -1.  Check the first Lucas sequence. */
+      mpz_add_ui(k, n, 1);
+      lucas_seq(U, V, n, p, q, k,  t1, t2);
+      if (mpz_sgn(U) != 0)
+        continue;
+      /* Passed first test, add to qv list */
+      if (*numqv < MAXQV) {
+        qv[*numqv] = q;
+        *numqv += 1;
+      }
+      /* Verify second Lucas sequence */
+      if (_verify_cond_III_q2(n, qi, p, q, U, V, k, t1, t2)) {
+        rval = 2;
+        break;
+      }
+    }
+  }
+  mpz_clear(U);  mpz_clear(V);  mpz_clear(k);  mpz_clear(t1);  mpz_clear(t2);
+  if (lp) *lp = p;
+  if (lq) *lq = q;
+  return rval;
+}
+#if 0
+/* N divides V_{(N+1)/2} and for q > 2 does not divide V{(N+1)/(2q)} */
+static int _verify_theorem14_q(mpz_t n, mpz_t qi, IV* lastq, IV* lp, IV* lq)
 {
   int rval = 0;
   IV d, p, q;
@@ -400,32 +489,57 @@ static int _verify_cond_III_q(mpz_t n, mpz_t qi, IV* lp, IV* lq)
 
   mpz_init(U);  mpz_init(V);  mpz_init(k);  mpz_init(t1);  mpz_init(t2);
 
-  for (q = 2; q < 1000; q++) {
+  if (lastq && *lastq > 0 && mpz_cmp_ui(qi,2) > 0) {
+    q = *lastq;
     p = (q % 2) ? 2 : 1;
     d = p*p - 4*q;
     mpz_set_si(t1, d);
-    if (mpz_jacobi(t1, n) != -1)
-      continue;
-
-    /* we have a d/p/q where d = -1.  Check the Lucas sequence. */
-
-    mpz_add_ui(k, n, 1);
-    lucas_seq(U, V, n, p, q, k,    t1, t2);
-    if (mpz_sgn(U) == 0) {
+    if (mpz_jacobi(t1, n) == -1) {
+      /* q passed the first tst.  Do the second that depends on the factor. */
+      mpz_add_ui(k, n, 1);
+      mpz_tdiv_q_2exp(k, k, 1);
       mpz_divexact(k, k, qi);
       lucas_seq(U, V, n, p, q, k,  t1, t2);
-      mpz_gcd(t1, V, n);
-      if (mpz_cmp_ui(t1, 1) == 0) {
+      if (mpz_sgn(V) != 0) {
         rval = 2;
-        if (lp) *lp = p;
-        if (lq) *lq = q;
-        break;
       }
     }
   }
+
+  if (!rval) {
+    for (q = (lastq && *lastq > 0) ? *lastq + 1 : 2; q < 1000; q++) {
+      p = (q % 2) ? 2 : 1;
+      d = p*p - 4*q;
+      mpz_set_si(t1, d);
+      if (mpz_jacobi(t1, n) != -1)
+        continue;
+
+      /* we have a d/p/q where d = -1.  Check the Lucas sequence. */
+
+      mpz_add_ui(k, n, 1);
+      mpz_tdiv_q_2exp(k, k, 1);
+      lucas_seq(U, V, n, p, q, k,    t1, t2);
+      if (mpz_sgn(V) == 0) {
+        if (mpz_cmp_ui(qi, 2) <= 0) {
+          rval = 2; break;
+        } else {
+          mpz_divexact(k, k, qi);
+          lucas_seq(U, V, n, p, q, k,  t1, t2);
+          if (mpz_sgn(V) != 0) {
+            rval = 2; break;
+          }
+        }
+      }
+    }
+  }
+
   mpz_clear(U);  mpz_clear(V);  mpz_clear(k);  mpz_clear(t1);  mpz_clear(t2);
+  if (lp) *lp = p;
+  if (lq) *lq = q;
+  if (lastq)  *lastq = q;
   return rval;
 }
+#endif
 
 
 
@@ -627,7 +741,7 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
   int fsp = 0, fsmax = 10;
   int msp = 0, msmax = 10;
   int success = 1;
-  UV B1 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 2000;
+  UV B2 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 10000;
 
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return 0;
@@ -648,12 +762,14 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
   { /* Pull small factors out */
     PRIME_ITERATOR(iter);
     UV tf;
-    for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
+    for (tf = 2; tf < B2; tf = prime_iterator_next(&iter)) {
       if (mpz_cmp_ui(B, tf*tf) < 0) break;
       test_ui_factor(tf, B, A, fstack, fsp, fsmax);
     }
     prime_iterator_destroy(&iter);
   }
+
+  /* printf("trial  np1: %lu bits, %lu bits factored\n", mpz_sizeinbase(np1,2), mpz_sizeinbase(A,2)); */
 
   if (success) {
     mpz_set(f, B);
@@ -662,7 +778,7 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
 
   while (success) {
 
-    if (bls_theorem17_limit(n, A, B, t, m, r, s))
+    if (bls_theorem19_limit(n, A, B, B2, t, m, r, s))
       break;
 
     success = 0;
@@ -701,6 +817,8 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
     mpz_clear(mstack[msp]);
   msp = 0;
 
+  /* printf("factor  np1: %lu bits, %lu bits factored\n", mpz_sizeinbase(np1,2), mpz_sizeinbase(A,2)); */
+
   sort_and_trim_factors(&fsp, fstack);
 
   /* Shrink to smallest set and verify conditions. */
@@ -709,7 +827,7 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
     mpz_set_ui(A, 1);
     mpz_set(B, np1);
     for (i = 0; i < fsp; i++) {
-      if (bls_theorem17_limit(n, A, B, t, m, r, s))
+      if (bls_theorem19_limit(n, A, B, B2, t, m, r, s))
         break;
       do {
         mpz_mul(A, A, fstack[i]);
@@ -724,7 +842,7 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
       croak("BLS75 internal error: 2 not at start of fstack");
     /* Verify conditions */
     success = 0;
-    if (bls_theorem17_limit(n, A, B, t, m, r, s)) {
+    if (bls_theorem19_limit(n, A, B, B2, t, m, r, s)) {
       mpz_mul(t, r, r);
       mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
       /* N is prime if and only if s=0 OR t not a perfect square */
@@ -733,9 +851,13 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
   }
 
   if (success > 0) {
-    int pcount;
+    IV qv[MAXQV];
+    int pcount, numqv = 0;
     for (pcount = 0; success && pcount < fsp; pcount++) {
-      success = _verify_cond_III_q(n, fstack[pcount], 0, 0);
+      success = _verify_cond_III_q(n, fstack[pcount], qv, &numqv, 0, 0);
+    }
+    if (success && !bls_theorem17_limit(n, A, B, t, m, r, s)) {
+      success = _verify_cond_III_q(n, B, qv, &numqv, 0, 0);
     }
     if (!success && get_verbose_level() > 0)
       printf("N+1 factored but failed to prove.  Perhaps composite.\n");
@@ -765,8 +887,17 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
 /******************************************************************************/
 
 #define PRINT_PCT 0
+#define RECURSE bls75_hybrid
 
-/* Use Theorem 20 */
+/* Will use one of:
+ *    N-1   Corollary 1
+ *    N-1   Theorem 5
+ *    N-1   Theorem 7
+ *    N+1   Corollary 8
+ *    N+1   Theorem 17
+ *    N+1   Theorem 19
+ *    Comb  Theorem 20
+ */
 int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, np1, F1, F2, R1, R2;
@@ -778,7 +909,7 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
   int pcount;
   int success = 1;
   UV B1 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 10000;
-  UV m = 8000;   /* m should be less than B1 */
+  UV m = 9000;   /* m should be less than B1 */
 #if PRINT_PCT
   double trial_pct, prime_pct, nm1_pct, np1_pct;
 #endif
@@ -821,7 +952,7 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
   if (0) { /* Check primality of R2 immediately */
     /* This leads to less time factoring n-1, but also takes recurse time */
     mpz_set(t, R2);
-    primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, bls75_hybrid, 1);
+    primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, RECURSE, 1);
     /* But remove from work stack */
     while (msp-- > 0) mpz_clear(mstack[msp]);
     msp = 0;
@@ -840,13 +971,14 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
    *     for both, etc.
    *
    */
-  if (1) {
-  //if (mpz_cmp_ui(R1,1) == 0 || mpz_cmp_ui(R2,1) == 0) {
+  if (!bls_theorem7_limit(n, F1, R1, B1, t, u, r, s)) {
     /* More factoring for N-1 */
     mpz_set(t, R1);
-    primality_handle_factor(t, R1, F1, f1stack, f1sp, f1smax, bls75_hybrid, 1);
+    primality_handle_factor(t, R1, F1, f1stack, f1sp, f1smax, RECURSE, 1);
     while (success) {
       if (bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s))
+        break;
+      if (bls_theorem7_limit(n, F1, R1, B1, t, u, r, s))
         break;
       if (mpz_cmp_ui(R1,1) == 0 || mpz_cmp_ui(R2,1) == 0) croak("bad");
       success = 0;
@@ -862,23 +994,42 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
       mpz_divexact(u, u, t);
       if (mpz_cmp(u, t) < 0)
         mpz_swap(u, t);
-      primality_handle_factor(t, R1, F1, f1stack, f1sp, f1smax, bls75_hybrid, 0);
-      primality_handle_factor(u, R1, F1, f1stack, f1sp, f1smax, bls75_hybrid, 0);
+      primality_handle_factor(t, R1, F1, f1stack, f1sp, f1smax, RECURSE, 0);
+      primality_handle_factor(u, R1, F1, f1stack, f1sp, f1smax, RECURSE, 0);
     }
     success = 1;
     while (msp-- > 0) mpz_clear(mstack[msp]);
     msp = 0;
   }
+
 #if PRINT_PCT
   nm1_pct = (100.0 * (mpz_sizeinbase(F1,2) + mpz_sizeinbase(F2,2))) / (mpz_sizeinbase(nm1,2) + mpz_sizeinbase(np1,2));
 #endif
-  if (1) {
-  //if (mpz_cmp_ui(R1,1) == 0 || mpz_cmp_ui(R2,1) == 0) {
+
+  if (bls_theorem7_limit(n, F1, R1, B1, t, u, r, s)) {
+    for (pcount = 0; success > 0 && pcount < f1sp; pcount++)
+      success = _verify_cond_I_p(n, f1stack[pcount], u, t, 1000, 0);
+    if (success && (mpz_mul(t, F1, F1), mpz_cmp(t,n) > 0))
+      goto end_hybrid;  /* Corollary 1, n-1 factored more than sqrt(n) */
+    if (success > 0 && !bls_theorem5_limit(n, F1, R1, t, u, r, s))
+      success = _verify_cond_I_p(n, R1, u, t, 1000, 0);
+    if (success > 0) {
+      mpz_mul(t, r, r);
+      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
+      /* N is prime if and only if s=0 OR t not a perfect square */
+      success = (mpz_sgn(s) == 0 || !mpz_perfect_square_p(t))  ?  1  :  -1;
+    }
+    goto end_hybrid;
+  }
+
+  if (!bls_theorem19_limit(n, F2, R2, B1, t, u, r, s)) {
     /* More factoring for N+1 */
     mpz_set(t, R2);
-    primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, bls75_hybrid, 1);
+    primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, RECURSE, 1);
     while (success) {
       if (bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s))
+        break;
+      if (bls_theorem19_limit(n, F2, R2, B1, t, u, r, s))
         break;
       if (mpz_cmp_ui(R1,1) == 0 || mpz_cmp_ui(R2,1) == 0) croak("bad");
       success = 0;
@@ -894,8 +1045,8 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
       mpz_divexact(u, u, t);
       if (mpz_cmp(u, t) < 0)
         mpz_swap(u, t);
-      primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, bls75_hybrid, 0);
-      primality_handle_factor(u, R2, F2, f2stack, f2sp, f2smax, bls75_hybrid, 0);
+      primality_handle_factor(t, R2, F2, f2stack, f2sp, f2smax, RECURSE, 0);
+      primality_handle_factor(u, R2, F2, f2stack, f2sp, f2smax, RECURSE, 0);
     }
     success = 1;
     while (msp-- > 0) mpz_clear(mstack[msp]);
@@ -906,6 +1057,26 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
   printf("%6.2f .. %6.2f .. %6.2f .. %6.2f\n", trial_pct, prime_pct, nm1_pct, np1_pct);  fflush(stdout);
 #endif
 
+  if (bls_theorem19_limit(n, F2, R2, B1, t, u, r, s)) {
+    IV qv[MAXQV];
+    int numqv = 0;
+    for (pcount = 0; success && pcount < f2sp; pcount++)
+      success = _verify_cond_III_q(n, f2stack[pcount], qv, &numqv, 0, 0);
+    if (success && (mpz_mul(t,F2,F2), mpz_add_ui(t,t,1), mpz_cmp(t,n) > 0))
+      goto end_hybrid;  /* Corollary 8, n+1 factored more than sqrt(n)+1 */
+    if (success > 0 && !bls_theorem17_limit(n, F2, R2, t, u, r, s)) {
+      success = _verify_cond_III_q(n, R2, qv, &numqv, 0, 0);
+    }
+    if (success > 0) {
+      mpz_mul(t, r, r);
+      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
+      /* N is prime if and only if s=0 OR t not a perfect square */
+      success = (mpz_sgn(s) == 0 || !mpz_perfect_square_p(t))  ?  1  :  -1;
+    }
+    goto end_hybrid;
+  }
+
+#if 0
   /* If we've completely factored either one, quickly handle it. */
   if (!mpz_cmp_ui(R1,1)) { /* Theorem 1 */
     for (pcount = 0; success && pcount < f1sp; pcount++)
@@ -913,10 +1084,14 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
     goto end_hybrid;
   }
   if (!mpz_cmp_ui(R2,1)) { /* Theorem 13 */
-    for (pcount = 0; success && pcount < f2sp; pcount++)
-      success = _verify_cond_III_q(n, f2stack[pcount], 0, 0);
+    IV qv[MAXQV];
+    int numqv = 0;
+    for (pcount = 0; success && pcount < f2sp; pcount++) {
+      success = _verify_cond_III_q(n, f2stack[pcount], qv, &numqv, 0, 0);
+    }
     goto end_hybrid;
   }
+#endif
 
   mpz_mul(t, F1, R1); if (mpz_cmp(nm1, t) != 0) croak("Bad n-1 factor");
   mpz_mul(t, F2, R2); if (mpz_cmp(np1, t) != 0) croak("Bad n+1 factor");
@@ -925,7 +1100,7 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
   sort_and_trim_factors(&f2sp, f2stack);
 
   /* Check N < B^3 F1*F2*F2/2  or  N < B^3 F1*F1*F2/2 */
-  if (success > 0) 
+  if (success > 0)
     success = bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s);
 
   /* Check lambda divisibility if needed */
@@ -935,32 +1110,34 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
     mpz_tdiv_q_2exp(t, t, 1);
     mpz_mul(u, r, F1);
     mpz_add_ui(u, u, 1);
-    for (lambda = 0; success > 0 && lambda < m; lambda++) {
-      if (mpz_cmp(n, u) >= 0)
-        break;
+    for (lambda = 0; success > 0 && lambda < m; lambda++, mpz_add(u,u,t)) {
       if (lambda > 0 || mpz_sgn(r))
-        if (mpz_divisible_p(n, u))
-          success = -1;
-      mpz_add(u, u, t);
+        if (mpz_divisible_p(n, u)) {
+          /* Check that we found a non-trivial divisor */
+          mpz_gcd(t, u, n);
+          success = (mpz_cmp_ui(t,1) > 0 || mpz_cmp(t,n) < 0) ? -1 : 0;
+          break;
+        }
     }
   }
 
-  /* Verify (I)   page 623 */
-  for (pcount = 0; success > 0 && pcount < f1sp; pcount++) {
-    success = _verify_cond_I_p(n, f1stack[pcount], u, t, 10000, 0);
+  /* Verify (I)   page 623 and (II) page 625 */
+  if (success > 0) {
+    for (pcount = 0; success > 0 && pcount < f1sp; pcount++)
+      success = _verify_cond_I_p(n, f1stack[pcount], u, t, 1000, 0);
+    if (success > 0)
+      success = _verify_cond_I_p(n, R1, u, t, 1000, 0);
   }
 
-  /* Verify (II)  page 625 (II applied to R1) */
-  if (success > 0)
-    success = _verify_cond_I_p(n, R1, u, t, 100, 0);
-
-  /* Verify (III) page 631 */
-  for (pcount = 0; success > 0 && pcount < f2sp; pcount++) {
-    success = _verify_cond_III_q(n, f2stack[pcount], 0, 0);
+  /* Verify (III) page 631 and (IV) page 633 */
+  if (success > 0) {
+    IV qv[MAXQV];
+    int numqv = 0;
+    for (pcount = 0; success > 0 && pcount < f2sp; pcount++)
+      success = _verify_cond_III_q(n, f2stack[pcount], qv, &numqv, 0, 0);
+    if (success > 0)
+      success = _verify_cond_III_q(n, R2, qv, &numqv, 0, 0);
   }
-  /* Verify (IV)  page 633 (III applied to R2) */
-  if (success > 0)
-    success = _verify_cond_III_q(n, R2, 0, 0);
 
 end_hybrid:
   while (f1sp-- > 0)
