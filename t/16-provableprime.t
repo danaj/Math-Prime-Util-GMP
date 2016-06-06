@@ -4,8 +4,8 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert
-                              is_aks_prime is_nminus1_prime is_ecpp_prime
-                              is_miller_prime/;
+                              is_aks_prime is_miller_prime is_ecpp_prime
+                              is_nminus1_prime is_nplus1_prime is_bls75_prime/;
 
 plan tests => 0 + 6
                 + 38
@@ -13,7 +13,7 @@ plan tests => 0 + 6
                 + 34
                 + 2
                 + 7   # _with_cert
-                + 5   # AKS, Miller, N-1, ECPP
+                + 7   # AKS, Miller, N-1, ECPP
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -186,6 +186,12 @@ ok( is_miller_prime("4835703278458516698824747",1), "is_miller_prime(48357032784
 
 # BLS75 n-1
 ok( is_nminus1_prime("340282366920938463463374607431768211507"), "is_nminus1_prime(340282366920938463463374607431768211507)" );
+
+# BLS75 n+1
+ok( is_nplus1_prime("63699643930293116661668059033734770664712983894089510286262271"), "is_nplus1_prime(63699643930293116661668059033734770664712983894089510286262271)" );
+
+# BLS75 combined method
+ok( is_bls75_prime("19568952034128395861091890269105913923337787205640409156470109155604436042237347889151"), "is_bls75_prime(19568952034128395861091890269105913923337787205640409156470109155604436042237347889151)" );
 
 # ECPP
 ok( is_ecpp_prime("340282366920938463463374607431768211507"), "is_ecpp_prime(340282366920938463463374607431768211507)" );

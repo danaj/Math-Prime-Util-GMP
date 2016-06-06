@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.36';
+  $Math::Prime::Util::GMP::VERSION = '0.37';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -19,6 +19,8 @@ our @EXPORT_OK = qw(
                      is_provable_prime_with_cert
                      is_aks_prime
                      is_nminus1_prime
+                     is_nplus1_prime
+                     is_bls75_prime
                      is_ecpp_prime
                      is_pseudoprime
                      is_strong_pseudoprime
@@ -178,7 +180,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.36
+Version 0.37
 
 
 =head1 SYNOPSIS
@@ -675,7 +677,37 @@ inputs (under 40 digits) this is typically very easy, and some numbers will
 naturally lead to this being very fast.  As the input grows, this method
 slows down rapidly.
 
+This method is most appropriate for numbers of the form C<k+1> where C<k>
+can be easily factored.
 Typically you should use L</is_provable_prime> and let it decide the method.
+
+=head2 is_nplus1_prime
+
+Takes a positive number as input, and returns 1 if the input passes either
+theorem 17 or theorem 19 of the Brillhart-Lehmer-Selfridge primality test.
+This is a deterministic unconditional primality test which requires factoring
+C<n+1> to a linear factor less than the cube root of the input.  For small
+inputs (under 40 digits) this is typically very easy, and some numbers will
+naturally lead to this being very fast.  As the input grows, this method
+slows down rapidly.
+
+Disregarding factoring, this is slightly slower than the C<n-1> methods.
+It is most appropriate for numbers of the form C<k-1> where C<k> can be
+easily factored.
+
+=head is_bls75_prime
+
+Takes a positive number as input, and returns 1 if the input passes one of
+the tests from the Brillhart-Lehmer-Selfridge (1975) paper.  These use
+partial factoring of C<n-1> and C<n+1>.  Currently the implementation will
+use one of:
+
+  N-1   Corollary 1, Theorem 5, Theorem 7
+  N+1   Corollary 8, Theorem 17, Theorem 19
+  Comb  Theorem 20
+
+This is appropriate for cases where either C<n-1> or C<n+1> can be easily
+factored, or when both of them have many small factors.
 
 =head2 is_ecpp_prime
 

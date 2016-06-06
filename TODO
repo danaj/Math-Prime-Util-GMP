@@ -97,3 +97,7 @@
   https://gmplib.org/list-archives/gmp-discuss/2010-February/004036.html
 
 - faster znprimroot
+
+- Identify places where 32-bit GMP on 64-bit Perl will trip us up.
+
+- BLS75 methods: check if we can return 0 instead of 1 in many cases.
