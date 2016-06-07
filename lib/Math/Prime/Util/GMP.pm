@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.37';
+  $Math::Prime::Util::GMP::VERSION = '0.38';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -180,7 +180,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.37
+Version 0.38
 
 
 =head1 SYNOPSIS
@@ -695,7 +695,7 @@ Disregarding factoring, this is slightly slower than the C<n-1> methods.
 It is most appropriate for numbers of the form C<k-1> where C<k> can be
 easily factored.
 
-=head is_bls75_prime
+=head2 is_bls75_prime
 
 Takes a positive number as input, and returns 1 if the input passes one of
 the tests from the Brillhart-Lehmer-Selfridge (1975) paper.  These use

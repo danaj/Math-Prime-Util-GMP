@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.38 2016-?
+
+    [FIXES]
+
+    - Minor updates for Kwalitee.
+
+
 0.37 2016-06-06
 
     [ADDED]

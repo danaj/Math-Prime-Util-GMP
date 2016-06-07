@@ -56,6 +56,12 @@ WriteMakefile1(
                    },
                  },
                },
+               provides => {
+                 'Math::Prime::Util::GMP' => {
+                    version => '0.38',
+                    file => 'lib/Math/Prime/Util/GMP.pm',
+                 },
+               },
              },
 
     MIN_PERL_VERSION => 5.006002,

@@ -96,9 +96,9 @@ for my $pat (@patterns) {
 }
 
 for my $test (@high_check) {
-  use bigint;  # For 32-bit Perls
   my($n,$name,$cl) = @$test;
-  my @res = sieve_prime_cluster($n-1e6, $n+1e6, @$cl);
+  my $delta = Math::BigInt->new(1000000);
+  my @res = sieve_prime_cluster($n-$delta, $n+$delta, @$cl);
   is_deeply(\@res, [$n], "Window around $name high cluster finds the cluster");
 }
 
