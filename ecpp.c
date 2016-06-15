@@ -855,9 +855,9 @@ end_down:
         int myprooflen = 20 + 2*(4 + mpz_sizeinbase(Ni, 10)) + 2*21;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
         proofptr = proofstr;
-        if (np1lq < 2)  croak("Error in BLS15 proof: LQ < 2\n");
+        /* It seems some testers have a sprintf bug with IVs.  Try to handle. */
         proofptr += gmp_sprintf(proofptr, "Type BLS15\nN  %Zd\nQ  %Zd\n", Ni,q);
-        proofptr += sprintf(proofptr, "LP %"IVdf"\nLQ %"IVdf"\n", np1lp, np1lq);
+        proofptr += sprintf(proofptr, "LP %d\nLQ %d\n", (int)np1lp, (int)np1lq);
       } else {
         int myprooflen = 20 + 7*(4 + mpz_sizeinbase(Ni, 10)) + 0;
         New(0, proofstr, myprooflen + curprooflen + 1, char);
@@ -950,7 +950,9 @@ static void dieusage(char* prog) {
   printf("   -q     no output other than return code\n");
   printf("   -c     print certificate to stdout (redirect to save to a file)\n");
   printf("   -bpsw  use the extra strong BPSW test (probable prime test)\n");
-  printf("   -nm1   use n-1 proof only (BLS75 theorem 5)\n");
+  printf("   -nm1   use n-1 proof only (BLS75 theorem 5/7)\n");
+  printf("   -np1   use n+1 proof only (BLS75 theorem 19)\n");
+  printf("   -bls   use n-1 / n+1 proof (various BLS75 theorems)\n");
   printf("   -ecpp  use ECPP proof only\n");
   printf("   -aks   use AKS for proof\n");
 #ifdef USE_APRCL
@@ -971,6 +973,8 @@ int main(int argc, char **argv)
   mpz_t n;
   int isprime, i, do_printcert;
   int do_nminus1 = 0;
+  int do_nplus1 = 0;
+  int do_bls75 = 0;
   int do_aks = 0;
   int do_aprcl = 0;
   int do_ecpp = 0;
@@ -1000,6 +1004,10 @@ int main(int argc, char **argv)
         do_printcert = 1;
       } else if (strcmp(argv[i], "-nm1") == 0) {
         do_nminus1 = 1;
+      } else if (strcmp(argv[i], "-np1") == 0) {
+        do_nplus1 = 1;
+      } else if (strcmp(argv[i], "-bls") == 0) {
+        do_bls75 = 1;
       } else if (strcmp(argv[i], "-aks") == 0) {
         do_aks = 1;
       } else if (strcmp(argv[i], "-ecpp") == 0) {
@@ -1034,6 +1042,10 @@ int main(int argc, char **argv)
         /* Done */
       } else if (do_nminus1) {
         isprime = _GMP_primality_bls_nm1(n, 100, &cert);
+      } else if (do_nplus1) {
+        isprime = _GMP_primality_bls_np1(n, 100, &cert);
+      } else if (do_bls75) {
+        isprime = bls75_hybrid(n, 100, &cert);
       } else if (do_aks) {
         isprime = 2 * is_aks_prime(n);
         do_printcert = 0;
