@@ -8,6 +8,7 @@
 #include "factor.h"
 
 #define FUNC_is_perfect_square 1
+#define FUNC_mpz_logn
 #include "utility.h"
 
 #define NSMALLPRIMES 54
@@ -107,7 +108,7 @@ int _GMP_miller_rabin(mpz_t n, mpz_t a)
 int is_miller_prime(mpz_t n, int assume_grh)
 {
   mpz_t nminus1, d, x;
-  UV s, r, logn, maxa, a;
+  UV s, r, maxa, a;
   int rval;
 
   {
@@ -116,34 +117,36 @@ int is_miller_prime(mpz_t n, int assume_grh)
     if (cmpr < 0)      return 0;  /* below 2 is composite */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
-  mpz_init_set(nminus1, n);
-  mpz_sub_ui(nminus1, nminus1, 1);
-
-  mpz_init_set(d, nminus1);
-  s = mpz_scan1(d, 0);
-  mpz_tdiv_q_2exp(d, d, s);
-  logn = mpz_sizeinbase(n, 2);
 
   if (mpz_cmp_ui(n, 1373653) < 0) {
     maxa = 3;
   } else if (assume_grh) {
-    /* Rough computation of ln(n), slightly high */
-    logn = 1 + (0.69314718056 * ((double)logn));
-    if (logn > ((BITS_PER_WORD == 32) ? 46340UL : 3037000499UL))
+    double logn = mpz_logn(n);
+    double dmaxa = 2 * logn * logn;  /* Bach (1990) */
+    /* Wedeniwski (2001) claims the following, but it might be wrong
+     * double dmaxa = 1.5L * logn * logn - 44.0L/5.0L * logn + 13; */
+    if (dmaxa >= (double)ULONG_MAX)
       croak("is_miller_prime: n is too large for GRH DMR");
-    maxa = 2*logn*logn;
+    maxa = ceil(dmaxa);
   } else { /* Bober and Goldmakher 2015 (http://arxiv.org/abs/1311.7556) */
-    logn = 1 + ((1/6.59) * ((double)logn));
-    if (logn >= BITS_PER_WORD)
+    /* n_p < p^(1/(4*sqrt(e))+epsilon).  Do it with logs */
+    double dmaxa = exp( (1.0L/6.5948850828L) * mpz_logn(n) );
+    if (dmaxa >= (double)ULONG_MAX)
       croak("is_miller_prime: n is too large for unconditional DMR");
-    maxa = UVCONST(1) << logn;
+    maxa = ceil(dmaxa);
   }
   if (mpz_cmp_ui(n, maxa) <= 0)
     maxa = mpz_get_ui(n) - 1;
   if (get_verbose_level() > 1)
     printf("Deterministic Miller-Rabin testing bases from 2 to %"UVuf"\n", maxa);
 
+  mpz_init_set(nminus1, n);
+  mpz_sub_ui(nminus1, nminus1, 1);
+  mpz_init_set(d, nminus1);
+  s = mpz_scan1(d, 0);
+  mpz_tdiv_q_2exp(d, d, s);
   mpz_init(x);
+
   rval = 1;
   for (a = 2; rval && a <= maxa; a++) {
     rval = 0;
@@ -164,7 +167,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
       }
     }
   }
-  mpz_clear(nminus1); mpz_clear(x); mpz_clear(d);
+  mpz_clear(x); mpz_clear(nminus1); mpz_clear(d);
   return rval;
 }
 
@@ -1240,6 +1243,16 @@ int _GMP_is_prob_prime(mpz_t n)
   return _GMP_BPSW(n);
 }
 
+int is_bpsw_dmr_prime(mpz_t n)
+{
+  int prob_prime = _GMP_BPSW(n);
+  if (prob_prime == 1) {
+    prob_prime = is_deterministic_miller_rabin_prime(n);
+    if (prob_prime == 0) gmp_printf("\n\n**** BPSW counter-example found?  ****\n**** N = %Zd ****\n\n", n);
+  }
+  return prob_prime;
+}
+
 int _GMP_is_prime(mpz_t n)
 {
   UV nbits;
@@ -1270,12 +1283,15 @@ int _GMP_is_prime(mpz_t n)
   /* n has passed the ES BPSW test, making it quite unlikely it is a
    * composite (and it cannot be if n < 2^64). */
 
-  /* For small numbers, try a quick BLS75 n-1 proof. */
+  /* For small numbers, try a quick BLS75 proof. */
   if (prob_prime == 1) {
     if (is_proth_form(n))
       prob_prime = _GMP_primality_bls_nm1(n, 2 /* effort */, 0 /* cert */);
-    else if (nbits <= 200)
-      prob_prime = _GMP_primality_bls_nm1(n, 1 /* effort */, 0 /* cert */);
+    else if (nbits <= 150)
+      prob_prime = _GMP_primality_bls_nm1(n, 0 /* effort */, 0 /* cert */);
+    /* We could do far better by calling bls75_hybrid, especially with a
+     * larger effort.  But that takes more time.  I've decided it isn't worth
+     * the extra time here.  We'll still try a very quick N-1 proof. */
   }
 
   /* If prob_prime is still 1, let's run some extra tests.
