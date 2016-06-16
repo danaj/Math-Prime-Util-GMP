@@ -745,7 +745,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
   mpz_product(factors, 0, nfactors-1);
   mpz_set(res, factors[0]);
   clear_factors(nfactors, &factors, &exponents);
-  mpz_clear(t1); mpz_clear(t2); mpz_clear(t3); mpz_init(t4); mpz_clear(t);
+  mpz_clear(t4); mpz_clear(t3); mpz_clear(t2); mpz_clear(t1); mpz_clear(t);
 }
 
 
