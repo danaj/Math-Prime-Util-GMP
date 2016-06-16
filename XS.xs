@@ -242,6 +242,7 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
     PRIMALITY_START("is_provable_prime", 2, 1);
     if (ix == 1) {
       result = is_miller_prime(n, wantproof);  /* Assume GRH or not */
+      mpz_clear(n);
       XSRETURN_IV(result);
     }
     if (wantproof == 0) {
