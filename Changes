@@ -1,10 +1,18 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.38 2016-?
+0.38 2016-06-18
 
     [FIXES]
 
     - Minor updates for Kwalitee.
+
+    - Rewrite of BLS75 internals, rewrite BLS75 hybrid.
+
+    - Remove two small memory leaks.
+
+    [PERFORMANCE]
+
+    - Less effort to prove primality in is_prime().
 
 
 0.37 2016-06-06
