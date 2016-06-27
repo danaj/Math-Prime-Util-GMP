@@ -390,6 +390,8 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   else if (n == 1) { mpz_set_ui(num, 1);  mpz_set_ui(den, 2); return; }
   else if (n & 1)  { mpz_set_ui(num, 0);  mpz_set_ui(den, 1); return; }
   n >>= 1;
+
+  /* Algorithm TangentNumbers from https://arxiv.org/pdf/1108.0286.pdf */
   New(0, T, n+1, mpz_t);
   for (k = 1; k <= n; k++)  mpz_init(T[k]);
   mpz_set_ui(T[1], 1);
@@ -407,6 +409,7 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
     }
   }
 
+  /* (14), also last line of Algorithm FastTangentNumbers from paper */
   mpz_mul_ui(num, T[n], n);
   mpz_mul_si(num, num, (n & 1) ? 2 : -2);
   mpz_set_ui(t, 1);
@@ -416,6 +419,7 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_gcd(t, num, den);
   mpz_divexact(num, num, t);
   mpz_divexact(den, den, t);
+
   mpz_clear(t);
   for (k = 1; k <= n; k++)  mpz_clear(T[k]);
   Safefree(T);
@@ -453,14 +457,10 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_clear(t);
 }
 
-char* harmreal(mpz_t zn, unsigned long prec) {
+static char* frac_real(mpz_t num, mpz_t den, unsigned long prec) {
   char* out;
-  mpz_t num, den;
   mpf_t fnum, fden, res;
   unsigned long numsize, densize;
-
-  mpz_init(num); mpz_init(den);
-  harmfrac(num, den, zn);
 
   numsize = mpz_sizeinbase(num, 10);
   densize = mpz_sizeinbase(den, 10);
@@ -468,7 +468,6 @@ char* harmreal(mpz_t zn, unsigned long prec) {
   mpf_init2(fnum, 1 + mpz_sizeinbase(num,2));
   mpf_init2(fden, 1 + mpz_sizeinbase(den,2));
   mpf_set_z(fnum, num);  mpf_set_z(fden, den);
-  mpz_clear(den); mpz_clear(num);
 
   mpf_init2(res, (unsigned long) (8+prec*3.4) );
   mpf_div(res, fnum, fden);
@@ -477,6 +476,30 @@ char* harmreal(mpz_t zn, unsigned long prec) {
   New(0, out, (10+numsize-densize)+prec, char);
   gmp_sprintf(out, "%.*Ff", (int)(prec), res);
   mpf_clear(res);
+
+  return out;
+}
+
+char* harmreal(mpz_t zn, unsigned long prec) {
+  char* out;
+  mpz_t num, den;
+
+  mpz_init(num); mpz_init(den);
+  harmfrac(num, den, zn);
+  out = frac_real(num, den, prec);
+  mpz_clear(den); mpz_clear(num);
+
+  return out;
+}
+
+char* bernreal(mpz_t zn, unsigned long prec) {
+  char* out;
+  mpz_t num, den;
+
+  mpz_init(num); mpz_init(den);
+  bernfrac(num, den, zn);
+  out = frac_real(num, den, prec);
+  mpz_clear(den); mpz_clear(num);
 
   return out;
 }

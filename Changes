@@ -1,5 +1,10 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.39 2016-?
+
+    - bernreal                         returns float value of Bernoulli number
+
+
 0.38 2016-06-18
 
     [FIXES]

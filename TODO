@@ -101,3 +101,7 @@
 - Identify places where 32-bit GMP on 64-bit Perl will trip us up.
 
 - BLS75 methods: check if we can return 0 instead of 1 in many cases.
+
+- Bernoulli number implementation is simple, but not really fast.
+
+- Test and doc for bernreal

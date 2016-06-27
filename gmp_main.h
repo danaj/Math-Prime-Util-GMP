@@ -26,6 +26,7 @@ extern void exp_mangoldt(mpz_t res, mpz_t n);
 
 extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
 extern char* pidigits(UV n);
+extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
