@@ -105,3 +105,12 @@
 - Bernoulli number implementation is simple, but not really fast.
 
 - Test and doc for bernreal
+
+- Make a trial factor routine that returns all factors.  This can be done
+  with a single treesieve.  ECPP could make use of this (since it is doing
+  many calls, keeping the product tree around would be useful).
+  All current calls are testing primality, so don't need multiple returns.
+  Changing the XS call to return multiple values might be useful.
+
+- Docs and test for surround_primes
+- Docs and test for is_euler_plumb_pseudoprime

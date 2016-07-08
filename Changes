@@ -2,7 +2,15 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.39 2016-?
 
-    - bernreal                         returns float value of Bernoulli number
+    [ADDED]
+
+    - bernreal                     returns float value of Bernoulli number
+    - is_euler_plumb_pseudoprime   Colin Plumb's Euler Criterion test
+    - surround_primes              returns offsets of prev and next primes
+
+    [PERFORMANCE]
+
+    - prev/next/surround prime sieve is slightly deeper
 
 
 0.38 2016-06-18

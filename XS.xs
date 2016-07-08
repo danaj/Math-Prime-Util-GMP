@@ -147,6 +147,7 @@ is_lucas_pseudoprime(IN char* strn)
     is_frobenius_underwood_pseudoprime = 3
     is_frobenius_khashin_pseudoprime = 4
     is_perrin_pseudoprime = 5
+    is_euler_plumb_pseudoprime = 6
   PREINIT:
     mpz_t n;
   CODE:
@@ -159,8 +160,9 @@ is_lucas_pseudoprime(IN char* strn)
       case 2: RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
       case 3: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
       case 4: RETVAL = _GMP_is_frobenius_khashin_pseudoprime(n); break;
-      case 5:
-      default:RETVAL = is_perrin_pseudoprime(n); break;
+      case 5: RETVAL = is_perrin_pseudoprime(n); break;
+      case 6:
+      default:RETVAL = is_euler_plumb_pseudoprime(n); break;
     }
     mpz_clear(n);
   OUTPUT:
@@ -325,15 +327,23 @@ void
 next_prime(IN char* strn)
   ALIAS:
     prev_prime = 1
+    surround_primes = 2
   PREINIT:
     mpz_t n;
   PPCODE:
     VALIDATE_AND_SET("next_prime", n, strn);
 
-    if (ix == 0) _GMP_next_prime(n);
-    else         _GMP_prev_prime(n);
+    switch (ix) {
+      case 0:  _GMP_next_prime(n); break;
+      case 1:  _GMP_prev_prime(n); break;
+      case 2:
+      default: { UV prev, next;
+                 surround_primes(n, &prev, &next);
+                 XPUSHs(sv_2mortal(newSVuv( prev )));
+                 XPUSHs(sv_2mortal(newSVuv( next ))); }
+    }
 
-    XPUSH_MPZ(n);
+    if (ix == 0 || ix == 1) XPUSH_MPZ(n);
     mpz_clear(n);
 
 

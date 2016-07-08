@@ -171,6 +171,30 @@ int is_miller_prime(mpz_t n, int assume_grh)
   return rval;
 }
 
+int is_euler_plumb_pseudoprime(mpz_t n)
+{
+  unsigned int nmod8;
+  mpz_t x, two;
+  int result = 0;
+  if (mpz_cmp_ui(n,5) < 0)
+    return (mpz_cmp_ui(n,2) == 0 || mpz_cmp_ui(n,3) == 0);
+  if (mpz_even_p(n))
+    return 0;
+  nmod8 = mpz_fdiv_ui(n, 8);
+  mpz_init(x);  mpz_init_set_ui(two,2);
+  mpz_sub_ui(x, n, 1);
+  mpz_fdiv_q_2exp(x, x, 1 + (nmod8 == 1));
+  mpz_powm(x, two, x, n);
+  if (mpz_cmp_ui(x,1) == 0) {
+    result = (nmod8 == 1 || nmod8 == 7);
+  } else {
+    mpz_add_ui(x,x,1);
+    result = (mpz_cmp(x,n) == 0 && (nmod8 == 1 || nmod8 == 3 || nmod8 == 5));
+  }
+  mpz_clear(two); mpz_clear(x);
+  return result;
+}
+
 /* Returns Lucas sequence  U_k mod n and V_k mod n  defined by P,Q */
 void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
                mpz_t Qk, mpz_t t)
@@ -766,12 +790,51 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
       mpz_mod(V, V, n);
       mpz_mod(W, W, n);
     }
-    mpz_clear(W);
   }
   mpz_clear(d);
 
   rval = 0;
   mpz_sub_ui(t, n, 2);
+
+#if 0
+  /* According to Stan Wagon's 1999 "Mathematica in Action", this method,
+   * equivalent to our Extra Strong test, is used, though with a different
+   * (unspecified) parameter selection method.  I'm not convinced Mathematica
+   * actually uses this method, without any confirmation from Wolfram.
+   */
+  {
+    /* V must be all 2 or x,x,-2,2,2,2.  First V=+/-2 must have a W=P. */
+    int must_have_2 = 0, bad = 0;
+
+    if (mpz_cmp_ui(V,2) == 0) {
+      must_have_2 = 1;
+      if (mpz_cmp_ui(W, P) != 0)
+        bad = 1;
+    }
+    while (s-- && !bad) {
+      if (must_have_2) {
+        if (mpz_cmp_ui(V,2) != 0)
+          bad = 1;
+      } else {
+        if (mpz_cmp(V,t) == 0) {  /* Found -2. Check W=-P.  Look for 2's. */
+          mpz_sub(W, n, W);
+          if (mpz_cmp_ui(W, P) != 0)
+            bad = 1;
+          must_have_2 = 1;
+        } else {                  /* Keep looking for a -2. */
+          mpz_mul(W, V, W);
+          mpz_sub_ui(W, W, P);
+          mpz_mod(W, W, n);
+        }
+      }
+      mpz_mul(V, V, V);
+      mpz_sub_ui(V, V, 2);
+      mpz_mod(V, V, n);
+    }
+    /* Fail if bad val found or didn't have a 2 at the end */
+    rval = !bad && must_have_2 && !mpz_cmp_ui(V,2);
+  }
+#else
   if ( mpz_cmp_ui(V, 2) == 0 || mpz_cmp(V, t) == 0 ) {
     rval = 1;
   } else {
@@ -788,7 +851,8 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
       }
     }
   }
-  mpz_clear(V); mpz_clear(t);
+#endif
+  mpz_clear(W); mpz_clear(V); mpz_clear(t);
   return rval;
 }
 

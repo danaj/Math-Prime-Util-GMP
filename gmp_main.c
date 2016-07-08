@@ -153,7 +153,7 @@ int primality_pretest(mpz_t n)
   (log2n < 100) ? 1000 : \
   (BITS_PER_WORD == 32 && log2n > 9000U) ? UVCONST(2500000000) : \
   (BITS_PER_WORD == 64 && log2n > 4294967294U) ? UVCONST(9300000000000000000) :\
-  ((log2n * (log2n >> 5) * log2log2n) >> 1)
+  ((log2n * (log2n >> 5) * (UV)((log2log2n)*1.5)) >> 1)
 
 static void next_prime_with_sieve(mpz_t n) {
   UV i, log2n, log2log2n, width, depth;
@@ -279,6 +279,71 @@ void _GMP_prev_prime(mpz_t n)
   }
 }
 
+void surround_primes(mpz_t n, UV* prev, UV* next) {
+  UV i, j, log2n, log2log2n, width, depth, fprev, fnext;
+  uint32_t* comp;
+  mpz_t t, base;
+  int neven;
+
+  log2n = mpz_sizeinbase(n, 2);
+  for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
+
+  if (log2n < 64) {
+    mpz_init(t);
+    mpz_set(t, n);
+    _GMP_prev_prime(t);
+    mpz_sub(t, n, t);
+    *prev = mpz_get_ui(t);
+    mpz_set(t, n);
+    _GMP_next_prime(t);
+    mpz_sub(t, t, n);
+    *next = mpz_get_ui(t);
+    mpz_clear(t);
+    return;
+  }
+
+  /* TODO: we need to be able to expand */
+
+  width = (UV) (40.0/1.4427 * (double)log2n + 0.5);
+  depth = NPS_DEPTH(log2n, log2log2n);
+  width = 64 * ((width+63)/64);                /* Round up to next 64 */
+  neven = mpz_even_p(n);
+
+  mpz_init(t);  mpz_init(base);
+
+  if (neven) width++;  /* base will always be odd */
+  mpz_sub_ui(base, n, width);
+
+  /* gmp_printf("partial sieve width %lu  depth %lu\n", 2*width+1, depth); */
+  comp = partial_sieve(base, 2*width+1, depth);
+
+  fprev = 0;
+  fnext = 0;
+  for (j = 1 + !neven; j < width; j += 2) {
+    if (!fprev) {
+      i = width + 1 - j;
+      if (!TSTAVAL(comp, i)) {
+        mpz_add_ui(t, base, i);
+        if (_GMP_BPSW(t))
+          fprev = j;
+      }
+    }
+    if (!fnext) {
+      i = width + 1 + j;
+      if (!TSTAVAL(comp, i)) {
+        mpz_add_ui(t, base, i);
+        if (_GMP_BPSW(t))
+          fnext = j;
+      }
+    }
+    if (fprev && fnext) break;
+  }
+  if (!fprev || !fnext) croak("surround primes didn't look far enough");
+  mpz_clear(t);  mpz_clear(base);
+  Safefree(comp);
+  *prev = fprev;
+  *next = fnext;
+}
 
 /*****************************************************************************/
 

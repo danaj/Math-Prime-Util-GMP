@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(
                      is_bls75_prime
                      is_ecpp_prime
                      is_pseudoprime
+                     is_euler_plumb_pseudoprime
                      is_strong_pseudoprime
                      is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
@@ -45,6 +46,7 @@ our @EXPORT_OK = qw(
                      sieve_range
                      next_prime
                      prev_prime
+                     surround_primes
                      trial_factor
                      prho_factor
                      pbrent_factor

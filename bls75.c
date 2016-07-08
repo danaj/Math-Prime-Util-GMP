@@ -1241,6 +1241,7 @@ int _GMP_primality_bls_3(mpz_t n, mpz_t p, UV* reta)
     UV const alimit = 1000;
     UV a;
     for (a = 2; a <= alimit; a = prime_iterator_next(&iter)) {
+      /* should check kronecker(a,n) == -1 here */
       mpz_set_ui(t2, a);
       mpz_divexact_ui(t, m, 2);
       mpz_powm(t, t2, t, n);       /* a^(m/2) mod n */
