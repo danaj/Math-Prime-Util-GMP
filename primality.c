@@ -15,100 +15,82 @@
 static const unsigned char sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251};
 
 
-static INLINE int _GMP_miller_rabin_ui(mpz_t n, UV base)
+static int mrx(/*destroyed*/mpz_t x, /*destroyed*/ mpz_t d, mpz_t n, UV s)
 {
-  int rval;
-  mpz_t a;
-  mpz_init_set_ui(a, base);
-  rval = _GMP_miller_rabin(n, a);
-  mpz_clear(a);
-  return rval;
-}
-
-int _GMP_miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
-{
-  gmp_randstate_t* p_randstate = get_randstate();
-  mpz_t t, base;
-  UV i;
-
-  if (numbases == 0)  return 1;
-  if (mpz_cmp_ui(n, 100) < 0)     /* tiny n */
-    return (_GMP_is_prob_prime(n) > 0);
-
-  mpz_init(base);  mpz_init(t);
-
-  if (seedstr != 0) { /* Set the RNG seed if they gave us a seed */
-    mpz_set_str(t, seedstr, 0);
-    gmp_randseed(*p_randstate, t);
-  }
-
-  mpz_sub_ui(t, n, 3);
-  for (i = 0; i < numbases; i++) {
-    mpz_urandomm(base, *p_randstate, t);  /* base = 0 .. (n-3)-1 */
-    mpz_add_ui(base, base, 2);            /* base = 2 .. n-2     */
-    if (_GMP_miller_rabin(n, base) == 0)
+  UV r;
+  mpz_powm(x, x, d, n);
+  mpz_sub_ui(d, n, 1);
+  if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, d))
+    return 1;
+  for (r = 1; r < s; r++) {
+    mpz_powm_ui(x, x, 2, n);
+    if (!mpz_cmp_ui(x, 1))
       break;
+    if (!mpz_cmp(x, d))
+      return 1;
   }
-  mpz_clear(base);  mpz_clear(t);
-  return (i >= numbases);
+  return 0;
 }
 
-int _GMP_miller_rabin(mpz_t n, mpz_t a)
-{
-  mpz_t nminus1, d, x;
-  UV s, r;
-  int rval;
 
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
-    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-  }
-  if (mpz_cmp_ui(a, 1) <= 0)
-    croak("Base %ld is invalid", mpz_get_si(a));
-  mpz_init_set(nminus1, n);
-  mpz_sub_ui(nminus1, nminus1, 1);
+int miller_rabin(mpz_t n, mpz_t a)
+{
+  mpz_t d, x;
+  int cmpr, rval = 1;
+
+  cmpr = mpz_cmp_ui(n, 2);
+  if (cmpr == 0)     return 1;  /* 2 is prime */
+  if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+  if (mpz_cmp_ui(a, 1) <= 0) croak("Base %ld is invalid", mpz_get_si(a));
+
   mpz_init_set(x, a);
+  mpz_init_set(d, n);
+  mpz_sub_ui(d, d, 1);
 
   /* Handle large and small bases.  Use x so we don't modify their input a. */
   if (mpz_cmp(x, n) >= 0)
     mpz_mod(x, x, n);
-  if ( (mpz_cmp_ui(x, 1) <= 0) || (mpz_cmp(x, nminus1) >= 0) ) {
-    mpz_clear(nminus1);
-    mpz_clear(x);
-    return 1;
+  if ( (mpz_cmp_ui(x, 1) > 0) && (mpz_cmp(x, d) < 0) ) {
+    UV s = mpz_scan1(d, 0);
+    mpz_tdiv_q_2exp(d, d, s);
+    rval = mrx(x, d, n, s);
   }
+  mpz_clear(d);
+  mpz_clear(x);
+  return rval;
+}
+int miller_rabin_ui(mpz_t n, unsigned long a)
+{
+  mpz_t d, x;
+  int cmpr, rval = 1;
 
-  mpz_init_set(d, nminus1);
-  s = mpz_scan1(d, 0);
-  mpz_tdiv_q_2exp(d, d, s);
+  cmpr = mpz_cmp_ui(n, 2);
+  if (cmpr == 0)     return 1;  /* 2 is prime */
+  if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+  if (a <= 1) croak("Base %lu is invalid", a);
 
-  mpz_powm(x, x, d, n);
-  mpz_clear(d); /* done with a and d */
-  rval = 0;
-  if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
-    rval = 1;
-  } else {
-    for (r = 1; r < s; r++) {
-      mpz_powm_ui(x, x, 2, n);
-      if (!mpz_cmp_ui(x, 1)) {
-        break;
-      }
-      if (!mpz_cmp(x, nminus1)) {
-        rval = 1;
-        break;
-      }
-    }
+  mpz_init_set_ui(x, a);
+  mpz_init_set(d, n);
+  mpz_sub_ui(d, d, 1);
+
+  if (mpz_cmp(x, n) >= 0)
+    mpz_mod(x, x, n);
+  if ( (mpz_cmp_ui(x, 1) > 0) && (mpz_cmp(x, d) < 0) ) {
+    UV s = mpz_scan1(d, 0);
+    mpz_tdiv_q_2exp(d, d, s);
+    rval = mrx(x, d, n, s);
   }
-  mpz_clear(nminus1); mpz_clear(x);
+  mpz_clear(d);
+  mpz_clear(x);
   return rval;
 }
 
 int is_miller_prime(mpz_t n, int assume_grh)
 {
-  mpz_t nminus1, d, x;
-  UV s, r, maxa, a;
+  mpz_t d, x, D;
+  UV s, maxa, a;
   int rval;
 
   {
@@ -135,41 +117,58 @@ int is_miller_prime(mpz_t n, int assume_grh)
       croak("is_miller_prime: n is too large for unconditional DMR");
     maxa = ceil(dmaxa);
   }
+
   if (mpz_cmp_ui(n, maxa) <= 0)
     maxa = mpz_get_ui(n) - 1;
   if (get_verbose_level() > 1)
     printf("Deterministic Miller-Rabin testing bases from 2 to %"UVuf"\n", maxa);
 
-  mpz_init_set(nminus1, n);
-  mpz_sub_ui(nminus1, nminus1, 1);
-  mpz_init_set(d, nminus1);
+  mpz_init_set(d, n);
+  mpz_sub_ui(d, d, 1);
   s = mpz_scan1(d, 0);
   mpz_tdiv_q_2exp(d, d, s);
+  mpz_init(D);
   mpz_init(x);
 
-  rval = 1;
-  for (a = 2; rval && a <= maxa; a++) {
-    rval = 0;
+  for (a = 2, rval = 1; rval && a <= maxa; a++) {
     mpz_set_ui(x, a);
-    mpz_powm(x, x, d, n);
-    if (!mpz_cmp_ui(x, 1) || !mpz_cmp(x, nminus1)) {
-      rval = 1;
-    } else {
-      for (r = 1; r < s; r++) {
-        mpz_powm_ui(x, x, 2, n);
-        if (!mpz_cmp_ui(x, 1)) {
-          break;
-        }
-        if (!mpz_cmp(x, nminus1)) {
-          rval = 1;
-          break;
-        }
-      }
-    }
+    mpz_set(D, d);
+    rval = mrx(x, D, n, s);
   }
-  mpz_clear(x); mpz_clear(nminus1); mpz_clear(d);
+  mpz_clear(x);
+  mpz_clear(D);
+  mpz_clear(d);
   return rval;
 }
+
+int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
+{
+  gmp_randstate_t* p_randstate = get_randstate();
+  mpz_t t, base;
+  UV i;
+
+  if (numbases == 0)  return 1;
+  if (mpz_cmp_ui(n, 100) < 0)     /* tiny n */
+    return (_GMP_is_prob_prime(n) > 0);
+
+  mpz_init(base);  mpz_init(t);
+
+  if (seedstr != 0) { /* Set the RNG seed if they gave us a seed */
+    mpz_set_str(t, seedstr, 0);
+    gmp_randseed(*p_randstate, t);
+  }
+
+  mpz_sub_ui(t, n, 3);
+  for (i = 0; i < numbases; i++) {
+    mpz_urandomm(base, *p_randstate, t);  /* base = 0 .. (n-3)-1 */
+    mpz_add_ui(base, base, 2);            /* base = 2 .. n-2     */
+    if (miller_rabin(n, base) == 0)
+      break;
+  }
+  mpz_clear(base);  mpz_clear(t);
+  return (i >= numbases);
+}
+
 
 int is_euler_plumb_pseudoprime(mpz_t n)
 {
@@ -886,22 +885,42 @@ static void mat_powmod_3x3(mpz_t* m, mpz_t kin, mpz_t n) {
   mpz_clear(t2);
   mpz_clear(k);
 }
-int is_perrin_pseudoprime(mpz_t n)
+int is_perrin_pseudoprime(mpz_t n, int restricted)
 {
   int P[9] = {0,1,0, 0,0,1, 1,1,0};
   mpz_t m[9];
-  int i, rval;
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+  int cmpr, i, rval;
+
+  cmpr = mpz_cmp_ui(n, 2);
+  if (cmpr == 0)     return 1;  /* 2 is prime */
+  if (cmpr < 0)      return 0;  /* below 2 is composite */
+
+  { /* Simple filter for composites */
+    uint32_t n32 = mpz_fdiv_ui(n, 2762760);
+    if (!(n32& 1) && !((   22 >> (n32% 7)) & 1)) return 0;
+    if (!(n32% 3) && !((  523 >> (n32%13)) & 1)) return 0;
+    if (!(n32% 5) && !((65890 >> (n32%24)) & 1)) return 0;
+    if (!(n32% 4) && !((  514 >> (n32%14)) & 1)) return 0;
+    if (!(n32%23) && !((    2 >> (n32%22)) & 1)) return 0;
   }
+
   for (i = 0; i < 9; i++) mpz_init_set_ui(m[i], P[i]);
   mat_powmod_3x3(m, n, n);
   mpz_add(m[1], m[0], m[4]);
   mpz_add(m[2], m[1], m[8]);
   mpz_mod(m[0], m[2], n);
   rval = mpz_sgn(m[0]) ? 0 : 1;
+  if (rval && restricted) {
+    mpz_set_ui(m[0],0);  mpz_set_ui(m[1],1);  mpz_set_ui(m[2],0);
+    mpz_set_ui(m[3],0);  mpz_set_ui(m[4],0);  mpz_set_ui(m[5],1);
+    mpz_set_ui(m[6],1);  mpz_set_ui(m[7],0);  mpz_sub_ui(m[8],n,1);
+    mat_powmod_3x3(m, n, n);
+    mpz_add(m[1], m[0], m[4]);
+    mpz_add(m[2], m[1], m[8]);
+    mpz_add_ui(m[2],m[2],1);
+    mpz_mod(m[0], m[2], n);
+    rval = mpz_sgn(m[0]) ? 0 : 1;
+  }
   for (i = 0; i < 9; i++) mpz_clear(m[i]);
   return rval;
 }
@@ -1229,7 +1248,7 @@ int _GMP_BPSW(mpz_t n)
   if (mpz_cmp_ui(n, 4) < 0)
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
 
-  if (_GMP_miller_rabin_ui(n, 2) == 0)   /* Miller Rabin with base 2 */
+  if (miller_rabin_ui(n, 2) == 0)   /* Miller Rabin with base 2 */
     return 0;
 
   if (_GMP_is_lucas_pseudoprime(n, 2 /*extra strong*/) == 0)
@@ -1256,8 +1275,7 @@ int is_deterministic_miller_rabin_prime(mpz_t n)
       maxp = 13;
     if (maxp > 0) {
       for (i = 1; i < maxp && res; i++) {
-        mpz_set_ui(t, sprimes[i]);
-        res = _GMP_miller_rabin(n, t);
+        res = miller_rabin_ui(n, sprimes[i]);
       }
       if (res == 1) res = 2;
     }
@@ -1386,7 +1404,7 @@ int _GMP_is_prime(mpz_t n)
     else if (nbits < 160) ntests = 3;  /* p < .00000164 */
     else if (nbits < 413) ntests = 2;  /* p < .00000156 */
     else                  ntests = 1;  /* p < .00000159 */
-    prob_prime = _GMP_miller_rabin_random(n, ntests, 0);
+    prob_prime = miller_rabin_random(n, ntests, 0);
     /* prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n); */
     /* prob_prime = _GMP_is_frobenius_khashin_pseudoprime(n); */
   }
@@ -1437,7 +1455,7 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   }
 
   /* Run one more M-R test, just in case. */
-  prob_prime = _GMP_miller_rabin_random(n, 1, 0);
+  prob_prime = miller_rabin_random(n, 1, 0);
   if (prob_prime != 1)  return prob_prime;
 
   /* We can choose a primality proving algorithm:
