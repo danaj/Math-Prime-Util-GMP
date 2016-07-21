@@ -104,8 +104,6 @@
 
 - Bernoulli number implementation is simple, but not really fast.
 
-- Test and doc for bernreal
-
 - Make a trial factor routine that returns all factors.  This can be done
   with a single treesieve.  ECPP could make use of this (since it is doing
   many calls, keeping the product tree around would be useful).
@@ -113,4 +111,10 @@
   Changing the XS call to return multiple values might be useful.
 
 - Docs and test for surround_primes
+  with input of 2 or less, should return undef for prev.
 - Docs and test for is_euler_plumb_pseudoprime
+
+- mpu 'use bigint; $n=391; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
+
+- Test and doc for bernreal.
+  Precision isn't right:  mpu 'say Math::Prime::Util::GMP::bernreal(100,10)'

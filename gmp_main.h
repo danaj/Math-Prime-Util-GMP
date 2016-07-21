@@ -11,7 +11,7 @@ extern int  primality_pretest(mpz_t n);
 
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
-extern void surround_primes(mpz_t n, UV* prev, UV* next);
+extern void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width);
 
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, UV n);

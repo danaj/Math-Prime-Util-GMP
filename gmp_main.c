@@ -10,6 +10,7 @@
 #include "factor.h"
 
 #define FUNC_gcd_ui 1
+#define FUNC_mpz_logn 1
 #include "utility.h"
 
 static mpz_t _bgcd;
@@ -279,11 +280,11 @@ void _GMP_prev_prime(mpz_t n)
   }
 }
 
-void surround_primes(mpz_t n, UV* prev, UV* next) {
-  UV i, j, log2n, log2log2n, width, depth, fprev, fnext;
+void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
+  UV i, j, log2n, log2log2n, width, depth, fprev, fnext, search_merits;
   uint32_t* comp;
   mpz_t t, base;
-  int neven;
+  int neven, found;
 
   log2n = mpz_sizeinbase(n, 2);
   for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
@@ -302,45 +303,65 @@ void surround_primes(mpz_t n, UV* prev, UV* next) {
     return;
   }
 
-  /* TODO: we need to be able to expand */
-
-  width = (UV) (40.0/1.4427 * (double)log2n + 0.5);
-  depth = NPS_DEPTH(log2n, log2log2n);
-  width = 64 * ((width+63)/64);                /* Round up to next 64 */
+  mpz_init(t);
+  mpz_init(base);
+  fprev = fnext = 0;
   neven = mpz_even_p(n);
+  j = 1 + !neven;         /* distance from n we're looking. */
 
-  mpz_init(t);  mpz_init(base);
+  for (found = 0, search_merits = 15; !found; search_merits *= 2) {
+    double logn = mpz_logn(n);
 
-  if (neven) width++;  /* base will always be odd */
-  mpz_sub_ui(base, n, width);
+    if (BITS_PER_WORD == 32 && log2n >   7000)
+      depth = UVCONST(2500000000);
+    else if (BITS_PER_WORD == 64 && log2n > 200000)
+      depth = UVCONST(6000000000000);
+    else if (log2n > 900)
+      depth = (UV) ((-.05L+(log2n/8000.0L)) * logn * logn * log(logn));
+    else
+      depth = NPS_DEPTH(log2n, log2log2n);
 
-  /* gmp_printf("partial sieve width %lu  depth %lu\n", 2*width+1, depth); */
-  comp = partial_sieve(base, 2*width+1, depth);
+    width = (UV) (search_merits * logn + 0.5);
+    width = 64 * ((width+63)/64);    /* Round up to next 64 */
+    if (neven) width++;              /* base will always be odd */
+    mpz_sub_ui(base, n, width);
+    /* printf("merits %lu  width %lu  depth %lu  skip_width %lu\n", search_merits, width, depth, skip_width); */
 
-  fprev = 0;
-  fnext = 0;
-  for (j = 1 + !neven; j < width; j += 2) {
-    if (!fprev) {
-      i = width + 1 - j;
-      if (!TSTAVAL(comp, i)) {
-        mpz_add_ui(t, base, i);
-        if (_GMP_BPSW(t))
-          fprev = j;
+    /* gmp_printf("partial sieve width %lu  depth %lu\n", 2*width+1, depth); */
+    comp = partial_sieve(base, 2*width+1, depth);
+
+    for (; j < width; j += 2) {
+      if (!fprev) {
+        if (!TSTAVAL(comp, width+1-j)) {
+          mpz_sub_ui(t, n, j);
+          if ( (skip_width == 0) ? _GMP_BPSW(t) : miller_rabin_ui(t,2) ) {
+            fprev = j;
+            if (fnext || (skip_width != 0 && j <= skip_width))
+              break;
+          }
+        }
+      }
+      if (!fnext) {
+        if (!TSTAVAL(comp, width+1+j)) {
+          mpz_add_ui(t, n, j);
+          if ( (skip_width == 0) ? _GMP_BPSW(t) : miller_rabin_ui(t,2) ) {
+            fnext = j;
+            if (fprev || (skip_width != 0 && j <= skip_width))
+              break;
+          }
+        }
       }
     }
-    if (!fnext) {
-      i = width + 1 + j;
-      if (!TSTAVAL(comp, i)) {
-        mpz_add_ui(t, base, i);
-        if (_GMP_BPSW(t))
-          fnext = j;
-      }
-    }
-    if (fprev && fnext) break;
+
+    Safefree(comp);
+    if ( (fprev && fnext) ||
+         (skip_width != 0 && j <= skip_width && (fprev || fnext)) )
+      found = 1;
   }
-  if (!fprev || !fnext) croak("surround primes didn't look far enough");
-  mpz_clear(t);  mpz_clear(base);
-  Safefree(comp);
+
+  mpz_clear(base);
+  mpz_clear(t);
+
   *prev = fprev;
   *next = fnext;
 }

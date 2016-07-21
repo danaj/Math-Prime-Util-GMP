@@ -12,6 +12,13 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - prev/next/surround prime sieve is slightly deeper
 
+    - Add very simple composite filter for is_perrin_pseudoprime.
+
+    - Internal refactor of Miller-Rabin code to remove one mpz variable.
+
+    [OTHER]
+
+    - Add option for restricted Perrin pseudoprimes.
 
 0.38 2016-06-18
 

@@ -544,6 +544,11 @@ of the other probable prime tests and offers little benefit, especially over
 combined tests like L</is_bpsw_prime> and
 L</is_frobenius_underwood_pseudoprime>.
 
+An optional second argument indicates whether to additionally test C<P(-n)>.
+Composites which pass this test are known as restricted Perrin pseudoprimes
+and are a subset of the unrestricted set.
+
+
 =head2 is_frobenius_pseudoprime
 
 Takes a positive number C<n> as input, and two optional parameters C<a> and
@@ -560,7 +565,7 @@ efficient Frobenius test of Paul Underwood.  This selects a parameter C<a>
 as the least non-negative integer such that C<(a^2-4|n)=-1>, then verifies that
 C<(x+2)^(n+1) = 2a + 5 mod (x^2-ax+1,n)>.  This combines a Fermat and Lucas
 test at a computational cost of about 2.5x a strong pseudoprime test.  This
-makes it similar to, but faster than, a Frobenius test.
+makes it similar to, but faster than, a standard Frobenius test.
 
 This test is deterministic (no randomness is used).  There are no known
 pseudoprimes to this test.  This test also has no overlap with the BPSW
@@ -850,6 +855,26 @@ that is less than the input number).
 0 is returned if the input is C<2> or lower.
 The function L</is_prob_prime> is used to determine when a prime is found,
 hence the result is a probable prime (using BPSW).
+
+
+=head2 surround_primes
+
+  ($dprev, $dnext) = surround_primes($n);
+
+Returns the distances to the previous and next primes of the input C<n>.
+This is slightly more efficient than calling both L</prev_prime> and
+L</next_prime>, and returning the native integer distances can be more
+efficient with large inputs.
+
+If an optional second argument C<d> is given, and the input C<n> is larger
+than C<2^64>, then if a SPSP-2 is found in the range C<n-d> to C<n+d>
+(inclusive) then it will be returned with the other argument set to C<0>.
+Otherwise, the first SPSP-2 values found are returned.
+This feature is especially useful for prime gap searches as well as
+finding the nearest prime to a value.
+
+Note that with a non-zero second argument, the values returned have not
+undergone a full BPSW test; just sieving and a SPSP-2 test.
 
 
 =head2 lucasu

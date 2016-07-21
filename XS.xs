@@ -88,7 +88,7 @@ _GMP_miller_rabin(IN char* strn, ...)
     mpz_init_set_str(n, strn, 10);
     mpz_init_set_str(a, strbase, 10);
     if (ix == 0) {
-      RETVAL = _GMP_miller_rabin(n, a);
+      RETVAL = miller_rabin(n, a);
     } else {
       mpz_t nm1; mpz_init(nm1); mpz_sub_ui(nm1, n, 1);
       mpz_powm(a, a, nm1, n);
@@ -105,7 +105,7 @@ int miller_rabin_random(IN char* strn, IN UV nbases, IN char* seedstr = 0)
     mpz_t n;
   CODE:
     VALIDATE_AND_SET("miller_rabin_random", n, strn);
-    RETVAL = _GMP_miller_rabin_random(n, nbases, seedstr);
+    RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
   OUTPUT:
     RETVAL
@@ -146,8 +146,7 @@ is_lucas_pseudoprime(IN char* strn)
     is_extra_strong_lucas_pseudoprime = 2
     is_frobenius_underwood_pseudoprime = 3
     is_frobenius_khashin_pseudoprime = 4
-    is_perrin_pseudoprime = 5
-    is_euler_plumb_pseudoprime = 6
+    is_euler_plumb_pseudoprime = 5
   PREINIT:
     mpz_t n;
   CODE:
@@ -160,8 +159,7 @@ is_lucas_pseudoprime(IN char* strn)
       case 2: RETVAL = _GMP_is_lucas_pseudoprime(n, 2); break;
       case 3: RETVAL = _GMP_is_frobenius_underwood_pseudoprime(n); break;
       case 4: RETVAL = _GMP_is_frobenius_khashin_pseudoprime(n); break;
-      case 5: RETVAL = is_perrin_pseudoprime(n); break;
-      case 6:
+      case 5:
       default:RETVAL = is_euler_plumb_pseudoprime(n); break;
     }
     mpz_clear(n);
@@ -237,6 +235,7 @@ void
 _is_provable_prime(IN char* strn, IN int wantproof = 0)
   ALIAS:
     is_miller_prime = 1
+    is_perrin_pseudoprime = 2
   PREINIT:
     int result;
     mpz_t n;
@@ -244,6 +243,11 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
     PRIMALITY_START("is_provable_prime", 2, 1);
     if (ix == 1) {
       result = is_miller_prime(n, wantproof);  /* Assume GRH or not */
+      mpz_clear(n);
+      XSRETURN_IV(result);
+    }
+    if (ix == 2) {
+      result = is_perrin_pseudoprime(n, wantproof);  /* Restricted or not */
       mpz_clear(n);
       XSRETURN_IV(result);
     }
@@ -327,23 +331,13 @@ void
 next_prime(IN char* strn)
   ALIAS:
     prev_prime = 1
-    surround_primes = 2
   PREINIT:
     mpz_t n;
   PPCODE:
     VALIDATE_AND_SET("next_prime", n, strn);
-
-    switch (ix) {
-      case 0:  _GMP_next_prime(n); break;
-      case 1:  _GMP_prev_prime(n); break;
-      case 2:
-      default: { UV prev, next;
-                 surround_primes(n, &prev, &next);
-                 XPUSHs(sv_2mortal(newSVuv( prev )));
-                 XPUSHs(sv_2mortal(newSVuv( next ))); }
-    }
-
-    if (ix == 0 || ix == 1) XPUSH_MPZ(n);
+    if (ix == 0) _GMP_next_prime(n);
+    else         _GMP_prev_prime(n);
+    XPUSH_MPZ(n);
     mpz_clear(n);
 
 
@@ -424,14 +418,22 @@ primorial(IN char* strn)
 void harmreal(IN char* strn, IN UV prec = 40)
   ALIAS:
     bernreal = 1
+    surround_primes = 2
   PREINIT:
     mpz_t n;
     char* res;
   PPCODE:
     VALIDATE_AND_SET("harmreal", n, strn);
-    res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
-    XPUSHs(sv_2mortal(newSVpv(res, 0)));
-    Safefree(res);
+    if (ix < 2) {
+      res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
+      XPUSHs(sv_2mortal(newSVpv(res, 0)));
+      Safefree(res);
+    } else {
+      UV prev, next;
+      surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
+      XPUSHs(sv_2mortal(newSVuv( prev )));
+      XPUSHs(sv_2mortal(newSVuv( next )));
+    }
     mpz_clear(n);
 
 void
