@@ -240,7 +240,7 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
     int result;
     mpz_t n;
   PPCODE:
-    PRIMALITY_START("is_provable_prime", 2, 1);
+    PRIMALITY_START("is_provable_prime", 2, ix != 2);
     if (ix == 1) {
       result = is_miller_prime(n, wantproof);  /* Assume GRH or not */
       mpz_clear(n);
