@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.39 2016-?
+0.39 2016-07-24
 
     [ADDED]
 
@@ -19,6 +19,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     [OTHER]
 
     - Add option for restricted Perrin pseudoprimes.
+
 
 0.38 2016-06-18
 
