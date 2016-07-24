@@ -114,4 +114,4 @@
   with input of 2 or less, should return undef for prev.
 - Docs and test for is_euler_plumb_pseudoprime
 
-- mpu 'use bigint; $n=391; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
+- mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'

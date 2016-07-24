@@ -382,9 +382,14 @@ static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2, UV dummy,
 
   mpz_mul_ui(t, F2, 2);
   mpz_tdiv_qr(s, r, R2, t);
+  if (mpz_cmp(r, F2) >= 0) {
+    mpz_add_ui(s, s, 1);
+    mpz_sub(r, r, t);
+  }
   /* Let m = 1 */
   mpz_add_ui(y, t, 1);
-  mpz_sub(y, y, r);
+  mpz_abs(t, r);
+  mpz_sub(y, y, t);
   mpz_mul(y, y, F2);
   mpz_add_ui(y, y, 1);   /* y = 2F2^2 + (m-r)F2 + 1 */
   mpz_sub_ui(t, F2, 1);
@@ -401,9 +406,14 @@ static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
 
   mpz_mul_ui(t, F2, 2);
   mpz_tdiv_qr(s, r, R2, t);
+  if (mpz_cmp(r, F2) >= 0) {
+    mpz_add_ui(s, s, 1);
+    mpz_sub(r, r, t);
+  }
 
   mpz_add_ui(y, t, B2);
-  mpz_sub(y, y, r);
+  mpz_abs(t, r);
+  mpz_sub(y, y, t);
   mpz_mul(y, y, F2);
   mpz_add_ui(y, y, 1);   /* y = 2F2^2 + (B2 - r)F2 + 1 */
   mpz_mul_ui(t, F2, B2);
@@ -538,6 +548,7 @@ static int _verify_cond_III_q(mpz_t n, mpz_t qi, IV* qv, int* pnumqv, IV* lp, IV
     /* Search for a q value */
     startq = (numqv > 0) ? qv[numqv-1]+1 : 2;
     for (q = startq; q < startq+1000; q++) {
+      if (mpz_cmp_ui(n, (unsigned long)q) <= 0) break;
       p = (q % 2) ? 2 : 1;
       d = p*p - 4*q;
       mpz_set_si(t1, d);
@@ -794,6 +805,9 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
   int e, success = 1;
   UV B2 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 10000;
 
+  /* TODO: T19 doesn't seem right, and we're still
+   * passing some composites like 14299. */
+
   /* We need to do this for BLS */
   if (mpz_even_p(n)) return 0;
 
@@ -826,7 +840,7 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
 
   while (success) {
 
-    if (bls_theorem19_limit(n, F2, R2, B2, t, m, r, s))
+    if (bls_theorem17_limit(n, F2, R2, B2, t, m, r, s))
       break;
 
     success = 0;
@@ -858,12 +872,12 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
 
   /* Shrink to smallest set and verify conditions. */
   if (success > 0) {
-    trim_factors(F2, R2, n, np1, B2, &fstack, &bls_theorem19_limit, t, m, r, s);
+    trim_factors(F2, R2, n, np1, B2, &fstack, &bls_theorem17_limit, t, m, r, s);
     /* Verify conditions */
     success = 0;
-    if (bls_theorem19_limit(n, F2, R2, B2, t, m, r, s)) {
+    if (bls_theorem17_limit(n, F2, R2, B2, t, m, r, s)) {
       mpz_mul(t, r, r);
-      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
+      mpz_addmul_ui(t, s, 8);   /* t = r^2 + 8s */
       /* N is prime if and only if s=0 OR t not a perfect square */
       success = (mpz_sgn(s) == 0 || !mpz_perfect_square_p(t))  ?  1  :  -1;
     }

@@ -13,7 +13,7 @@ plan tests => 0 + 6
                 + 34
                 + 2
                 + 7   # _with_cert
-                + 7   # AKS, Miller, N-1, ECPP
+                + 8   # AKS, Miller, N-1, ECPP
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -176,9 +176,11 @@ if ($cert =~ /\bType BLS5\b/) {
 }
 
 
+#####################
 # Individual routines
-# AKS.  Sigh, so freaking slow.  2/3 of the time for the whole suite is here.
-ok( is_aks_prime(74017), "is_aks_prime(74017)" );
+
+# AKS
+ok( is_aks_prime(74903), "is_aks_prime(74903)" );
 
 # Unconditional and conditional Miller test
 ok( is_miller_prime("4835703278458516698824747"), "is_miller_prime(4835703278458516698824747)" );
@@ -188,6 +190,7 @@ ok( is_miller_prime("4835703278458516698824747",1), "is_miller_prime(48357032784
 ok( is_nminus1_prime("340282366920938463463374607431768211507"), "is_nminus1_prime(340282366920938463463374607431768211507)" );
 
 # BLS75 n+1
+ok( !is_nplus1_prime(391), "is_nplus1_prime(391) is false" );
 ok( is_nplus1_prime("63699643930293116661668059033734770664712983894089510286262271"), "is_nplus1_prime(63699643930293116661668059033734770664712983894089510286262271)" );
 
 # BLS75 combined method
