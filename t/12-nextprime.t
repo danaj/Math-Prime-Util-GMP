@@ -3,9 +3,10 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/next_prime prev_prime/;
+use Math::Prime::Util::GMP qw/next_prime prev_prime surround_primes/;
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
-plan tests => 2 + 3*2 + 6 + 1 + 148 + 148 + 1 + 2;
+plan tests => 2 + 3*2 + 6 + 1 + 2 + 1 + 2 + 7+2*$extra;
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97
@@ -73,11 +74,11 @@ is( prev_prime(19610), 19609, "prev prime of 19610 is 19609" );
 is( prev_prime(2), 0, "Previous prime of 2 returns 0" );
 
 # Turns out the testing of prev/next from 0-3572 still misses some cases.
-foreach my $n (2010733 .. 2010880) {
-  is(next_prime($n), 2010881, "next_prime($n) == 2010881");
-}
-foreach my $n (2010734 .. 2010881) {
-  is(prev_prime($n), 2010733, "prev_prime($n) == 2010733");
+{
+  my @next = map { next_prime($_) } 2010733 .. 2010880;
+  my @prev = map { prev_prime($_) } 2010734 .. 2010881;
+  is_deeply(\@next,[(2010881)x@next],"next_prime(2010733..2010880) = 2010881");
+  is_deeply(\@prev,[(2010733)x@prev],"prev_prime(2010734..2010881) = 2010733");
 }
 # Similar test case to 2010870, where m=0 and next_prime is at m=1
 is(next_prime(1234567890), 1234567891, "next_prime(1234567890) == 1234567891)");
@@ -88,3 +89,20 @@ is( next_prime('87567547898934657346596012842304861297462937562349058673456'),
 is( prev_prime('1353175074828899034888345292712068768032725991919855436631156'),
                '1353175074828899034888345292712068768032725991919855436630917',
     "prev_prime(1353....31156) = 1353....30917");
+
+
+##########################################
+is_deeply([surround_primes(0)], [undef,2], "surround_primes(2)");
+is_deeply([surround_primes(2)], [undef,1], "surround_primes(2)");
+is_deeply([surround_primes("29384928409238")], [79,45], "surround_primes(29384928409238)");
+is_deeply([surround_primes("18446744073709551616")], [59,13], "surround_primes(2^64)");
+is_deeply([surround_primes("36893488147419103273")], [90,90], "surround_primes(2^65+41)");
+# Test second arg
+is_deeply([surround_primes("36893488147419103273",89)], [90,90], "surround_primes(2^65+41,89)");
+is_deeply([surround_primes("36893488147419103273",90)], [90,0], "surround_primes(2^65+41,90)");
+if ($extra) {
+  my $c163 = "3254185929142547441117000456865810587301677179676494144227638178204588790016877642497284992010196102315442455595356723557223592608572003000275424902281588892769763";
+  is_deeply([surround_primes($c163,200)], [8776,4916], "surround_primes(d163,200)");
+  my $c163b = "3254185929142547441117000456865810587301677179676494144227638178204588790016877642497284992010196102315442455595356723557223592608572003000275424902281588892769763";
+  is_deeply([surround_primes($c163b,200)], [0,28], "surround_primes(d163,200)");
+}

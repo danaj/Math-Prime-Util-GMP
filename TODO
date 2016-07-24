@@ -113,5 +113,3 @@
 - Docs and test for is_euler_plumb_pseudoprime
 
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
-
-- test for surround_primes
