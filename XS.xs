@@ -429,13 +429,14 @@ void harmreal(IN char* strn, IN UV prec = 40)
       XPUSHs(sv_2mortal(newSVpv(res, 0)));
       Safefree(res);
     } else {
-      UV prev, next;
-      surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
-      if (mpz_cmp_ui(n,2) <= 0)
+      UV prev, next = 1 + (mpz_sgn(n)==0);
+      if (mpz_cmp_ui(n,2) > 0) {
+        surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
+        XPUSHs(sv_2mortal(newSVuv(prev)));
+      } else {
         XPUSHs(sv_2mortal(newSV(0)));
-      else
-      XPUSHs(sv_2mortal(newSVuv( prev )));
-      XPUSHs(sv_2mortal(newSVuv( next )));
+      }
+      XPUSHs(sv_2mortal(newSVuv(next)));
     }
     mpz_clear(n);
 
