@@ -65,7 +65,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      factorial
                      consecutive_integer_lcm
-                     partitions bernfrac bernresal harmfrac harmreal stirling
+                     partitions bernfrac bernreal harmfrac harmreal stirling
                      gcd lcm kronecker valuation binomial gcdext
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -1023,6 +1023,12 @@ rational number.  Two values are returned, the numerator and denominator.
 B_1 = 1/2.
 This corresponds to Pari's C<bernfrac(n)> and Mathematica's C<BernoulliB>
 functions.
+
+=head2 bernreal
+
+Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
+string floating point.  An optional second argument indicates the number
+of digits to be preserved past the decimal place, with a default of 40.
 
 =head2 harmfrac
 

@@ -546,20 +546,18 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
 static char* frac_real(mpz_t num, mpz_t den, unsigned long prec) {
   char* out;
   mpf_t fnum, fden, res;
-  unsigned long numsize, densize;
+  unsigned long numbits = mpz_sizeinbase(num,  2);
+  unsigned long denbits = mpz_sizeinbase(den,  2);
+  unsigned long numdigs = mpz_sizeinbase(num, 10);
+  unsigned long dendigs = mpz_sizeinbase(den, 10);
 
-  numsize = mpz_sizeinbase(num, 10);
-  densize = mpz_sizeinbase(den, 10);
-
-  mpf_init2(fnum, 1 + mpz_sizeinbase(num,2));
-  mpf_init2(fden, 1 + mpz_sizeinbase(den,2));
-  mpf_set_z(fnum, num);  mpf_set_z(fden, den);
-
-  mpf_init2(res, (unsigned long) (8+prec*3.4) );
+  mpf_init2(fnum, 1 + numbits);  mpf_set_z(fnum, num);
+  mpf_init2(fden, 1 + denbits);  mpf_set_z(fden, den);
+  mpf_init2(res, (unsigned long) (8 + (numbits-denbits+1) + prec*3.4) );
   mpf_div(res, fnum, fden);
   mpf_clear(fnum);  mpf_clear(fden);
 
-  New(0, out, (10+numsize-densize)+prec, char);
+  New(0, out, (10+numdigs-dendigs)+prec, char);
   gmp_sprintf(out, "%.*Ff", (int)(prec), res);
   mpf_clear(res);
 
