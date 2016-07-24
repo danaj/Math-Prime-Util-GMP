@@ -61,6 +61,7 @@ xt/proof-text-format.txt
 xt/expr-impl.h
 xt/expr.c
 xt/expr.h
+xt/llr.pl
 examples/bench-mp-psrp.pl
 examples/verify-cert.pl
 examples/convert-primo-cert.pl
