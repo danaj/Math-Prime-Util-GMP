@@ -85,7 +85,7 @@ cat << 'EOREADME' > standalone/README
 
 ECPP-DJ:  Elliptic Curve Primality Proof.
 
-Copyright 2012-2015, Dana Jacobsen (dana@acm.org).
+Copyright 2012-2016, Dana Jacobsen (dana@acm.org).
 
 Let me know if you find this software useful, and suggestions, comments, and
 patches are welcome.
