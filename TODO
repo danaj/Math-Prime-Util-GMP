@@ -110,6 +110,4 @@
   All current calls are testing primality, so don't need multiple returns.
   Changing the XS call to return multiple values might be useful.
 
-- Docs and test for is_euler_plumb_pseudoprime
-
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'

@@ -173,7 +173,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset
 
 =head1 NAME
 
@@ -530,6 +530,17 @@ Because the C<U = 0> condition is ignored, this produces about 5% more
 pseudoprimes than the extra-strong Lucas test.  However this is still only
 66% of the number produced by the strong Lucas-Selfridge test.  No BPSW
 counterexamples have been found with any of the Lucas tests described.
+
+
+=head2 is_euler_plumb_pseudoprime
+
+Takes a positive number C<n> as input and returns 1 if C<n> passes
+Colin Plumb's Euler Criterion primality test.  Pseudoprimes to this test
+are a subset of the base 2 Fermat and Euler tests, but a superset
+of the base 2 strong pseudoprime (Miller-Rabin) test.
+
+The main reason for this test is that is a bit more efficient
+than other probable prime tests.
 
 
 =head2 is_perrin_pseudoprime
