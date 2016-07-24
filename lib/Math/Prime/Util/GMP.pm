@@ -173,7 +173,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod
 
 =head1 NAME
 
