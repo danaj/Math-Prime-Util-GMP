@@ -74,6 +74,7 @@ our @EXPORT_OK = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
+                     sqrtint rootint
                      is_power
                      is_primitive_root
                      znorder
@@ -173,7 +174,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint
 
 =head1 NAME
 
@@ -1317,6 +1318,18 @@ and 0 otherwise.  For example, if C<k=2> then this detects perfect squares.
 This corresponds to Pari/GP's C<ispower> function, with the limitations of
 only integer arguments and no third argument may be given to return the root.
 
+=head2 sqrtint
+
+Returns the truncated integer part of the square root of C<n>.
+
+This corresponds to Pari/GP's C<sqrtint> function.
+
+=head2 rootint
+
+Given C<n> and C<k>, returns the truncated integer part of the C<k-th> root
+of C<n>.
+
+This corresponds to Pari/GP's C<sqrtnint> function.
 
 
 =head2 factor

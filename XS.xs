@@ -380,6 +380,7 @@ primorial(IN char* strn)
     harmfrac = 8
     znprimroot = 9
     ramanujan_tau = 10
+    sqrtint = 11
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -406,8 +407,9 @@ primorial(IN char* strn)
                XPUSH_MPZ(n);
                break;
       case 9:  znprimroot(res, n);  break;
-      case 10:
-      default: ramanujan_tau(res, n);  break;
+      case 10: ramanujan_tau(res, n);  break;
+      case 11:
+      default: mpz_sqrt(res, n);  break;
     }
     if (ix == 9 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
@@ -571,6 +573,7 @@ invmod(IN char* stra, IN char* strb)
     znorder = 4
     sqrtmod = 5
     is_primitive_root = 6
+    rootint = 7
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -619,9 +622,11 @@ invmod(IN char* stra, IN char* strb)
       if (!mpz_sgn(a)) retundef = 1;
     } else if (ix == 5) {
       retundef = !sqrtmod(a, a, b);
-    } else {
+    } else if (ix == 6) {
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
+    } else {
+      mpz_root(a, a, mpz_get_ui(b));
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);

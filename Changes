@@ -2,6 +2,11 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.40 2016-?
 
+    [ADDED]
+
+    - sqrtint(n)                Integer square root of n
+    - rootint(n,k)              Integer k-th root of n
+
 
 0.39 2016-07-24
 

@@ -111,3 +111,6 @@
   Changing the XS call to return multiple values might be useful.
 
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
+
+- is_prime_power in GMP.  Return root in GMP, or make a rootint call.
+  is_prime_power is 2x faster than Pari until bigints, then it is super slow.
