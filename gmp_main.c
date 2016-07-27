@@ -330,7 +330,7 @@ void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
   neven = mpz_even_p(n);
   j = 1 + !neven;         /* distance from n we're looking. */
 
-  for (found = 0, search_merits = 15; !found; search_merits *= 2) {
+  for (found = 0, search_merits = 20; !found; search_merits *= 2) {
     double logn = mpz_logn(n);
 
     if (BITS_PER_WORD == 32 && log2n >   7000)
