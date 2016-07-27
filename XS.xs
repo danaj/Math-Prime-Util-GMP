@@ -381,6 +381,7 @@ primorial(IN char* strn)
     znprimroot = 9
     ramanujan_tau = 10
     sqrtint = 11
+    is_prime_power = 12
   PREINIT:
     mpz_t res, n;
     UV un;
@@ -388,6 +389,7 @@ primorial(IN char* strn)
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
       if (ix == 3)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
       if (ix == 9)  strn++;            /* znprimroot flip sign */
+      if (ix ==12)  XSRETURN_IV(0);    /* is_prime_power return 0 */
     }
     VALIDATE_AND_SET(n, strn);
     un = mpz_get_ui(n);
@@ -408,8 +410,17 @@ primorial(IN char* strn)
                break;
       case 9:  znprimroot(res, n);  break;
       case 10: ramanujan_tau(res, n);  break;
-      case 11:
-      default: mpz_sqrt(res, n);  break;
+      case 11: mpz_sqrt(res, n);  break;
+      case 12:
+      default: if (_GMP_is_prob_prime(n)) {
+                 un = 1;
+               } else {
+                 un = power_factor(n, res);
+                 if (un && !_GMP_is_prob_prime(res))
+                   un = 0;
+               }
+               mpz_set_ui(res, un);
+               break;
     }
     if (ix == 9 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
@@ -626,6 +637,8 @@ invmod(IN char* stra, IN char* strb)
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
     } else {
+      if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
+      if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
     }
     if (!retundef) XPUSH_MPZ(a);

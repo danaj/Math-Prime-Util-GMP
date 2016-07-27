@@ -75,7 +75,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint
-                     is_power
+                     is_power is_prime_power
                      is_primitive_root
                      znorder
                      znprimroot
@@ -1317,6 +1317,13 @@ and 0 otherwise.  For example, if C<k=2> then this detects perfect squares.
 
 This corresponds to Pari/GP's C<ispower> function, with the limitations of
 only integer arguments and no third argument may be given to return the root.
+
+=head2 is_prime_power
+
+Given an integer input C<n>, returns C<k> if C<n = p^k> for some prime p,
+and zero otherwise.
+
+This corresponds to Pari/GP's C<isprimepower> function.
 
 =head2 sqrtint
 

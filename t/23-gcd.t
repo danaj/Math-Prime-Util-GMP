@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/gcd lcm kronecker is_power valuation invmod
+use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation invmod
+                              is_power is_prime_power
                               binomial gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -160,7 +161,7 @@ plan tests => scalar(@gcds)
             + scalar(@gcdexts)
             + scalar(@vecsums)
             + scalar(@vecprods)
-            + 3 + 3 + 1 + 5;
+            + 3 + 3 + 1 + 5 + 3;
 
 foreach my $garg (@gcds) {
   my($aref, $exp) = @$garg;
@@ -227,3 +228,7 @@ is( is_power("141584201252435576611385848128741754359444747593833758786464145304
 is( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761"), "16", "is_power(903111^16) == 16" );
 ok( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761",4), "is_power(903111^16,4) is true" );
 is( is_power("894311843364148115560351871258324837202590615410044436950984649"), "2", "is_power(29905047121918201644964877983907^2) == 2" );
+
+is( is_prime_power("18475335773296164196"), "0", "is_prime_power(18475335773296164196) == 0" );
+is( is_prime_power("894311843364148115560351871258324837202590615410044436950984649"), 0, "is_prime_power(29905047121918201644964877983907^2) == 0" );
+is( is_prime_power("1415842012524355766113858481287417543594447475938337587864641453047142843853822559252126433860162253504357722982805134804808530350591698526668732807053601"), "18", "is_prime_power(322396049^18) == 18" );
