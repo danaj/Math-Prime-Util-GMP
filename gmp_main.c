@@ -70,11 +70,32 @@ static const unsigned char wheel_retreat[30] =
 
 /*****************************************************************************/
 
+static int is_tiny_prime(uint32_t n) {
+  uint32_t f, limit;
+  if (n < 11) {
+    if (n == 2 || n == 3 || n == 5 || n == 7)      return 2;
+    else                                           return 0;
+  }
+  if (!(n%2) || !(n%3) || !(n%5) || !(n%7))        return 0;
+  if (n <  121) /* 11*11 */                        return 2;
+  if (!(n%11) || !(n%13) || !(n%17) || !(n%19) ||
+       !(n%23) || !(n%29) || !(n%31) || !(n%37) ||
+       !(n%41) || !(n%43) || !(n%47) || !(n%53))   return 0;
+  if (n < 3481) /* 59*59 */                        return 2;
+
+  f = 59;
+  limit = (uint32_t) (sqrt((double)n));
+  while (f <= limit) {
+    if ( !(n%f) || !(n%(f+2)) || !(n%(f+8)) || !(n%(f+12)) ) return 0;  f += 14;
+    if ( !(n%f) || !(n%(f+4)) || !(n%(f+6)) || !(n%(f+10)) ) return 0;  f += 16;
+  }
+  return 2;
+}
+
 int primality_pretest(mpz_t n)
 {
-  /* If less than 1009, make trial factor handle it. */
-  if (mpz_cmp_ui(n, BGCD_NEXTPRIME) < 0)
-    return _GMP_trial_factor(n, 2, BGCD_LASTPRIME) ? 0 : 2;
+  if (mpz_cmp_ui(n, 100000) < 0)
+    return is_tiny_prime((uint32_t)mpz_get_ui(n));
 
   /* Check for tiny divisors */
   if (mpz_even_p(n)) return 0;
