@@ -37,10 +37,12 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   mpz_t s, t, *factors;
   int ret, i, nfactors, *exponents;
 
-  mpz_init(s);  mpz_init(t);
+  if (mpz_cmp_ui(n,1) <= 0) return mpz_sgn(n);
+
+  mpz_init(s);
   mpz_gcd(s, a, n);
   if (mpz_cmp_ui(s,1) != 0) {
-    mpz_clear(s);  mpz_clear(t);
+    mpz_clear(s);
     return 0;
   }
   if (nprime) {
@@ -48,6 +50,7 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   } else {
     totient(s, n);
   }
+  mpz_init(t);
   ret = 1;
   /* Try a few small primes first before complete factoring */
   for (i = 0; i < 10; i++) {
