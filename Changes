@@ -8,6 +8,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     - rootint(n,k)              Integer k-th root of n
     - is_prime_power(n)         Returns k if n=p^k for p a prime.
 
+    [OTHER]
+
+    - is_perrin_pseudoprime 2x faster.  Takes optional
+      second argument for additional restrictions.
+
 
 0.39 2016-07-24
 

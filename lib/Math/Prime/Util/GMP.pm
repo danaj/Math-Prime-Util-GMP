@@ -548,17 +548,22 @@ than other probable prime tests.
 
 Takes a positive number C<n> as input and returns 1 if C<n> divides C<P(n)>
 where C<P(n)> is the Perrin number of C<n>.  The Perrin sequence is defined by
+C<P(n) = P(n-2) + P(n-3)> with C<P(0) = 3, P(1) = 0, P(2) = 2>.
 
-   C<P(0) = 3, P(1) = 0, P(2) = 2;  P(n) = P(n-2) + P(n-3)>
-
-This is not a commonly used test, as it runs 5 to 10 times slower than most
+This is not a commonly used test, as it runs slower than most
 of the other probable prime tests and offers little benefit, especially over
-combined tests like L</is_bpsw_prime> and
-L</is_frobenius_underwood_pseudoprime>.
+combined tests like L</is_bpsw_prime>,
+L</is_frobenius_underwood_pseudoprime>, and
+L</is_frobenius_khashin_pseudoprime>.
 
-An optional second argument indicates whether to additionally test C<P(-n)>.
-Composites which pass this test are known as restricted Perrin pseudoprimes
-and are a subset of the unrestricted set.
+An optional second argument C<r> indicates whether to run additional tests.
+With C<r=1>, C<P(-n) = -1 mod n> is also verified, creating the
+"minimal restricted" test.
+With C<r=2>, the full signature is also tested using the Adams and Shanks (1982)
+rules (without the quadratic form test).
+With C<r=3>, the full signature is tested using the Grantham (2000) test, which 
+additionally does not allow pseudoprimes to be divisible by 2 or 23.
+The minimal restricted pseudoprime sequence is L<OEIS A018187|http://oeis.org/A018187>.
 
 
 =head2 is_frobenius_pseudoprime

@@ -855,45 +855,15 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   return rval;
 }
 
-static void mat_mulmod_3x3(mpz_t* a, mpz_t* b, mpz_t n, mpz_t* t, mpz_t t2) {
-  int i, row, col;
-  for (row = 0; row < 3; row++) {
-    for (col = 0; col < 3; col++) {
-      mpz_mul(t[3*row+col], a[3*row+0], b[0+col]);
-      mpz_mul(t2, a[3*row+1], b[3+col]);
-      mpz_add(t[3*row+col], t[3*row+col], t2);
-      mpz_mul(t2, a[3*row+2], b[6+col]);
-      mpz_add(t[3*row+col], t[3*row+col], t2);
-    }
-  }
-  for (i = 0; i < 9; i++) mpz_mod(a[i], t[i], n);
-}
-static void mat_powmod_3x3(mpz_t* m, mpz_t kin, mpz_t n) {
-  mpz_t k, t2, t[9], res[9];
-  int i;
-  mpz_init_set(k, kin);
-  mpz_init(t2);
-  for (i = 0; i < 9; i++) { mpz_init(t[i]); mpz_init(res[i]); }
-  mpz_set_ui(res[0],1);  mpz_set_ui(res[4],1);  mpz_set_ui(res[8],1);
-  while (mpz_sgn(k)) {
-    if (mpz_odd_p(k))  mat_mulmod_3x3(res, m, n, t, t2);
-    mpz_fdiv_q_2exp(k, k, 1);
-    if (mpz_sgn(k))    mat_mulmod_3x3(m, m, n, t, t2);
-  }
-  for (i = 0; i < 9; i++)
-    { mpz_set(m[i],res[i]);  mpz_clear(res[i]);  mpz_clear(t[i]); }
-  mpz_clear(t2);
-  mpz_clear(k);
-}
 int is_perrin_pseudoprime(mpz_t n, int restricted)
 {
-  int P[9] = {0,1,0, 0,0,1, 1,1,0};
-  mpz_t m[9];
-  int cmpr, i, rval;
+  mpz_t S[6], T[6], T01, T34, T45, t;
+  int cmpr, i, j, rval;
 
   cmpr = mpz_cmp_ui(n, 2);
   if (cmpr == 0)     return 1;  /* 2 is prime */
   if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (restricted > 2 && mpz_even_p(n)) return 0;
 
   { /* Simple filter for composites */
     uint32_t n32 = mpz_fdiv_ui(n, 2762760);
@@ -904,24 +874,84 @@ int is_perrin_pseudoprime(mpz_t n, int restricted)
     if (!(n32%23) && !((    2 >> (n32%22)) & 1)) return 0;
   }
 
-  for (i = 0; i < 9; i++) mpz_init_set_ui(m[i], P[i]);
-  mat_powmod_3x3(m, n, n);
-  mpz_add(m[1], m[0], m[4]);
-  mpz_add(m[2], m[1], m[8]);
-  mpz_mod(m[0], m[2], n);
-  rval = mpz_sgn(m[0]) ? 0 : 1;
-  if (rval && restricted) {
-    mpz_set_ui(m[0],0);  mpz_set_ui(m[1],1);  mpz_set_ui(m[2],0);
-    mpz_set_ui(m[3],0);  mpz_set_ui(m[4],0);  mpz_set_ui(m[5],1);
-    mpz_set_ui(m[6],1);  mpz_set_ui(m[7],0);  mpz_sub_ui(m[8],n,1);
-    mat_powmod_3x3(m, n, n);
-    mpz_add(m[1], m[0], m[4]);
-    mpz_add(m[2], m[1], m[8]);
-    mpz_add_ui(m[2],m[2],1);
-    mpz_mod(m[0], m[2], n);
-    rval = mpz_sgn(m[0]) ? 0 : 1;
+  /* Calculate signature using Adams/Shanks doubling rule. */
+  mpz_init(t);
+  mpz_init_set_ui(S[0], 1);
+  mpz_init(S[1]); mpz_sub_ui(S[1], n, 1);
+  mpz_init_set_ui(S[2], 3);
+  mpz_init_set_ui(S[3], 3);
+  mpz_init_set_ui(S[4], 0);
+  mpz_init_set_ui(S[5], 2);
+
+  for (i=0; i < 6; i++)
+    mpz_init(T[i]);
+  mpz_init(T01); mpz_init(T34); mpz_init(T45);
+
+  for (i = mpz_sizeinbase(n,2)-2; i >= 0; i--) {
+    mpz_mul(t,S[0],S[0]); mpz_sub(t,t,S[5]); mpz_sub(t,t,S[5]); mpz_mod(T[0],t,n);
+    mpz_mul(t,S[1],S[1]); mpz_sub(t,t,S[4]); mpz_sub(t,t,S[4]); mpz_mod(T[1],t,n);
+    mpz_mul(t,S[2],S[2]); mpz_sub(t,t,S[3]); mpz_sub(t,t,S[3]); mpz_mod(T[2],t,n);
+    mpz_mul(t,S[3],S[3]); mpz_sub(t,t,S[2]); mpz_sub(t,t,S[2]); mpz_mod(T[3],t,n);
+    mpz_mul(t,S[4],S[4]); mpz_sub(t,t,S[1]); mpz_sub(t,t,S[1]); mpz_mod(T[4],t,n);
+    mpz_mul(t,S[5],S[5]); mpz_sub(t,t,S[0]); mpz_sub(t,t,S[0]); mpz_mod(T[5],t,n);
+    mpz_sub(t,T[2],T[1]); mpz_mod(T01,t,n);
+    mpz_sub(t,T[5],T[4]); mpz_mod(T34,t,n);
+    mpz_add(t,T34, T[3]); mpz_mod(T45,t,n);
+    if (mpz_tstbit(n, i)) {
+      mpz_set(S[0],T[0]); mpz_set(S[1],T01); mpz_set(S[2],T[1]);
+      mpz_set(S[3],T[4]); mpz_set(S[4],T45); mpz_set(S[5],T[5]);
+    } else {
+      mpz_add(t,T01,T[0]);
+      mpz_set(S[0],T01); mpz_set(S[1],T[1]); mpz_mod(S[2],t,n);
+      mpz_set(S[3],T34); mpz_set(S[4],T[4]); mpz_set(S[5],T45);
+    }
   }
-  for (i = 0; i < 9; i++) mpz_clear(m[i]);
+
+  for (i=0; i < 6; i++)
+    mpz_clear(T[i]);
+  mpz_clear(T01); mpz_clear(T34); mpz_clear(T45);
+
+  rval = !mpz_sgn(S[4]);
+  if (rval == 0 || restricted == 0)
+    goto DONE_PERRIN;
+
+  mpz_sub_ui(t,n,1);
+  rval = !mpz_cmp(S[1],t);
+  if (rval == 0 || restricted == 1)
+    goto DONE_PERRIN;
+
+  /* Adams/Shanks or Arno,Grantham full signature test */
+  rval = 0; 
+  j = mpz_si_kronecker(-23, n);
+  
+  if (j == -1) {
+    mpz_t A, B, C;
+    mpz_init_set(B, S[2]); mpz_init(A); mpz_init(C);
+
+    mpz_mul(t,B,B); mpz_mod(t,t,n);
+    mpz_mul_ui(A,B,3); mpz_add_ui(A,A,1); mpz_sub(A,A,t); mpz_mod(A,A,n);
+    mpz_mul_ui(C,t,3); mpz_sub_ui(C,C,2); mpz_mod(C,C,n);
+
+    mpz_mul(t,t,B); mpz_sub(t,t,B); mpz_mod(t,t,n);
+    rval = !mpz_cmp(S[0],A) && !mpz_cmp(S[2],B) && !mpz_cmp(S[3],B) && !mpz_cmp(S[5],C) && mpz_cmp_ui(B,3) && !mpz_cmp_ui(t,1);
+  } else if (restricted > 2 && j == 0 && mpz_cmp_ui(n,23)) {
+    /* Jacobi symbol says 23|n.  n is composite if != 23 */
+    rval = 0;
+  } else {
+    if (!mpz_cmp(S[2],S[3])) {
+      rval = !mpz_cmp_ui(S[0],1) && !mpz_cmp_ui(S[2],3) && !mpz_cmp_ui(S[3],3) && !mpz_cmp_ui(S[5],2);
+    } else {
+      mpz_sub_ui(t, n, 1);
+      rval = !mpz_cmp_ui(S[0],0) && !mpz_cmp(S[5],t) &&
+             (mpz_add(t,S[2],S[3]),mpz_add_ui(t,t,3),mpz_mod(t,t,n),!mpz_sgn(t)) &&
+             (mpz_sub(t,S[2],S[3]),mpz_mul(t,t,t),mpz_add_ui(t,t,23),mpz_mod(t,t,n),!mpz_sgn(t));
+    }
+  }
+
+DONE_PERRIN:
+  for (i=0; i < 6; i++)
+    mpz_clear(S[i]);
+  mpz_clear(t);
   return rval;
 }
 
