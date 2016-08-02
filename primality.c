@@ -921,9 +921,9 @@ int is_perrin_pseudoprime(mpz_t n, int restricted)
     goto DONE_PERRIN;
 
   /* Adams/Shanks or Arno,Grantham full signature test */
-  rval = 0; 
+  rval = 0;
   j = mpz_si_kronecker(-23, n);
-  
+
   if (j == -1) {
     mpz_t A, B, C;
     mpz_init_set(B, S[2]); mpz_init(A); mpz_init(C);
