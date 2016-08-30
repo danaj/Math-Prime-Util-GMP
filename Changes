@@ -1,5 +1,16 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.41 2016-?
+
+    [ADDED]
+
+    - todigits(n[,base[,len]])  Convert number to digit array
+
+    [OTHER]
+
+    - With verbose >= 3, prints factors found in partial sieve.
+
+
 0.40 2016-08-01
 
     [ADDED]

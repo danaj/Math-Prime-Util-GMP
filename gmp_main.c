@@ -628,12 +628,12 @@ void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
   } else {
     mpz_init(t);  mpz_init(t2);
     mpz_set_ui(r,0);
-    if (type == 3) {
-      mpz_bin_uiui(t, n-1, m-1);
-      mpz_fac_ui(t2, n);
+    if (type == 3) { /* Lah: binomial(n k) * binomial(n-1 k-1) * (n-k)!*/
+      mpz_bin_uiui(t, n, m);
+      mpz_bin_uiui(t2, n-1, m-1);
       mpz_mul(r, t, t2);
-      mpz_fac_ui(t2, m);
-      mpz_divexact(r, r, t2);
+      mpz_fac_ui(t2, n-m);
+      mpz_mul(r, r, t2);
     } else if (type == 2) {
       for (j = 1; j <= m; j++) {
         mpz_bin_uiui(t, m, j);
@@ -805,21 +805,29 @@ static void word_tile(uint32_t* source, uint32_t from, uint32_t to) {
     from += words;
   }
 }
-static void sievep(uint32_t* comp, mpz_t start, UV p, UV len) {
-  UV pos = p - mpz_fdiv_ui(start,p);  /* First multiple of p after start  */
-  if (!(pos & 1)) pos += p;           /* Make sure it is odd.             */
-  for ( ; pos < len; pos += 2*p )
-    SETAVAL(comp, pos);
-}
-static void sievep_ui(uint32_t* comp, UV pos, UV p, UV len) {
+static void sievep_ui(uint32_t* comp, UV pos, UV p, UV len, int verbose) {
   if (!(pos & 1)) pos += p;
-  for ( ; pos < len; pos += 2*p )
-    SETAVAL(comp, pos);
+  if (verbose > 2) {
+    for ( ; pos < len; pos += 2*p ) {
+      if (!TSTAVAL(comp, pos)) {
+        printf("factor: %"UVuf" at %"UVuf"\n", p, pos);
+        SETAVAL(comp, pos);
+      }
+    }
+  } else {
+    for ( ; pos < len; pos += 2*p )
+      SETAVAL(comp, pos);
+  }
 }
+/* Find first multiple of p after start */
+#define sievep(comp, start, p, len, verbose) \
+  sievep_ui(comp, (p) - mpz_fdiv_ui((start),(p)), p, len, verbose)
+
 uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 {
   uint32_t* comp;
   UV p, wlen, pwlen;
+  int _verbose = get_verbose_level();
   PRIME_ITERATOR(iter);
 
   /* mpz_init(t);
@@ -839,7 +847,7 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   pwlen = (wlen < 3) ? wlen : 3;
   memset(comp, 0x00, pwlen*sizeof(uint32_t));
   while (p <= maxprime) {
-    sievep(comp, start, p, pwlen*64);
+    sievep(comp, start, p, pwlen*64, _verbose);
     p = prime_iterator_next(&iter);
     if (pwlen*p >= wlen) break;
     word_tile(comp, pwlen, pwlen*p);
@@ -865,12 +873,12 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
           p1 = prime_iterator_next(&iter), p2 = prime_iterator_next(&iter) ) {
       UV p1p2 = p1 * p2;
       UV ddiv = mpz_fdiv_ui(start, p1p2);
-      sievep_ui(comp, p1 - (ddiv % p1), p1, length);
-      sievep_ui(comp, p2 - (ddiv % p2), p2, length);
+      sievep_ui(comp, p1 - (ddiv % p1), p1, length, _verbose);
+      sievep_ui(comp, p2 - (ddiv % p2), p2, length, _verbose);
     }
-    if (p1 <= maxprime) sievep(comp, start, p1, length);
+    if (p1 <= maxprime) sievep(comp, start, p1, length, _verbose);
     for (p = p2; p <= ulim; p = prime_iterator_next(&iter))
-      sievep(comp, start, p, length);
+      sievep(comp, start, p, length, _verbose);
     if (p < maxprime) {
       /* UV is 64-bit, GMP's ui functions are 32-bit.  Sigh. */
       UV lastp, pos;
@@ -889,7 +897,7 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
           p1 += ((UV)mpz_get_ui(rem)) << 31;
           pos = p - p1;
         }
-        sievep_ui(comp, pos, p, length);
+        sievep_ui(comp, pos, p, length, _verbose);
       }
       mpz_clear(mp);
       mpz_clear(rem);
