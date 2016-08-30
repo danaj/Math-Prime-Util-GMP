@@ -1085,7 +1085,7 @@ todigits(IN char* strn, int base=10, int length=-1)
     }
     if (length < 0) length = d;
     EXTEND(SP, length);
-    for (; length > d; length--)
+    for (; length > (int)d; length--)
       PUSHs(sv_2mortal(newSVuv( 0 )));
     for (; length > 0; length--, d--)
       PUSHs(sv_2mortal(newSVuv( digits[d-1] )));
