@@ -111,3 +111,5 @@
   Changing the XS call to return multiple values might be useful.
 
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
+
+- tests for todigits

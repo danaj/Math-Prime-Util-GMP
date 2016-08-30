@@ -81,6 +81,7 @@ our @EXPORT_OK = qw(
                      znprimroot
                      ramanujan_tau
                      Pi
+                     todigits
                    );
                    # Should add:
                    # nth_prime
@@ -1577,6 +1578,22 @@ desired, so other methods such as L</pbrent_factor>, L</pminus1_factor>, and
 L</ecm_factor> are recommended to begin with to filter out small factors.
 However, it is substantially faster than the other methods on large inputs
 having large factors, and is the method of choice for 35+ digit semiprimes.
+
+
+=head2 todigits
+
+Given an integer C<n>, return an array of digits of C<|n|>.  An optional
+second integer argument specifies a base (default 10).  For example,
+given a base of 2, this returns an array of binary digits of C<n>.
+An optional third argument specifies a length for the returned array.
+The result will be either have upper digits truncated or have leading
+zeros added.
+
+C<todigits(0)> returns an empty array.
+The base must be at least 2, and is limited to an int.
+Length must be at least zero and is limited to an int.
+
+
 
 
 =head1 SEE ALSO

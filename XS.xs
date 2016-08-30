@@ -1056,3 +1056,37 @@ void sigma(IN char* strn, IN UV k = 1)
     sigma(n, n, k);
     XPUSH_MPZ(n);
     mpz_clear(n);
+
+void
+todigits(IN char* strn, int base=10, int length=-1)
+  PREINIT:
+    mpz_t n;
+    uint32_t bits, d, *digits;
+  PPCODE:
+    if (base < 2) croak("invalid base: %d", base);
+    validate_string_number(cv, "n", (strn[0]=='-') ? strn+1 : strn);
+    if (base == 10) {
+      uint32_t l = strlen(strn);
+      New(0, digits, l, uint32_t);
+      for (d = 0; d < l; d++)
+        digits[d] = strn[l-d-1]-'0';
+    } else {
+      mpz_init_set_str(n, strn, 10);
+      bits = mpz_sizeinbase(n,2);
+      New(0, digits, bits, uint32_t);
+      if (base == 2) {
+        for (d = 0;  d < bits;  d++)
+          digits[d] = mpz_tstbit(n, d);
+      } else {
+        for (d = 0;  mpz_sgn(n) > 0;  mpz_tdiv_q_ui(n, n, base))
+          digits[d++] = mpz_fdiv_ui(n, base);
+      }
+      mpz_clear(n);
+    }
+    if (length < 0) length = d;
+    EXTEND(SP, length);
+    for (; length > d; length--)
+      PUSHs(sv_2mortal(newSVuv( 0 )));
+    for (; length > 0; length--, d--)
+      PUSHs(sv_2mortal(newSVuv( digits[d-1] )));
+    Safefree(digits);
