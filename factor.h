@@ -29,4 +29,6 @@ extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
 
 extern UV   power_factor(mpz_t n, mpz_t f);
 
+extern mpz_t* divisor_list(int* ndivisors, mpz_t n);
+
 #endif

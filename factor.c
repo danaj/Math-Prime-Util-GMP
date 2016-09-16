@@ -1601,3 +1601,39 @@ UV power_factor(mpz_t n, mpz_t f)
   }
   return (k == 1) ? 0 : k;
 }
+
+static int numcmp(const void *av, const void *bv)
+  { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
+
+mpz_t * divisor_list(int *num_divisors, mpz_t n)
+{
+  mpz_t *factors, *divs, mult;
+  int nfactors, ndivisors, i, j, k, count, *exponents;
+
+  nfactors = factor(n, &factors, &exponents);
+  ndivisors = exponents[0] + 1;
+  for (i = 1; i < nfactors; i++)
+    ndivisors *= (exponents[i] + 1);
+
+  mpz_init(mult);
+  New(0, divs, ndivisors, mpz_t);
+  mpz_init_set_ui(divs[0], 1);
+  for (count = 1, k = 0; k < nfactors; k++) {
+    int scount = count;
+    mpz_set_ui(mult, 1);
+    for (j = 0; j < exponents[k]; j++) {
+      mpz_mul(mult, mult, factors[k]);
+      for (i = 0; i < scount; i++) {
+        mpz_init(divs[count]);
+        mpz_mul(divs[count], divs[i], mult);
+        count++;
+      }
+    }
+  }
+  clear_factors(nfactors, &factors, &exponents);
+
+  qsort(divs, ndivisors, sizeof(mpz_t), numcmp);
+
+  *num_divisors = ndivisors;
+  return divs;
+}
