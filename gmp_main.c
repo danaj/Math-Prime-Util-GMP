@@ -779,12 +779,7 @@ char* intriemannrreal(mpz_t n, unsigned long prec)
 
   mpf_init2(r, bits);
   mpf_set_z(r, n);
-#if 0
   _riemann_r(r, r, prec);
-#else
-  mpf_t t; mpf_init2(t,bits); mpf_set_ui(t, 1267); mpf_div_ui(t,t,100);
-  mpf_pow(r, r, t);
-#endif
   out = _str_real(r, prec);
   mpf_clear(r);
   return out;
