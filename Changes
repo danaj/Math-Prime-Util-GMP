@@ -2,13 +2,31 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.41 2016-?
 
+    [API CHANGES]
+
+    - bernreal and harmreal will use the second argument to mean the digits
+      of precision to use, rather than the number of digits past the decimal
+      place.
+
     [ADDED]
 
-    - todigits(n[,base[,len]])  Convert number to digit array
+    - todigits(n[,base[,len]])     Convert number to digit array
+    - intzetareal(s[,digits])      Riemann Zeta of integer s
+    - intriemannrreal(s[,digits])  Riemann R function of integer s
+    - divisors(n)                  Returns list of divisors
 
     [OTHER]
 
     - With verbose >= 3, prints factors found in partial sieve.
+
+    - factor(1) returns empty list, just like non-GMP code.
+
+    - factor() went through a Perl layer for obsolete reasons.  Removed.
+
+    - bernreal and bernfrac will use the Zeta/Pi method for large values,
+      making it orders of magnitude faster for large sizes.
+
+    - Added internal FP log, exp, pow functions, which are not in GMP.
 
 
 0.40 2016-08-01

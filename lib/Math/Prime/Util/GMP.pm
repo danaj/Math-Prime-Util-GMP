@@ -57,6 +57,7 @@ our @EXPORT_OK = qw(
                      ecm_factor
                      qs_factor
                      factor
+                     divisors
                      sigma
                      chinese
                      moebius
@@ -66,6 +67,7 @@ our @EXPORT_OK = qw(
                      factorial
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
+                     intzetareal intriemannrreal
                      gcd lcm kronecker valuation binomial gcdext
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -148,13 +150,6 @@ sub is_provable_prime_with_cert {
   return ($result, $text);
 }
 
-sub factor {
-  my ($n) = @_;
-  my @factors = ($n < 4) ? ($n)
-                         : sort {$a<=>$b} _GMP_factor($n);
-  return @factors;
-}
-
 sub primes {
   my($low,$high) = (scalar(@_) == 1) ? (2,$_[0]) : ($_[0], $_[1]);
 
@@ -175,7 +170,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling intzetareal intriemannrreal lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint
 
 =head1 NAME
 
@@ -1046,7 +1041,8 @@ functions.
 
 Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
 string floating point.  An optional second argument indicates the number
-of digits to be preserved past the decimal place, with a default of 40.
+of significant digits to be used, with the result rounded.  The default
+is 40 digits.
 
 =head2 harmfrac
 
@@ -1078,6 +1074,25 @@ permutations of C<n> symbols with exactly C<k> cycles.  Stirling numbers
 of the second kind are the number of ways to partition a set of C<n>
 elements into C<k> non-empty subsets.  The Lah numbers are the number of
 ways to split a set of C<n> elements into C<k> non-empty lists.
+
+=head2 intzetareal
+
+Given a positive integer C<n>, returns the real Riemann Zeta value as a
+string floating point.  An optional second argument indicates the number
+of digits past the decimal point (default 40).
+
+The implementation is algorithm 2 of Borwein (1991).  Arguments are
+limited to integers due to limitations of GMP's rudimentary C<mpf> layer,
+which has been abandoned in favor of MPFR.  L<Math::Prime::Util> will try
+to use L<Math::MPFR> if possible.
+
+=head2 intriemannrreal
+
+Given a positive integer C<n>, returns the real Riemann R function as
+a string floating point.  An optional second argument indicates the number
+of digits past the decimal point (default 40).
+
+The implementation is the standard Gram series.
 
 
 =head2 znorder
@@ -1373,6 +1388,23 @@ L<yafu|http://sourceforge.net/projects/yafu/>,
 L<msieve|http://sourceforge.net/projects/msieve/>,
 L<gmp-ecm|http://ecm.gforge.inria.fr/>, and
 L<GGNFS|http://sourceforge.net/projects/ggnfs/>.
+
+
+=head2 divisors
+
+  my @divisors = divisors(30);   # returns (1, 2, 3, 5, 6, 10, 15, 30)
+
+Produces all the divisors of a positive number input, including 1 and
+the input number.  The divisors are a power set of multiplications of
+the prime factors, returned as a uniqued sorted list.  The result is
+identical to that of Pari's C<divisors> and Mathematica's C<Divisors[n]>
+functions.
+
+In scalar context this returns the sigma0 function (OEIS A000005), and
+is the same result as evaluating the returned array in scalar context
+(but much more efficient).
+The result then corresponds to Pari's C<numdiv> and Mathematica's
+C<DivisorSigma[0,n]> functions.
 
 
 =head2 trial_factor

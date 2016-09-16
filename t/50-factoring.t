@@ -42,7 +42,7 @@ plan tests => 0 + 57
 #
 #diag "factoring 32-bit numbers";
 is_deeply( [ factor(0) ], [0], "factor(0)" );
-is_deeply( [ factor(1) ], [1], "factor(1)" );
+is_deeply( [ factor(1) ], [], "factor(1)" );
 is_deeply( [ factor(2) ], [2], "factor(2)" );
 is_deeply( [ factor(3) ], [3], "factor(3)" );
 is_deeply( [ factor(4) ], [2,2], "factor(4)" );
@@ -173,7 +173,7 @@ sub extra_factor_test {
 
 # Factor in scalar context
 is( scalar factor(0), 1, "scalar factor(0) should be 1" );
-is( scalar factor(1), 1, "scalar factor(1) should be 1" );
+is( scalar factor(1), 0, "scalar factor(1) should be 1" );
 is( scalar factor(3), 1, "scalar factor(3) should be 1" );
 is( scalar factor(4), 2, "scalar factor(4) should be 2" );
 is( scalar factor(5), 1, "scalar factor(5) should be 1" );

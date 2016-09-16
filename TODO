@@ -14,8 +14,6 @@
   just isn't going to be the right algorithm for numbers > 2^64.  Mainly what
   it needs is to pay attention to the rounds argument.  Perhaps race.
 
-- Add Riemann R function
-
 - Tune and improve SIMPQS for our uses.  Check FLINT 2.3 for improvements.
 
 - Write our own QS.
@@ -102,8 +100,6 @@
 
 - BLS75 methods: check if we can return 0 instead of 1 in many cases.
 
-- Bernoulli number implementation is simple, but not really fast.
-
 - Make a trial factor routine that returns all factors.  This can be done
   with a single treesieve.  ECPP could make use of this (since it is doing
   many calls, keeping the product tree around would be useful).
@@ -112,4 +108,6 @@
 
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
 
-- tests for todigits
+- We have a mpf_pow function now, so we could make Riemann Zeta work for
+  non-integer inputs.  Consider some method for real input Zeta and R.  The
+  latter should work now, we just need an input method.

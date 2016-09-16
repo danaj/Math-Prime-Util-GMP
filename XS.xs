@@ -431,7 +431,9 @@ primorial(IN char* strn)
 void harmreal(IN char* strn, IN UV prec = 40)
   ALIAS:
     bernreal = 1
-    surround_primes = 2
+    intzetareal = 2
+    intriemannrreal = 3
+    surround_primes = 4
   PREINIT:
     mpz_t n;
     char* res;
@@ -439,6 +441,18 @@ void harmreal(IN char* strn, IN UV prec = 40)
     VALIDATE_AND_SET(n, strn);
     if (ix < 2) {
       res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
+      XPUSHs(sv_2mortal(newSVpv(res, 0)));
+      Safefree(res);
+    } else if (ix == 2) {
+      if (mpz_cmp_ui(n,2) < 0)
+        XSRETURN_UNDEF;
+      res = intzetareal(mpz_get_ui(n), prec);
+      XPUSHs(sv_2mortal(newSVpv(res, 0)));
+      Safefree(res);
+    } else if (ix == 3) {
+      if (mpz_cmp_ui(n,1) < 0)
+        XSRETURN_UNDEF;
+      res = intriemannrreal(n, prec);
       XPUSHs(sv_2mortal(newSVpv(res, 0)));
       Safefree(res);
     } else {
@@ -1031,7 +1045,9 @@ trial_factor(IN char* strn, ...)
     mpz_clear(n);
 
 void
-_GMP_factor(IN char* strn)
+factor(IN char* strn)
+  ALIAS:
+    divisors = 1
   PREINIT:
     mpz_t n;
     mpz_t* factors;
@@ -1039,13 +1055,34 @@ _GMP_factor(IN char* strn)
     int nfactors, i, j;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
-    nfactors = factor(n, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      for (j = 0; j < exponents[i]; j++) {
-        XPUSH_MPZ(factors[i]);
+    if (ix == 0) {
+      nfactors = factor(n, &factors, &exponents);
+      if (GIMME_V == G_SCALAR) {
+        for (i = 0, j = 0; i < nfactors; i++)
+          j += exponents[i];
+        PUSHs(sv_2mortal(newSVuv(j)));
+      } else {
+        for (i = 0; i < nfactors; i++) {
+          for (j = 0; j < exponents[i]; j++) {
+            XPUSH_MPZ(factors[i]);
+          }
+        }
+      }
+      clear_factors(nfactors, &factors, &exponents);
+    } else {
+      if (GIMME_V == G_SCALAR) {
+        sigma(n, n, 1);
+        XPUSH_MPZ(n);
+      } else {
+        factors = divisor_list(&nfactors, n);
+        EXTEND(SP, nfactors);
+        for (i = 0; i < nfactors; i++) {
+          XPUSH_MPZ(factors[i]);
+          mpz_clear(factors[i]);
+        }
+        Safefree(factors);
       }
     }
-    clear_factors(nfactors, &factors, &exponents);
     mpz_clear(n);
 
 void sigma(IN char* strn, IN UV k = 1)
@@ -1064,7 +1101,8 @@ todigits(IN char* strn, int base=10, int length=-1)
     uint32_t bits, d, *digits;
   PPCODE:
     if (base < 2) croak("invalid base: %d", base);
-    validate_string_number(cv, "n", (strn[0]=='-') ? strn+1 : strn);
+    if (strn[0] == '-' || strn[0] == '+')  strn++;
+    validate_string_number(cv, "n", strn);
     if (base == 10) {
       uint32_t l = strlen(strn);
       New(0, digits, l, uint32_t);
@@ -1083,10 +1121,12 @@ todigits(IN char* strn, int base=10, int length=-1)
       }
       mpz_clear(n);
     }
-    if (length < 0) length = d;
-    EXTEND(SP, length);
-    for (; length > (int)d; length--)
-      PUSHs(sv_2mortal(newSVuv( 0 )));
-    for (; length > 0; length--, d--)
-      PUSHs(sv_2mortal(newSVuv( digits[d-1] )));
+    if (length > 0 || d > 1 || digits[0] != 0) {
+      if (length < 0) length = d;
+      EXTEND(SP, length);
+      for (; length > (int)d; length--)
+        PUSHs(sv_2mortal(newSVuv( 0 )));
+      for (; length > 0; length--)
+        PUSHs(sv_2mortal(newSVuv( digits[length-1] )));
+    }
     Safefree(digits);
