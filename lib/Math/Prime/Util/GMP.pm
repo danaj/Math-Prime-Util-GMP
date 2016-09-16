@@ -170,7 +170,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling intzetareal intriemannrreal lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling intzetareal intriemannrreal lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits
 
 =head1 NAME
 
@@ -1396,9 +1396,9 @@ L<GGNFS|http://sourceforge.net/projects/ggnfs/>.
 
 Produces all the divisors of a positive number input, including 1 and
 the input number.  The divisors are a power set of multiplications of
-the prime factors, returned as a uniqued sorted list.  The result is
-identical to that of Pari's C<divisors> and Mathematica's C<Divisors[n]>
-functions.
+the prime factors, returned as a sorted list with no duplications.
+The result is identical to that of Pari's C<divisors> and
+Mathematica's C<Divisors[n]> functions.
 
 In scalar context this returns the sigma0 function (OEIS A000005), and
 is the same result as evaluating the returned array in scalar context

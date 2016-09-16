@@ -6,7 +6,7 @@ use Test::More;
 use Math::Prime::Util::GMP qw/next_prime prev_prime surround_primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
-plan tests => 2 + 3*2 + 6 + 1 + 2 + 1 + 2 + 7+2*$extra;
+plan tests => 2 + 3*2 + 6 + 1 + 2 + 1 + 2 + 7 + 3*$extra;
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97
@@ -103,6 +103,7 @@ is_deeply([surround_primes("36893488147419103273",90)], [90,0], "surround_primes
 if ($extra) {
   my $c163 = "3254185929142547441117000456865810587301677179676494144227638178204588790016877642497284992010196102315442455595356723557223592608572003000275424902281588892769763";
   is_deeply([surround_primes($c163,200)], [8776,4916], "surround_primes(d163,200)");
-  my $c163b = "3254185929142547441117000456865810587301677179676494144227638178204588790016877642497284992010196102315442455595356723557223592608572003000275424902281588892769763";
-  is_deeply([surround_primes($c163b,200)], [0,28], "surround_primes(d163,200)");
+  my $c85 = "2642497284992010196102315442455595356723557223592608572003000275424902281588892769763";
+  is_deeply([surround_primes($c85)], [32,456], "surround_primes(c85)");
+  is_deeply([surround_primes($c85,200)], [32,0], "surround_primes(c85,200)");
 }

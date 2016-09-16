@@ -1071,7 +1071,7 @@ factor(IN char* strn)
       clear_factors(nfactors, &factors, &exponents);
     } else {
       if (GIMME_V == G_SCALAR) {
-        sigma(n, n, 1);
+        sigma(n, n, 0);
         XPUSH_MPZ(n);
       } else {
         factors = divisor_list(&nfactors, n);
