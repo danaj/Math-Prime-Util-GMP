@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/intzetareal intriemannrreal/;
+use Math::Prime::Util::GMP qw/zeta riemannr/;
 
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -49,20 +49,20 @@ my $zeta_prec_n   = 1000;
 plan tests => 1 + scalar(keys %rv) + 2 +
             + ($extra ? (1 + $zeta_prec_tests + 1) : 0);
 
-is_deeply( [map { intzetareal($_,46) } 2 .. 20],
+is_deeply( [map { zeta($_,46) } 2 .. 20],
            \@zeta,
            "Zeta(2 .. 20) with 46 digits" );
 
 while (my($n, $expect) = each (%rv)) {
-  is( intriemannrreal($n, 48), $expect, "R($n) = $expect" );
+  is( riemannr($n, 48), $expect, "R($n) = $expect" );
 }
 
-is(intriemannrreal("1". "0" x 50, 50),
+is(riemannr("1". "0" x 50, 50),
     "876268031750784168878176774217251757122246637483.14", "R(10^50)");
-is(intriemannrreal("1". "0" x 150, 150),
+is(riemannr("1". "0" x 150, 150),
     "2903728255736534346416074404628970397529068306125207079032837832579103359053245134597590715919869831753500878534514475936664326796995810651878998118.39", "R(10^150)");
 if ($extra) {
-  is(intriemannrreal("1". "0" x 350, 350),
+  is(riemannr("1". "0" x 350, 350),
     "124238489949931370910732336966515100452049936912035624051962859419809563716547103734387992271397051067462245818951391061505694003378122910328376084414945173986152316160543747767431283218881745289606393942682080649781736046589565713497255284652389254462690055319573972816225055328610744389507159949406453088151820588031068114762784097248028765358622.40", "R(10^350)");
 }
 
@@ -72,8 +72,8 @@ if ($extra) {
   for (1 .. $zeta_prec_tests) {
     my $n   = 2 + int(rand($zeta_prec_n-1));
     my $dig = 2 + int(rand($zeta_prec_dig-1));
-    is( Math::Prime::Util::GMP::intzetareal($n,$dig),
-        Math::BigFloat->new(Math::Prime::Util::GMP::intzetareal($n,$dig+50), $dig+1)->bstr,
+    is( zeta($n,$dig),
+        Math::BigFloat->new(zeta($n,$dig+50), $dig+1)->bstr,
         "Zeta($n) with $dig decimal places" );
   }
 
@@ -81,7 +81,7 @@ if ($extra) {
   {
     my $sum = Math::BigFloat->new(0);
     for my $s (2 .. 500) {
-      $sum += Math::BigFloat->new(Math::Prime::Util::GMP::intzetareal($s, 550));
+      $sum += Math::BigFloat->new(zeta($s, 550));
     }
     my $sum501 = substr($sum, 0, 501);
     is( $sum501, "499.99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969450636365003953179480206067863823002105972594276733361063860907187083734752795422981426273793369615862239495314555272426337205519046466787368647760489165307368863382624392677833345083812263612626144778463640578576092058344947523271193232320203051751308405773804068301164552829334912459718853773108065819531889452863987939391855448068890812517763", "sum of Zeta(2 .. 500) to 500 sig dig" );

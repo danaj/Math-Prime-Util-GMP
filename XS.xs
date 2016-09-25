@@ -431,32 +431,19 @@ primorial(IN char* strn)
 void harmreal(IN char* strn, IN UV prec = 40)
   ALIAS:
     bernreal = 1
-    intzetareal = 2
-    intriemannrreal = 3
+    zeta = 2
+    riemannr = 3
     surround_primes = 4
   PREINIT:
     mpz_t n;
+    mpf_t f;
     char* res;
+    int retundef;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
-    if (ix < 2) {
-      res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
-      XPUSHs(sv_2mortal(newSVpv(res, 0)));
-      Safefree(res);
-    } else if (ix == 2) {
-      if (mpz_cmp_ui(n,2) < 0)
-        XSRETURN_UNDEF;
-      res = intzetareal(mpz_get_ui(n), prec);
-      XPUSHs(sv_2mortal(newSVpv(res, 0)));
-      Safefree(res);
-    } else if (ix == 3) {
-      if (mpz_cmp_ui(n,1) < 0)
-        XSRETURN_UNDEF;
-      res = intriemannrreal(n, prec);
-      XPUSHs(sv_2mortal(newSVpv(res, 0)));
-      Safefree(res);
-    } else {
-      UV prev, next = 1 + (mpz_sgn(n)==0);
+    if (ix == 4) {  /* surround_primes */
+      UV prev, next;
+      VALIDATE_AND_SET(n, strn);
+      next = 1 + (mpz_sgn(n)==0);
       if (mpz_cmp_ui(n,2) > 0) {
         surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
         XPUSHs(sv_2mortal(newSVuv(prev)));
@@ -464,8 +451,28 @@ void harmreal(IN char* strn, IN UV prec = 40)
         XPUSHs(sv_2mortal(newSV(0)));
       }
       XPUSHs(sv_2mortal(newSVuv(next)));
+      mpz_clear(n);
+    } else {
+      retundef = 0;
+      res = 0;
+      if (ix == 2 || ix == 3) {
+        unsigned long bits = 64 + (unsigned long)(prec*3.32193);
+        mpf_init2(f, bits);
+        if (mpf_set_str(f, strn, 10) != 0)
+          croak("Not valid base-10 floating point input: %s", strn);
+        res = (ix == 2)  ?  zetareal(f, prec)  :  riemannrreal(f, prec);
+        if (res == 0) retundef = 1;
+        mpf_clear(f);
+      } else {
+        VALIDATE_AND_SET(n, strn);
+        res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
+        mpz_clear(n);
+      }
+      if (retundef)
+        XSRETURN_UNDEF;
+      XPUSHs(sv_2mortal(newSVpv(res, 0)));
+      Safefree(res);
     }
-    mpz_clear(n);
 
 void
 gcd(...)

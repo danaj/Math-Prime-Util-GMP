@@ -11,8 +11,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - todigits(n[,base[,len]])     Convert number to digit array
-    - intzetareal(s[,digits])      Riemann Zeta of integer s
-    - intriemannrreal(s[,digits])  Riemann R function of integer s
+    - zeta(s[,digits])             Riemann Zeta of integer or FP s
+    - riemannr(s[,digits])         Riemann R function of integer or FP s
     - divisors(n)                  Returns list of divisors
 
     [OTHER]
@@ -27,6 +27,9 @@ Revision history for Perl module Math::Prime::Util::GMP
       making it orders of magnitude faster for large sizes.
 
     - Added internal FP log, exp, pow functions, which are not in GMP.
+
+    - is_prime will do one extra M-R test for probable primes, down from 1-5.
+      Also, if is_provable_prime adds two Frobenius tests if returning a 1.
 
 
 0.40 2016-08-01

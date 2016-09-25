@@ -108,6 +108,4 @@
 
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
 
-- We have a mpf_pow function now, so we could make Riemann Zeta work for
-  non-integer inputs.  Consider some method for real input Zeta and R.  The
-  latter should work now, we just need an input method.
+- Add tests for non-integer zeta and riemannr.

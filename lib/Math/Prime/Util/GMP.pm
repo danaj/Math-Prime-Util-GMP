@@ -67,7 +67,7 @@ our @EXPORT_OK = qw(
                      factorial
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     intzetareal intriemannrreal
+                     zeta riemannr
                      gcd lcm kronecker valuation binomial gcdext
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -170,7 +170,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling intzetareal intriemannrreal lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits
 
 =head1 NAME
 
@@ -305,8 +305,7 @@ This call walks the line between the performance of L</is_prob_prime>
 and the certainty of L</is_provable_prime>.  Those calls may be more
 appropriate in some cases.  What this function does is give most of
 the performance of the former, while adding more certainty.  For finer
-tuning of this tradeoff, especially if performance is critical for
-65- to 200-bit inputs, you may instead use L</is_prob_prime> followed
+tuning of this tradeoff, you may instead use L</is_prob_prime> followed
 by additional probable prime tests such as L</miller_rabin_random>
 and/or L</is_frobenius_underwood_pseudoprime>.
 
@@ -321,8 +320,8 @@ still "probably prime" but under 200 bits, a quick
 BLS75 C<n-1> primality proof is attempted.  This is tuned to give up
 if the result cannot be quickly determined, and results in success
 rates of ~80% at 80 bits, ~30% at 128 bits, and ~13% at 160 bits.
-Lastly, for results still "probably prime", a small number of
-Miller-Rabin tests with random bases are performed.
+Lastly, for results still "probably prime", an additional random-base
+Miller-Rabin test is performed.
 
 The result is that many numbers will return 2 (definitely prime),
 and the numbers that return 1 (probably prime) have gone through
@@ -1075,22 +1074,22 @@ of the second kind are the number of ways to partition a set of C<n>
 elements into C<k> non-empty subsets.  The Lah numbers are the number of
 ways to split a set of C<n> elements into C<k> non-empty lists.
 
-=head2 intzetareal
+=head2 zeta
 
-Given a positive integer C<n>, returns the real Riemann Zeta value as a
-string floating point.  An optional second argument indicates the number
-of digits past the decimal point (default 40).
+Given a positive integer or float C<n>, returns the real Riemann Zeta
+value as a string floating point.  An optional second argument indicates
+the number of digits past the decimal point (default 40).
 
-The implementation is algorithm 2 of Borwein (1991).  Arguments are
-limited to integers due to limitations of GMP's rudimentary C<mpf> layer,
-which has been abandoned in favor of MPFR.  L<Math::Prime::Util> will try
-to use L<Math::MPFR> if possible.
+The implementation is algorithm 2 of Borwein (1991).  Performance with
+integer inputs is good, but floating point arguments with high precision
+will be much slower than methods using MPFR.  L<Math::Prime::Util> will
+try to use L<Math::MPFR> if possible.
 
-=head2 intriemannrreal
+=head2 riemannr
 
-Given a positive integer C<n>, returns the real Riemann R function as
-a string floating point.  An optional second argument indicates the number
-of digits past the decimal point (default 40).
+Given a positive integer or float C<n>, returns the real Riemann R function
+as a string floating point.  An optional second argument indicates the number
+of significant digits (default 40) with the result rounded.
 
 The implementation is the standard Gram series.
 

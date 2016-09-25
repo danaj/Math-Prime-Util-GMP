@@ -605,67 +605,90 @@ static void _borwein_d(unsigned long D) {
  * It's quite clever, and has the advantage of not using the statics.  Our
  * code can be a little faster in some cases, slower in others.  They
  * certainly have done more rigorous error bounding, allowing fewer guard
- * bits and earlier loop exits. */
+ * bits and earlier loop exits.
+ *
+ * For real values, we use our home-grown mpf_pow function, which is very
+ * slow at high precisions and again very crude compared to MPFR.
+ * For non-integer values this won't compare at all in speed to MPFR or Pari.
+ */
 
-static void _zeta(mpf_t z, unsigned long s, unsigned long prec)
+static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
 {
+  unsigned long k, S, p;
+  mpf_t s, tf, term;
   mpz_t t1;
-  mpf_t tf, term;
 
-  if (s <= 1) {
+  if (mpf_cmp_ui(f,1) <= 0) {
     mpf_set_ui(z, 0);
     return;
   }
 
   /* Shortcut if we know all prec terms are zeros. */
-  if (s >= (1+3.3219281*prec) || s > mpf_get_prec(z)) {
+  if (mpf_cmp_ui(f, 1+3.3219281*prec) >= 0 || mpf_cmp_ui(f, mpf_get_prec(z)) > 0) {
     mpf_set_ui(z,1);
     return;
   }
 
-  mpf_init2(term, mpf_get_prec(z));
+  S = (mpf_integer_p(f) && mpf_fits_ulong_p(f))  ?  mpf_get_ui(f)  :  0;
+  mpf_init2(s,    mpf_get_prec(z));   mpf_set(s, f);
   mpf_init2(tf,   mpf_get_prec(z));
+  mpf_init2(term, mpf_get_prec(z));
   mpz_init(t1);
 
-  if (s <= 14 && !(s & 1)) {              /* Small even s can be done with Pi */
+  if (S && S <= 14 && !(S & 1)) {         /* Small even S can be done with Pi */
     unsigned long div[]={0,6,90,945,9450,93555,638512875,18243225};
     char* pi = pidigits(prec+8);
     mpf_set_str(z, pi, 10);
-    mpf_pow_ui(z, z, s);
-    if (s == 12) mpf_mul_ui(z, z, 691);
-    if (s == 14) mpf_mul_ui(z, z, 2);
-    mpf_div_ui(z, z, div[s/2]);
+    mpf_pow_ui(z, z, S);
+    if (S == 12) mpf_mul_ui(z, z, 691);
+    if (S == 14) mpf_mul_ui(z, z, 2);
+    mpf_div_ui(z, z, div[S/2]);
     Safefree(pi);
-  } else if (s > (prec*2.15+3)) {         /* Only need one term (3^s < prec) */
-    mpf_set_ui(term, 1);
-    mpf_mul_2exp(term, term, s);
+  } else if (mpf_cmp_ui(f, 3+prec*2.15) > 0) {  /* Only one term (3^s < prec) */
+    if (S) {
+      mpf_set_ui(term, 1);
+      mpf_mul_2exp(term, term, S);
+    } else {
+      mpf_set_ui(term, 2);
+      mpf_pow(term, term, s);
+    }
     mpf_sub_ui(tf, term, 1);
     mpf_div(z, term, tf);
-  } else if (s > (prec/4.0)) {            /* Basic formula (for speed) */
-    UV p;
+  } else if (mpf_cmp_ui(f,20) > 0 && mpf_cmp_ui(f, prec/3.5) > 0) {
+    /* Basic formula, for speed */
     PRIME_ITERATOR(iter);
-    mpf_set_ui(z,1);
+    mpf_set_ui(z, 1);
     for (p = 2; p <= 1000000000; p = prime_iterator_next(&iter)) {
-      mpz_ui_pow_ui(t1, p, s);
+      if (S) {
+        mpz_ui_pow_ui(t1, p, S);
+        mpf_set_z(term, t1);
+      } else {
+        mpf_set_ui(tf, p);
+        mpf_pow(term, tf, s);
+        mpz_set_f(t1, term);
+      }
       if (mpz_sizeinbase(t1,2) > (20+3.3219281*prec)) break;
-      mpf_set_z(term, t1);
       mpf_sub_ui(tf, term, 1);
       mpf_div(term, term, tf);
       mpf_mul(z, z, term);
     }
     prime_iterator_destroy(&iter);
-  } else {                                /* Borwein 1991 */
-    unsigned long k;
-
+  } else {
     _borwein_d(prec);
 
     mpf_set_ui(z, 0);
     for (k = 0; k <= zeta_n-1; k++) {
+      if (S) {
+        mpz_ui_pow_ui(t1, k+1, S);
+        mpf_set_z(term, t1);
+      } else {
+        mpf_set_ui(tf, k+1);
+        mpf_pow(term, tf, s);
+      }
+
       mpz_sub(t1, zeta_d[k], zeta_d[zeta_n]);
       mpf_set_z(tf, t1);
 
-      mpz_ui_pow_ui(t1, k+1, s);
-      mpf_set_z(term, t1);
       mpf_div(term, tf, term);
 
       if (k&1) mpf_sub(z, z, term);
@@ -675,15 +698,39 @@ static void _zeta(mpf_t z, unsigned long s, unsigned long prec)
     mpf_set_z(tf, zeta_d[zeta_n]);
     mpf_div(z, z, tf);
 
-    mpf_set_ui(tf, 1);
-    mpf_div_2exp(tf, tf, s-1);
+    if (S) {
+      mpf_set_ui(tf, 1);
+      mpf_div_2exp(tf, tf, S-1);
+    } else {
+      mpf_set_ui(term, 2);
+      mpf_ui_sub(tf, 1, s);
+      mpf_pow(tf, term, tf);
+    }
+
     mpf_ui_sub(tf, 1, tf);
     mpf_div(z, z, tf);
 
     mpf_neg(z, z);
   }
   mpz_clear(t1);
-  mpf_clear(tf); mpf_clear(term);
+  mpf_clear(term); mpf_clear(tf); mpf_clear(s);
+}
+
+static void _zetaint(mpf_t z, unsigned long s, unsigned long prec)
+{
+  mpf_t f;
+
+  if (s <= 1) {
+    mpf_set_ui(z, 0);
+  } else if (s >= (1+3.3219281*prec) || s > mpf_get_prec(z)) {
+    /* Shortcut if we know all prec terms are zeros. */
+    mpf_set_ui(z,1);
+  } else {
+    mpf_init2(f, mpf_get_prec(z));
+    mpf_set_ui(f, s);
+    _zeta(z, f, prec);
+    mpf_clear(f);
+  }
 }
 
 static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
@@ -704,17 +751,18 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
 #if 1 /* Standard Gram Series */
   mpf_set_ui(part_term, 1);
   mpf_set_ui(sum, 1);
-  for (k = 1; k < 1000000; k++) {
-    mpf_mul(tf, sum, tol);
-    if (mpf_cmp(part_term, tf) <= 0) break;
-
+  for (k = 1; k < 10000; k++) {
     mpf_mul(part_term, part_term, logn);
     mpf_div_ui(part_term, part_term, k);
 
-    _zeta(tf, k+1, prec+1);
+    _zetaint(tf, k+1, prec+1);
     mpf_mul_ui(tf, tf, k);
     mpf_div(term, part_term, tf);
     mpf_add(sum, sum, term);
+
+    mpf_abs(term, term);
+    mpf_mul(tf, sum, tol);
+    if (mpf_cmp(term, tf) <= 0) break;
   }
 #else  /* Accelerated (about half the number of terms needed) */
   /* See:   http://mathworld.wolfram.com/GramSeries.html (5)
@@ -724,7 +772,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
    */
   mpf_set(part_term, logn);
   mpf_set_ui(sum, 0);
-  _zeta(tf, 2, prec);
+  _zetaint(tf, 2, prec);
   mpf_div(term, part_term, tf);
   mpf_add(sum, sum, term);
   for (k = 2; k < 1000000; k++) {
@@ -738,7 +786,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
     }
     mpf_mul(part_term, part_term, tf);
 
-    _zeta(tf, 2*k, prec);
+    _zetaint(tf, 2*k, prec);
     mpf_mul_ui(tf, tf, 2*k-1);
     mpf_div(term, part_term, tf);
     mpf_add(sum, sum, term);
@@ -754,35 +802,24 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
 }
 
 
-char* intzetareal(unsigned long s, unsigned long prec)
+char* zetareal(mpf_t z, unsigned long prec)
 {
   char* out;
-  mpf_t z;
-  unsigned long bits = 32+(unsigned long)(prec*3.32193);
 
-  if (s <= 1) return 0;
+  if (mpf_cmp_ui(z,1) <= 0) return 0;
 
-  mpf_init2(z, bits);
-  _zeta(z, s, prec);
+  _zeta(z, z, prec);
 
   New(0, out, 10+prec, char);
   gmp_sprintf(out, "%.*Ff", (int)(prec), z);
-  mpf_clear(z);
   return out;
 }
 
-char* intriemannrreal(mpz_t n, unsigned long prec)
+char* riemannrreal(mpf_t r, unsigned long prec)
 {
-  char* out;
-  mpf_t r;
-  unsigned long bits = 32+(unsigned long)(prec*3.32193);
-
-  mpf_init2(r, bits);
-  mpf_set_z(r, n);
+  if (mpf_cmp_ui(r,0) <= 0) return 0;
   _riemann_r(r, r, prec);
-  out = _str_real(r, prec);
-  mpf_clear(r);
-  return out;
+  return _str_real(r, prec);
 }
 
 /***************************        Harmonic        ***************************/
@@ -852,7 +889,7 @@ static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec)
    *   http://arxiv.org/pdf/math/0702300.pdf
    */
 
-  _zeta(bn, s, prec);
+  _zetaint(bn, s, prec);
 
   /* We should be using an approximation here, e.g. Pari's mpfactr.  For
    * large values this is the majority of time taken for this function. */
