@@ -538,15 +538,22 @@ void mpz_product(mpz_t* A, UV a, UV b) {
   }
 }
 
+/******************************************************************************/
+/*
+ * Floating point routines.
+ * These are very crude.  Use MPFR if at all possible.
+ *
+ */
+
 void mpf_log(mpf_t logn, mpf_t n)
 {
   mpf_t N, a, b, t;
   unsigned long k, bits = mpf_get_prec(n);
 
   mpf_init2(N, bits);
-  mpf_init2(a, 128 + bits);
-  mpf_init2(b, 128 + bits);
-  mpf_init2(t, 128 + bits);
+  mpf_init2(a, 64 + bits);
+  mpf_init2(b, 64 + bits);
+  mpf_init2(t, 64 + bits);
 
   mpf_set(N, n);
   mpf_set_ui(logn, 0);
@@ -606,10 +613,10 @@ void _mpf_lift_exp(mpf_t xj, mpf_t y, mpf_t t, mpf_t t2)
 
 void mpf_exp(mpf_t expn, mpf_t x)
 {
-  mpf_t N, D, s, t;
+  mpf_t N, D, X, s, t;
   unsigned long k, kinit, bits = mpf_get_prec(x);
 
-  mpf_init2(t, 128 + bits);
+  mpf_init2(t, 64 + bits);
 
   /* Doubling rule, to make -.25 < x < .25.  Speeds convergence. */
   mpf_abs(t, x);
@@ -626,18 +633,19 @@ void mpf_exp(mpf_t expn, mpf_t x)
     return;
   }
 
-  mpf_init2(N, 128 + bits);
-  mpf_init2(D, 128 + bits);
-  mpf_init2(s, 128 + bits);
+  mpf_init2(N, 64 + bits);
+  mpf_init2(D, 64 + bits);
+  mpf_init2(s, 64 + bits);
+  mpf_init2(X, 64 + bits);
 
   /* 1. Compute s =~ sinh(x). */
   mpf_set(s,x);
   mpf_set(N,x);
+  mpf_mul(X,x,x);
   mpf_set_ui(D,1);
   kinit = bits/10;
   for (k = 1; k < kinit; k++) {
-    mpf_mul(N, N, x);
-    mpf_mul(N, N, x);
+    mpf_mul(N, N, X);
     mpf_mul_ui(D, D, 2*k);
     mpf_mul_ui(D, D, 2*k+1);
     mpf_div(t, N, D);
@@ -648,6 +656,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
     if (mpf_cmp_d(t, .5) < 0)
       break;
   }
+  mpf_clear(X);
 
   /* 2. Compute s =~ e(x) from sinh(x). */
   mpf_mul(t, s, s);
@@ -669,7 +678,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
   }
 
   mpf_set(expn, s);
-  mpf_clear(t); mpf_clear(s); mpf_clear(D); mpf_clear(N);
+  mpf_clear(s); mpf_clear(D); mpf_clear(N); mpf_clear(t);
 }
 
 void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
@@ -688,6 +697,7 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
   mpf_clear(t);
 }
 
+/******************************************************************************/
 
 
 #if 0
