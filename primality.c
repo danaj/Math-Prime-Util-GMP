@@ -1322,24 +1322,27 @@ int is_deterministic_miller_rabin_prime(mpz_t n)
  *
  * They're all identical for numbers <= 2^64.
  *
- * The extra M-R tests in is_prime start actually costing something after
+ * The extra M-R test in is_prime start actually costing something after
  * 1000 bits or so.  Primality proving will get quite a bit slower as the
  * number of bits increases.
  *
- * What are these extra M-R tests getting us?  The primary reference is
- * Damg??rd, Landrock, and Pomerance, 1993.  From Rabin-Monier, with random
- * bases we have p <= 4^-t.  So one extra test gives us p = 0.25, and four
- * tests gives us p = 0.00390625.  But for larger k (bits in n) this is very
- * conservative.  Since the value has passed BPSW, we are only interested in
- * k > 64.  See the calculate-mr-probs.pl script in the xt/ directory.
- * For a 256-bit input, we get:
- *   1 test:  p < 0.000244140625
- *   2 tests: p < 0.00000000441533
- *   3 tests: p < 0.0000000000062550875
- *   4 tests: p < 0.000000000000028421709
- *
- * It's even more extreme as k goes higher.  Also recall that this is the
- * probability once we've somehow found a BPSW pseudoprime.
+ * Both is_prime and is_provable prime start with some trial division
+ * followed by an extra strong BPSW test, just like is_prob_prime.  For
+ * 65+ bit inputs, they do more.  A single extra random-base M-R test is
+ * next done.  In the worst case this has a 1/4 chance of rejecting the
+ * composite, but an average change of < 1e-12.  is_prime will return at
+ * this point.  is_provable_prime tries various special proofs, followed
+ * by ECPP.  ECPP returns either:
+ *    2  "definitely prime",
+ *    0  "definitely composite, or
+ *    1  "probably prime"
+ * where the latter doesn't really tell us anything.  It's unusual, but
+ * possible.  If this even happs, we do a couple Frobenius-type tests, so
+ * even an answer of 1 (not proven) will have less chance of false results.
+ * A composite would have to have no small factors, be the first known
+ * counterexample to each of three different and distinct tests, pass a
+ * random-base M-R test, and manage to have the ECPP implementation not
+ * find it a composite.
  */
 
 int _GMP_is_prob_prime(mpz_t n)
@@ -1424,37 +1427,27 @@ int _GMP_is_prime(mpz_t n)
    *
    * We will use random bases to make it more difficult to get a false
    * result even if someone has a way to generate BPSW pseudoprimes.
-   * We use enough bases to keep the probability below 1/595,000.
+   *
+   * We can estimate probabilities of random odd 'k'-bit composites passing
+   * 't' random-base Miller-Rabin tests using papers such as Kim and
+   * Pomerance; Damg??rd, Landrock, and Pomerance; Lichtman and Pomerance.
+   * We can also perform random sampling to get empirical data, which shows
+   * a probability of less than 1e-12 at 65 bits, and lowering as the number
+   * of bits increases.  One extra test is all that is necessary.
    */
 
   if (prob_prime == 1) {
-    UV ntests;
-    if      (nbits <  80) ntests = 5;  /* p < .00000168 */
-    else if (nbits < 105) ntests = 4;  /* p < .00000156 */
-    else if (nbits < 160) ntests = 3;  /* p < .00000164 */
-    else if (nbits < 413) ntests = 2;  /* p < .00000156 */
-    else                  ntests = 1;  /* p < .00000159 */
+    UV ntests = 1;
     prob_prime = miller_rabin_random(n, ntests, 0);
     /* prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n); */
     /* prob_prime = _GMP_is_frobenius_khashin_pseudoprime(n); */
   }
 
-  /* Using Damg??rd, Landrock, and Pomerance, we get upper bounds:
-   * k <=  64      p = 0
-   * k <   80      p < 7.53e-08
-   * k <  105      p < 3.97e-08
-   * k <  160      p < 1.68e-08
-   * k >= 160      p < 2.57e-09
-   * This (1) pretends the SPSP-2 is included in the random tests, (2) doesn't
-   * take into account the trial division, (3) ignores the observed
-   * SPSP-2 / Strong Lucas anti-correlation that makes the BPSW test so
-   * useful.  Hence these numbers are still extremely conservative.
-   *
-   * For an idea of how conservative we are being, we have now exceeded the
-   * tests used in Mathematica, Maple, Pari, and SAGE.  Note: Pari pre-2.3
-   * used just M-R tests.  Pari 2.3+ uses BPSW with no extra M-R checks for
-   * is_pseudoprime, but isprime uses APRCL which, being a proof, could only
-   * output a pseudoprime through a coding error.
+  /* We have now done trial division, an SPSP-2 test, an extra-strong Lucas
+   * test, and a random-base Miller-Rabin test.  We have exceeded the testing
+   * done in most math packages.  Any composites will have no small factors,
+   * be the first known BPSW counterexample, and gotten past the random-base
+   * Miller-Rabin test.
    */
 
   return prob_prime;
@@ -1500,6 +1493,14 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
 
   /* ECPP */
   prob_prime = _GMP_ecpp(n, prooftext);
+
+  /* While extremely unusual, it is not impossible for our ECPP implementation
+   * to give up.  If this happens, we won't return 2 with a proof, but let's
+   * at least run some more tests. */
+  if (prob_prime == 1)
+    prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n);
+  if (prob_prime == 1)
+    prob_prime = _GMP_is_frobenius_khashin_pseudoprime(n);
 
   return prob_prime;
 }
