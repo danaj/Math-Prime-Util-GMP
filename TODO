@@ -109,3 +109,6 @@
 - mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
 
 - Add tests for non-integer zeta and riemannr.
+
+- Tests for is_euler_pseudoprime.
+  Tests for is_{,euler,strong}_pseudoprime with multiple bases.

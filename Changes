@@ -8,12 +8,15 @@ Revision history for Perl module Math::Prime::Util::GMP
       of precision to use, rather than the number of digits past the decimal
       place.
 
+    - is_pseudoprime and is_strong_pseudoprime act like Math::Prime::Util.
+
     [ADDED]
 
     - todigits(n[,base[,len]])     Convert number to digit array
     - zeta(s[,digits])             Riemann Zeta of integer or FP s
     - riemannr(s[,digits])         Riemann R function of integer or FP s
     - divisors(n)                  Returns list of divisors
+    - is_euler_pseudoprime(n,@a)   Euler-Jacobi primality test
 
     [OTHER]
 
@@ -30,6 +33,11 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_prime will do one extra M-R test for probable primes, down from 1-5.
       Also, if is_provable_prime adds two Frobenius tests if returning a 1.
+
+    - Removed Perl layer from is_strong_pseudoprime.
+
+    - is_pseudoprime and is_strong_pseudoprime take a list of bases, and
+      there is no default base.
 
 
 0.40 2016-08-01

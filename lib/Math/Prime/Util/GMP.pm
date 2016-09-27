@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(
                      is_bls75_prime
                      is_ecpp_prime
                      is_pseudoprime
+                     is_euler_pseudoprime
                      is_euler_plumb_pseudoprime
                      is_strong_pseudoprime
                      is_lucas_pseudoprime
@@ -118,17 +119,6 @@ sub _validate_positive_integer {
   1;
 }
 
-
-sub is_strong_pseudoprime {
-  my($n, @bases) = @_;
-  _validate_positive_integer($n);
-  croak "No bases given to is_strong_pseudoprime" unless @bases;
-  foreach my $base (@bases) {
-    _validate_positive_integer($base);
-    return 0 unless _GMP_miller_rabin("$n", "$base");
-  }
-  1;
-}
 
 sub is_provable_prime {
   my ($n) = @_;
@@ -393,20 +383,26 @@ verification.  Proof types used include:
 
 =head2 is_pseudoprime
 
-Takes a positive number C<n> and a base C<a> as input, and returns 1 if
-C<n> is a probable prime to base C<a>.  This is the simple Fermat primality
-test.  Removing primes, given base 2 this produces the sequence
-L<OEIS A001567|http://oeis.org/A001567>.
+Takes a positive number C<n> and one or more non-zero positive bases as input.
+Returns C<1> if the input is a probable prime to each base, C<0> if not.
+This is the simple Fermat primality test.
+Removing primes, given base 2 this produces the sequence L<OEIS A001567|http://oeis.org/A001567>.
+
+=head2 is_euler_pseudoprime
+
+Takes a positive number C<n> and one or more non-zero positive bases as input.
+Returns C<1> if the input is an Euler probable prime to each base, C<0> if not.
+This is the Euler test, sometimes called the Euler-Jacobi test.
+Removing primes, given base 2 this produces the sequence L<OEIS A047713|http://oeis.org/A047713>.
 
 =head2 is_strong_pseudoprime
 
   my $maybe_prime = is_strong_pseudoprime($n, 2);
   my $probably_prime = is_strong_pseudoprime($n, 2, 3, 5, 7, 11, 13, 17);
 
-Takes a positive number as input and one or more bases.  Returns 1 if
-the input is a prime or a strong pseudoprime to all of the bases, and
-0 if not.  The base must be a positive integer.  This is often called
-the Miller-Rabin test.
+Takes a positive number C<n> and one or more non-zero positive bases as input.
+Returns C<1> if the input is a strong probable prime to each base, C<0> if not.
+This is often called the Miller-Rabin test.
 
 If 0 is returned, then the number really is a composite.  If 1 is
 returned, then it is either a prime or a strong pseudoprime to all

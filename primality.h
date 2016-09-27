@@ -4,6 +4,9 @@
 #include <gmp.h>
 #include "ptypes.h"
 
+extern int is_pseudoprime(mpz_t n, mpz_t a);
+extern int is_euler_pseudoprime(mpz_t n, mpz_t a);
+
 extern int  miller_rabin(mpz_t n, mpz_t a);
 extern int  miller_rabin_ui(mpz_t n, unsigned long a);
 extern int  miller_rabin_random(mpz_t n, UV numbases, char* seedstr);

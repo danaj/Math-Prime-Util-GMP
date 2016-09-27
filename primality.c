@@ -15,6 +15,72 @@
 static const unsigned char sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251};
 
 
+/* 0 fail, 1 pass, -1 nothing.  Modifies base a */
+static int _preprocess_base(mpz_t n, mpz_t a)
+{
+  if (mpz_cmp_ui(a, 1) < 0)
+    croak("Base %ld is invalid", mpz_get_si(a));
+  if (mpz_cmp_ui(n, 3) <= 0)
+    return (mpz_cmp_ui(n, 2) >= 0);
+
+  if (mpz_cmp_ui(a, 2) > 0) {
+    if (mpz_cmp(a, n) >= 0) {
+      mpz_mod(a, a, n);
+      if (mpz_cmp_ui(a, 1) <= 0)
+        return mpz_sgn(a);
+    }
+  }
+  return -1;
+}
+
+int is_pseudoprime(mpz_t n, mpz_t a)
+{
+  mpz_t nm1;
+  int res;
+
+  if ((res = _preprocess_base(n, a)) >= 0)
+    return res;
+
+  mpz_init(nm1);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_powm(nm1, a, nm1, n);
+  res = (mpz_cmp_ui(nm1, 1) == 0);
+  mpz_clear(nm1);
+  return res;
+}
+
+int is_euler_pseudoprime(mpz_t n, mpz_t a)
+{
+  mpz_t nm1, ap;
+  int res;
+
+  if (mpz_even_p(n))
+    return (mpz_cmp_ui(n,2) == 0);
+  if ((res = _preprocess_base(n, a)) >= 0)
+    return res;
+
+  mpz_init(ap);
+  if (mpz_gcd(ap, a, n), mpz_cmp_ui(ap, 1) != 0) {
+    mpz_clear(ap);
+    return 0;
+  }
+  mpz_init(nm1);
+  mpz_sub_ui(nm1, n, 1);
+  mpz_tdiv_q_2exp(ap, nm1, 1);
+  mpz_powm(ap, a, ap, n);
+
+  if (mpz_cmp_ui(ap, 1) && mpz_cmp(ap, nm1))
+    res = 0;
+  else if (mpz_kronecker(a, n) >= 0)
+    res = (mpz_cmp_ui(ap, 1) == 0);
+  else
+    res = (mpz_cmp(ap, nm1) == 0);
+
+  mpz_clear(nm1);
+  mpz_clear(ap);
+  return res;
+}
+
 static int mrx(/*destroyed*/mpz_t x, /*destroyed*/ mpz_t d, mpz_t n, UV s)
 {
   UV r;

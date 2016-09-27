@@ -68,16 +68,16 @@ _GMP_destroy()
 
 
 int
-_GMP_miller_rabin(IN char* strn, ...)
+is_pseudoprime(IN char* strn, ...)
   ALIAS:
-    is_pseudoprime = 1
+    is_euler_pseudoprime = 1
+    is_strong_pseudoprime = 2
   PREINIT:
+    int i;
     mpz_t n, a;
-    char* strbase;
   CODE:
+    if (items < 2) croak("%s: no bases", GvNAME(CvGV(cv)));
     validate_string_number(cv,"n",strn);
-    strbase = (items == 1) ? "2" : SvPV_nolen(ST(1));  /* default base = 2 */
-    validate_string_number(cv, "base", strbase);
     if (strn[1] == 0) {
       switch (strn[0]) {
         case '2': case '3': case '5': case '7': XSRETURN_IV(1); break;
@@ -86,16 +86,19 @@ _GMP_miller_rabin(IN char* strn, ...)
       }
     }
     mpz_init_set_str(n, strn, 10);
-    mpz_init_set_str(a, strbase, 10);
-    if (ix == 0) {
-      RETVAL = miller_rabin(n, a);
-    } else {
-      mpz_t nm1; mpz_init(nm1); mpz_sub_ui(nm1, n, 1);
-      mpz_powm(a, a, nm1, n);
-      mpz_clear(nm1);
-      RETVAL = !mpz_cmp_ui(a,1);
+    for (i = 1; i < items; i++) {
+      const char* strbase = SvPV_nolen(ST(i));
+      validate_string_number(cv, "base", strbase);
+      mpz_init_set_str(a, strbase, 10);
+      switch (ix) {
+        case 0:  RETVAL = is_pseudoprime(n, a); break;
+        case 1:  RETVAL = is_euler_pseudoprime(n, a); break;
+        case 2:
+        default: RETVAL = miller_rabin(n, a); break;
+      }
+      mpz_clear(a);
+      if (!RETVAL) break;
     }
-    mpz_clear(a);
     mpz_clear(n);
   OUTPUT:
     RETVAL
