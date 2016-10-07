@@ -71,11 +71,13 @@
 - New version of Pi code using Chudnovsky.  See Pari.
 
 - tests for sieve_primes.
-  speed up range sieving.
-  time mpu 'use bigint; my $n = 10**20; say join "\n",Math::Prime::Util::GMP::sieve_primes($n,$n+8e9,0);' >foo
-  takes ~35 minutes.  NewPGen can do it in less than 4.  At 10^22 it is closer.
-  This is an artifact of the sieve/primality tradeoff, as doing a pure sieve
-  can finish in under 5 minutes.
+
+- speed up range sieving.
+
+- fast prime printing routine.  The following could be trivially 2x faster:
+    $n = 10**20; say for Math::Prime::Util::GMP::sieve_primes($n,$n+8e9,0);
+  About 3 minutes vs. 7-8 just by using gmp_printf.
+  Using sieve_range doesn't help, as the issue is the massive return array.
 
 - More efficient version of ramanujan_tau?  MPU has an hclassno implementation
   now.

@@ -1533,7 +1533,7 @@ typedef struct {
 
 UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
   mpz_t t, low;
-  int test_primality = 0, k_primality = 0;
+  int test_primality = 0, k_primality = 0, force_full = 0, width2, hbits;
   uint32_t* comp;
   vlist retlist;
 
@@ -1541,16 +1541,25 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
   if (mpz_cmp(inlow, high) > 0) { *rn = 0; return 0; }
 
   mpz_init(t);
+  mpz_sub(t, high, inlow);
+  width2 = mpz_sizeinbase(t,2);
+  hbits = mpz_sizeinbase(high,2);
+
   mpz_sqrt(t, high);           /* No need for k to be > sqrt(high) */
   /* If auto-setting k or k >= sqrt(n), pick a good depth and test primality */
   if (k == 0 || mpz_cmp_ui(t, k) <= 0) {
-    /* TODO: We need to take into account the sieve width */
-    UV hbits = mpz_sizeinbase(high,2);
     test_primality = 1;
-    k = (hbits < 100) ? 50000000 : hbits*500000;
+    k = (hbits < 100) ? 50000000UL : ((UV)hbits)*UVCONST(500000);
   }
+  /* For smallist n and large ranges, force full sieve */
+  if (test_primality && hbits >= 40 && hbits <  56 && (width2 * 2.8) >= hbits)
+    force_full = 1;
+  if (test_primality && hbits >= 56 && hbits <  64 && (width2 * 2.6) >= hbits)
+    force_full = 1;
+  if (test_primality && hbits >= 64 && hbits <= 82 && (width2 * 2.5) >= hbits && sizeof(unsigned long) > 4)
+    force_full = 1;
   /* If k >= sqrtn, sieving is enough.  Use k=sqrtn, turn off post-sieve test */
-  if (mpz_cmp_ui(t, k) <= 0) {
+  if (force_full || mpz_cmp_ui(t, k) <= 0) {
     k = mpz_get_ui(t);
     k_primality = 1;           /* Our sieve is complete */
     test_primality = 0;        /* Don't run BPSW */

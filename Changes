@@ -39,6 +39,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_pseudoprime and is_strong_pseudoprime take a list of bases, and
       there is no default base.
 
+    - sieve_primes with small n and large range (e.g. 10^20 to 10^20+8e9) is
+      much faster.  This tunes the full vs. partial sieve crossover.
+
 
 0.40 2016-08-01
 
