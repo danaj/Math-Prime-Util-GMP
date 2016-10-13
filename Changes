@@ -1,5 +1,11 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.42 2016-?
+
+    [FIXES]
+
+    - is_power behaviour for 1 and -1.
+
 0.41 2016-10-09
 
     [API CHANGES]

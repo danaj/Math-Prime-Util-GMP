@@ -1199,7 +1199,7 @@ void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 /* a=0, return power.  a>1, return bool if an a-th power */
 UV is_power(mpz_t n, UV a)
 {
-  if (mpz_cmp_ui(n,3) <= 0)
+  if (mpz_cmp_ui(n,3) <= 0 && a == 0)
     return 0;
   else if (a == 1)
     return 1;
