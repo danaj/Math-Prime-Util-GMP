@@ -654,7 +654,8 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     }
     mpf_sub_ui(tf, term, 1);
     mpf_div(z, term, tf);
-  } else if (mpf_cmp_ui(f,20) > 0 && mpf_cmp_ui(f, prec/3.5) > 0) {
+  } else if ( (mpf_cmp_ui(f,20) > 0 && mpf_cmp_ui(f, prec/3.5) > 0) ||
+              (prec > 500 && (mpz_ui_pow_ui(t1, 8*prec, S), mpz_sizeinbase(t1,2) > (20+3.3219281*prec))) ) {
     /* Basic formula, for speed */
     PRIME_ITERATOR(iter);
     mpf_set_ui(z, 1);

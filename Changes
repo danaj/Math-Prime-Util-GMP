@@ -6,6 +6,13 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_power behaviour for 1 and -1.
 
+    [PERFORMANCE]
+
+    - Adjust zeta algorithm crossover for large precision.  Makes a huge
+      difference for bern{frac/real} with values > 53000.
+      Thanks to Trizen for pointing this out.
+
+
 0.41 2016-10-09
 
     [API CHANGES]
