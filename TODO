@@ -114,3 +114,5 @@
 
 - Tests for is_euler_pseudoprime.
   Tests for is_{,euler,strong}_pseudoprime with multiple bases.
+
+- Tests for lambertw

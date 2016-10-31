@@ -436,14 +436,15 @@ void harmreal(IN char* strn, IN UV prec = 40)
     bernreal = 1
     zeta = 2
     riemannr = 3
-    surround_primes = 4
+    lambertw = 4
+    surround_primes = 5
   PREINIT:
     mpz_t n;
     mpf_t f;
     char* res;
     int retundef;
   PPCODE:
-    if (ix == 4) {  /* surround_primes */
+    if (ix == 5) {  /* surround_primes */
       UV prev, next;
       VALIDATE_AND_SET(n, strn);
       next = 1 + (mpz_sgn(n)==0);
@@ -458,12 +459,17 @@ void harmreal(IN char* strn, IN UV prec = 40)
     } else {
       retundef = 0;
       res = 0;
-      if (ix == 2 || ix == 3) {
+      if (ix == 2 || ix == 3 || ix == 4) {
         unsigned long bits = 64 + (unsigned long)(prec*3.32193);
         mpf_init2(f, bits);
         if (mpf_set_str(f, strn, 10) != 0)
           croak("Not valid base-10 floating point input: %s", strn);
-        res = (ix == 2)  ?  zetareal(f, prec)  :  riemannrreal(f, prec);
+        switch (ix) {
+          case 2:  res = zetareal(f, prec); break;
+          case 3:  res = riemannrreal(f, prec); break;
+          case 4:
+          default: res = lambertwreal(f, prec); break;
+        }
         if (res == 0) retundef = 1;
         mpf_clear(f);
       } else {

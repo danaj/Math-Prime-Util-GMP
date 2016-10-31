@@ -68,7 +68,7 @@ our @EXPORT_OK = qw(
                      factorial
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     zeta riemannr
+                     zeta riemannr lambertw
                      gcd lcm kronecker valuation binomial gcdext
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -160,7 +160,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits
 
 =head1 NAME
 
@@ -1088,6 +1088,13 @@ as a string floating point.  An optional second argument indicates the number
 of significant digits (default 40) with the result rounded.
 
 The implementation is the standard Gram series.
+
+=head2 lambertw
+
+Given a float C<x>, returns the principal branch of the Lambert W function.
+This solves for C<W> in the equation C<x = W*exp(W)>.  The input must not be
+less than C<-1/e>.  This corresponds to Pari's C<lambertw>
+function and Mathematica's C<ProductLog> / C<LambertW> function.
 
 
 =head2 znorder

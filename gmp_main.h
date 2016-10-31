@@ -31,6 +31,7 @@ extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 extern char* zetareal(mpf_t r, unsigned long prec);
 extern char* riemannrreal(mpf_t r, unsigned long prec);
+extern char* lambertwreal(mpf_t r, unsigned long prec);
 
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
 extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);

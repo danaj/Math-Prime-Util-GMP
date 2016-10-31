@@ -1047,6 +1047,157 @@ char* bernreal(mpz_t zn, unsigned long prec) {
   return out;
 }
 
+/***************************       Lambert W       ***************************/
+
+static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
+{
+  int i;
+  unsigned long bits = mpf_get_prec(x);
+  mpf_t t, w1, zn, qn, en, tol;
+
+  if (mpf_cmp_d(x, -0.36787944117145) < 0)
+    croak("Invalid input to LambertW:  x must be >= -1/e");
+  if (mpf_sgn(x) == 0)
+    { mpf_set(w, x); return; }
+
+  /* Use Fritsch rather than Halley. */
+  mpf_init2(t,   bits);
+  mpf_init2(w1,  bits);
+  mpf_init2(zn,  bits);
+  mpf_init2(qn,  bits);
+  mpf_init2(en,  bits);
+  mpf_init2(tol, bits);
+
+  /* Initial estimate */
+  if (mpf_cmp_d(x, -0.06) < 0) {  /* Pade(3,2) */
+    mpf_set_d(t, 5.4365636569180904707205749);
+    mpf_mul(t, t, x);
+    mpf_add_ui(t, t, 2);
+    if (mpf_sgn(t) <= 0) { mpf_set_ui(t, 0); } else { mpf_sqrt(t, t); }
+    mpf_mul(zn, t, t);
+    mpf_mul(qn, zn, t);
+
+    mpf_set_d(w, -1);
+    mpf_set_d(w1, 1.0L/6.0L);      mpf_mul(w1, w1,  t);  mpf_add(w, w, w1);
+    mpf_set_d(w1, 257.0L/720.0L);  mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
+    mpf_set_d(w1, 13.0L/720.0L);   mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
+    mpf_set(en, w);  /* numerator */
+
+    mpf_set_d(w, 1);
+    mpf_set_d(w1, 5.0L/6.0L);      mpf_mul(w1, w1,  t);  mpf_add(w, w, w1);
+    mpf_set_d(w1, 103.0L/720.0L);  mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
+
+    mpf_div(w, en, w);
+  } else if (mpf_cmp_d(x, 1.363) < 0) {  /* Winitzki 2003 */
+    mpf_add_ui(t, x, 1);
+    mpf_log(w1, t);
+    mpf_add_ui(zn, w1, 1);
+    mpf_log(zn, zn);
+    mpf_add_ui(qn, w1, 2);
+    mpf_div(t, zn, qn);
+    mpf_ui_sub(t, 1, t);
+    mpf_mul(w, w1, t);
+  } else if (mpf_cmp_d(x, 3.7) < 0) {  /* Vargas 2013 modified */
+    mpf_log(w, x);
+    mpf_log(w1, w);
+    mpf_div(t, w1, w);
+    mpf_ui_sub(t, 1, t);
+    mpf_log(t, t);
+    mpf_div_ui(t, t, 2);
+    mpf_sub(w, w, w1);
+    mpf_sub(w, w, t);
+  } else {  /* Corless et al. 1993 */
+    mpf_t l1, l2, d1, d2, d3;
+    mpf_init2(l1,bits); mpf_init2(l2,bits);
+    mpf_init2(d1,bits); mpf_init2(d2,bits); mpf_init2(d3,bits);
+
+    mpf_log(l1, x);
+    mpf_log(l2, l1);
+    mpf_mul(d1, l1, l1);  mpf_mul_ui(d1, d1, 2);
+    mpf_mul(d2, l1, d1);  mpf_mul_ui(d2, d2, 3);
+    mpf_mul(d3, l1, d2);  mpf_mul_ui(d3, d3, 2);
+
+    mpf_sub(w, l1, l2);
+
+    mpf_div(t, l2, l1);
+    mpf_add(w, w, t);
+
+    mpf_sub_ui(t, l2, 2);
+    mpf_mul(t, t, l2);
+    mpf_div(t, t, d1);
+    mpf_add(w, w, t);
+
+    mpf_mul_ui(t, l2, 2);
+    mpf_sub_ui(t, t, 9);
+    mpf_mul(t, t, l2);
+    mpf_add_ui(t, t, 6);
+    mpf_mul(t, t, l2);
+    mpf_div(t, t, d2);
+    mpf_add(w, w, t);
+
+    mpf_mul_ui(t, l2, 3);
+    mpf_sub_ui(t, t, 22);
+    mpf_mul(t, t, l2);
+    mpf_add_ui(t, t, 36);
+    mpf_mul(t, t, l2);
+    mpf_sub_ui(t, t, 12);
+    mpf_mul(t, t, l2);
+    mpf_div(t, t, d3);
+    mpf_add(w, w, t);
+
+    mpf_clear(l1); mpf_clear(l2);
+    mpf_clear(d1); mpf_clear(d2); mpf_clear(d3);
+  }
+
+  /* Divide prec by 2 since t should be have 4x number of zeros each round */
+  mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec/2);  mpf_ui_div(tol,1,tol);
+
+  for (i = 0; i < 100 && mpz_sgn(w) != 0; i++) {
+    mpf_add_ui(w1, w, 1);
+
+    mpf_div(t, x, w);
+    mpf_log(zn, t);
+    mpf_sub(zn, zn, w);
+
+    mpf_mul_ui(t, zn, 2);
+    mpf_div_ui(t, t, 3);
+    mpf_add(t, t, w1);
+    mpf_mul(t, t, w1);
+    mpf_mul_ui(qn, t, 2);
+
+    mpf_sub(en, qn, zn);
+    mpf_mul_ui(t, zn, 2);
+    mpf_sub(t, qn, t);
+    mpf_div(en, en, t);
+    mpf_div(t, zn, w1);
+    mpf_mul(en, en, t);
+
+    mpf_mul(t, w, en);
+    mpf_add(w, w, t);
+
+    mpf_abs(t, t);
+    if (mpf_cmp(t, tol) <= 0) break;
+    if (mpf_cmp_d(w,-1) <= 0) break;
+  }
+
+  if (mpf_cmp_d(w, -1) <= 0)
+    mpf_set_si(w, -1);
+
+  mpf_clear(en); mpf_clear(qn); mpf_clear(zn);
+  mpf_clear(w1); mpf_clear(t); mpf_clear(tol);
+}
+
+char* lambertwreal(mpf_t x, unsigned long prec) {
+  char* out;
+  mpf_t w;
+  unsigned long bits = 32+(unsigned long)(prec*3.32193);
+
+  mpf_init2(w, bits);
+  _lambertw(w, x, prec);
+  out = _str_real(w, prec);
+  mpf_clear(w);
+  return out;
+}
 
 /*****************************************************************************/
 
