@@ -6,6 +6,7 @@ use Test::More;
 use Math::Prime::Util::GMP qw/
    is_pseudoprime
    is_euler_plumb_pseudoprime
+   is_euler_pseudoprime
    is_strong_pseudoprime
    is_lucas_pseudoprime
    is_strong_lucas_pseudoprime
@@ -56,6 +57,9 @@ my %pseudoprimes = (
  psp2       => [ qw/341 561 645 1105 1387 1729 1905 2047 2465 2701 2821 3277 4033 4369 4371 4681 5461 6601 7957 8321 8481 8911 10261 10585 11305 12801 13741 13747 13981 14491 15709 15841 16705 18705 18721 19951 23001 23377 25761 29341/ ],
  psp3       => [ qw/91 121 286 671 703 949 1105 1541 1729 1891 2465 2665 2701 2821 3281 3367 3751 4961 5551 6601 7381 8401 8911 10585 11011 12403 14383 15203 15457 15841 16471 16531 18721 19345 23521 24046 24661 24727 28009 29161/ ],
  plumb      => [ qw/1729 1905 2047 2465 3277 4033 4681 8321 12801 15841 16705 18705 25761 29341 33153 34945 41041 42799 46657 49141 52633 65281 74665 75361 80581 85489 87249 88357 90751/ ],
+ epsp2      => [ qw/561 1105 1729 1905 2047 2465 3277 4033 4681 6601 8321 8481 10585 12801 15841 16705 18705 25761 29341 30121 33153 34945 41041 42799 46657 49141 52633 62745 65281 74665 75361 80581 85489 87249 88357 90751/ ],
+ epsp3      => [ qw/121 703 1729 1891 2821 3281 7381 8401 8911 10585 12403 15457 15841 16531 18721 19345 23521 24661 28009 29341 31621 41041 44287 46657 47197 49141 50881 52633 55969 63139 63973 74593 75361 79003 82513 87913 88573 93961 97567/ ],
+ epsp29     => [ qw/15 91 341 469 871 2257 4371 4411 5149 5185 6097 8401 8841 11581 12431 15577 15841 16471 19093 22281 25681 27613 28009 29539 31417 33001 41041 46657 48133 49141 54913 57889 79003 98301/ ],
  lucas      => [ qw/323 377 1159 1829 3827 5459 5777 9071 9179 10877 11419 11663 13919 14839 16109 16211 18407 18971 19043/ ],
  slucas     => [ qw/5459 5777 10877 16109 18971 22499 24569 25199 40309 58519 75077 97439 100127 113573 115639 130139/ ],
  eslucas    => [ qw/989 3239 5777 10877 27971 29681 30739 31631 39059 72389 73919 75077 100127 113573 125249 137549 137801 153931 155819/ ],
@@ -131,6 +135,7 @@ plan tests => 0 + 9
                 + $num_pseudoprimes
                 + 1  # mr base 2    2-4k
                 + 9  # mr with large bases
+                + 3  # multiple bases
                 + scalar @small_lucas_trials
                 + scalar(keys %lucas_sequences)
                 + 7  # lucasu lucasv
@@ -182,6 +187,9 @@ while (my($base, $ppref) = each (%pseudoprimes)) {
     if      ($base =~ /^psp(\d+)/) {
       my $base = $1;
       ok(is_pseudoprime($p, $base), "$p is a pseudoprime to base $base");
+    } elsif ($base =~ /^epsp(\d+)/) {
+      my $base = $1;
+      ok(is_euler_pseudoprime($p, $base), "$p is an Euler pseudoprime to base $base");
     } elsif ($base =~ /^aeslucas(\d+)/) {
       my $inc = $1;
       ok(is_almost_extra_strong_lucas_pseudoprime($p,$inc), "$p is an almost extra strong Lucas pseudoprime (increment $inc)");
@@ -229,6 +237,10 @@ is( is_strong_pseudoprime(367, 1101), 1, "spsp(367, 1101)");
 is( is_strong_pseudoprime(49001, 921211727), 0, "spsp(49001, 921211727)");
 is( is_strong_pseudoprime(  331, 921211727), 1, "spsp(  331, 921211727)");
 is( is_strong_pseudoprime(49117, 921211727), 1, "spsp(49117, 921211727)");
+
+is(is_pseudoprime(162401, 2, 3, 5, 7, 11, 13), 1, "162401 is a Fermat pseudoprime to bases 2,3,5,7,11,13");
+is(is_euler_pseudoprime(1857241, 2, 3, 5, 7, 11, 13), 1, "1857241 is an Euler pseudoprime to bases 2,3,5,7,11,13");
+is(is_strong_pseudoprime("3474749660383", 2, 3, 5, 7, 11, 13), 1, "3474749660383 is a strong pseudoprime to bases 2,3,5,7,11,13");
 
 # Verify Lucas for some small numbers
 for my $n (@small_lucas_trials) {
