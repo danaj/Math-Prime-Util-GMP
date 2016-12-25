@@ -1342,7 +1342,7 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
 int _GMP_BPSW(mpz_t n)
 {
   if (mpz_cmp_ui(n, 4) < 0)
-    return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 1;
+    return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 2;
 
   if (miller_rabin_ui(n, 2) == 0)   /* Miller Rabin with base 2 */
     return 0;
