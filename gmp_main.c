@@ -564,6 +564,7 @@ static char* _frac_real(mpz_t num, mpz_t den, unsigned long prec) {
 
 /*********************     Riemann Zeta and Riemann R     *********************/
 
+static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec);
 static unsigned long zeta_n = 0;
 static mpz_t* zeta_d = 0;
 
@@ -618,10 +619,10 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
   mpf_t s, tf, term;
   mpz_t t1;
 
-  if (mpf_cmp_ui(f,1) <= 0) {
-    mpf_set_ui(z, 0);
-    return;
-  }
+  if (mpf_cmp_ui(f,1) == 0) {
+   mpf_set_ui(z, 0);
+   return;
+ }
 
   /* Shortcut if we know all prec terms are zeros. */
   if (mpf_cmp_ui(f, 1+3.3219281*prec) >= 0 || mpf_cmp_ui(f, mpf_get_prec(z)) > 0) {
@@ -630,6 +631,23 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
   }
 
   S = (mpf_integer_p(f) && mpf_fits_ulong_p(f))  ?  mpf_get_ui(f)  :  0;
+
+  /* Negative integers using Bernoulli */
+  if (S == 0 && mpf_integer_p(f) && mpf_fits_slong_p(f) && mpf_sgn(f) != 0) {
+    S = -mpf_get_si(f);
+    if (!(S & 1)) { /* negative even integers are zero */
+      mpf_set_ui(z,0);
+    } else {        /* negative odd integers are -B_(n+1)/(n+1) */
+      mpz_t n;
+      mpz_init_set_ui(n, S+1);
+      _bern_real_zeta(z, n, prec);
+      mpf_div_ui(z, z, S+1);
+      mpf_neg(z,z);
+      mpz_clear(n);
+    }
+    return;
+  }
+
   mpf_init2(s,    mpf_get_prec(z));   mpf_set(s, f);
   mpf_init2(tf,   mpf_get_prec(z));
   mpf_init2(term, mpf_get_prec(z));
@@ -656,7 +674,7 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     mpf_div(z, term, tf);
   } else if ( (mpf_cmp_ui(f,20) > 0 && mpf_cmp_ui(f, prec/3.5) > 0) ||
               (prec > 500 && (mpz_ui_pow_ui(t1, 8*prec, S), mpz_sizeinbase(t1,2) > (20+3.3219281*prec))) ) {
-    /* Basic formula, for speed */
+    /* Basic formula, for speed (also note only valid for > 1) */
     PRIME_ITERATOR(iter);
     mpf_set_ui(z, 1);
     for (p = 2; p <= 1000000000; p = prime_iterator_next(&iter)) {
@@ -675,7 +693,8 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     }
     prime_iterator_destroy(&iter);
   } else {
-    _borwein_d(prec);
+    /* TODO: negative non-integer inputs past -20 or so are very wrong. */
+    _borwein_d( (mpf_cmp_d(f,-3.0) >= 0)  ?  prec  :  80+2*prec );
 
     mpf_set_ui(z, 0);
     for (k = 0; k <= zeta_n-1; k++) {
@@ -805,13 +824,12 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
 
 char* zetareal(mpf_t z, unsigned long prec)
 {
+  size_t est_digits = 10+prec;
   char* out;
-
-  if (mpf_cmp_ui(z,1) <= 0) return 0;
-
+  if (mpf_cmp_ui(z,1) == 0) return 0;
+  if (mpz_sgn(z) < 0) est_digits += -mpf_get_si(z);
   _zeta(z, z, prec);
-
-  New(0, out, 10+prec, char);
+  New(0, out, est_digits, char);
   gmp_sprintf(out, "%.*Ff", (int)(prec), z);
   return out;
 }
@@ -1052,7 +1070,7 @@ char* bernreal(mpz_t zn, unsigned long prec) {
 static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
 {
   int i;
-  unsigned long bits = mpf_get_prec(x);
+  unsigned long bits = 64+mpf_get_prec(x);  /* More bits for intermediate */
   mpf_t t, w1, zn, qn, en, tol;
 
   if (mpf_cmp_d(x, -0.36787944117145) < 0)
@@ -1152,7 +1170,7 @@ static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
   /* Divide prec by 2 since t should be have 4x number of zeros each round */
   mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec/2);  mpf_ui_div(tol,1,tol);
 
-  for (i = 0; i < 100 && mpz_sgn(w) != 0; i++) {
+  for (i = 0; i < 500 && mpz_sgn(w) != 0; i++) {
     mpf_add_ui(w1, w, 1);
 
     mpf_div(t, x, w);
@@ -1190,10 +1208,10 @@ static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
 char* lambertwreal(mpf_t x, unsigned long prec) {
   char* out;
   mpf_t w;
-  unsigned long bits = 32+(unsigned long)(prec*3.32193);
+  unsigned long bits = 64+(unsigned long)(prec*3.32193);
 
   mpf_init2(w, bits);
-  _lambertw(w, x, prec);
+  _lambertw(w, x, 10+prec);
   out = _str_real(w, prec);
   mpf_clear(w);
   return out;
@@ -1399,7 +1417,7 @@ static void word_tile(uint32_t* source, uint32_t from, uint32_t to) {
 }
 static void sievep_ui(uint32_t* comp, UV pos, UV p, UV len, int verbose) {
   if (!(pos & 1)) pos += p;
-  if (verbose > 2) {
+  if (verbose > 3) {
     for ( ; pos < len; pos += 2*p ) {
       if (!TSTAVAL(comp, pos)) {
         printf("factor: %"UVuf" at %"UVuf"\n", p, pos);
