@@ -10,11 +10,19 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_power behaviour for 1 and -1.
 
+    - is_nminus1_prime could assert on some inputs.  Fix.
+
+
     [PERFORMANCE]
 
     - Adjust zeta algorithm crossover for large precision.  Makes a huge
       difference for bern{frac/real} with values > 53000.
       Thanks to Trizen for pointing this out.
+
+    - zeta works for all real values, returns undef for 1.  It has issues
+      below -10 or so that need to be dealt with in a later release.
+
+    - is_primitive_root a bit faster with large inputs.
 
 
 0.41 2016-10-09

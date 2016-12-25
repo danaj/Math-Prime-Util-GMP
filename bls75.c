@@ -83,6 +83,11 @@ static int tfe(mpz_t f, mpz_t n, int effort)
   int success = 0;
   UV log2n = mpz_sizeinbase(n, 2);
 
+  if (mpz_cmp_ui(n,3) <= 0) {
+    mpz_set(f,n);
+    return 1;
+  }
+
   if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>4)) < 0) {
     UV ui_n = mpz_get_ui(n);
     UV ui_factors[2];
