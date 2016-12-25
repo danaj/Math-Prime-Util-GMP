@@ -12,6 +12,7 @@
 /* includes mpz_mulmod(r, a, b, n, temp) */
 #include "utility.h"
 #include "factor.h"
+#include "primality.h"
 
 static int _verbose = 0;
 int get_verbose_level(void) { return _verbose; }
@@ -34,7 +35,7 @@ void clear_randstate(void) {  gmp_randclear(_randstate);  }
 int is_primitive_root(mpz_t a, mpz_t n, int nprime)
 {
   const unsigned char pr[10] = {2,3,5,7,11,13,17,19,23,29};
-  mpz_t s, t, *factors;
+  mpz_t s, sreduced, t, *factors;
   int ret, i, nfactors, *exponents;
 
   if (mpz_sgn(n) == 0)       return 0;
@@ -51,35 +52,66 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   } else {
     totient(s, n);
   }
+  mpz_init_set(sreduced, s);
   mpz_init(t);
   ret = 1;
-  /* Try a few small primes first before complete factoring */
-  for (i = 0; i < 10; i++) {
-    unsigned long p = pr[i];
-    if (mpz_cmp_ui(s, p) < 0) break;
-    if (mpz_divisible_ui_p(s, p) ) {
-      mpz_divexact_ui(t, s, p);
-      mpz_powm(t, a, t, n);
-      if (mpz_cmp_ui(t, 1) == 0) {
-        ret = 0;
-        break;
-      }
+
+#define IPR_TEST_UI(s, p, a, n, t, ret) \
+  mpz_divexact_ui(t, s, p); \
+  mpz_powm(t, a, t, n); \
+  if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
+
+#define IPR_TEST(s, p, a, n, t, ret) \
+  mpz_divexact(t, s, p); \
+  mpz_powm(t, a, t, n); \
+  if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
+
+  { /* Pull out small factors and test */
+    UV p, fromp = 0;
+    while (ret == 1 && (p = _GMP_trial_factor(sreduced, fromp, 60))) {
+      if (mpz_cmp_ui(sreduced,p) == 0) break;
+      IPR_TEST_UI(s, p, a, n, t, ret);
+      mpz_set_ui(t, p);
+      (void) mpz_remove(sreduced, sreduced, t);
+      fromp = p+1;
     }
   }
-  if (ret == 1) {
-    nfactors = factor(s, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      if (mpz_cmp_ui(factors[i],30) < 0) continue;
-      mpz_divexact(t, s, factors[i]);
-      mpz_powm(t, a, t, n);
-      if (mpz_cmp_ui(t,1) == 0) {
-        ret = 0;
-        break;
-      }
-    }
-    clear_factors(nfactors, &factors, &exponents);
+  if (ret == 0 || mpz_cmp_ui(sreduced,1) == 0)
+    goto DONE_IPR;
+  if (_GMP_BPSW(sreduced)) {
+    IPR_TEST(s, sreduced, a, n, t, ret);
+    goto DONE_IPR;
   }
-  mpz_clear(s);  mpz_clear(t);
+
+  /* Pull out more factors, noting they can be composites. */
+  while (_GMP_pminus1_factor(sreduced, t, 100000, 100000)) {
+    mpz_divexact(sreduced, sreduced, t);
+    if (_GMP_BPSW(t)) {
+      IPR_TEST(s, t, a, n, t, ret);
+    } else {
+      nfactors = factor(t, &factors, &exponents);
+      for (i = 0; ret == 1 && i < nfactors; i++) {
+        IPR_TEST(s, factors[i], a, n, t, ret);
+      }
+      clear_factors(nfactors, &factors, &exponents);
+    }
+    if (ret == 0 || mpz_cmp_ui(sreduced,1) == 0)
+      goto DONE_IPR;
+    if (_GMP_BPSW(sreduced)) {
+      IPR_TEST(s, sreduced, a, n, t, ret);
+      goto DONE_IPR;
+    }
+  }
+
+  /* We have a composite and so far it could be a primitive root.  Factor. */
+  nfactors = factor(sreduced, &factors, &exponents);
+  for (i = 0; ret == 1 && i < nfactors; i++) {
+    IPR_TEST(s, factors[i], a, n, t, ret);
+  }
+  clear_factors(nfactors, &factors, &exponents);
+
+DONE_IPR:
+  mpz_clear(s);  mpz_clear(sreduced);  mpz_clear(t);
   return ret;
 }
 
