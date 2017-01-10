@@ -1070,7 +1070,7 @@ char* bernreal(mpz_t zn, unsigned long prec) {
 static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
 {
   int i;
-  unsigned long bits = 64+mpf_get_prec(x);  /* More bits for intermediate */
+  unsigned long bits = 96+mpf_get_prec(x);  /* More bits for intermediate */
   mpf_t t, w1, zn, qn, en, tol;
 
   if (mpf_cmp_d(x, -0.36787944117145) < 0)
@@ -1168,7 +1168,9 @@ static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
   }
 
   /* Divide prec by 2 since t should be have 4x number of zeros each round */
-  mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec/2);  mpf_ui_div(tol,1,tol);
+  mpf_set_ui(tol, 10);
+  mpf_pow_ui(tol, tol, (mpf_cmp_d(x, -.36) < 0) ? prec : prec/2);
+  mpf_ui_div(tol,1,tol);
 
   for (i = 0; i < 500 && mpz_sgn(w) != 0; i++) {
     mpf_add_ui(w1, w, 1);
