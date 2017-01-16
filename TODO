@@ -126,3 +126,7 @@
   By Theorem 19, N is prime
 
 - zeta below -3
+
+- sieve_primes for e.g. 10^100 to 10^100+10000 should as fast as forprimes
+
+- tests for stirling type 3

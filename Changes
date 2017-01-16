@@ -12,6 +12,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_nminus1_prime could assert on some inputs.  Fix.
 
+    - chinese([3,0],[2,3]) made GMP go belly up.  Thanks to Trizen for finding.
+
 
     [PERFORMANCE]
 
@@ -23,6 +25,8 @@ Revision history for Perl module Math::Prime::Util::GMP
       below -10 or so that need to be dealt with in a later release.
 
     - is_primitive_root a bit faster with large inputs.
+
+    - stirling about 40% faster.  Thanks to Karim Belabas.
 
 
 0.41 2016-10-09

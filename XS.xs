@@ -785,7 +785,7 @@ void
 chinese(...)
   PROTOTYPE: @
   PREINIT:
-    int i;
+    int i, doretval;
     mpz_t* an;
     mpz_t ret, lcm;
   PPCODE:
@@ -813,8 +813,8 @@ chinese(...)
       mpz_init_set_str(an[i+items], strn, 10);
     }
     mpz_init(lcm);
-    i = chinese(ret, lcm, an, an+items, items);
-    if (i) XPUSH_MPZ(ret);
+    doretval = chinese(ret, lcm, an, an+items, items);
+    if (doretval) XPUSH_MPZ(ret);
     for (i = 0; i < items; i++) {
       mpz_clear(an[i+0]);
       mpz_clear(an[i+items]);
@@ -822,7 +822,7 @@ chinese(...)
     Safefree(an);
     mpz_clear(lcm);
     mpz_clear(ret);
-    if (!i) XSRETURN_UNDEF;
+    if (!doretval) XSRETURN_UNDEF;
 
 void
 sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)

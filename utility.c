@@ -483,6 +483,11 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
   }
 #endif
 
+  /* Avoid dividing by zero, which GMP doesn't enjoy. */
+  for (i = 0; i < items; i++)
+    if (mpz_sgn(m[i]) == 0)
+      return 0;
+
   mpz_init(temp1); mpz_init(temp2);
   mpz_init(sum); mpz_init(gcd);
   mpz_init(s); mpz_init(t);
