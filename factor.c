@@ -925,10 +925,9 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
       mpz_mul(U, U, U);  mpz_add_ui(U, U, a);  mpz_tdiv_r(U, U, n);
       mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
       mpz_mul(V, V, V);  mpz_add_ui(V, V, a);  mpz_tdiv_r(V, V, n);
-      if (mpz_cmp(U, V) >= 0)  mpz_sub(f, U, V);
-      else                     mpz_sub(f, V, U);
+      mpz_sub(f, U, V);
       mpz_mul(m, m, f);
-      mpz_tdiv_r(m, m, n);
+      if ((i%4) == ((inner-1)%4)) mpz_tdiv_r(m, m, n);
     }
     mpz_gcd(f, m, n);
     if (!mpz_cmp_ui(f, 1))
@@ -977,10 +976,9 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
       mpz_set(saveXi, Xi);
       for (i = 0; i < dorounds; i++) {
         mpz_mul(t, Xi, Xi);  mpz_add_ui(t, t, a);  mpz_tdiv_r(Xi, t, n);
-        if (mpz_cmp(Xi, Xm) >= 0)  mpz_sub(f, Xi, Xm);
-        else                       mpz_sub(f, Xm, Xi);
-        mpz_mul(t, m, f);
-        mpz_tdiv_r(m, t, n);
+        mpz_sub(f, Xm, Xi);
+        mpz_mul(m, m, f);
+        if ((i%4) == ((dorounds-1)%4)) mpz_tdiv_r(m, m, n);
       }
       rleft -= dorounds;
       rounds -= dorounds;
@@ -998,8 +996,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
       mpz_set(Xi, saveXi);
       do {
         mpz_mul(t, Xi, Xi);  mpz_add_ui(t, t, a);  mpz_tdiv_r(Xi, t, n);
-        if (mpz_cmp(Xi, Xm) >= 0)  mpz_sub(f, Xi, Xm);
-        else                       mpz_sub(f, Xm, Xi);
+        mpz_sub(f, Xm, Xi); if (mpz_sgn(f) < 0) mpz_add(f,f,n);
         mpz_gcd(f, f, n);
       } while (!mpz_cmp_ui(f, 1) && r-- != 0);
       if ( (!mpz_cmp_ui(f, 1)) || (!mpz_cmp(f, n)) )  break;

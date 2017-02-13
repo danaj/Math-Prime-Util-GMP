@@ -130,3 +130,6 @@
 - sieve_primes for e.g. 10^100 to 10^100+10000 should as fast as forprimes
 
 - tests for stirling type 3
+
+- random primes using a seed and SHA256 as per FIPS 186-4 with Shawe-Taylor.
+  With some generic functions we could do all the MPU random prime functions.
