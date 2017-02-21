@@ -1344,6 +1344,44 @@ void binomial(mpz_t r, UV n, UV k)
   Safefree(mprimes);
 }
 
+void partitions(mpz_t npart, UV n)
+{
+  mpz_t psum, *part;
+  UV *pent, i, j, k, d = (UV) sqrt(n+1);
+
+  if (n <= 3) {
+    mpz_set_ui(npart, (n == 0) ? 1 : n);
+    return;
+  }
+
+  New(0, pent, 2*d+2, UV);
+  pent[0] = 0;
+  pent[1] = 1;
+  for (i = 1; i <= d; i++) {
+    pent[2*i  ] = ( i   *(3*i+1)) / 2;
+    pent[2*i+1] = ((i+1)*(3*i+2)) / 2;
+  }
+  New(0, part, n+1, mpz_t);
+  mpz_init_set_ui(part[0], 1);
+  mpz_init(psum);
+  for (j = 1; j <= n; j++) {
+    mpz_set_ui(psum, 0);
+    for (k = 1; pent[k] <= j; k++) {
+      if ((k+1) & 2) mpz_add(psum, psum, part[ j - pent[k] ]);
+      else           mpz_sub(psum, psum, part[ j - pent[k] ]);
+    }
+    mpz_init_set(part[j], psum);
+  }
+
+  mpz_set(npart, part[n]);
+
+  mpz_clear(psum);
+  for (i = 0; i <= n; i++)
+    mpz_clear(part[i]);
+  Safefree(part);
+  Safefree(pent);
+}
+
 
 void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
 {

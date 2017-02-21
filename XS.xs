@@ -722,11 +722,13 @@ void partitions(IN UV n)
   ALIAS:
     Pi = 1
     is_mersenne_prime = 2
-  PREINIT:
-    UV i, j, k;
   PPCODE:
-    if (ix == 2) {
-      XSRETURN_IV(lucas_lehmer(n));
+    if (ix == 0) {
+      mpz_t npart;
+      mpz_init(npart);
+      partitions(npart, n);
+      XPUSH_MPZ(npart);
+      mpz_clear(npart);
     } else if (ix == 1) {
       if (n == 1)
         XSRETURN_IV(3);
@@ -735,40 +737,8 @@ void partitions(IN UV n)
         XPUSHs(sv_2mortal(newSVpvn(pi, n+1)));
         Safefree(pi);
       }
-    } else if (n == 0) {
-      XPUSHs(sv_2mortal(newSVuv( 1 )));
-    } else if (n <= 3) {
-      XPUSHs(sv_2mortal(newSVuv( n )));
     } else {
-      mpz_t psum;
-      mpz_t* part;
-      UV* pent;
-      UV d = (UV) sqrt(n+1);
-
-      New(0, pent, 2*d+2, UV);
-      pent[0] = 0;
-      pent[1] = 1;
-      for (i = 1; i <= d; i++) {
-        pent[2*i  ] = ( i   *(3*i+1)) / 2;
-        pent[2*i+1] = ((i+1)*(3*i+2)) / 2;
-      }
-      New(0, part, n+1, mpz_t);
-      mpz_init_set_ui(part[0], 1);
-      mpz_init(psum);
-      for (j = 1; j <= n; j++) {
-        mpz_set_ui(psum, 0);
-        for (k = 1; pent[k] <= j; k++) {
-          if ((k+1) & 2) mpz_add(psum, psum, part[ j - pent[k] ]);
-          else           mpz_sub(psum, psum, part[ j - pent[k] ]);
-        }
-        mpz_init_set(part[j], psum);
-      }
-      mpz_clear(psum);
-      XPUSH_MPZ( part[n] );
-      for (i = 0; i <= n; i++)
-        mpz_clear(part[i]);
-      Safefree(part);
-      Safefree(pent);
+      XSRETURN_IV(lucas_lehmer(n));
     }
 
 void
