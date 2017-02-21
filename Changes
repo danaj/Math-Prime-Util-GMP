@@ -14,6 +14,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - chinese([3,0],[2,3]) made GMP go belly up.  Thanks to Trizen for finding.
 
+    - divisors(1) in list context would segfault.  Thanks to Trizen for finding.
+
 
     [PERFORMANCE]
 

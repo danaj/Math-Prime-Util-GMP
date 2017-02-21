@@ -1608,7 +1608,7 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
   int nfactors, ndivisors, i, j, k, count, *exponents;
 
   nfactors = factor(n, &factors, &exponents);
-  ndivisors = exponents[0] + 1;
+  ndivisors = 1 + ((nfactors > 0) ? exponents[0] : 0);
   for (i = 1; i < nfactors; i++)
     ndivisors *= (exponents[i] + 1);
 
