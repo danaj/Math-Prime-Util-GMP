@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.42 2016-?
+0.42 2017-?
 
     [ADDED]
 
@@ -45,6 +45,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - On startup, we attempt to seed ISAAC with 256 bytes from /dev/urandom
       using the _GMP_seed(bytes,seed) function.  Callers can use the function
       _GMP_is_well_seeded() to check if this succeeded.
+
 
 0.41 2016-10-09
 
