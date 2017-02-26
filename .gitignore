@@ -15,6 +15,8 @@ bls75.o
 ecpp.o
 aks.o
 simpqs.o
+isaac.o
+random_prime.o
 utility.o
 blib*
 pm_to_blib

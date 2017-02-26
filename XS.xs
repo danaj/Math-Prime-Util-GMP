@@ -18,6 +18,8 @@
 #include "aks.h"
 #include "utility.h"
 #include "factor.h"
+#include "isaac.h"
+#include "random_prime.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
@@ -66,6 +68,13 @@ _GMP_init()
 void
 _GMP_destroy()
 
+void seed_csprng(IN UV bytes, IN unsigned char* seed)
+  PPCODE:
+    isaac_init(bytes, seed);
+
+void is_csprng_well_seeded()
+  PPCODE:
+    XSRETURN_IV( isaac_seeded() );
 
 int
 is_pseudoprime(IN char* strn, ...)
@@ -615,6 +624,7 @@ invmod(IN char* stra, IN char* strb)
     sqrtmod = 5
     is_primitive_root = 6
     rootint = 7
+    random_prime = 8
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -666,10 +676,13 @@ invmod(IN char* stra, IN char* strb)
     } else if (ix == 6) {
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
-    } else {
+    } else if (ix == 7) {
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
+    } else {
+      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("random_prime: endpoints must be positive");
+      retundef = !mpz_random_prime(a, a, b);
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
@@ -740,6 +753,21 @@ void partitions(IN UV n)
     } else {
       XSRETURN_IV(lucas_lehmer(n));
     }
+
+void random_nbit_prime(IN UV n)
+  ALIAS:
+    random_ndigit_prime = 1
+  PREINIT:
+    mpz_t p;
+  PPCODE:
+    mpz_init(p);
+    switch (ix) {
+      case 0:  mpz_random_nbit_prime(p, n); break;
+      case 1:
+      default: mpz_random_ndigit_prime(p, n); break;
+    }
+    XPUSH_MPZ(p);
+    mpz_clear(p);
 
 void
 stirling(IN UV n, IN UV m, IN UV type = 1)

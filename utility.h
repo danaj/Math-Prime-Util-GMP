@@ -11,6 +11,8 @@ extern void set_verbose_level(int level);
 extern gmp_randstate_t* get_randstate(void);
 extern void init_randstate(unsigned long seed);
 extern void clear_randstate(void);
+extern void mpz_isaac_urandomb(mpz_t rop, int nbits);
+extern void mpz_isaac_urandomm(mpz_t rop, mpz_t n);
 
 int is_primitive_root(mpz_t a, mpz_t b, int nprime);
 
@@ -64,8 +66,7 @@ extern void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD);
 /* Find roots of a polynomial mod a prime, slightly modified. */
 /* We will stop if we've found at least maxroots unique roots. */
 extern void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
-                             mpz_t *pP, long dP, mpz_t NMOD,
-                             gmp_randstate_t* p_randstate);
+                             mpz_t *pP, long dP, mpz_t NMOD);
 
 /* Solve x^2 + |D|y^2 = p */
 extern int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);

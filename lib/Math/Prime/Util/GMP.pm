@@ -85,24 +85,45 @@ our @EXPORT_OK = qw(
                      ramanujan_tau
                      Pi
                      todigits
+                     random_prime random_nbit_prime random_ndigit_prime
+                     seed_csprng is_csprng_well_seeded
                    );
                    # Should add:
                    # nth_prime
 our %EXPORT_TAGS = (all => [ @EXPORT_OK ]);
+
+sub _init_random {
+  use Fcntl;
+  my($file, $nbytes, $s, $buffer, $nread) = ("/dev/urandom", 256, '', '', 0);
+  return if $^O eq 'MSWin32';
+  return unless -r $file;
+  sysopen(my $fh, $file, O_RDONLY);
+  binmode $fh;
+  while ($nread < $nbytes) {
+    my $thisread = sysread $fh, $buffer, $nbytes-$nread;
+    last unless defined $thisread && $thisread > 0;
+    $s .= $buffer;
+    $nread += length($buffer);
+  }
+  return unless $nbytes == length($s);
+  seed_csprng($nbytes, $s);
+}
 
 BEGIN {
   eval {
     require XSLoader;
     XSLoader::load(__PACKAGE__, $Math::Prime::Util::GMP::VERSION);
     _GMP_init();
+    _init_random();
     1;
   } or do {
     die $@;
-  }
+  };
 }
 END {
   _GMP_destroy();
 }
+
 
 sub _validate_positive_integer {
   my($n, $min, $max) = @_;
@@ -885,6 +906,34 @@ Note that with a non-zero second argument, the values returned have not
 undergone a full BPSW test; just sieving and a SPSP-2 test.
 
 
+=head2 random_nbit_prime
+
+  say "random 512-bit prime: ", random_nbit_prime(512);
+
+Returns a randomly selected prime of exactly C<n> bits.
+C<undef> is returned if C<n> is less than C<2>.
+The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+=head2 random_ndigit_prime
+
+  say "random 200-digit prime: ", random_ndigit_prime(200);
+
+Returns a randomly selected prime of exactly C<n> digits.
+C<undef> is returned if C<n> is less than C<1>.
+The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+=head2 random_prime
+
+  say random_prime(1000, 2000);  # prime between 1000 and 2000 inclusive
+
+Returns a random prime in the interval C<[a,b]> or C<undef> if no prime is
+in the range.
+The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+The random prime functions use the internal CSPRNG for randomness.  This
+is currently ISAAC-32.
+
+
 =head2 lucasu
 
   say "Fibonacci($_) = ", lucasu(1,-1,$_) for 0..100;
@@ -1628,6 +1677,26 @@ The base must be at least 2, and is limited to an int.
 Length must be at least zero and is limited to an int.
 
 
+=head2 seed_csprng
+
+Takes a non-negative integer C<nbytes> and a string C<data> as input.
+These are used to seed the internal CSPRNG used for random functions,
+including the random prime functions.  Ideally this is 16-256 bytes of
+good entropy.
+
+Currently the CSPRNG is ISAAC-32, and the maximum number of seed bytes
+used is 1024.  It is possible the CSPRNG used will change in the future
+(thoughts include Salsa20, SHA2-256 counter, or SHA3-256 counter).
+
+
+=head2 is_csprng_well_seeded
+
+Returns true if the CSPRNG has been seeded with 16 or more bytes (128 bits).
+There is no measurement of how "good" the input was.
+
+On startup the module will attempt to seed the CSPRNG from
+C</dev/urandom>, so this function will return true if that was
+successful, but false otherwise.
 
 
 =head1 SEE ALSO

@@ -5,6 +5,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - lambertw(x[,digits])         Lambert W function
+    - random_prime(a,b)            random prob prime in range [a,b]
+    - random_nbit_prime(nbits)     random prob prime of exactly nbits bits
+    - random_ndigit_prime(ndigs)   random prob prime of exactly ndigs digits
+    - seed_csprng(bytes,data)      supply a seed to the internal CSPRNG
+    - is_csprng_well_seeded()      returns 1 if the CSPRNG has a proper seed
 
     [FIXES]
 
@@ -30,6 +35,15 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - stirling about 40% faster.  Thanks to Karim Belabas.
 
+    [OTHER]
+
+    - The ISAAC CSPRNG has been added internally and all functions call it.
+      While it is quite fast, the mpz_urandom* functions are a bit slower
+      than GMP's Mersenne Twister.  ISAAC is a CSPRNG however.
+
+    - On startup, we attempt to seed ISAAC with 256 bytes from /dev/urandom
+      using the _GMP_seed(bytes,seed) function.  Callers can use the function
+      _GMP_is_well_seeded() to check if this succeeded.
 
 0.41 2016-10-09
 

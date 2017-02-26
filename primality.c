@@ -209,7 +209,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
 
 int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
 {
-  gmp_randstate_t* p_randstate = get_randstate();
+  gmp_randstate_t randstate;
   mpz_t t, base;
   UV i;
 
@@ -221,13 +221,14 @@ int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
 
   if (seedstr != 0) { /* Set the RNG seed if they gave us a seed */
     mpz_set_str(t, seedstr, 0);
-    gmp_randseed(*p_randstate, t);
+    gmp_randseed(randstate, t);
   }
 
   mpz_sub_ui(t, n, 3);
   for (i = 0; i < numbases; i++) {
-    mpz_urandomm(base, *p_randstate, t);  /* base = 0 .. (n-3)-1 */
-    mpz_add_ui(base, base, 2);            /* base = 2 .. n-2     */
+    if (seedstr != 0) mpz_urandomm(base, randstate, t); /* base 0 .. (n-3)-1 */
+    else              mpz_isaac_urandomm(base, t);
+    mpz_add_ui(base, base, 2);                          /* base 2 .. n-2     */
     if (miller_rabin(n, base) == 0)
       break;
   }
@@ -1104,7 +1105,6 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
 /* Use Crandall/Pomerance, steps from Loebenberger 2008 */
 int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
 {
-  gmp_randstate_t* p_randstate = get_randstate();
   mpz_t t, a, b, d, w1, wm, wm1, m;
   UV tn;
   int j;
@@ -1121,9 +1121,9 @@ int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
     /* Step 1: choose a and b in 1..n-1 and d=a^2-4b not square and coprime */
     do {
       mpz_sub_ui(t, n, 1);
-      mpz_urandomm(a, *p_randstate, t);
+      mpz_isaac_urandomm(a, t);
       mpz_add_ui(a, a, 1);
-      mpz_urandomm(b, *p_randstate, t);
+      mpz_isaac_urandomm(b, t);
       mpz_add_ui(b, b, 1);
       /* Check d and gcd */
       mpz_mul(d, a, a);

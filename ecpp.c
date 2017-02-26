@@ -325,7 +325,6 @@ static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroo
   UV degree;
   long dT, i, nroots;
   int poly_type;
-  gmp_randstate_t* p_randstate = get_randstate();
 
   if (D == -3 || D == -4) {
     *roots = 0;
@@ -339,7 +338,7 @@ static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroo
   dT = degree;
   polyz_mod(T, T, &dT, N);
 
-  polyz_roots_modp(roots, &nroots, maxroots, T, dT, N, p_randstate);
+  polyz_roots_modp(roots, &nroots, maxroots, T, dT, N);
   if (nroots == 0) {
     gmp_printf("N = %Zd\n", N);
     croak("Failed to find roots for D = %ld\n", D);
@@ -408,7 +407,6 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
                          mpz_t t, mpz_t t2)
 {
   mpz_t Q, t3, t4;
-  gmp_randstate_t* p_randstate = get_randstate();
 
   mpz_init(Q); mpz_init(t3); mpz_init(t4);
   mpz_set_ui(y, 0);
@@ -418,7 +416,7 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
     do {
       do {
         /* mpz_urandomm(x, *p_randstate, N); */
-        mpz_urandomb(x, *p_randstate, 32);   /* May as well make x small */
+        mpz_isaac_urandomb(x, 32);   /* May as well make x small */
         mpz_mod(x, x, N);
       } while (mpz_sgn(x) == 0);
       mpz_mul(t, x, x);

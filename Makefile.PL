@@ -22,6 +22,8 @@ WriteMakefile1(
                     'aks.o '            .
                     'simpqs.o '         .
                     'gmp_main.o '       .
+                    'isaac.o '          .
+                    'random_prime.o '   .
                     'XS.o',
     LIBS         => ['-lgmp -lm'],
 
@@ -32,6 +34,7 @@ WriteMakefile1(
     PREREQ_PM    => {
                       'Exporter'         => '5.57',
                       'XSLoader'         => '0.01',
+                      'Fcntl'            => 0,
                       'Carp'             => 0,
                       'base'             => 0,
                     },

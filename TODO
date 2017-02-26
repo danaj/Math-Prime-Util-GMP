@@ -133,3 +133,14 @@
 
 - random primes using a seed and SHA256 as per FIPS 186-4 with Shawe-Taylor.
   With some generic functions we could do all the MPU random prime functions.
+
+- export isaac_rand, isaac_rand32, urandomb, urandomm efficiently
+
+- more random prime functions:
+  = random_maurer_prime
+  = random_maurer_prime_with_cert
+  = random_shawe_taylor_prime
+  = random_shawe_taylor_prime_with_cert
+  = random_strong_prime
+  = random_proven_prime
+  = random_priven_prime_with_cert

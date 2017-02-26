@@ -8,6 +8,7 @@
 #include "prime_iterator.h"
 #include "ecpp.h"
 #include "factor.h"
+#include "isaac.h"
 
 #define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
@@ -33,9 +34,9 @@ static const unsigned short sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,3
 
 void _GMP_init(void)
 {
-  /* We should  not use this random number system for crypto, so
-   * using this lousy seed is ok.  We just would like something a
-   * bit different every run.  Using Perl_seed(aTHX) would be better. */
+  /* For real use of randomness we need to be seeded properly.
+   * This gives us a start until someone calls seed_csprng().
+   * We could try to improve this duct-tape in various ways. */
   unsigned long seed = time(NULL);
   init_randstate(seed);
   prime_iterator_global_startup();

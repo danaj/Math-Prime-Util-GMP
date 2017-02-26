@@ -165,7 +165,6 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
   mpz_t a, mk;
   struct ec_affine_point X, Y;
   UV B, curve, q;
-  gmp_randstate_t* p_randstate = get_randstate();
 
   TEST_FOR_2357(n, f);
 
@@ -177,7 +176,7 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
     if (B*5 > 2*B1) B = B1;
     for (curve = 0; curve < ncurves; curve++) {
       PRIME_ITERATOR(iter);
-      mpz_urandomm(a, *p_randstate, n);
+      mpz_isaac_urandomm(a, n);
       mpz_set_ui(X.x, 0); mpz_set_ui(X.y, 1);
       for (q = 2; q < B; q = prime_iterator_next(&iter)) {
         UV k = q;
@@ -570,7 +569,6 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
   mpz_t sigma, a, x, z;
   UV i, curve, q, k;
   int found = 0;
-  gmp_randstate_t* p_randstate = get_randstate();
   int _verbose = get_verbose_level();
 
   TEST_FOR_2357(n, f);
@@ -590,7 +588,7 @@ int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
   for (curve = 0; curve < ncurves; curve++) {
     PRIME_ITERATOR(iter);
     do {
-      mpz_urandomm(sigma, *p_randstate, n);
+      mpz_isaac_urandomm(sigma, n);
     } while (mpz_cmp_ui(sigma, 5) <= 0);
     mpz_mul_ui(w, sigma, 4);
     mpz_mod(v, w, n);             /* v = 4σ */

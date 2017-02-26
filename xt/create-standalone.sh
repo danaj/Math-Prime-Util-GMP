@@ -8,6 +8,7 @@ fi
 cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] factor.[ch] small_factor.[ch] utility.[ch] standalone/
+cp -p isaac.[ch] random_prime.[ch] standalone/
 cp -p primality.[ch] standalone/
 cp -p xt/expr.[ch] xt/expr-impl.h standalone/
 cp -p xt/proof-text-format.txt standalone/
@@ -43,7 +44,7 @@ CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
-      small_factor.o factor.o utility.o expr.o
+      isaac.o random_prime.o small_factor.o factor.o utility.o expr.o
 HEADERS = ptypes.h class_poly_data.h
 
 .PHONY: default all clean

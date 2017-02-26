@@ -13,6 +13,7 @@
 #include "utility.h"
 #include "factor.h"
 #include "primality.h"
+#include "isaac.h"
 
 static int _verbose = 0;
 int get_verbose_level(void) { return _verbose; }
@@ -28,13 +29,60 @@ void init_randstate(unsigned long seed) {
   gmp_randinit_default(_randstate);
 #endif
   gmp_randseed_ui(_randstate, seed);
+  isaac_init( sizeof(unsigned long), (const unsigned char*)(&seed) );
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
 
+void mpz_isaac_urandomb(mpz_t rop, int nbits)
+{
+  unsigned char* d;
+  int nbytes = (nbits+7)/8;
+  New(0, d, nbytes, unsigned char);
+  isaac_rand_bytes(nbytes, d);
+  mpz_import(rop, nbytes, 1, sizeof(unsigned char), 0, 0, d);
+  Safefree(d);
+  if (nbits != nbytes*8)
+    mpz_tdiv_r_2exp(rop, rop, nbits);
+}
+
+void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
+{
+  int count = 80;
+  unsigned long nbits = mpz_sizeinbase(n,2);
+
+  if (mpz_sgn(n) <= 0) {
+    mpz_set_ui(rop,0);
+    return;
+  } else if (nbits <= 32) {
+    mpz_set_ui(rop, isaac_rand(mpz_get_ui(n)));
+  } else if (nbits < 3000) {
+    /* Just like GMP, try until we're in range or we're tired. */
+    while (count-- > 0) {
+      mpz_isaac_urandomb(rop, nbits);
+      if (mpz_cmp(rop,n) < 0)
+        return;
+    }
+    mpz_mod(rop, rop, n);
+  } else {
+    /* Reduce tries needed by selecting from a range that is a multiple of n
+     * (so no bias) and uses the max space inside the power-of-2 range.
+     * Downside is that we do an alloc and two mods.  For large values
+     * it can be much faster however. */
+    mpz_t rmax;
+    mpz_init(rmax);
+    mpz_setbit(rmax, nbits+8);
+    mpz_sub_ui(rmax,rmax,1);
+    mpz_tdiv_q(rmax, rmax, n);
+    mpz_mul(rmax, rmax, n);
+    do {
+      mpz_isaac_urandomb(rop, nbits+8);
+    } while (mpz_cmp(rop, rmax) >= 0 && count-- > 0);
+    mpz_mod(rop, rop, n);
+  }
+}
 
 int is_primitive_root(mpz_t a, mpz_t n, int nprime)
 {
-  const unsigned char pr[10] = {2,3,5,7,11,13,17,19,23,29};
   mpz_t s, sreduced, t, *factors;
   int ret, i, nfactors, *exponents;
 
@@ -1264,8 +1312,7 @@ void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD)
  * Step 3/4 of Cohen Algorithm 1.6.1.
  * Uses some hints from Pate Williams (1997-1998) for the poly math */
 static void polyz_roots(mpz_t* roots, long *nroots,
-                        long maxroots, mpz_t* pg, long dg, mpz_t NMOD,
-                        gmp_randstate_t* p_randstate)
+                        long maxroots, mpz_t* pg, long dg, mpz_t NMOD)
 {
   long i, ntries, maxtries, maxd, dxa, dt, dh, dq, dup;
   mpz_t t, power;
@@ -1332,7 +1379,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   while (ntries++ < maxtries) {
     /* pxa = X+a for randomly selected a */
     if (ntries <= 2)  mpz_set_ui(pxa[0], ntries);  /* Simple small values */
-    else              mpz_urandomm(pxa[0], *p_randstate, t);
+    else              mpz_isaac_urandomm(pxa[0], t);
 
     /* Raise pxa to (NMOD-1)/2, all modulo NMOD and g(x) */
     polyz_pow_polymod(pt, pxa, pg, &dt, dxa, dg, power, NMOD);
@@ -1348,17 +1395,17 @@ static void polyz_roots(mpz_t* roots, long *nroots,
   if (dh >= 1 && dh < dg) {
     /* Pick the smaller of the two splits to process first */
     if (dh <= 2 || dh <= (dg-dh)) {
-      polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
+      polyz_roots(roots, nroots, maxroots, ph, dh, NMOD);
       if (*nroots < maxroots) {
         /* q = g/h, and recurse */
         polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh, NMOD);
-        polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
+        polyz_roots(roots, nroots, maxroots, pq, dq, NMOD);
       }
     } else {
       polyz_div(pq, pt,  pg, ph,  &dq, &dt, dg, dh, NMOD);
-      polyz_roots(roots, nroots, maxroots, pq, dq, NMOD, p_randstate);
+      polyz_roots(roots, nroots, maxroots, pq, dq, NMOD);
       if (*nroots < maxroots) {
-        polyz_roots(roots, nroots, maxroots, ph, dh, NMOD, p_randstate);
+        polyz_roots(roots, nroots, maxroots, ph, dh, NMOD);
       }
     }
   }
@@ -1380,8 +1427,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
 
 /* Algorithm 1.6.1 from Cohen, minus step 1. */
 void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
-                      mpz_t *pP, long dP, mpz_t NMOD,
-                      gmp_randstate_t* p_randstate)
+                      mpz_t *pP, long dP, mpz_t NMOD)
 {
   long i;
 
@@ -1416,7 +1462,7 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
   if (maxroots > dP || maxroots == 0)
     maxroots = dP;
 
-  polyz_roots(*roots, nroots, maxroots, pP, dP, NMOD, p_randstate);
+  polyz_roots(*roots, nroots, maxroots, pP, dP, NMOD);
   /* This could be just really bad luck.  Let the caller handle it. */
   /* if (*nroots == 0) croak("failed to find roots\n"); */
 
