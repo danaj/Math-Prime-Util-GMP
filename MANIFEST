@@ -29,6 +29,10 @@ aks.h
 aks.c
 simpqs.h
 simpqs.c
+isaac.h
+isaac.c
+random_prime.h
+random_prime.c
 utility.h
 utility.c
 t/01-load.t
@@ -54,6 +58,7 @@ t/26-mod.t
 t/26-riemann.t
 t/26-roots.t
 t/27-clusters.t
+t/28-randomprime.t
 t/50-factoring.t
 t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
