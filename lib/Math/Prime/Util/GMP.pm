@@ -78,7 +78,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint
-                     is_power is_prime_power
+                     is_power is_prime_power is_semiprime
                      is_primitive_root
                      znorder
                      znprimroot
@@ -1176,6 +1176,14 @@ produces.
 Given two non-negative numbers C<a> and C<n>, returns C<1> if C<a> is a
 primitive root modulo C<n>, and C<0> if not.  If C<a> is a primitive root,
 then C<euler_phi(n)> is the smallest C<e> for which C<a^e = 1 mod n>.
+
+=head2 is_semiprime
+
+Given a positive integer C<n>, returns 1 if C<n> is a semiprime, 0 otherwise.
+A semiprime is the product of exactly two primes.
+
+The boolean result is the same as C<scalar(factor(n)) == 2>, but this
+function performs shortcuts that can greatly speed up the operation.
 
 
 =head2 sigma

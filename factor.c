@@ -748,6 +748,62 @@ void ramanujan_tau(mpz_t res, mpz_t n)
   mpz_clear(t4); mpz_clear(t3); mpz_clear(t2); mpz_clear(t1); mpz_clear(t);
 }
 
+int is_semiprime(mpz_t n)
+{
+  int ret;
+  UV div, lim = 6000;
+  mpz_t t;
+
+  if (mpz_cmp_ui(n,6) < 0)
+    return (mpz_cmp_ui(n,4) == 0);
+
+  mpz_init(t);
+
+  div = _GMP_trial_factor(n, 2, lim);
+  if (div > 0) {
+    mpz_divexact_ui(t, n, div);
+    ret = _GMP_is_prime(t);
+    mpz_clear(t);
+    return !!ret;
+  }
+  /* No small divisors */
+  if (_GMP_BPSW(n))
+    { mpz_clear(t); return 0; }
+  if (mpz_ui_pow_ui(t,lim,3), mpz_cmp(n,t) < 0)
+    { mpz_clear(t); return 1; }
+  /* Number is composite, isn't tiny, and has no small divisors */
+  if (    0
+       || _GMP_pbrent_factor(n, t, 1, 15000)
+       || _GMP_pminus1_factor(n, t, 50000, 500000)
+       || _GMP_ECM_FACTOR(n, t,     800, 10)
+       || _GMP_ECM_FACTOR(n, t,    8000, 20)
+       || _GMP_ECM_FACTOR(n, t,   80000, 40)
+       || _GMP_ECM_FACTOR(n, t,  320000, 40)
+       || _GMP_ECM_FACTOR(n, t, 1000000, 80)
+     ) {
+    ret = _GMP_BPSW(t);
+    if (ret) {
+      mpz_divexact(t, n, t);
+      ret = _GMP_BPSW(t);
+    }
+    mpz_clear(t);
+    return !!ret;
+  }
+  /* No luck finding a small factor.  Do it the hard way. */
+  {
+    mpz_t* factors;
+    int* exponents;
+    int nfactors, i, j;
+
+    nfactors = factor(n, &factors, &exponents);
+    for (i = 0, j = 0; i < nfactors; i++)
+      j += exponents[i];
+    clear_factors(nfactors, &factors, &exponents);
+    mpz_clear(t);
+    return (j == 2);
+  }
+}
+
 
 /*****************************************************************************/
 
@@ -999,14 +1055,15 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
         mpz_sub(f, Xm, Xi); if (mpz_sgn(f) < 0) mpz_add(f,f,n);
         mpz_gcd(f, f, n);
       } while (!mpz_cmp_ui(f, 1) && r-- != 0);
-      if ( (!mpz_cmp_ui(f, 1)) || (!mpz_cmp(f, n)) )  break;
     }
-    mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi); mpz_clear(t);
-    return 1;
+    break;
   }
   mpz_clear(Xi); mpz_clear(Xm); mpz_clear(m); mpz_clear(saveXi); mpz_clear(t);
-  mpz_set(f, n);
-  return 0;
+  if (!mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
+    mpz_set(f, n);
+    return 0;
+  }
+  return 1;
 }
 
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)

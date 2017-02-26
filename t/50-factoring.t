@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/factor is_prime sigma divisors/;
+use Math::Prime::Util::GMP qw/factor is_prime sigma divisors is_semiprime/;
 
 my %sigmas = (
   0 => [2,1,1,1],
@@ -29,6 +29,7 @@ plan tests => 0 + 57
                 + 8    # factor in scalar context
                 + scalar(keys %sigmas)
                 + 3    # divisors
+                + 2    # is_semiprime
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -191,3 +192,16 @@ while (my($n, $s4) = each (%sigmas)) {
 is_deeply( [divisors(1)], [1], "divisors(1) in list context" );
 is_deeply( [divisors(9283540924)], [qw/1 2 4 7 14 28 331555033 663110066 1326220132 2320885231 4641770462 9283540924/], "divisors(9283540924)" );
 is( scalar(divisors(9283540924)), 12, "scalar divisors(9283540924) = 12" );
+
+{
+  my @non = map { is_semiprime($_) }
+            (qw/ 1477624760980458764344489
+                 31065569722765023059646508128204165
+                 345642381828009706799087047071899024928076219 /);
+  is_deeply( \@non, [0,0,0], "is_semiprime for non-semiprimes" );
+  my @oui = map { is_semiprime($_) }
+            (qw/ 5205293630375513276567563
+                 76608197698048867638852299050055161
+                 659828949060872109888044299185869580687593499 /);
+  is_deeply( \@oui, [1,1,1], "is_semiprime for semiprimes" );
+}
