@@ -131,9 +131,6 @@
 
 - tests for stirling type 3
 
-- random primes using a seed and SHA256 as per FIPS 186-4 with Shawe-Taylor.
-  With some generic functions we could do all the MPU random prime functions.
-
 - export isaac_rand, isaac_rand32, urandomb, urandomm efficiently
 
 - more random prime functions:

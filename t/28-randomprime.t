@@ -128,5 +128,5 @@ sub check_bits {
 
 # Now check with seed
 seed_csprng(3,"xyz");
-is( random_nbit_prime(24), 9968473, "random 20-bit prime with seeded rng" );
+is( random_nbit_prime(24), 10207999, "random 20-bit prime with seeded rng" );
 is( random_ndigit_prime(9), 842208331, "random 9-digit with seeded rng" );
