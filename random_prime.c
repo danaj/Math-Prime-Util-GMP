@@ -24,12 +24,38 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
     case 7:   mpz_set_ui(p, pr[18+isaac_rand(13)]); return;
     default:  break;
   }
-  /* Trivial method.  We should use Fouque/Tibouchi Algorithm 1. */
+
+#if 0 /* Trivial method. */
+
   do {
     mpz_isaac_urandomb(p, n);
     mpz_setbit(p, n-1);
-    if (n > 2) mpz_setbit(p, 0);
+    mpz_setbit(p, 0);
   } while (!_GMP_is_prob_prime(p));
+
+#else  /* Fouque+Tibouchi Alg 1, without native modulo checks */
+
+  if (n <= 32) {
+    uint32_t mask = (0xFFFFFFFFU >> (34-n)) << 1;
+    uint32_t base = mask+3;
+    do {
+      mpz_set_ui(p, base | (isaac_rand32() & mask));
+    } while (!_GMP_is_prob_prime(p));
+  } else {
+    mpz_t base;
+    mpz_init(base);
+    if (n > 33) { mpz_isaac_urandomb(base, n-33); mpz_mul_2exp(base,base,1); }
+    mpz_setbit(base, n-1);
+    mpz_setbit(base, 0);
+    do {
+      mpz_set_ui(p, isaac_rand32());
+      mpz_mul_2exp(p, p, n-32);
+      mpz_ior(p, p, base);
+    } while (!_GMP_is_prob_prime(p));
+    mpz_clear(base);
+  }
+
+#endif
 }
 
 /* PRIMEINC: pick random value, select next prime. */
