@@ -39,12 +39,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     [OTHER]
 
     - The ISAAC CSPRNG has been added internally and all functions call it.
-      While it is quite fast, the mpz_urandom* functions are a bit slower
-      than GMP's Mersenne Twister.  ISAAC is a CSPRNG however.
+      While it is quite fast it is slower than GMP's Mersenne Twister.
 
-    - On startup, we attempt to seed ISAAC with 256 bytes from /dev/urandom
-      using the _GMP_seed(bytes,seed) function.  Callers can use the function
-      _GMP_is_well_seeded() to check if this succeeded.
+    - On startup, we attempt to seed ISAAC with 256 bytes from /dev/urandom.
+      Callers can call is_csprng_well_seeded() to check if this succeeded,
+      and call as needed seed_csprng() to seed or reseed.
 
 
 0.41 2016-10-09

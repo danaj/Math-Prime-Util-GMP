@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <string.h>
 #include "ptypes.h"
 #include "isaac.h"
 
