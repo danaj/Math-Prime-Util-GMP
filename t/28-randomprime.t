@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::BigInt try=>"GMP,Pari";
 use Math::Prime::Util::GMP
-    qw/random_prime random_ndigit_prime random_nbit_prime
+    qw/random_prime random_ndigit_prime random_nbit_prime random_strong_prime
        is_prime
        seed_csprng/;
 
@@ -20,6 +20,7 @@ push @random_nbit_tests, (256, 512, 1024, 2048) if $extra;
 
 my @random_ndigit_tests = (1 .. 25);
 
+my @random_strong_tests = (128, 255, 256, 512);
 
 my %ranges = (
   "2 to 20" => [2,19],
@@ -63,6 +64,7 @@ plan tests => 0
               + (2 * scalar @random_to)
               + (1 * scalar @random_ndigit_tests)
               + (1 * scalar @random_nbit_tests)
+              + (1 * scalar @random_strong_tests)
               + 2
               + 0;
 
@@ -114,7 +116,12 @@ foreach my $digits ( @random_ndigit_tests ) {
 }
 
 foreach my $bits ( @random_nbit_tests ) {
-  check_bits( random_nbit_prime($bits), $bits, "nbit" );
+  check_bits( random_nbit_prime($bits), $bits, "random $bits-bit" );
+}
+
+foreach my $bits ( @random_strong_tests ) {
+  # TODO: Check that p-1 and p+1 have a big factor.  Might be really slow.
+  check_bits( random_strong_prime($bits), $bits, "random $bits-bit strong" );
 }
 
 sub check_bits {

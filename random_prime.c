@@ -24,24 +24,23 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
     case 7:   mpz_set_ui(p, pr[18+isaac_rand(13)]); return;
     default:  break;
   }
+  /* For 32-bit inputs, use fast trivial method */
+  if (n <= 32) {
+    uint32_t mask = (0xFFFFFFFFU >> (34-n)) << 1,  base = mask+3;
+    do {
+      mpz_set_ui(p, base | (isaac_rand32() & mask));
+    } while (!_GMP_is_prob_prime(p));
+    return;
+  }
 
-#if 0 /* Trivial method. */
-
-  do {
+#if 0
+  do {                         /* Trivial method. */
     mpz_isaac_urandomb(p, n);
     mpz_setbit(p, n-1);
     mpz_setbit(p, 0);
   } while (!_GMP_is_prob_prime(p));
-
-#else  /* Fouque+Tibouchi Alg 1, without native modulo checks */
-
-  if (n <= 32) {
-    uint32_t mask = (0xFFFFFFFFU >> (34-n)) << 1;
-    uint32_t base = mask+3;
-    do {
-      mpz_set_ui(p, base | (isaac_rand32() & mask));
-    } while (!_GMP_is_prob_prime(p));
-  } else {
+#else
+  {                            /* Fouque+Tibouchi Alg 1, without modulo checks */
     mpz_t base;
     mpz_init(base);
     if (n > 33) { mpz_isaac_urandomb(base, n-33); mpz_mul_2exp(base,base,1); }
@@ -54,7 +53,6 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
     } while (!_GMP_is_prob_prime(p));
     mpz_clear(base);
   }
-
 #endif
 }
 
@@ -172,4 +170,94 @@ void mpz_random_ndigit_prime(mpz_t p, UV n)
 
   mpz_clear(lo);
   mpz_clear(hi);
+}
+
+/* Random number rop such that 2*mult*rop+1 has nbits bits. */
+static void _rand_in_bit_interval(mpz_t rop, UV nbits, mpz_t mult)
+{
+  mpz_t t, lo, hi;
+  mpz_init(t); mpz_init(lo); mpz_init(hi);
+
+  mpz_mul_ui(t, mult, 2);
+
+  mpz_setbit(lo, nbits-1);
+  mpz_sub_ui(lo, lo, 1);
+  mpz_cdiv_q(lo, lo, t);   /* lo = ceil(2^(nbits-1)-1 / (2*mult)) */
+
+  mpz_setbit(hi, nbits);
+  mpz_sub_ui(hi, hi, 2);
+  mpz_fdiv_q(hi, hi, t);   /* hi = floor(2^nbits-2 / (2*mult)) */
+
+  mpz_sub(t, hi, lo);
+  mpz_isaac_urandomm(rop, t);
+  mpz_add(rop, rop, lo);
+
+  mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
+}
+
+/* Gordon's algorithm */
+void mpz_random_strong_prime(mpz_t p, UV nbits)
+{
+  mpz_t S, T, R, P0, t, i, j;
+  UV rbits, sbits, tbits;
+
+  if (nbits < 128)  croak("random_strong_prime, bits must be >= 128");
+
+  if (nbits < 256) {
+    rbits = ((nbits+1) >> 1) - 2;
+    sbits = (nbits >> 1) - 20;
+    tbits = rbits - 20;
+  } else {
+    UV N1, N2;
+    { /* Calculate FIPS 186-4 C.10 recommended parameter */
+      UV t_, l2_;
+      for (l2_ = 1, t_ = nbits; t_ >>= 1; ) l2_++;
+      N1 =  (nbits/2)-l2_-7;
+      N2 = N1/2;
+    }
+    if (N1 > 200) N1 = 201;
+    if (N2 > 100) N2 = 101;
+    if (N2 < 100) N2 += N1/4;
+    rbits = sbits = N1;
+    tbits = N2;
+  }
+
+  mpz_init(S);  mpz_init(T);  mpz_init(R);  mpz_init(P0);
+  mpz_init(t);  mpz_init(i);  mpz_init(j);
+
+  while (1) {
+    mpz_random_nbit_prime(S, sbits);
+    mpz_random_nbit_prime(T, tbits);
+
+    _rand_in_bit_interval(i, rbits, T);
+    while (1) {
+      mpz_mul(t, i, T);
+      mpz_mul_ui(t, t, 2);
+      mpz_add_ui(R, t, 1);                 /* R = 2*i*T+1 */
+      if (_GMP_is_prob_prime(R)) break;
+      mpz_add_ui(i,i,1);
+    }
+
+    mpz_sub_ui(t, R, 2);
+    mpz_powm(P0, S, t, R);
+    mpz_mul_ui(P0, P0, 2);
+    mpz_mul(P0, P0, S);
+    mpz_sub_ui(P0, P0, 1);
+
+    mpz_mul(i, R, S);
+    mpz_mul_ui(t, i, 2);
+    _rand_in_bit_interval(j, nbits, i);
+    while (1) {
+      mpz_mul(p, j, t);
+      mpz_add(p, p, P0);                 /* p = 2*j*R*S+p0 */
+      if (mpz_sizeinbase(p,2) > nbits) break;
+      if (_GMP_is_prob_prime(p)) {
+        mpz_clear(t);  mpz_clear(i);  mpz_clear(j);
+        mpz_clear(S);  mpz_clear(T);  mpz_clear(R);  mpz_clear(P0);
+        /* p-1 has factor R.  p+1 has factor S.  r-1 has factor T. */
+        return;
+      }
+      mpz_add_ui(j,j,1);
+    }
+  }
 }

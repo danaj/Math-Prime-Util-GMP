@@ -86,6 +86,7 @@ our @EXPORT_OK = qw(
                      Pi
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
+                     random_strong_prime
                      seed_csprng is_csprng_well_seeded
                    );
                    # Should add:
@@ -913,6 +914,20 @@ undergone a full BPSW test; just sieving and a SPSP-2 test.
 Returns a randomly selected prime of exactly C<n> bits.
 C<undef> is returned if C<n> is less than C<2>.
 The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+=head2 random_strong_prime
+
+  say "random 512-bit strong prime: ", random_strong_prime(512);
+
+Returns a randomly selected strong prime of exactly C<n> bits.
+C<n> must be at least C<256>.
+The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+Given the returned prime C<p>, C<p+1>, C<q=p-1>, and C<q-1> will all have
+a large factor.  This makes using factoring methods such as p-1 and p+1 much
+harder.  Gordon's algorithm is used.  The value of using strong primes is
+questionable over proper random primes when the number of bits is
+at least 1024.
 
 =head2 random_ndigit_prime
 

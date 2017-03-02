@@ -631,6 +631,7 @@ invmod(IN char* stra, IN char* strb)
     is_primitive_root = 6
     rootint = 7
     random_prime = 8
+    csprng_urandomr = 9
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -686,9 +687,29 @@ invmod(IN char* stra, IN char* strb)
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
+    } else if (ix == 8) {
+      if (mpz_sgn(a) < 0)
+        mpz_set_ui(a,0);
+      if (mpz_sgn(b) < 0)
+        retundef = 1;
+      else
+        retundef = !mpz_random_prime(a, a, b);
     } else {
-      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("random_prime: endpoints must be positive");
-      retundef = !mpz_random_prime(a, a, b);
+      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("inputs must be positive");
+      if (mpz_cmp(a,b) > 0) {
+        retundef = 1;
+      } else if (0 && mpz_sizeinbase(b,2) <= 32) {
+        uint32_t lo = mpz_get_ui(a),  hi = mpz_get_ui(b);
+        mpz_clear(b); mpz_clear(a);
+        XSRETURN_UV( lo + isaac_rand(hi-lo+1) );
+      } else {
+        mpz_init(t);
+        mpz_sub(b,b,a);
+        mpz_add_ui(b,b,1);
+        mpz_isaac_urandomm(t, b);
+        mpz_add(a,a,t);
+        mpz_clear(t);
+      }
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
@@ -762,15 +783,21 @@ void partitions(IN UV n)
 
 void random_nbit_prime(IN UV n)
   ALIAS:
-    random_ndigit_prime = 1
+    random_strong_prime = 1
+    random_ndigit_prime = 2
+    csprng_urandomb = 3
   PREINIT:
     mpz_t p;
   PPCODE:
+    if (ix == 3 && n <= 32)
+      XSRETURN_UV( isaac_rand32() >> (32-n) );
     mpz_init(p);
     switch (ix) {
       case 0:  mpz_random_nbit_prime(p, n); break;
-      case 1:
-      default: mpz_random_ndigit_prime(p, n); break;
+      case 1:  mpz_random_strong_prime(p, n); break;
+      case 2:  mpz_random_ndigit_prime(p, n); break;
+      case 3:
+      default: mpz_isaac_urandomb(p, n); break;
     }
     XPUSH_MPZ(p);
     mpz_clear(p);

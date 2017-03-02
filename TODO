@@ -127,17 +127,10 @@
 
 - zeta below -3
 
-- sieve_primes for e.g. 10^100 to 10^100+10000 should as fast as forprimes
-
-- tests for stirling type 3
-
-- export isaac_rand, isaac_rand32, urandomb, urandomm efficiently
-
 - more random prime functions:
   = random_maurer_prime
   = random_maurer_prime_with_cert
   = random_shawe_taylor_prime
   = random_shawe_taylor_prime_with_cert
-  = random_strong_prime
   = random_proven_prime
   = random_priven_prime_with_cert

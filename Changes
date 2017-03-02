@@ -1,6 +1,16 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.42 2017-?
+0.43 2017-?
+
+    - random_strong_prime(nbits)   random strong prob prime of nbits bits
+    - csprng_urandomb(n)           random number between 0 and 2^n-1
+    - csprng_urandomr(lo,hi)       random number in [lo,hi], inclusive.
+
+    [PERFORMANCE]
+
+    - sieve_primes with small widths should perform much better.
+
+0.42 2017-02-27
 
     [ADDED]
 
@@ -18,10 +28,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_nminus1_prime could assert on some inputs.  Fix.
 
-    - chinese([3,0],[2,3]) made GMP go belly up.  Thanks to Trizen for finding.
+    - chinese([3,0],[2,3]) made GMP go belly up.  Found by Trizen.
 
-    - divisors(1) in list context would segfault.  Thanks to Trizen for finding.
-
+    - divisors(1) in list context would segfault.  Found by Trizen.
 
     [PERFORMANCE]
 
