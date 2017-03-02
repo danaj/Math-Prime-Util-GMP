@@ -8,7 +8,6 @@
 #include "prime_iterator.h"
 #include "ecpp.h"
 #include "factor.h"
-#include "isaac.h"
 
 #define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
@@ -1780,6 +1779,14 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
   if (k == 0 || mpz_cmp_ui(t, k) <= 0) {
     test_primality = 1;
     k = (hbits < 100) ? 50000000UL : ((UV)hbits)*UVCONST(500000);
+    /* For small widths we're much better off with smaller sieves. */
+    if (width2 <= 23)  k /= 2;
+    if (width2 <= 21)  k /= 2;
+    if (width2 <= 19)  k /= 2;
+    if (width2 <= 17)  k /= 2;
+    if (width2 <= 15)  k /= 2;
+    if (width2 <= 13)  k /= 2;
+    if (width2 <= 11)  k /= 2;
   }
   /* For smallist n and large ranges, force full sieve */
   if (test_primality && hbits >= 40 && hbits <  56 && (width2 * 2.8) >= hbits)
