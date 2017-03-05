@@ -86,8 +86,9 @@ our @EXPORT_OK = qw(
                      Pi
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
-                     random_strong_prime
+                     random_strong_prime random_maurer_prime
                      seed_csprng is_csprng_well_seeded
+                     urandomb urandomr
                    );
                    # Should add:
                    # nth_prime
@@ -948,6 +949,10 @@ The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
 The random prime functions use the internal CSPRNG for randomness.  This
 is currently ISAAC-32.
 
+This corresponds to Mathematica's C<RandomPrime[{min,max}]> function.
+This is a superset of Pari's C<randomprime(n)> function, where our interval
+API is more useful for cryptographic functions.
+
 
 =head2 lucasu
 
@@ -1720,6 +1725,28 @@ There is no measurement of how "good" the input was.
 On startup the module will attempt to seed the CSPRNG from
 C</dev/urandom>, so this function will return true if that was
 successful, but false otherwise.
+
+=head2 urandomb
+
+  $n32 = urandomb(32);    # Classic irand32, returns a UV
+  $n   = urandomb(1024);  # Random integer less than 2^1024
+
+Given a number of bits C<b>, returns a random unsigned integer less than C<2^b>.
+The result will be uniformly distributed between C<0> and C<2^b-1> inclusive.
+
+This is similar to the GMP function C<mpz_urandomb>.
+
+=head2 urandomr
+
+  $n  = urandomr(100, 110);        # Random number [100,110]
+  $nb = urandomr(2**24,2**25-1);   # Random 25-bit number
+  $nd = urandomr(10**24,10**25-1); # Random 25-digit number
+
+Given values C<low> and C<high>, returns a uniform random unsigned integer
+in the range C<[low,high]>.  Both inputs must be non-negative.
+If C<low E<gt> high> then function will return C<undef>.
+Note that the range is inclusive, so C<low>, C<high>, and each integer
+between them have an equal probability of appearing.
 
 
 =head1 SEE ALSO

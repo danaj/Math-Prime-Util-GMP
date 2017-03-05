@@ -134,3 +134,5 @@
   = random_shawe_taylor_prime_with_cert
   = random_proven_prime
   = random_priven_prime_with_cert
+
+- docs and test for random_maurer_prime

@@ -35,14 +35,18 @@ void clear_randstate(void) {  gmp_randclear(_randstate);  }
 
 void mpz_isaac_urandomb(mpz_t rop, int nbits)
 {
-  unsigned char* d;
-  int nbytes = (nbits+7)/8;
-  New(0, d, nbytes, unsigned char);
-  isaac_rand_bytes(nbytes, d);
-  mpz_import(rop, nbytes, 1, sizeof(unsigned char), 0, 0, d);
-  Safefree(d);
-  if (nbits != nbytes*8)
-    mpz_tdiv_r_2exp(rop, rop, nbits);
+  if (nbits <= 32) {
+    mpz_set_ui(rop, (nbits < 1) ? 0 : (isaac_rand32() >> (32-nbits)));
+  } else {
+    unsigned char* d;
+    int nbytes = (nbits+7)/8;
+    New(0, d, nbytes, unsigned char);
+    isaac_rand_bytes(nbytes, d);
+    mpz_import(rop, nbytes, 1, sizeof(unsigned char), 0, 0, d);
+    Safefree(d);
+    if (nbits != nbytes*8)
+      mpz_tdiv_r_2exp(rop, rop, nbits);
+  }
 }
 
 void mpz_isaac_urandomm(mpz_t rop, mpz_t n)

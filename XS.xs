@@ -631,7 +631,7 @@ invmod(IN char* stra, IN char* strb)
     is_primitive_root = 6
     rootint = 7
     random_prime = 8
-    csprng_urandomr = 9
+    urandomr = 9
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -784,19 +784,21 @@ void partitions(IN UV n)
 void random_nbit_prime(IN UV n)
   ALIAS:
     random_strong_prime = 1
-    random_ndigit_prime = 2
-    csprng_urandomb = 3
+    random_maurer_prime = 2
+    random_ndigit_prime = 3
+    urandomb = 4
   PREINIT:
     mpz_t p;
   PPCODE:
-    if (ix == 3 && n <= 32)
-      XSRETURN_UV( isaac_rand32() >> (32-n) );
+    if (ix == 4 && n <= 32)
+      XSRETURN_UV( (n==0) ? 0 : (isaac_rand32() >> (32-n)) );
     mpz_init(p);
     switch (ix) {
       case 0:  mpz_random_nbit_prime(p, n); break;
       case 1:  mpz_random_strong_prime(p, n); break;
-      case 2:  mpz_random_ndigit_prime(p, n); break;
-      case 3:
+      case 2:  mpz_random_maurer_prime(p, n); break;
+      case 3:  mpz_random_ndigit_prime(p, n); break;
+      case 4:
       default: mpz_isaac_urandomb(p, n); break;
     }
     XPUSH_MPZ(p);

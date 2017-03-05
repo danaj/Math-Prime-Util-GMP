@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <math.h>
 #include <gmp.h>
 #include "ptypes.h"
 #include "random_prime.h"
@@ -30,18 +31,15 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
     do {
       mpz_set_ui(p, base | (isaac_rand32() & mask));
     } while (!_GMP_is_prob_prime(p));
-    return;
-  }
-
+  } else {
 #if 0
-  do {                         /* Trivial method. */
-    mpz_isaac_urandomb(p, n);
-    mpz_setbit(p, n-1);
-    mpz_setbit(p, 0);
-  } while (!_GMP_is_prob_prime(p));
+    do {                        /* Trivial method. */
+      mpz_isaac_urandomb(p, n);
+      mpz_setbit(p, n-1);
+      mpz_setbit(p, 0);
+    } while (!_GMP_is_prob_prime(p));
 #else
-  {                            /* Fouque+Tibouchi Alg 1, without modulo checks */
-    mpz_t base;
+    mpz_t base;                 /* Fouque+Tibouchi Alg 1, without modulo checks */
     mpz_init(base);
     if (n > 33) { mpz_isaac_urandomb(base, n-33); mpz_mul_2exp(base,base,1); }
     mpz_setbit(base, n-1);
@@ -52,8 +50,8 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
       mpz_ior(p, p, base);
     } while (!_GMP_is_prob_prime(p));
     mpz_clear(base);
-  }
 #endif
+  }
 }
 
 /* PRIMEINC: pick random value, select next prime. */
@@ -259,5 +257,73 @@ void mpz_random_strong_prime(mpz_t p, UV nbits)
       }
       mpz_add_ui(j,j,1);
     }
+  }
+}
+
+void mpz_random_maurer_prime(mpz_t n, UV k)
+{
+  mpz_t t, a, q, I, R;
+  double m, r;
+  int i, verbose = get_verbose_level();
+
+  /* We could use safely use k <= 64. */
+  if (k <= 32)
+    return mpz_random_nbit_prime(n, k);
+
+  r = 0.5;
+  m = 20;
+  if (k > 2*m) {
+    do {
+      double s = ((double)isaac_rand32()) / ((double)4294967295.0);  /* [0,1] */
+      r = exp2(s-1);
+    } while ((k-r*k) <= m);
+  }
+  mpz_init(t); mpz_init(a); mpz_init(q); mpz_init(I); mpz_init(R);
+  mpz_random_maurer_prime(q, (UV)(r*k)+1);
+  mpz_setbit(I, k-1);
+  mpz_mul_ui(t, q, 2);
+  mpz_fdiv_q(I, I, t);   /* I = floor(2^(k-1) / 2q) */
+  if (verbose && verbose != 3)
+    { gmp_printf("r = %lf  k = %lu  q = %Zd  I = %Zd\n",r,k,q,I); fflush(stdout); }
+
+  while (1) {
+    if (verbose > 2) { printf("."); fflush(stdout); }
+    mpz_isaac_urandomm(R, I);  /* [0, I-1]  */
+    mpz_add(R, R, I);          /* [I, 2I-I] */
+    mpz_add_ui(R, R, 1);       /* [I+1,2I]  */
+    mpz_mul(n, R, q);
+    mpz_mul_ui(n,n,2);
+    mpz_add_ui(n,n,1);         /* n = 2Rq+1 */
+
+#if 0
+    if (!_GMP_is_prob_prime(n)) continue;
+#else
+    if (!primality_pretest(n)) continue;
+    if (verbose > 2) { printf("+"); fflush(stdout); }
+    if (!is_euler_plumb_pseudoprime(n)) continue;
+#endif
+
+    if (verbose > 2) { printf("*"); fflush(stdout); }
+    /* n=MQ+1 =>  Q=q M=2R
+     * Verify: A^((N-1)/2) mod N = N-1  =>  A^(Rq) mod N = N-1
+     * Verify: A^(M/2) mod N != N-1     =>  A^R mod N != N-1   */
+
+    /* n is probably prime.  Verify with BLS75 theorem 3. */
+    for (i = 0; i < 20; i++) {
+      mpz_set_ui(a, pr[i]);
+      mpz_powm(t, a, R, n);
+      mpz_add_ui(t,t,1);
+      if (mpz_cmp(t, n) == 0) continue;
+      /* A^R mod N != N-1 */
+      mpz_mul(t, R, q);
+      mpz_powm(t, a, t, n);
+      mpz_add_ui(t,t,1);
+      if (mpz_cmp(t, n) != 0) continue;
+      /* A^{Rq} mod N == N-1 */
+      mpz_clear(t); mpz_clear(a); mpz_clear(q); mpz_clear(I); mpz_clear(R);
+      if (verbose > 2) { printf("(%lu)",k); fflush(stdout); }
+      return;
+    }
+    /* Blast, we couldn't find the right 'a' value fast enough.  Try a new n. */
   }
 }
