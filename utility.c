@@ -33,10 +33,20 @@ void init_randstate(unsigned long seed) {
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
 
+UV irand64(int nbits)
+{
+  if (nbits ==  0) return 0;
+  if (nbits <= 32) return( isaac_rand32() >> (32-nbits) );
+#if BITS_PER_WORD == 64
+  if (nbits <= 64) return( ((UV)isaac_rand32() | ((UV)isaac_rand32() << 32)) >> (64-nbits) );
+#endif
+  croak("irand64 too many bits for UV");
+}
+
 void mpz_isaac_urandomb(mpz_t rop, int nbits)
 {
   if (nbits <= 32) {
-    mpz_set_ui(rop, (nbits < 1) ? 0 : (isaac_rand32() >> (32-nbits)));
+    mpz_set_ui(rop, irand64(nbits));
   } else {
     unsigned char* d;
     int nbytes = (nbits+7)/8;
