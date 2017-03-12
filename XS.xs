@@ -52,6 +52,21 @@ static void validate_string_number(CV* cv, const char* var, const char* s)
     mpz_init_set_str(var, s, 10); \
   } while (0)
 
+static char* cert_with_header(char* proof, mpz_t n) {
+  char *str, *strptr;
+  if (proof == 0) {
+    New(0, str, 1, char);
+    str[0] = '\0';
+  } else {
+    New(0, str, strlen(proof) + 100 + mpz_sizeinbase(n,10), char);
+    strptr = str;
+    strptr += gmp_sprintf(strptr, "[MPU - Primality Certificate]\nVersion 1.0\n\nProof for:\nN %Zd\n\n", n);
+    strcat(strptr, proof);
+    Safefree(proof);
+  }
+  return str;
+}
+
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
@@ -785,24 +800,40 @@ void random_nbit_prime(IN UV n)
   ALIAS:
     random_strong_prime = 1
     random_maurer_prime = 2
-    random_ndigit_prime = 3
-    urandomb = 4
+    random_maurer_prime_with_cert = 3
+    random_shawe_taylor_prime = 4
+    random_shawe_taylor_prime_with_cert = 5
+    random_ndigit_prime = 6
+    urandomb = 7
   PREINIT:
     mpz_t p;
+    char* proof;
   PPCODE:
-    if (ix == 4 && n <= 32)
-      XSRETURN_UV( (n==0) ? 0 : (isaac_rand32() >> (32-n)) );
+    if (ix == 7 && n <= BITS_PER_WORD)
+      XSRETURN_UV( irand64(n) );
     mpz_init(p);
+    proof = 0;
     switch (ix) {
       case 0:  mpz_random_nbit_prime(p, n); break;
       case 1:  mpz_random_strong_prime(p, n); break;
-      case 2:  mpz_random_maurer_prime(p, n); break;
-      case 3:  mpz_random_ndigit_prime(p, n); break;
-      case 4:
+      case 2:  mpz_random_maurer_prime(p, n, 0); break;
+      case 3:  mpz_random_maurer_prime(p, n, &proof);
+               proof = cert_with_header(proof, p);
+               break;
+      case 4:  mpz_random_shawe_taylor_prime(p, n, 0); break;
+      case 5:  mpz_random_shawe_taylor_prime(p, n, &proof);
+               proof = cert_with_header(proof, p);
+               break;
+      case 6:  mpz_random_ndigit_prime(p, n); break;
+      case 7:
       default: mpz_isaac_urandomb(p, n); break;
     }
     XPUSH_MPZ(p);
     mpz_clear(p);
+    if (proof) {
+      XPUSHs(sv_2mortal(newSVpv(proof, 0)));
+      Safefree(proof);
+    }
 
 void
 stirling(IN UV n, IN UV m, IN UV type = 1)

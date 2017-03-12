@@ -88,6 +88,8 @@ our @EXPORT_OK = qw(
                      random_prime random_nbit_prime random_ndigit_prime
                      random_strong_prime
                      random_maurer_prime random_shawe_taylor_prime
+                     random_maurer_prime_with_cert
+                     random_shawe_taylor_prime_with_cert
                      seed_csprng is_csprng_well_seeded
                      urandomb urandomr
                    );
@@ -979,6 +981,14 @@ primes.
 C<undef> is returned if C<n> is less than C<2>.
 Internally the extra strong BPSW test has additionally been run on each
 intermediate and the final result, as a safety check.
+
+=head2 random_maurer_prime_with_cert
+
+Like L</random_maurer_prime> but also returns a string certificate.
+
+=head2 random_shawe_taylor_prime_with_cert
+
+Like L</random_shawe_taylor_prime> but also returns a string certificate.
 
 
 =head2 lucasu

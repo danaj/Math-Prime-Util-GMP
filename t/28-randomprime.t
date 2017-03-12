@@ -6,6 +6,9 @@ use Test::More;
 use Math::BigInt try=>"GMP,Pari";
 use Math::Prime::Util::GMP
     qw/random_prime random_ndigit_prime random_nbit_prime random_strong_prime
+       random_maurer_prime random_shawe_taylor_prime
+       random_maurer_prime_with_cert
+       random_shawe_taylor_prime_with_cert
        is_prime
        seed_csprng/;
 
@@ -65,7 +68,8 @@ plan tests => 0
               + (1 * scalar @random_ndigit_tests)
               + (1 * scalar @random_nbit_tests)
               + (1 * scalar @random_strong_tests)
-              + 2
+              + (2 * scalar @random_nbit_tests)   # proven primes
+              + 6
               + 0;
 
 my $infinity = 20**20**20;
@@ -124,6 +128,11 @@ foreach my $bits ( @random_strong_tests ) {
   check_bits( random_strong_prime($bits), $bits, "random $bits-bit strong" );
 }
 
+foreach my $bits ( @random_nbit_tests ) {
+  check_bits( random_maurer_prime($bits), $bits, "random $bits-bit proven (Maurer)" );
+  check_bits( random_shawe_taylor_prime($bits), $bits, "random $bits-bit proven (Shawe-Taylor)" );
+}
+
 sub check_bits {
   my($n, $bits, $what) = @_;
   $n = Math::BigInt->new("$n");
@@ -137,3 +146,55 @@ sub check_bits {
 seed_csprng(3,"xyz");
 is( random_nbit_prime(24), 10207999, "random 20-bit prime with seeded rng" );
 is( random_ndigit_prime(9), 842208331, "random 9-digit with seeded rng" );
+
+{
+  my($n,$cert) = random_maurer_prime_with_cert(139);
+  is( $n, "461450530708271369919467043900581427327289", "random Maurer prime" );
+  is( $cert, "[MPU - Primality Certificate]
+Version 1.0
+
+Proof for:
+N 461450530708271369919467043900581427327289
+
+Type BLS3
+N 461450530708271369919467043900581427327289
+Q 399271657906884417934953679
+A 23
+
+Type BLS3
+N 399271657906884417934953679
+Q 125756461377167
+A 3
+
+Type BLS3
+N 125756461377167
+Q 18944413
+A 5
+", "random Maurer prime certificate" );
+}
+
+{
+  my($n,$cert) = random_shawe_taylor_prime_with_cert(147);
+  is( $n, "175813161209418279279866476297230082927452359", "random Shawe-Taylor prime" );
+  is( $cert, "[MPU - Primality Certificate]
+Version 1.0
+
+Proof for:
+N 175813161209418279279866476297230082927452359
+
+Type Pocklington
+N 175813161209418279279866476297230082927452359
+Q 34388730545435187832661
+A 67309515455075813303416848806399820637730471
+
+Type Pocklington
+N 34388730545435187832661
+Q 482980495961
+A 23452682901285108721511
+
+Type Pocklington
+N 482980495961
+Q 1061869
+A 178206865367
+", "random Shawe-Taylor prime certificate" );
+}

@@ -126,13 +126,3 @@
   By Theorem 19, N is prime
 
 - zeta below -3
-
-- more random prime functions:
-  = random_maurer_prime
-  = random_maurer_prime_with_cert
-  = random_shawe_taylor_prime
-  = random_shawe_taylor_prime_with_cert
-  = random_proven_prime
-  = random_priven_prime_with_cert
-
-- docs and test for random_maurer_prime
