@@ -130,27 +130,27 @@ for (0 .. $num) {
 @exp = map { $_->is_nan() ? undef : $_ } @exp;
 is_deeply( \@res, \@exp, "divmod with negative second input on ".($num+1)." random inputs" );
 
+my $pnum = int($num/2);
+
 ###### powmod
 @exp = (); @res = ();
-for (0 .. $num) {
+for (0 .. $pnum) {
   push @exp, Math::BigInt->new($i1[$_])->bmodpow($i2[$_],$i3[$_]);
   push @res, powmod($i1[$_], $i2[$_], $i3[$_]);
 }
-is_deeply( \@res, \@exp, "powmod on ".($num+1)." random inputs" );
+is_deeply( \@res, \@exp, "powmod on ".($pnum+1)." random inputs" );
 
 ###### powmod (neg)
 @exp = (); @res = ();
-for (0 .. $num) {
+for (0 .. $pnum) {
   push @exp, Math::BigInt->new($i1[$_])->bmodpow(-$i2t[$_],$i3[$_]);
   push @res, powmod($i1[$_], -$i2t[$_], $i3[$_]);
 }
 @exp = map { $_->is_nan() ? undef : $_ } @exp;
-is_deeply( \@res, \@exp, "powmod with negative exponent on ".($num+1)." random inputs" );
+is_deeply( \@res, \@exp, "powmod with negative exponent on ".($pnum+1)." random inputs" );
 
 
 
 sub nrand {
-  my $r = int(rand(4294967296));
-  $r = ($r << 32) + int(rand(4294967296)) if $use64;
-  $r;
+  return Math::Prime::Util::GMP::urandomb($use64 ? 64 : 32);
 }

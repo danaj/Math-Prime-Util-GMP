@@ -170,6 +170,7 @@ sub extra_factor_test {
   is_deeply( [ sort {$a<=>$b} $fsub->(13)  ], [13],      "$fname(13)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(403) ], [13, 31],  "$fname(403)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(53936983) ], [7013, 7691],  "$fname(53936983)" );
+  # Most of the time taken for this test file comes from this line:
   is_deeply( [ sort {$a<=>$b} $fsub->('1754012594703269855671') ], ['41110234981', '42666080491'],  "$fname(1754012594703269855671)" );
 }
 
