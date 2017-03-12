@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.42';
+  $Math::Prime::Util::GMP::VERSION = '0.43';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -86,7 +86,8 @@ our @EXPORT_OK = qw(
                      Pi
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
-                     random_strong_prime random_maurer_prime
+                     random_strong_prime
+                     random_maurer_prime random_shawe_taylor_prime
                      seed_csprng is_csprng_well_seeded
                      urandomb urandomr
                    );
@@ -192,7 +193,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.42
+Version 0.43
 
 
 =head1 SYNOPSIS
@@ -952,6 +953,32 @@ is currently ISAAC-32.
 This corresponds to Mathematica's C<RandomPrime[{min,max}]> function.
 This is a superset of Pari's C<randomprime(n)> function, where our interval
 API is more useful for cryptographic functions.
+
+=head2 random_maurer_prime
+
+  say "random 512-bit proven prime: ", random_maurer_prime(512);
+
+Returns an n-bit proven prime using Ueli Maurer's FastPrime algorithm (1995).
+This results in uniform random selection of a proven prime, though with a
+small subset of the range not returned.
+
+C<undef> is returned if C<n> is less than C<2>.
+Internally the extra strong BPSW test has additionally been run on each
+intermediate and the final result, as a safety check.
+
+=head2 random_shawe_taylor_prime
+
+  say "random 512-bit proven prime: ", random_shawe_taylor_prime(512);
+
+Returns an n-bit proven prime using the Shawe-Taylor algorithm (1986) from
+section C.6 of FIPS 186-4, although using our CSPRNG rather than SHA-256.
+This is a slightly simpler and older (1986) method than Maurer's algorithm.
+It is a bit faster than Maurer's method but has a smaller subset of returned
+primes.
+
+C<undef> is returned if C<n> is less than C<2>.
+Internally the extra strong BPSW test has additionally been run on each
+intermediate and the final result, as a safety check.
 
 
 =head2 lucasu
