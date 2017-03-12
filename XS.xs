@@ -713,10 +713,10 @@ invmod(IN char* stra, IN char* strb)
       if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("inputs must be positive");
       if (mpz_cmp(a,b) > 0) {
         retundef = 1;
-      } else if (0 && mpz_sizeinbase(b,2) <= 32) {
+      } else if (mpz_sizeinbase(b,2) <= 32) {
         uint32_t lo = mpz_get_ui(a),  hi = mpz_get_ui(b);
         mpz_clear(b); mpz_clear(a);
-        XSRETURN_UV( lo + isaac_rand(hi-lo+1) );
+        XSRETURN_IV( lo + isaac_rand(hi-lo+1) );
       } else {
         mpz_init(t);
         mpz_sub(b,b,a);
@@ -809,8 +809,13 @@ void random_nbit_prime(IN UV n)
     mpz_t p;
     char* proof;
   PPCODE:
+#if PERL_REVISION >= 5 && PERL_VERSION > 8
     if (ix == 7 && n <= BITS_PER_WORD)
       XSRETURN_UV( irand64(n) );
+#else
+    if (ix == 7 && n < BITS_PER_WORD)
+      XSRETURN_IV( irand64(n) );
+#endif
     mpz_init(p);
     proof = 0;
     switch (ix) {

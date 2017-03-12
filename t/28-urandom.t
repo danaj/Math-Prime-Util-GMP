@@ -53,7 +53,7 @@ is(urandomr(123457,123456), undef, "urandomr(x,y)=undef if x > y");
 
 sub check_nbit_range {
   my $b = shift;
-  my $over = 1 << $b;
+  my $over = ($b < $maxbits) ? (1 << $b) : (Math::BigInt->new(1) << $b);
   if (!$nbit_range{$b}) {
     my @s = map { urandomb($b) } 1 .. $nsamples;
     is(scalar(grep { $_ >= $over } @s), 0, "Random $b-bit values are in range");
