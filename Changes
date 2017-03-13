@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.43 2017-?
+0.43 2017-03-12
 
     - random_strong_prime(nbits)       random strong prob prime of nbits bits
     - random_maurer_prime(nbits)       random nbits-bits proven prime
