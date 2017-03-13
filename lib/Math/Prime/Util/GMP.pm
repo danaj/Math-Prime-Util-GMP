@@ -477,7 +477,7 @@ GMP integer, so may be large.  Typically this is not necessary, but
 cryptographic applications may prefer the ability to use this, and it
 allows repeatable test results.
 
-There is no check for duplicate bases.  Input sizes below 65-bits make
+There is no check for duplicate bases.  Input sizes below 65 bits make
 little sense for this function since L<is_prob_prime> is deterministic
 at that size.  For numbers of 65+ bits, the chance of duplicate bases
 is quite small.  The exponentiation approximation for the birthday
@@ -622,7 +622,8 @@ or 1 (probably prime), using the BPSW primality test (extra-strong variant).
 
 This function does the extra-strong BPSW test and nothing more.  That is,
 it will skip all pretests and any extra work that the L</is_prob_prime>
-test may add.
+test may add.  This saves some time if the input has no small factors, such
+as testing results that have been sieved.
 
 
 =head2 is_aks_prime
@@ -637,13 +638,18 @@ The particular method used is theorem 4.1 from Bernstein (2003).  This is
 substantially faster than the original AKS publication, the later version
 with improvements by Lenstra (sometimes called the V6 paper), or the later
 improvements of Voloch and Bornemann.  It is, by a large order, faster than
-any other known implementation as of early 2016.
+any other known implementation as of early 2017.
 
 For theoretical analysis of the primality task, AKS is extremely important.
 In practice, it is essentially useless.  Estimated run time for a 150 digit
 input is over 2 days, making the case that while the algorithmic complexity
 I<growth> is polynomial, the constants are extremely high.  It will take
 years for for numbers that ECPP or APR-CL can prove in seconds.
+
+With the C<verbose> option set to 1, the chosen C<r> and C<s> values are
+printed before the test starts.  With C<verbose> set to 2 or higher, each
+of the C<s> tests results in a C<.> output as the test runs, allowing progress
+to be monitored.
 
 Typically you should use L</is_provable_prime> and let it decide the method.
 
@@ -663,13 +669,12 @@ Takes a positive number C<n> as input and returns one of: 0 (definitely
 composite), 2 (definitely prime), or -1 (test does not indicate anything).
 This implements the Lucas-Lehmer-Riesel test for
 fast deterministic primality testing on numbers of the form C<k * 2^n - 1>.
+If the input is not of this form or if C<k E<gt>= 2^n> then C<-1> will be
+returned as the test does not apply.
 If C<k = 1> then this is a Mersenne number and the Lucas-Lehmer test is used.
-If the number is not of this form, or if C<k E<lt>= 2^n>, then C<-1> will
-be returned as the test does not apply.
-Otherwise, the LLR
-test is performed.  While not as fast as the Lucas-Lehmer test for Mersenne
-numbers, it is almost as fast as a single strong pseudoprime test (i.e.
-Miller-Rabin test) while giving a certain answer.
+Otherwise, the LLR test is performed.  While not as fast as the
+Lucas-Lehmer test for Mersenne numbers, it is almost as fast as a single
+strong pseudoprime test (i.e.  Miller-Rabin test) while giving a certain answer.
 
 =head2 is_proth_prime
 
@@ -677,8 +682,8 @@ Takes a positive number C<n> as input and returns one of: 0 (definitely
 composite), 2 (definitely prime), or -1 (test does not indicate anything).
 This applies Proth's theorem for fast Las Vegas
 primality testing on numbers of the form C<k * 2^n + 1>.
-If the number is not of this form, or if C<k E<lt>= 2^n>, then C<-1> will
-be returned as the test does not apply.
+If the input is not of this form or if C<k E<gt>= 2^n> then C<-1> will be
+returned as the test does not apply.
 Otherwise, a search is performed to find a quadratic nonresidue modulo C<n>.
 If none can be found after a brief search, C<-1> is returned as no conclusion
 can be reached.  Otherwise, Proth's theorem is checked which conclusively
@@ -897,7 +902,7 @@ hence the result is a probable prime (using BPSW).
 
 Returns the distances to the previous and next primes of the input C<n>.
 This is slightly more efficient than calling both L</prev_prime> and
-L</next_prime>, and returning the native integer distances can be more
+L</next_prime>, and returning the distances as native integers is more
 efficient with large inputs.
 
 If an optional second argument C<d> is given, and the input C<n> is larger
@@ -954,19 +959,19 @@ is currently ISAAC-32.
 
 This corresponds to Mathematica's C<RandomPrime[{min,max}]> function.
 This is a superset of Pari's C<randomprime(n)> function, where our interval
-API is more useful for cryptographic functions.
+API is more convenient for cryptographic functions.
 
 =head2 random_maurer_prime
 
   say "random 512-bit proven prime: ", random_maurer_prime(512);
 
 Returns an n-bit proven prime using Ueli Maurer's FastPrime algorithm (1995).
-This results in uniform random selection of a proven prime, though with a
-small subset of the range not returned.
+This results in uniform random selection of a proven prime, though not every
+n-bit prime can be generated with this algorithm.
 
 C<undef> is returned if C<n> is less than C<2>.
-Internally the extra strong BPSW test has additionally been run on each
-intermediate and the final result, as a safety check.
+As a safety check, internally the extra strong BPSW test is additionally
+run on each intermediate and the final result.
 
 =head2 random_shawe_taylor_prime
 
@@ -979,8 +984,8 @@ It is a bit faster than Maurer's method but has a smaller subset of returned
 primes.
 
 C<undef> is returned if C<n> is less than C<2>.
-Internally the extra strong BPSW test has additionally been run on each
-intermediate and the final result, as a safety check.
+As a safety check, internally the extra strong BPSW test is additionally
+run on each intermediate and the final result.
 
 =head2 random_maurer_prime_with_cert
 
@@ -1077,7 +1082,7 @@ and C<u*x + v*y = d>.  This uses the extended Euclidian algorithm to compute
 the values satisfying Bézout's Identity.
 
 This corresponds to Pari's C<gcdext> function, which was renamed from
-C<bezout> out Pari 2.6.  The results will hence match L<Math::Pari/bezout>.
+C<bezout> in Pari 2.6.  The results will hence match L<Math::Pari/bezout>.
 
 =head2 chinese
 
@@ -1128,7 +1133,7 @@ For negative arguments, this matches Mathematica.  Pari does not implement
 the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
 case.  GMP's API does not allow negative C<k> but otherwise matches.
 L<Math::BigInt> does not implement any extensions and the results for
-C<n E<lt> 0, k > 0> are undefined.
+C<n E<lt> 0, k E<gt> 0> are undefined.
 
 =head2 bernfrac
 
@@ -1144,6 +1149,7 @@ Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
 string floating point.  An optional second argument indicates the number
 of significant digits to be used, with the result rounded.  The default
 is 40 digits.
+This corresponds to Pari's C<bernreal> function and.
 
 =head2 harmfrac
 
@@ -1151,6 +1157,7 @@ Returns the Harmonic number C<H_n> for an integer argument C<n>, as a
 rational number.  Two values are returned, the numerator and denominator.
 numbers are the sum of reciprocals of the first C<n> natural numbers:
 C<1 + 1/2 + 1/3 + ... + 1/n>.
+This corresponds to Mathematica's C<HarmonicNumber> function.
 
 =head2 harmreal
 
@@ -1264,7 +1271,8 @@ numbers, perfect numbers, etc.
 
 Takes a positive integer as input and returns the value of Ramanujan's tau
 function.  The result is a signed integer.
-This corresponds to Mathematica's C<RamanujanTau> function.
+This corresponds to Mathematica's C<RamanujanTau> function
+and Pari's C<ramanujantau> function.
 
 
 =head2 valuation
@@ -1369,9 +1377,9 @@ Perl version can produce C<partitions(10_000)> while with
 L<Math::Prime::Util::GMP> it can do C<partitions(220_000)>.  In contrast,
 in about 10 seconds Pari can solve C<numbpart(22_000_000)>.
 
-If you want the enumerated partitions, see L<Integer::Partition>.  It is
-very fast and uses an extremely memory efficient iterator.  It is not,
-however, practical for producing the partition I<number> for values
+If you want the enumerated partitions, see L<Math::Prime::Util/forpart>
+or L<Integer::Partition>.  These are fast and memory efficient iterators,
+but not practical for producing the partition I<number> for values
 over 100 or so.
 
 
@@ -1800,7 +1808,7 @@ this module directly is recommended.
 A Perl module with support for the strong Miller-Rabin test, strong
 Lucas-Selfridge test, the BPSW probable prime test, next_prime / prev_prime,
 the AKS primality test, and prime_count.  It uses L<Math::GMPz> to do all
-the calculations, so is faster than pure Perl bignums, but a little slower
+the calculations, so is faster than pure Perl bignums, but a lot slower
 than XS+GMP.  The prime_count function is only usable for very small inputs,
 but the other functions are quite good for big numbers.  Make sure to use
 version 0.05 or newer.
@@ -1825,12 +1833,6 @@ you want to use this.
 =item L<mpz_aprcl|http://sourceforge.net/projects/mpzaprcl/>
 Open source APR-CL primality proof implementation.
 Fast primality proving, though without certificates.
-
-=item L<GMP-ECPP|http://sourceforge.net/projects/gmp-ecpp/>.
-An open source ECPP primality proving program.  Slower than this
-module's ECPP for all inputs when the large polynomial set from
-github is used.  Extremely slow once past 300 or so digits.
-There are now better alternatives.
 
 =back
 
