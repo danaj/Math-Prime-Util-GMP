@@ -439,15 +439,7 @@ primorial(IN char* strn)
       case 10: ramanujan_tau(res, n);  break;
       case 11: mpz_sqrt(res, n);  break;
       case 12:
-      default: if (_GMP_is_prob_prime(n)) {
-                 un = 1;
-               } else {
-                 un = power_factor(n, res);
-                 if (un && !_GMP_is_prob_prime(res))
-                   un = 0;
-               }
-               mpz_set_ui(res, un);
-               break;
+      default: mpz_set_ui(res, prime_power(res, n)); break;
     }
     if (ix == 9 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }

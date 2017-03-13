@@ -24,6 +24,7 @@ extern void partitions(mpz_t npart, UV n);
 
 extern UV   is_power(mpz_t n, UV a);
 
+extern UV   prime_power(mpz_t prime, mpz_t n);
 extern void exp_mangoldt(mpz_t res, mpz_t n);
 
 extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);

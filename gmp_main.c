@@ -1444,26 +1444,32 @@ UV is_power(mpz_t n, UV a)
   }
 }
 
-void exp_mangoldt(mpz_t res, mpz_t n)
+UV prime_power(mpz_t prime, mpz_t n)
 {
   UV k;
-  mpz_set_ui(res, 1);
-  if (mpz_cmp_ui(n, 1) <= 0)
-    return;
-  k = mpz_scan1(n, 0);
-  if (k > 0) {
-    if (k+1 == mpz_sizeinbase(n, 2))
-      mpz_set_ui(res, 2);
-    return;
+  if (mpz_even_p(n)) {
+    k = mpz_scan1(n, 0);
+    if (k+1 == mpz_sizeinbase(n, 2)) {
+      mpz_set_ui(prime, 2);
+      return k;
+    }
+    return 0;
   }
   if (_GMP_is_prob_prime(n)) {
-    mpz_set(res, n);
-    return;
+    mpz_set(prime, n);
+    return 1;
   }
-  k = power_factor(n, res);
-  if (k > 1 && _GMP_is_prob_prime(res))
-    return;
-  mpz_set_ui(res, 1);
+  k = power_factor(n, prime);
+  if (k && !_GMP_is_prob_prime(prime))
+    k = 0;
+  return k;
+}
+
+
+void exp_mangoldt(mpz_t res, mpz_t n)
+{
+  if (prime_power(res, n) < 1)
+    mpz_set_ui(res, 1);
 }
 
 
