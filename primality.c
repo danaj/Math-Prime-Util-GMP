@@ -218,19 +218,26 @@ int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
     return (_GMP_is_prob_prime(n) > 0);
 
   mpz_init(base);  mpz_init(t);
-
-  if (seedstr != 0) { /* Set the RNG seed if they gave us a seed */
-    mpz_set_str(t, seedstr, 0);
-    gmp_randseed(randstate, t);
-  }
-
   mpz_sub_ui(t, n, 3);
-  for (i = 0; i < numbases; i++) {
-    if (seedstr != 0) mpz_urandomm(base, randstate, t); /* base 0 .. (n-3)-1 */
-    else              mpz_isaac_urandomm(base, t);
-    mpz_add_ui(base, base, 2);                          /* base 2 .. n-2     */
-    if (miller_rabin(n, base) == 0)
-      break;
+
+  if (seedstr == 0) { /* Normal case with no seed string.  Use our CSPRNG. */
+    for (i = 0; i < numbases; i++) {
+      mpz_isaac_urandomm(base, t);    /* base 0 .. (n-3)-1 */
+      mpz_add_ui(base, base, 2);      /* base 2 .. n-2     */
+      if (miller_rabin(n, base) == 0)
+        break;
+    }
+  } else {
+    gmp_randinit_default(randstate);
+    mpz_set_str(base, seedstr, 0);
+    gmp_randseed(randstate, base);
+    for (i = 0; i < numbases; i++) {
+      mpz_urandomm(base, randstate, t); /* base 0 .. (n-3)-1 */
+      mpz_add_ui(base, base, 2);        /* base 2 .. n-2     */
+      if (miller_rabin(n, base) == 0)
+        break;
+    }
+    gmp_randclear(randstate);
   }
   mpz_clear(base);  mpz_clear(t);
   return (i >= numbases);
