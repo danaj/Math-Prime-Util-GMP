@@ -1,5 +1,13 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.44 2017-03-?
+
+    [FIXES]
+
+    - miller_rabin_random wasn't initializing a variable.  Fixed and test
+      added.  Thanks to Alexandr Ciornii for timely reporting.
+
+
 0.43 2017-03-12
 
     - random_strong_prime(nbits)       random strong prob prime of nbits bits

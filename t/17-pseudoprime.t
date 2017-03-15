@@ -145,6 +145,7 @@ plan tests => 0 + 9
                 + 5 * scalar(@primes128)  # strong probable prime tests
                 + 5 * scalar(@comp128)    # strong probable prime tests
                 + 15  # Check Frobenius for small primes
+                + 1   # mrr with seed
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -363,3 +364,6 @@ for my $p (@comp128) {
 for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
   is( is_frobenius_pseudoprime($p,37,-13), 1, "prime $p is a Frobenius (37,-13) pseudoprime" );
 }
+
+# Test miller_rabin_random with a passed in seed value
+is(miller_rabin_random("5948714251747610466954817160823054375857",30,"0x6c7b06f2333c8390"), 1, "miller_rabin_random with a seed");
