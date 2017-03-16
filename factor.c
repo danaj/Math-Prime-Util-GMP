@@ -605,7 +605,7 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
 void znprimroot(mpz_t root, mpz_t n)
 {
   mpz_t t, phi, a, on, r, *factors;
-  int i, nfactors, *exponents;
+  int i, nfactors, *exponents, oddprime, k;
 
   mpz_set_ui(root, 0);
   if (mpz_cmp_ui(n, 4) <= 0) {
@@ -633,6 +633,9 @@ void znprimroot(mpz_t root, mpz_t n)
   mpz_divexact(on, on, r);
   mpz_mul(phi, phi, on);
 
+  mpz_sub_ui(r,n,1);
+  oddprime = (mpz_cmp(r,phi) == 0);
+
   mpz_clear(on);
   mpz_clear(r);
 
@@ -646,7 +649,8 @@ void znprimroot(mpz_t root, mpz_t n)
 
   for (mpz_set_ui(a,2);  mpz_cmp(a,n) < 0;  mpz_add_ui(a,a,1)) {
     if (!mpz_cmp_ui(a,4) || !mpz_cmp_ui(a,8) || !mpz_cmp_ui(a,9)) continue;
-    if (mpz_kronecker(a, n) == 0) continue;
+    k = mpz_kronecker(a, n);
+    if ( (oddprime && k != -1) || (!oddprime && k == 0) ) continue;
     for (i = 0; i < nfactors; i++) {
       mpz_powm(t, a, factors[i], n);
       if (mpz_cmp_ui(t, 1) == 0)
