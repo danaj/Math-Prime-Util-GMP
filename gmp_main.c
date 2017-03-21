@@ -1947,7 +1947,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   uint32_t pi, startpi = 1;
   uint32_t lastspr = sprimes[maxpi-1];
   uint32_t c, smallnc;
-  UV ibase = 0, nprps = 0;
+  UV ibase = 0, num_mr = 0, num_lucas = 0;
   char crem_0[53*59], crem_1[61*67], crem_2[71*73], *VPrem;
   int run_pretests = 0;
   int _verbose = get_verbose_level();
@@ -2043,7 +2043,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   }
 
   mpz_init_set(savelow, low);
-  if (mpz_sizeinbase(low, 2) > 260) run_pretests = 1;
+  if (mpz_sizeinbase(low, 2) > 310) run_pretests = 1;
   if (run_pretests && mpz_sgn(_bgcd2) == 0) {
     _GMP_pn_primorial(_bgcd2, BGCD2_PRIMES);
     mpz_divexact(_bgcd2, _bgcd2, _bgcd);
@@ -2168,9 +2168,12 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
           if (mpz_add_ui(t, low, i+cl[c]), mpz_gcd(t,t,_bgcd2), mpz_cmp_ui(t,1)) break;
         if (c != nc) continue;
       }
-      /* PRP test */
+      /* PRP test.  Split BPSW in two for faster rejection. */
       for (c = 0; c < nc; c++)
-        if (! (mpz_add_ui(t, low, i+cl[c]), nprps++, _GMP_BPSW(t)) ) break;
+        if (! (mpz_add_ui(t, low, i+cl[c]), num_mr++, miller_rabin_ui(t,2)) ) break;
+      if (c != nc) continue;
+      for (c = 0; c < nc; c++)
+        if (! (mpz_add_ui(t, low, i+cl[c]), num_lucas++, _GMP_is_lucas_pseudoprime(t,2)) ) break;
       if (c != nc) continue;
       PUSH_VLIST(retlist, ibase + i);
     }
@@ -2178,7 +2181,7 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
     mpz_add_ui(low, low, ppr);
   }
 
-  if (_verbose) printf("cluster sieve ran %"UVuf" BPSW tests (pretests %s)\n", nprps, run_pretests ? "on" : "off");
+  if (_verbose) printf("cluster sieve ran %"UVuf" MR and %"UVuf" Lucas tests (pretests %s)\n", num_mr, num_lucas, run_pretests ? "on" : "off");
   mpz_set(low, savelow);
   Safefree(cres);
   Safefree(VPrem);
