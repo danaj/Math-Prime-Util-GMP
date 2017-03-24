@@ -100,8 +100,14 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   mpz_t s, sreduced, t, *factors;
   int ret, i, nfactors, *exponents;
 
-  if (mpz_sgn(n) == 0)       return 0;
-  if (mpz_cmp_ui(n,1) == 0)  return 1;
+  if (mpz_sgn(n) == 0)
+    return 0;
+  if (mpz_sgn(n) < 0)
+    mpz_neg(n,n);
+  if (mpz_cmp_ui(n,1) == 0)
+    return 1;
+
+  mpz_mod(a,a,n);
 
   mpz_init(s);
   mpz_gcd(s, a, n);

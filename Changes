@@ -7,6 +7,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - miller_rabin_random wasn't initializing a variable.  Fixed and test
       added.  Thanks to Alexandr Ciornii for timely reporting.
 
+    - Fixed is_primitive_root behavior with negative values.
+
     [PERFORMANCE]
 
     - sieve_prime_cluster up to 2x faster.
