@@ -12,7 +12,7 @@ my $maxbits = $use64 ? 64 : 32;
 
 my @nbit_check = (0..5,8,20,31,32,33,40);
 my %nbit_range = map { $_ => 1 } grep { $_ <= 8 } @nbit_check;
-my @large_nbit = (64,128,255,256,257,512,1024,2048,4096,8192,150000);
+my @large_nbit = (64,128,255,256,257,512,1024,2048,4096,8192,73100);
 
 my $nsamples = $extra ? 30000 : 1000;
 my $rsamples = $extra ? 10000 :  200;
@@ -32,7 +32,8 @@ check_nbit_range($_) for @nbit_check;
 
 for my $b (@large_nbit) {
   my $n = Math::BigInt->new(urandomb($b));
-  ok((length($n->as_bin)-2) <= $b, "Random $b-bit in range");
+  my $cmp = Math::BigInt->new(1)->blsft($b);
+  cmp_ok($n, '<', $cmp, "Random $b-bit in range");
 }
 
 ########
