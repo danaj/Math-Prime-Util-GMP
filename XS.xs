@@ -797,17 +797,26 @@ void random_nbit_prime(IN UV n)
     random_shawe_taylor_prime_with_cert = 5
     random_ndigit_prime = 6
     urandomb = 7
+    random_bytes = 8
   PREINIT:
     mpz_t p;
     char* proof;
   PPCODE:
-#if PERL_REVISION >= 5 && PERL_VERSION > 8
-    if (ix == 7 && n <= BITS_PER_WORD)
-      XSRETURN_UV( irand64(n) );
-#else
-    if (ix == 7 && n < BITS_PER_WORD)
-      XSRETURN_IV( irand64(n) );
-#endif
+    if (ix == 7 && n <= BITS_PER_WORD) {
+      UV v = irand64(n);
+      ST(0) = sv_2mortal(newSVuv(v));
+      XSRETURN(1);
+    }
+    if (ix == 8) {
+      SV* sv = newSV(n == 0 ? 1 : n);
+      SvPOK_only(sv);
+      SvCUR_set(sv, n);
+      proof = SvPVX(sv);
+      isaac_rand_bytes(n, (unsigned char*)proof);
+      proof[n] = '\0';
+      PUSHs(sv_2mortal(sv));
+      XSRETURN(1);
+    }
     mpz_init(p);
     proof = 0;
     switch (ix) {

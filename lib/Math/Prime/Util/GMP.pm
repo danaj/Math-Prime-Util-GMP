@@ -91,7 +91,7 @@ our @EXPORT_OK = qw(
                      random_maurer_prime_with_cert
                      random_shawe_taylor_prime_with_cert
                      seed_csprng is_csprng_well_seeded
-                     urandomb urandomr
+                     urandomb urandomr random_bytes
                    );
                    # Should add:
                    # nth_prime
@@ -1792,6 +1792,25 @@ in the range C<[low,high]>.  Both inputs must be non-negative.
 If C<low E<gt> high> then function will return C<undef>.
 Note that the range is inclusive, so C<low>, C<high>, and each integer
 between them have an equal probability of appearing.
+
+=head2 random_bytes
+
+  $str = random_bytes(32);     # 32 random bytes
+
+Given an unsigned number C<n> of bytes, returns a string filled with random
+data from the CSPRNG.  Performance for getting 256 byte strings:
+
+    Module/Method                  Rate   Type
+    -------------             ---------   ----------------------
+    Data::Entropy::Algorithms    2006/s   CSPRNG - AES Counter
+    Crypt::Random                6381/s   CSPRNG - /dev/urandom
+    Bytes::Random                8835/s   drand48
+    rand+pack                   20760/s   drand48
+    Bytes::Random::Secure       22954/s   CSPRNG - ISAAC
+    Crypt::PRNG                291838/s   CSPRNG - Fortuna
+    Bytes::Random::XS          380419/s   drand48
+    Math::Random::MTwist      1809191/s   Mersenne Twister
+    Math::Prime::Util::GMP    1916576/s   CSPRNG - ISAAC
 
 
 =head1 SEE ALSO

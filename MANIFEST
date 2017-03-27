@@ -65,6 +65,7 @@ t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
+xt/bench-random-bytes.pl
 xt/create-standalone.sh
 xt/calculate-mr-probs.pl
 xt/proof-text-format.txt

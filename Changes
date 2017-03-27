@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.44 2017-03-?
 
+    [ADDED]
+
+    - random_bytes(nbytes)             Return a string of CSPRNG bytes
+
     [FIXES]
 
     - miller_rabin_random wasn't initializing a variable.  Fixed and test
@@ -16,13 +20,15 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.43 2017-03-12
 
+    [ADDED]
+
     - random_strong_prime(nbits)       random strong prob prime of nbits bits
     - random_maurer_prime(nbits)       random nbits-bits proven prime
     - random_shawe_taylor_prime(nbits) random nbits-bits proven prime
     - random_maurer_prime_with_cert(nbits)
     - random_shawe_taylor_prime_with_cert(nbits)
-    - csprng_urandomb(n)               random number between 0 and 2^n-1
-    - csprng_urandomr(lo,hi)           random number in [lo,hi], inclusive.
+    - urandomb(n)                      random number between 0 and 2^n-1
+    - urandomr(lo,hi)                  random number in [lo,hi], inclusive.
 
     [PERFORMANCE]
 

@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::BigInt try=>"GMP,Pari";
-use Math::Prime::Util::GMP qw/urandomb urandomr/;
+use Math::Prime::Util::GMP qw/urandomb urandomr   seed_csprng random_bytes/;
 
 my $use64 = (~0 > 4294967295);
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -22,7 +22,8 @@ plan tests => 0
             + scalar(@large_nbit)
             + scalar(keys %nbit_range)
             + 4
-            + 5;
+            + 5
+            + 3;
 
 ########
 
@@ -51,6 +52,15 @@ ok(!eval { urandomr(-1,-1); }, "urandomr(-1,-1)");
 is(urandomr(123456,123456), 123456, "urandomr(x,x)=x");
 is(urandomr(123457,123456), undef, "urandomr(x,y)=undef if x > y");
 
+########
+
+seed_csprng(55,"BLAKEGrostlJHKeccakSkein--RijndaelSerpentTwofishRC6MARS");
+is(unpack("h*",random_bytes( 4)),"538e1f65","random_bytes(4)");
+is(unpack("h*",random_bytes(11)),"cbbac4ba12e6aa77bcfe6f","random_bytes(11)");
+is(unpack("h*",random_bytes( 0)),"","random_bytes(0)");
+
+
+########
 
 sub check_nbit_range {
   my $b = shift;
