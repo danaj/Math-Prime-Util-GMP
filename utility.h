@@ -14,6 +14,7 @@ extern void clear_randstate(void);
 extern void mpz_isaac_urandomb(mpz_t rop, int nbits);
 extern void mpz_isaac_urandomm(mpz_t rop, mpz_t n);
 extern UV irand64(int nbits);
+extern NV drand64(void);
 
 int is_primitive_root(mpz_t a, mpz_t b, int nprime);
 

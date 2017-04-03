@@ -72,24 +72,42 @@ MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
 PROTOTYPES: ENABLE
 
-void
-_GMP_set_verbose(IN int v)
+void _GMP_init()
+
+void _GMP_destroy()
+
+void _GMP_set_verbose(IN int v)
   PPCODE:
      set_verbose_level(v);
-
-void
-_GMP_init()
-
-void
-_GMP_destroy()
 
 void seed_csprng(IN UV bytes, IN unsigned char* seed)
   PPCODE:
     isaac_init(bytes, seed);
 
-void is_csprng_well_seeded()
-  PPCODE:
-    XSRETURN_IV( isaac_seeded() );
+UV irand()
+  ALIAS:
+    irand64 = 1
+    is_csprng_well_seeded = 2
+  CODE:
+    switch (ix) {
+#if BITS_PER_WORD >= 64
+      case 0:  RETVAL = isaac_rand32(); break;
+      case 1:  RETVAL = (((UV)isaac_rand32()) << 32) | isaac_rand32();  break;
+#else
+      case 0:
+      case 1:  RETVAL = isaac_rand32(); break;
+#endif
+      case 2:
+      default: RETVAL = isaac_seeded(); break;
+    }
+  OUTPUT:
+    RETVAL
+
+NV drand(NV m = 1.0)
+  CODE:
+    RETVAL = m * drand64();
+  OUTPUT:
+    RETVAL
 
 int
 is_pseudoprime(IN char* strn, ...)
@@ -395,53 +413,45 @@ prime_count(IN char* strlow, IN char* strhigh)
     mpz_clear(low);
 
 void
-primorial(IN char* strn)
+totient(IN char* strn)
   ALIAS:
-    pn_primorial = 1
-    consecutive_integer_lcm = 2
-    exp_mangoldt = 3
-    totient = 4
-    carmichael_lambda = 5
-    factorial = 6
-    bernfrac = 7
-    harmfrac = 8
-    znprimroot = 9
-    ramanujan_tau = 10
-    sqrtint = 11
-    is_prime_power = 12
+    carmichael_lambda = 1
+    exp_mangoldt = 2
+    bernfrac = 3
+    harmfrac = 4
+    znprimroot = 5
+    ramanujan_tau = 6
+    sqrtint = 7
+    is_prime_power = 8
+    urandomm = 9
   PREINIT:
     mpz_t res, n;
-    UV un;
   PPCODE:
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
-      if (ix == 3)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
-      if (ix == 9)  strn++;            /* znprimroot flip sign */
-      if (ix ==12)  XSRETURN_IV(0);    /* is_prime_power return 0 */
+      if (ix == 2)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
+      if (ix == 5)  strn++;            /* znprimroot flip sign */
+      if (ix == 8)  XSRETURN_IV(0);    /* is_prime_power return 0 */
     }
     VALIDATE_AND_SET(n, strn);
-    un = mpz_get_ui(n);
     mpz_init(res);
     switch (ix) {
-      case 0:  _GMP_primorial(res, un);  break;
-      case 1:  _GMP_pn_primorial(res, un);  break;
-      case 2:  _GMP_lcm_of_consecutive_integers(un, res);  break;
-      case 3:  exp_mangoldt(res, n);  break;
-      case 4:  totient(res, n);  break;
-      case 5:  carmichael_lambda(res, n);  break;
-      case 6:  mpz_fac_ui(res, un);  break;  /* swing impl in 5.1+, so fast */
-      case 7:  bernfrac(n, res, n);
+      case 0:  totient(res, n);  break;
+      case 1:  carmichael_lambda(res, n);  break;
+      case 2:  exp_mangoldt(res, n);  break;
+      case 3:  bernfrac(n, res, n);
                XPUSH_MPZ(n);
                break;
-      case 8:  harmfrac(n, res, n);
+      case 4:  harmfrac(n, res, n);
                XPUSH_MPZ(n);
                break;
-      case 9:  znprimroot(res, n);  break;
-      case 10: ramanujan_tau(res, n);  break;
-      case 11: mpz_sqrt(res, n);  break;
-      case 12:
-      default: mpz_set_ui(res, prime_power(res, n)); break;
+      case 5:  znprimroot(res, n);  break;
+      case 6:  ramanujan_tau(res, n);  break;
+      case 7:  mpz_sqrt(res, n);  break;
+      case 8:  mpz_set_ui(res, prime_power(res, n)); break;
+      case 9:
+      default: mpz_isaac_urandomm(res, n); break;
     }
-    if (ix == 9 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
+    if (ix == 5 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
       {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
     XPUSH_MPZ(res);
     mpz_clear(n);
@@ -765,18 +775,17 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     XPUSH_MPZ(a);
     mpz_clear(n); mpz_clear(b); mpz_clear(a);
 
-void partitions(IN UV n)
+int is_mersenne_prime(IN UV n)
+  CODE:
+    RETVAL = lucas_lehmer(n);
+  OUTPUT:
+    RETVAL
+
+void Pi(IN UV n)
   ALIAS:
-    Pi = 1
-    is_mersenne_prime = 2
+    random_bytes = 1
   PPCODE:
     if (ix == 0) {
-      mpz_t npart;
-      mpz_init(npart);
-      partitions(npart, n);
-      XPUSH_MPZ(npart);
-      mpz_clear(npart);
-    } else if (ix == 1) {
       if (n == 1)
         XSRETURN_IV(3);
       else if (n > 0) {
@@ -785,7 +794,15 @@ void partitions(IN UV n)
         Safefree(pi);
       }
     } else {
-      XSRETURN_IV(lucas_lehmer(n));
+      char* sptr;
+      SV* sv = newSV(n == 0 ? 1 : n);
+      SvPOK_only(sv);
+      SvCUR_set(sv, n);
+      sptr = SvPVX(sv);
+      isaac_rand_bytes(n, (unsigned char*)sptr);
+      sptr[n] = '\0';
+      PUSHs(sv_2mortal(sv));
+      XSRETURN(1);
     }
 
 void random_nbit_prime(IN UV n)
@@ -797,7 +814,11 @@ void random_nbit_prime(IN UV n)
     random_shawe_taylor_prime_with_cert = 5
     random_ndigit_prime = 6
     urandomb = 7
-    random_bytes = 8
+    factorial = 8
+    partitions = 9
+    primorial = 10
+    pn_primorial = 11
+    consecutive_integer_lcm = 12
   PREINIT:
     mpz_t p;
     char* proof;
@@ -805,16 +826,6 @@ void random_nbit_prime(IN UV n)
     if (ix == 7 && n <= BITS_PER_WORD) {
       UV v = irand64(n);
       ST(0) = sv_2mortal(newSVuv(v));
-      XSRETURN(1);
-    }
-    if (ix == 8) {
-      SV* sv = newSV(n == 0 ? 1 : n);
-      SvPOK_only(sv);
-      SvCUR_set(sv, n);
-      proof = SvPVX(sv);
-      isaac_rand_bytes(n, (unsigned char*)proof);
-      proof[n] = '\0';
-      PUSHs(sv_2mortal(sv));
       XSRETURN(1);
     }
     mpz_init(p);
@@ -831,8 +842,13 @@ void random_nbit_prime(IN UV n)
                proof = cert_with_header(proof, p);
                break;
       case 6:  mpz_random_ndigit_prime(p, n); break;
-      case 7:
-      default: mpz_isaac_urandomb(p, n); break;
+      case 7:  mpz_isaac_urandomb(p, n); break;
+      case 8:  mpz_fac_ui(p, n); break;   /* swing impl in 5.1+, so fast */
+      case 9:  partitions(p, n); break;
+      case 10: _GMP_primorial(p, n);  break;
+      case 11: _GMP_pn_primorial(p, n);  break;
+      case 12:
+      default: consecutive_integer_lcm(p, n);  break;
     }
     XPUSH_MPZ(p);
     mpz_clear(p);

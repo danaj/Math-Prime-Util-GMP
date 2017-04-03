@@ -91,7 +91,7 @@ our @EXPORT_OK = qw(
                      random_maurer_prime_with_cert
                      random_shawe_taylor_prime_with_cert
                      seed_csprng is_csprng_well_seeded
-                     urandomb urandomr random_bytes
+                     irand irand64 drand urandomb urandomm urandomr random_bytes
                    );
                    # Should add:
                    # nth_prime
@@ -1781,6 +1781,16 @@ The result will be uniformly distributed between C<0> and C<2^b-1> inclusive.
 
 This is similar to the GMP function C<mpz_urandomb>.
 
+=head2 urandomm
+
+  $n = urandomm(100);    # random integer in [0,99]
+  $n = urandomm(1024);   # random integer in [0,1023]
+
+Given a positive integer C<n>, returns a random unsigned integer less than C<n>.
+The results will be uniformly distributed between C<0> and C<n-1> inclusive.
+
+This is similar to the GMP function C<mpz_urandomm>.
+
 =head2 urandomr
 
   $n  = urandomr(100, 110);        # Random number [100,110]
@@ -1792,6 +1802,52 @@ in the range C<[low,high]>.  Both inputs must be non-negative.
 If C<low E<gt> high> then function will return C<undef>.
 Note that the range is inclusive, so C<low>, C<high>, and each integer
 between them have an equal probability of appearing.
+
+=head2 irand
+
+  $n32 = irand;     # random 32-bit integer
+
+Returns a random 32-bit integer using the CSPRNG.
+
+Performance is similar to
+L<Math::Random::MTwist/rand> and L<Math::Random::Xorshift>.
+It is somewhat faster than casting system C<rand> to a 32-bit int.
+It is noticibly faster than
+L<Math::Random::ISAAC>,
+L<Math::Random::ISAAC::XS>,
+L<Math::Random::MT>,
+L<Math::Random::MT::Auto>,
+and L<Crypt::PRNG>.
+
+=head2 irand64
+
+  $n64 = irand64;   # random 64-bit integer
+
+Returns a random 64-bit integer using the CSPRNG (on 64-bit Perl).
+
+=head2 drand
+
+  $f = drand;       # random floating point value in [0,1)
+  $r = drand(25);   # random floating point value in [0,25)
+
+Returns a random NV (Perl's native floating point) using the CSPRNG.
+
+The number of bits returned is equal to the mantissa bits of the NV type
+used for the Perl build, with a max of 64.  By default Perl uses doubles
+and the returned values have 53 bits.  If Perl is built with long double
+support and the long doubles have a larger mantissa, then more bits are
+used.
+
+This gives I<substantially> better quality random numbers than the default Perl
+C<rand> function.  Among other things, on modern Perl's, C<rand> uses drand48,
+which gives 32 bits of decent random values and 16 more bits of known patterns
+(e.g. the 48th bit alternates, the 47th has a period of 4, etc.).  There are
+much better choices for standard random number generators, such as the
+Mersenne Twister from L<Math::Random::MTwist>.
+
+Performance is similar to
+L<Math::Random::MTwist/rand> and L<Math::Random::Xorshift>.
+It is 1.5 - 2x slower than core C<rand> (as are the other modules).
 
 =head2 random_bytes
 

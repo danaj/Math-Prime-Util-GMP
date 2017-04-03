@@ -42,6 +42,23 @@ UV irand64(int nbits)
 #endif
   croak("irand64 too many bits for UV");
 }
+static NV _tonv_32 = -1.0;
+static NV _tonv_64;
+NV drand64(void)
+{
+  if (_tonv_32 < 0) {
+    int i;
+    NV t64, t32 = 1.0;
+    for (i = 0; i < 32; i++)
+      t32 /= 2.0;
+    t64 = t32;
+    for (i = 0; i < 32; i++)
+      t64 /= 2.0;
+    _tonv_64 = t64;
+    _tonv_32 = t32;
+  }
+  return isaac_rand32() * _tonv_32 + isaac_rand32() * _tonv_64;
+}
 
 void mpz_isaac_urandomb(mpz_t rop, int nbits)
 {

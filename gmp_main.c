@@ -1383,7 +1383,7 @@ void partitions(mpz_t npart, UV n)
 }
 
 
-void _GMP_lcm_of_consecutive_integers(UV B, mpz_t m)
+void consecutive_integer_lcm(mpz_t m, UV B)
 {
   UV i, p, p_power, pmin;
   mpz_t t[8];

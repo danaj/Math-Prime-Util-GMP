@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::BigInt try=>"GMP,Pari";
-use Math::Prime::Util::GMP qw/urandomb urandomr   seed_csprng random_bytes/;
+use Math::Prime::Util::GMP qw/urandomb urandomr urandomm  seed_csprng random_bytes/;
 
 my $use64 = (~0 > 4294967295);
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -23,6 +23,7 @@ plan tests => 0
             + scalar(keys %nbit_range)
             + 4
             + 5
+            + 4
             + 3;
 
 ########
@@ -54,6 +55,13 @@ is(urandomr(123457,123456), undef, "urandomr(x,y)=undef if x > y");
 
 ########
 
+ok(!eval { urandomm(-1); }, "urandomm(-1)");
+is(urandomm(0), 0, "urandomm(0)=0");
+is(urandomm(1), 0, "urandomm(1)=0");
+check_range_m(1234567);
+
+########
+
 seed_csprng(55,"BLAKEGrostlJHKeccakSkein--RijndaelSerpentTwofishRC6MARS");
 is(unpack("h*",random_bytes( 4)),"538e1f65","random_bytes(4)");
 is(unpack("h*",random_bytes(11)),"cbbac4ba12e6aa77bcfe6f","random_bytes(11)");
@@ -67,7 +75,7 @@ sub check_nbit_range {
   my $over = ($b < $maxbits) ? (1 << $b) : (Math::BigInt->new(1) << $b);
   if (!$nbit_range{$b}) {
     my @s = map { urandomb($b) } 1 .. $nsamples;
-    is(scalar(grep { $_ >= $over } @s), 0, "Random $b-bit values are in range");
+    is(scalar(grep { $_ >= $over } @s), 0, "urandomb($b) values are in range");
   } else {
     # For $b=8 and a uniform random generator, the probability of a given
     # 8-bit value not being selected is 1-1/256 = 0.99609375.  After 1000
@@ -80,8 +88,8 @@ sub check_nbit_range {
       last if scalar(keys %t) >= $over;
     }
     my @keys = keys %t;
-    is(scalar(grep { $_ >= $over } @keys), 0, "Random $b-bit values are in range");
-    is(scalar(@keys), $over, "Random $b-bit produces all values in range");
+    is(scalar(grep { $_ >= $over } @keys), 0, "urandomb($b) values are in range");
+    is(scalar(@keys), $over, "urandomb($b) produces all values in range");
   }
 }
 
@@ -89,5 +97,12 @@ sub check_range {
   my($lo,$hi) = @_;
   my @s = map { urandomr($lo,$hi) } 1 .. $rsamples;
   @s = map { ref($hi)->new("$_") } @s if ref($hi);
-  is( scalar(grep { $_ < $lo || $_ > $hi } @s), 0, "All random values from $lo to $hi in range" );
+  is( scalar(grep { $_ < $lo || $_ > $hi } @s), 0, "urandomr($lo,$hi) values are in range" );
+}
+
+sub check_range_m {
+  my($hi) = @_;
+  my @s = map { urandomm($hi) } 1 .. $rsamples;
+  @s = map { ref($hi)->new("$_") } @s if ref($hi);
+  is( scalar(grep { $_ > $hi } @s), 0, "urandomm($hi) values are in range" );
 }

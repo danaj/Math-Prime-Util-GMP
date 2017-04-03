@@ -21,6 +21,7 @@ typedef __int8 int8_t;
   #include <stdlib.h>
   typedef unsigned long UV;
   typedef   signed long IV;
+  typedef        double NV;
   #define UV_MAX ULONG_MAX
   #define UVCONST(x) ((unsigned long)x##UL)
   #define UVuf "lu"

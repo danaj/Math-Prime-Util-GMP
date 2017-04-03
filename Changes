@@ -1,10 +1,14 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.44 2017-03-?
+0.44 2017-04-?
 
     [ADDED]
 
-    - random_bytes(nbytes)             Return a string of CSPRNG bytes
+    - irand()                Returns uniform random 32-bit integer
+    - irand64()              Returns uniform random 64-bit integer
+    - drand([fmax])          Returns uniform random NV (floating point)
+    - urandomm(n)            Returns uniform random integer in [0, hi-1]
+    - random_bytes(nbytes)   Return a string of CSPRNG bytes
 
     [FIXES]
 
