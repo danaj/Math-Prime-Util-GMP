@@ -1741,6 +1741,75 @@ char* pidigits(UV n) {
   return out;
 }
 
+/*****************************************************************************/
+
+void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
+{
+  uint32_t* comp;
+  UV i, cnt, hbits, depth, width;
+  mpz_t shi, t;
+
+  mpz_set_ui(count, 0);
+  if (mpz_cmp_ui(lo,2) <= 0) {
+    if (mpz_cmp_ui(hi,2) >= 0) mpz_add_ui(count,count,1);
+    mpz_set_ui(lo,3);
+  }
+  if (mpz_cmp(lo,hi) > 0) return;
+
+  mpz_init(t);
+  if (mpz_add_ui(t, lo, 100000), mpz_cmp(t,hi) > 0) {
+    mpz_sub_ui(lo,lo,1);
+    for (cnt = 0; mpz_cmp(lo, hi) <= 0; _GMP_next_prime(lo))
+      cnt++;
+    mpz_add_ui(count,count,cnt-1);
+    mpz_clear(t);
+    return;
+  }
+
+  /* Determine a reasonable depth for sieve. */
+  hbits = mpz_sizeinbase(hi,2);
+  depth = (hbits < 100) ? 50000000UL : ((UV)hbits)*UVCONST(500000);
+  if (hbits < 64) {
+    mpz_sqrt(t, hi);
+    if (mpz_cmp_ui(t,depth) < 0)
+      depth = mpz_get_ui(t);
+  }
+
+  /* Count small inputs directly.  We should do this faster. */
+  if (mpz_cmp_ui(lo, depth) <= 0) {
+    mpz_sub_ui(lo,lo,1);
+    for (cnt = 0; mpz_cmp_ui(lo, depth) <= 0; _GMP_next_prime(lo))
+      cnt++;
+    mpz_add_ui(count,count,cnt-1);
+  }
+
+  /* Ensure endpoints are odd */
+  if (mpz_even_p(lo)) mpz_add_ui(lo,lo,1);
+  if (mpz_even_p(hi)) mpz_sub_ui(hi,hi,1);
+
+  mpz_init(shi);
+  while (mpz_cmp(lo,hi) <= 0) {
+    mpz_add_ui(shi, lo, 1000000000UL);
+    if (mpz_cmp(shi, hi) > 0)
+      mpz_set(shi, hi);
+    mpz_sub(t, shi, lo);
+    width = mpz_get_ui(t) + 1;
+
+    comp = partial_sieve(lo, width, depth);
+    for (i = 1, cnt = 0; i <= width; i += 2) {
+      if (!TSTAVAL(comp, i) && (mpz_add_ui(t, lo, i), _GMP_BPSW(t)))
+        cnt++;
+    }
+    Safefree(comp);
+
+    mpz_add_ui(lo, shi, 2);
+    mpz_add_ui(count, count, cnt);
+  }
+  mpz_clear(shi);
+  mpz_clear(t);
+}
+
+
 typedef struct {
   uint32_t nmax;
   uint32_t nsize;

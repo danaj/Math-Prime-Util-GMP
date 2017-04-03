@@ -21,6 +21,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - sieve_prime_cluster up to 2x faster.
 
+    [OTHER]
+
+    - prime_count(), random_prime(), urandomr() can be used with one arg.
 
 0.43 2017-03-12
 

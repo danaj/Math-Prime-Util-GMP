@@ -387,30 +387,49 @@ next_prime(IN char* strn)
 
 
 void
-prime_count(IN char* strlow, IN char* strhigh)
+prime_count(IN char* strlo, IN char* strhi = 0)
+  ALIAS:
+    random_prime = 1
+    urandomr = 2
   PREINIT:
-    mpz_t low, high, count;
+    mpz_t lo, hi, res;
+    int retundef;
   PPCODE:
-    VALIDATE_AND_SET(low, strlow);
-    VALIDATE_AND_SET(high, strhigh);
-    mpz_init_set_ui(count, 0);
-
-    if (mpz_cmp(low, high) <= 0) {
-      mpz_t curprime;
-      mpz_init_set(curprime, low);
-      if (mpz_cmp_ui(curprime, 2) >= 0)
-        mpz_sub_ui(curprime, curprime, 1);  /* Make sure low gets included */
-      _GMP_next_prime(curprime);
-      while (mpz_cmp(curprime, high) <= 0) {
-        mpz_add_ui(count, count, 1);
-        _GMP_next_prime(curprime);
-      }
-      mpz_clear(curprime);
+    if (strhi == 0) {
+      mpz_init_set_ui(lo, 0);
+      VALIDATE_AND_SET(hi, strlo);
+    } else {
+      VALIDATE_AND_SET(lo, strlo);
+      VALIDATE_AND_SET(hi, strhi);
     }
-    XPUSH_MPZ(count);
-    mpz_clear(count);
-    mpz_clear(high);
-    mpz_clear(low);
+    if (ix == 2 && mpz_sizeinbase(hi,2) <= 32) {
+      uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
+      if (ulo <= uhi) {
+        mpz_clear(lo); mpz_clear(hi);
+        XSRETURN_IV( ulo + isaac_rand(uhi-ulo+1) );
+      }
+    }
+    retundef = 0;
+    mpz_init(res);
+    if        (ix == 0) {
+      count_primes(res, lo, hi);
+    } else if (ix == 1) {
+      retundef = !mpz_random_prime(res, lo, hi);
+    } else {
+      if (mpz_cmp(lo,hi) > 0) {
+        retundef = 1;
+      } else {
+        mpz_sub(hi,hi,lo);
+        mpz_add_ui(hi,hi,1);
+        mpz_isaac_urandomm(res, hi);
+        mpz_add(res,res,lo);
+      }
+    }
+    if (!retundef) XPUSH_MPZ(res);
+    mpz_clear(res);
+    mpz_clear(hi);
+    mpz_clear(lo);
+    if (retundef) XSRETURN_UNDEF;
 
 void
 totient(IN char* strn)
@@ -647,8 +666,6 @@ invmod(IN char* stra, IN char* strb)
     sqrtmod = 5
     is_primitive_root = 6
     rootint = 7
-    random_prime = 8
-    urandomr = 9
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -700,33 +717,10 @@ invmod(IN char* stra, IN char* strb)
     } else if (ix == 6) {
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
-    } else if (ix == 7) {
+    } else {
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
-    } else if (ix == 8) {
-      if (mpz_sgn(a) < 0)
-        mpz_set_ui(a,0);
-      if (mpz_sgn(b) < 0)
-        retundef = 1;
-      else
-        retundef = !mpz_random_prime(a, a, b);
-    } else {
-      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("inputs must be positive");
-      if (mpz_cmp(a,b) > 0) {
-        retundef = 1;
-      } else if (mpz_sizeinbase(b,2) <= 32) {
-        uint32_t lo = mpz_get_ui(a),  hi = mpz_get_ui(b);
-        mpz_clear(b); mpz_clear(a);
-        XSRETURN_IV( lo + isaac_rand(hi-lo+1) );
-      } else {
-        mpz_init(t);
-        mpz_sub(b,b,a);
-        mpz_add_ui(b,b,1);
-        mpz_isaac_urandomm(t, b);
-        mpz_add(a,a,t);
-        mpz_clear(t);
-      }
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);

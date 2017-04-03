@@ -35,6 +35,7 @@ extern char* zetareal(mpf_t r, unsigned long prec);
 extern char* riemannrreal(mpf_t r, unsigned long prec);
 extern char* lambertwreal(mpf_t r, unsigned long prec);
 
+extern void count_primes(mpz_t count, mpz_t lo, mpz_t hi);
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
 extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);
 extern UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn);
