@@ -955,7 +955,7 @@ in the range.
 The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
 
 The random prime functions use the internal CSPRNG for randomness.  This
-is currently ISAAC-32.
+is currently ISAAC-32 but will likely change to ChaCha20 in a later release.
 
 This corresponds to Mathematica's C<RandomPrime[{min,max}]> function.
 This is a superset of Pari's C<randomprime(n)> function, where our interval
@@ -1612,8 +1612,8 @@ Factoring will stop when the input is a prime, one factor has been found, or
 the algorithm fails to find a factor with the given smoothness.
 
 This is Pollard's C<p-1> method using a default smoothness of 5M and a
-second stage of C<B2 = 10 * B1>.  It can quickly find a factor C<p> of the input
-C<n> if the number C<p-1> factors into small primes.  For example
+second stage of C<B2 = 10 * B1>.  It can quickly find a factor C<p> of the
+input C<n> if the number C<p-1> factors into small primes.  For example
 C<n = 22095311209999409685885162322219> has the factor C<p = 3916587618943361>,
 where C<p-1 = 2^7 * 5 * 47 * 59 * 3137 * 703499>, so this method will find
 a factor in the first stage if C<B1 E<gt>= 703499> or in the second stage if
@@ -1638,8 +1638,8 @@ succeeded) or the original number (no factor was found).  In either case,
 multiplying @factors yields the original input.  An optional first stage
 smoothness factor (B1) may be given as the second parameter.  This will be
 the smoothness limit B1 for the first stage.
-Factoring will stop when the input is a prime, one factor has been found, or
-the algorithm fails to find a factor with the given smoothness.
+Factoring will stop when the input is a prime, one factor has been found,
+or the algorithm fails to find a factor with the given smoothness.
 
 
 
@@ -1758,8 +1758,7 @@ including the random prime functions.  Ideally this is 16-256 bytes of
 good entropy.
 
 Currently the CSPRNG is ISAAC-32, and the maximum number of seed bytes
-used is 1024.  It is possible the CSPRNG used will change in the future
-(thoughts include Salsa20, SHA2-256 counter, or SHA3-256 counter).
+used is 1024.  The CSPRNG will likely change to ChaCha20 in a later release.
 
 
 =head2 is_csprng_well_seeded
@@ -1838,12 +1837,12 @@ and the returned values have 53 bits.  If Perl is built with long double
 support and the long doubles have a larger mantissa, then more bits are
 used.
 
-This gives I<substantially> better quality random numbers than the default Perl
-C<rand> function.  Among other things, on modern Perl's, C<rand> uses drand48,
-which gives 32 bits of decent random values and 16 more bits of known patterns
-(e.g. the 48th bit alternates, the 47th has a period of 4, etc.).  There are
-much better choices for standard random number generators, such as the
-Mersenne Twister from L<Math::Random::MTwist>.
+This gives I<substantially> better quality random numbers than the default
+Perl C<rand> function.  Among other things, on modern Perl's, C<rand> uses
+drand48, which gives 32 bits of decent random values and 16 more bits of
+known patterns (e.g. the 48th bit alternates, the 47th has a period
+of 4, etc.).  There are much better choices for standard random number
+generators, such as the Mersenne Twister from L<Math::Random::MTwist>.
 
 Performance is similar to
 L<Math::Random::MTwist/rand> and L<Math::Random::Xorshift>.
@@ -1853,20 +1852,26 @@ It is 1.5 - 2x slower than core C<rand> (as are the other modules).
 
   $str = random_bytes(32);     # 32 random bytes
 
-Given an unsigned number C<n> of bytes, returns a string filled with random
-data from the CSPRNG.  Performance for getting 256 byte strings:
+Given an unsigned number C<n> of bytes, returns a binary string filled with
+random data from the CSPRNG.  Performance for getting 256 byte strings:
 
     Module/Method                  Rate   Type
     -------------             ---------   ----------------------
-    Data::Entropy::Algorithms    2006/s   CSPRNG - AES Counter
-    Crypt::Random                6381/s   CSPRNG - /dev/urandom
-    Bytes::Random                8835/s   drand48
-    rand+pack                   20760/s   drand48
-    Bytes::Random::Secure       22954/s   CSPRNG - ISAAC
-    Crypt::PRNG                291838/s   CSPRNG - Fortuna
-    Bytes::Random::XS          380419/s   drand48
-    Math::Random::MTwist      1809191/s   Mersenne Twister
-    Math::Prime::Util::GMP    1916576/s   CSPRNG - ISAAC
+    Data::Entropy::Algorithms    2027/s   CSPRNG - AES Counter
+    Crypt::Random                6649/s   CSPRNG - /dev/urandom
+    Bytes::Random                9217/s   drand48
+    Bytes::Random::Secure       23043/s   CSPRNG - ISAAC
+    Math::Random::ISAAC::XS     58377/s   CSPRNG - ISAAC
+    rand+pack                   82977/s   drand48
+    Crypt::PRNG                298567/s   CSPRNG - Fortuna
+    Bytes::Random::XS          383354/s   drand48
+    ntheory                    770364/s   CSPRNG - ChaCha20
+    Math::Random::MTwist      1890151/s   Mersenne Twister
+    Math::Prime::Util::GMP    2045715/s   CSPRNG - ISAAC
+
+Each of the CSPRNG modules should be high quality.  There are no known
+flaws in any of ISAAC, AES CTR, ChaCha20, or Fortuna.  The industry
+seems to be standardizing onChaCha20 (e.g. BSD, Linux, TLS).
 
 
 =head1 SEE ALSO

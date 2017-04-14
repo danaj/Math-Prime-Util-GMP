@@ -72,4 +72,4 @@ if ($use64) {
   # If we used drand48 we'd get 48 with double or long double.
   ok($k >= 21, "drand supplies at least 21 bits (got $k)");
 }
-  
+

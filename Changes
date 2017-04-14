@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.44 2017-04-?
+0.44 2017-04-13
 
     [ADDED]
 
@@ -24,6 +24,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     [OTHER]
 
     - prime_count(), random_prime(), urandomr() can be used with one arg.
+
 
 0.43 2017-03-12
 

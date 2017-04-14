@@ -117,7 +117,7 @@ A  5
 # Verify: MQ+1 = N
 # Verify: M > 0
 # Verify: 2Q+1 > sqrt(N)
-# Verify A^((N-1)/2) mod N = N-1 
+# Verify A^((N-1)/2) mod N = N-1
 # Verify A^(M/2) mod N != N-1
 # Then N is prime if Q is prime.
 
