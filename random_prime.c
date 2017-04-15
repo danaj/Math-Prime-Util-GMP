@@ -299,7 +299,7 @@ void mpz_random_maurer_prime(mpz_t n, UV k, char** proofptr)
   if (k > 2*m) {
     do {
       double s = ((double)isaac_rand32()) / ((double)4294967295.0);  /* [0,1] */
-      r = exp2(s-1);
+      r = pow(2,s-1);  /* exp2 is C99 */
 #if USE_THEOREM5
       r = 0.334 + 1.332 * (r-0.5);  /* Stretch r to cover 0.334 - 1 */
 #endif

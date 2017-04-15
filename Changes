@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.45 2017-?
+
+    [FIXES]
+
+    - Remove use of exp2 which is C99 only.
+
+
 0.44 2017-04-13
 
     [ADDED]
