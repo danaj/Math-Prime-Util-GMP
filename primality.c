@@ -217,7 +217,20 @@ int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
   if (mpz_cmp_ui(n, 100) < 0)     /* tiny n */
     return (_GMP_is_prob_prime(n) > 0);
 
-  mpz_init(base);  mpz_init(t);
+  /* See if they've asked for a ludicrous number of bases */
+  mpz_init(t);
+  mpz_mul_ui(t, n, 3);
+  mpz_div_ui(t, t, 4);
+  if (mpz_cmp_ui(t, numbases) <= 0) {
+    int res = is_bpsw_dmr_prime(n);
+    if (res != 1) {
+      mpz_clear(t);
+      return !!res;
+    }
+    numbases = mpz_get_ui(t);
+  }
+
+  mpz_init(base);
   mpz_sub_ui(t, n, 3);
 
   if (seedstr == 0) { /* Normal case with no seed string.  Use our CSPRNG. */

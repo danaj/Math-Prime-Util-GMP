@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Remove use of exp2 which is C99 only.
 
+    - Trap negative bases sent to miller_rabin_random
+
 
 0.44 2017-04-13
 

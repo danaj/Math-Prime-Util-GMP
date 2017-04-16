@@ -150,7 +150,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases, IN char* seedstr = 0)
     mpz_t n;
   CODE:
     if (nbases < 0)
-      croak("Parameter '%d' must be a positive integer\n", nbases);
+      croak("Parameter '%"IVdf"' must be a positive integer\n", nbases);
     VALIDATE_AND_SET(n, strn);
     RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
