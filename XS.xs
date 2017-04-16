@@ -145,10 +145,12 @@ is_pseudoprime(IN char* strn, ...)
   OUTPUT:
     RETVAL
 
-int miller_rabin_random(IN char* strn, IN UV nbases, IN char* seedstr = 0)
+int miller_rabin_random(IN char* strn, IN IV nbases, IN char* seedstr = 0)
   PREINIT:
     mpz_t n;
   CODE:
+    if (nbases < 0)
+      croak("Parameter '%d' must be a positive integer\n", nbases);
     VALIDATE_AND_SET(n, strn);
     RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
