@@ -86,9 +86,11 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
 static int is_primitive_root_uiprime(mpz_t n, UV r)
 {
   int res;
-  mpz_t zr;
+  mpz_t zn, zr;
+  mpz_init_set(zn, n);
   mpz_init_set_ui(zr, r);
-  res = is_primitive_root(n, zr, 1);
+  res = is_primitive_root(zn, zr, 1);
+  mpz_clear(zn);
   mpz_clear(zr);
   return res;
 }

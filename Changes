@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Allow single argument to miller_rabin_random (implies one test).
 
+    - AKS on small inputs wasn't correctly calculating primitive roots.
+
 
 0.45 2017-04-16
 

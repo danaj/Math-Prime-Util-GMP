@@ -126,3 +126,5 @@
   By Theorem 19, N is prime
 
 - zeta below -3
+
+- utility.c:is_primitive_root should not modify its arguments
