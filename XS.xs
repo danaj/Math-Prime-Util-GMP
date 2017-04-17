@@ -145,7 +145,7 @@ is_pseudoprime(IN char* strn, ...)
   OUTPUT:
     RETVAL
 
-int miller_rabin_random(IN char* strn, IN IV nbases, IN char* seedstr = 0)
+int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
   PREINIT:
     mpz_t n;
   CODE:

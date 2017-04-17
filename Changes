@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.46 2017-04-17
+
+    [FIXES]
+
+    - Allow single argument to miller_rabin_random (implies one test).
+
+
 0.45 2017-04-16
 
     [FIXES]
