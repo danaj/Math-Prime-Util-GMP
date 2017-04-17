@@ -43,7 +43,7 @@ my @small_primes = qw/
 
 
 {
-  my @sp = (0, @small_primes, 3581);
+  my @sp = (undef, @small_primes, 3581);
   my ($pi, $ni) = (0, 1);
   my @prevexp = map { $pi++ if $_ >  $sp[$pi+1]; $sp[$pi]; } (0 .. 3572);
   my @nextexp = map { $ni++ if $_ >= $sp[$ni  ]; $sp[$ni]; } (0 .. 3572);
@@ -71,7 +71,7 @@ is( prev_prime(19662), 19661, "prev prime of 19662 is 19661" );
 is( prev_prime(19660), 19609, "prev prime of 19660 is 19609" );
 is( prev_prime(19610), 19609, "prev prime of 19610 is 19609" );
 
-is( prev_prime(2), 0, "Previous prime of 2 returns 0" );
+is( prev_prime(2), undef, "Previous prime of 2 returns undef" );
 
 # Turns out the testing of prev/next from 0-3572 still misses some cases.
 {

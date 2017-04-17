@@ -382,6 +382,7 @@ next_prime(IN char* strn)
     mpz_t n;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
+    if (ix == 1 && mpz_cmp_ui(n,3) < 0) { mpz_clear(n); XSRETURN_UNDEF; }
     if (ix == 0) _GMP_next_prime(n);
     else         _GMP_prev_prime(n);
     XPUSH_MPZ(n);
