@@ -112,9 +112,9 @@ void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
   }
 }
 
-int is_primitive_root(mpz_t a, mpz_t n, int nprime)
+int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
 {
-  mpz_t s, sreduced, t, *factors;
+  mpz_t a, s, sreduced, t, *factors;
   int ret, i, nfactors, *exponents;
 
   if (mpz_sgn(n) == 0)
@@ -124,12 +124,14 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   if (mpz_cmp_ui(n,1) == 0)
     return 1;
 
-  mpz_mod(a,a,n);
-
+  mpz_init(a);
+  mpz_mod(a,ina,n);
   mpz_init(s);
   mpz_gcd(s, a, n);
+
   if (mpz_cmp_ui(s,1) != 0) {
     mpz_clear(s);
+    mpz_clear(a);
     return 0;
   }
   if (nprime) {
@@ -196,7 +198,8 @@ int is_primitive_root(mpz_t a, mpz_t n, int nprime)
   clear_factors(nfactors, &factors, &exponents);
 
 DONE_IPR:
-  mpz_clear(s);  mpz_clear(sreduced);  mpz_clear(t);
+  mpz_clear(sreduced);  mpz_clear(t);
+  mpz_clear(s);  mpz_clear(a);
   return ret;
 }
 

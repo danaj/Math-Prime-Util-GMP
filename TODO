@@ -127,4 +127,4 @@
 
 - zeta below -3
 
-- utility.c:is_primitive_root should not modify its arguments
+- aks.c : is_primitive_root_uiprime doesn't need to copy n
