@@ -6,6 +6,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_primitive_root internal func doesn't modify inputs.
 
+    [PERFORMANCE]
+
+    - Use new sieve marking for prime_iterator.  Should give a very small
+      speedup to many functions.
 
 0.46 2017-04-17
 
