@@ -11,6 +11,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - Use new sieve marking for prime_iterator.  Should give a very small
       speedup to many functions.
 
+    - Remove unnecessary variable copy in AKS (is_primitive_root_uiprime).
+
+
 0.46 2017-04-17
 
     [FIXES]

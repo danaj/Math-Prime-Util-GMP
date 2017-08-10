@@ -126,5 +126,3 @@
   By Theorem 19, N is prime
 
 - zeta below -3
-
-- aks.c : is_primitive_root_uiprime doesn't need to copy n
