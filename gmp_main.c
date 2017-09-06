@@ -1986,13 +1986,12 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
   comp = partial_sieve(low, length + twin, k);
   for (i = starti; i <= length; i += skipi) {
     if (!TSTAVAL(comp, i) && !TSTAVAL(comp, i+twin)) {
-      mpz_add_ui(t, low, i);
-      if (_GMP_BPSW(t)) {
-        mpz_add_ui(t, t, twin);
-        if (_GMP_BPSW(t)) {
-          PUSH_VLIST(retlist, i);
-        }
-      }
+      /* Add to list if both t,t+2 pass MR and if both pass ES Lucas */
+      if ( (mpz_add_ui(t,low,i),  miller_rabin_ui(t,2)) &&
+           (mpz_add_ui(t,t,twin), miller_rabin_ui(t,2)) &&
+           (mpz_add_ui(t,low,i),  _GMP_is_lucas_pseudoprime(t,2)) &&
+           (mpz_add_ui(t,t,twin), _GMP_is_lucas_pseudoprime(t,2)) )
+        PUSH_VLIST(retlist, i);
     }
   }
   Safefree(comp);
