@@ -126,3 +126,5 @@
   By Theorem 19, N is prime
 
 - zeta below -3
+
+- random prime should be more efficient (use A2 instead of A1).

@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.47 ?
 
+    [ADDED]
+
+    - is_square(n)           Returns 1 if n is a perfect square
+
     [OTHER]
 
     - is_primitive_root internal func doesn't modify inputs.

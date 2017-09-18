@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation invmod
-                              is_power is_prime_power
+                              is_power is_prime_power is_square
                               binomial gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -161,7 +161,7 @@ plan tests => scalar(@gcds)
             + scalar(@gcdexts)
             + scalar(@vecsums)
             + scalar(@vecprods)
-            + 3 + 3 + 1 + 5 + 3;
+            + 3 + 3 + 1 + 5 + 3 + 3;
 
 foreach my $garg (@gcds) {
   my($aref, $exp) = @$garg;
@@ -232,3 +232,11 @@ is( is_power("894311843364148115560351871258324837202590615410044436950984649"),
 is( is_prime_power("18475335773296164196"), "0", "is_prime_power(18475335773296164196) == 0" );
 is( is_prime_power("894311843364148115560351871258324837202590615410044436950984649"), 0, "is_prime_power(29905047121918201644964877983907^2) == 0" );
 is( is_prime_power("1415842012524355766113858481287417543594447475938337587864641453047142843853822559252126433860162253504357722982805134804808530350591698526668732807053601"), "18", "is_prime_power(322396049^18) == 18" );
+
+is_deeply(
+  [map { is_square($_) } (-4 .. 16)],
+  [0,0,0,0,1,1,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1],
+  "is_square for -4 .. 16"
+);
+is(is_square(60481729), 1, "60481729 is a square");
+is(is_square("1147957727564358902879339073765020815402752648121"), 1, "is_square(<square of 80-bit prime>) = 1");

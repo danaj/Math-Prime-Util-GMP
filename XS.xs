@@ -645,14 +645,17 @@ lucasu(IN IV P, IN IV Q, IN char* strk)
 int
 liouville(IN char* strn)
   ALIAS:
-    is_semiprime = 1
+    is_square = 1
+    is_semiprime = 2
   PREINIT:
     mpz_t n;
   CODE:
+    if (ix == 1 && strn[0] == '-') XSRETURN_IV(0);
     VALIDATE_AND_SET(n, strn);
     switch (ix) {
       case 0:  RETVAL = liouville(n);  break;
-      case 1:
+      case 1:  RETVAL = is_power(n,2);  break;
+      case 2:
       default: RETVAL = is_semiprime(n);  break;
     }
     mpz_clear(n);
