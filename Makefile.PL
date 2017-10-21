@@ -55,13 +55,13 @@ WriteMakefile1(
                prereqs => {
                  runtime => {
                    recommends => {
-                     'Math::Prime::Util' => 0.62,
+                     'Math::Prime::Util' => 0.68,
                    },
                  },
                },
                provides => {
                  'Math::Prime::Util::GMP' => {
-                    version => '0.46',
+                    version => '0.47',
                     file => 'lib/Math/Prime/Util/GMP.pm',
                  },
                },

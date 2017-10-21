@@ -128,3 +128,11 @@
 - zeta below -3
 
 - random prime should be more efficient (use A2 instead of A1).
+
+- Endian issue reported by Debian.
+  https://rt.cpan.org/Ticket/Display.html?id=122718
+  fails randomprime and urandomm  Can duplicate.
+
+- Make a SQUFOF that uses native 64-bit to handle 126-bit inputs.
+
+- Add permtonum, numtoperm, factorialmod, is_totient, is_fundamental
