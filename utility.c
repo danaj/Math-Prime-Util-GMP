@@ -21,7 +21,29 @@ void set_verbose_level(int level) { _verbose = level; }
 
 static gmp_randstate_t _randstate;
 gmp_randstate_t* get_randstate(void) { return &_randstate; }
+
+#if __LITTLE_ENDIAN__ || (defined(BYTEORDER) && (BYTEORDER == 0x1234 || BYTEORDER == 0x12345678))
+#define LESWAP(mem, val)
+#else
+#if !defined(__x86_64__)
+#undef U8TO32_LE
+#undef U32TO8_LE
+#endif
+#ifndef U32TO8_LE
+#define U32TO8_LE(p, v) \
+  do { \
+    uint32_t _v = v; \
+    (p)[0] = (((_v)      ) & 0xFFU); \
+    (p)[1] = (((_v) >>  8) & 0xFFU); \
+    (p)[2] = (((_v) >> 16) & 0xFFU); \
+    (p)[3] = (((_v) >> 24) & 0xFFU); \
+  } while (0)
+#endif
+#define LESWAP(mem, val) U32TO8_LE(mem,val)
+#endif
+
 void init_randstate(unsigned long seed) {
+  unsigned char seedstr[8] = {0};
 #if (__GNU_MP_VERSION > 4) || (__GNU_MP_VERSION == 4 && __GNU_MP_VERSION_MINOR >= 2)
   /* MT was added in GMP 4.2 released in 2006. */
   gmp_randinit_mt(_randstate);
@@ -29,7 +51,18 @@ void init_randstate(unsigned long seed) {
   gmp_randinit_default(_randstate);
 #endif
   gmp_randseed_ui(_randstate, seed);
-  isaac_init( sizeof(unsigned long), (const unsigned char*)(&seed) );
+
+#if BITS_PER_WORD == 64
+  if (seed > UVCONST(4294967295)) {
+    LESWAP(seedstr, seed);
+    LESWAP(seedstr + 4, (seed >> 16) >> 16);
+    isaac_init(8, seedstr);
+  } else
+#endif
+  {
+    LESWAP(seedstr, seed);
+    isaac_init(4, seedstr);
+  }
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
 

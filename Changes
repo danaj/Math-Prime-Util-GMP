@@ -6,9 +6,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_square(n)           Returns 1 if n is a perfect square
 
-    [OTHER]
+    [FIXES]
 
-    - is_primitive_root internal func doesn't modify inputs.
+    - Random stream is identical on big-endian machines.  RT 122718
 
     [PERFORMANCE]
 
@@ -18,6 +18,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - Remove unnecessary variable copy in AKS (is_primitive_root_uiprime).
 
     - Slightly faster twin prime sieve by splitting BPSW test.
+
+    [OTHER]
+
+    - is_primitive_root internal func doesn't modify inputs.
 
 
 0.46 2017-04-17
