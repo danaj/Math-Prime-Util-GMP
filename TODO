@@ -131,4 +131,13 @@
 
 - Make a SQUFOF that uses native 64-bit to handle 126-bit inputs.
 
-- Add permtonum, numtoperm, factorialmod, is_totient, is_fundamental
+- Add:
+   permtonum
+   numtoperm
+   factorialmod
+   is_totient
+   is_fundamental
+   is_polygonal
+   is_carmichael
+
+- logint test

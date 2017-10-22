@@ -77,7 +77,7 @@ our @EXPORT_OK = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     sqrtint rootint
+                     sqrtint rootint logint
                      is_power is_prime_power is_semiprime is_square
                      is_primitive_root
                      znorder
@@ -186,7 +186,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1490,6 +1490,12 @@ of C<n>.
 
 This corresponds to Pari/GP's C<sqrtnint> function.
 
+=head2 logint
+
+Given C<n> and C<b>, returns the integer base-C<b> logarithm of C<n>.
+This is the largest integer C<e> such that C<b^e E<lt>= n>.
+
+This corresponds to Pari/GP's C<logint> function.
 
 =head2 factor
 

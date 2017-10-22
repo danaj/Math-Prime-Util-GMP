@@ -5,6 +5,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - is_square(n)           Returns 1 if n is a perfect square
+    - logint(n,base)         Integer log: largest e s.t. b^e <= n
 
     [FIXES]
 

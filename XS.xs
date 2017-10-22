@@ -672,6 +672,7 @@ invmod(IN char* stra, IN char* strb)
     sqrtmod = 5
     is_primitive_root = 6
     rootint = 7
+    logint = 8
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -723,10 +724,14 @@ invmod(IN char* stra, IN char* strb)
     } else if (ix == 6) {
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
-    } else {
+    } else if (ix == 7) {
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
+    } else {
+      if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
+      if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
+      mpz_set_ui(a, logint(a, mpz_get_ui(b)));
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);

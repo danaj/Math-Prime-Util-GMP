@@ -94,6 +94,7 @@ extern void mpf_log(mpf_t logx, mpf_t x);
 extern void mpf_exp(mpf_t expx, mpf_t x);
 extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);
 
+extern UV logint(mpz_t n, UV base);
 
 
 #if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)

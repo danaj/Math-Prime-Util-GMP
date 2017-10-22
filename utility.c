@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <gmp.h>
+#include <math.h>
 
 #include "ptypes.h"
 
@@ -694,6 +695,72 @@ void mpz_product(mpz_t* A, UV a, UV b) {
     mpz_product(A, c, b);
     mpz_mul(A[a], A[a], A[c]);
   }
+}
+
+UV logint(mpz_t n, UV base) {
+  double logn, logbn, coreps;
+  UV res, nbits, logn_red;
+  int i, do_correct = 0;
+
+  if (mpz_cmp_ui(n,0) <= 0 || base <= 1)
+    croak("mpz_logint: bad input\n");
+
+  /* If base is a small power of 2, then this is exact */
+  if (base <= 62 && (base & (base-1)) == 0)
+    return mpz_sizeinbase(n, base)-1;
+
+#if 0  /* example using mpf_log for high precision.  Slow. */
+  {
+    mpf_t fr, fn;
+    mpf_init(fr); mpf_init(fn);
+    mpf_set_z(fn, n);
+    mpf_log(fr, fn);
+    logn = mpf_get_d(fr);
+    mpf_clear(fn); mpf_clear(fr);
+    coreps = 1e-8;
+  }
+#endif
+
+  /* Step 1, get an approximation of log(n) */
+  nbits = mpz_sizeinbase(n,2);
+  if (nbits < 768) {
+    logn = logl(mpz_get_d(n));
+    coreps = 1e-8;
+  } else {
+    long double logn_adj = 45426.093625176575797967724311883L;/* log(2^65536) */
+    mpz_t nr;
+
+    for ( mpz_init_set(nr,n),  logn_red = 65536,  logn = 0;
+          logn_red >= 128;
+          logn_red /= 2,  logn_adj /= 2) {
+      while (nbits >= 512+logn_red) {
+        mpz_tdiv_q_2exp(nr, nr, logn_red);
+        nbits -= logn_red;
+        logn += logn_adj;
+      }
+    }
+    logn += logl(mpz_get_d(nr));
+    mpz_clear(nr);
+    coreps = 1e-4;
+  }
+  /* Step 2, approximate log_base(n) */
+  logbn = logn / logl(base);
+  res = (UV) logbn;
+
+  /* Step 3, ensure exact if logbn might be rounded wrong */
+  if (res != (UV)(logbn+coreps) || res != (UV)(logbn-coreps)) {
+    mpz_t be;
+    mpz_init(be);
+    /* Decrease until <= n */
+    while (mpz_ui_pow_ui(be, base, res),mpz_cmp(be,n) > 0)
+      res--;
+    /* Increase until n+1 > n */
+    while (mpz_ui_pow_ui(be, base, res+1),mpz_cmp(be,n) <= 0)
+      res++;
+    mpz_clear(be);
+  }
+  /* res is largest res such that base^res <= n */
+  return res;
 }
 
 /******************************************************************************/
