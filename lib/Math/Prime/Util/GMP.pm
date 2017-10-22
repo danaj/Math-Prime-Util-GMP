@@ -1818,7 +1818,7 @@ Returns a random 32-bit integer using the CSPRNG.
 Performance is similar to
 L<Math::Random::MTwist/rand> and L<Math::Random::Xorshift>.
 It is somewhat faster than casting system C<rand> to a 32-bit int.
-It is noticibly faster than
+It is noticeably faster than
 L<Math::Random::ISAAC>,
 L<Math::Random::ISAAC::XS>,
 L<Math::Random::MT>,
@@ -1878,7 +1878,7 @@ random data from the CSPRNG.  Performance for getting 256 byte strings:
 
 Each of the CSPRNG modules should be high quality.  There are no known
 flaws in any of ISAAC, AES CTR, ChaCha20, or Fortuna.  The industry
-seems to be standardizing onChaCha20 (e.g. BSD, Linux, TLS).
+seems to be standardizing on ChaCha20 (e.g. BSD, Linux, TLS).
 
 
 =head1 SEE ALSO

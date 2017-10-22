@@ -17,10 +17,12 @@ eval "use Test::Spellunker";
 plan skip_all => "Test::Spellunker required for testing POD spelling" if $@;
 
 add_stopwords(qw/bigint bigints bignum bignums primorial
-                 gcd lcm kronecker invmod von
-                 pseudoprime pseudoprimes
+                 gcd lcm kronecker invmod
+                 irand irand64 drand drand64 urandomm urandomb
                  semiprime semiprimes coprime k-tuples
                  precalculated premultiplier
+                 pseudoprime pseudoprimes
+                 von
                  PSP-2
                  pp/);
 
