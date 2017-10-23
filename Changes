@@ -13,6 +13,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - logint(n,base)         Integer log: largest e s.t. b^e <= n
     - factorialmod(n,m)      Returns n! mod m
     - permtonum([...])       Returns rank of permutation array ref
+    - numtoperm(n,k)         Returns kth permutation of n elems
 
     [FIXES]
 

@@ -94,7 +94,7 @@ our @EXPORT_OK = qw(
                      random_shawe_taylor_prime_with_cert
                      seed_csprng is_csprng_well_seeded
                      irand irand64 drand urandomb urandomm urandomr random_bytes
-                     permtonum
+                     permtonum numtoperm
                    );
                    # Should add:
                    # nth_prime
@@ -1423,6 +1423,14 @@ or L<Integer::Partition>.  These are fast and memory efficient iterators,
 but not practical for producing the partition I<number> for values
 over 100 or so.
 
+
+=head2 numtoperm
+
+  @p = numtoperm(10,654321);  # @p=(1,8,2,7,6,5,3,4,9,0)
+
+Given a non-negative integer C<n> and integer C<k>, return the
+rank C<k> lexicographic permutation of C<n> elements.
+C<k> will be interpreted as mod C<n!>.
 
 =head2 permtonum
 

@@ -978,6 +978,35 @@ permtonum(SV* svp)
     XPUSH_MPZ(num);
     mpz_clear(num);  mpz_clear(t);  mpz_clear(f);
 
+void numtoperm(IN UV n, IN char* strk)
+  PREINIT:
+    mpz_t k, f, p;
+    UV i, j, tv, *perm;
+  PPCODE:
+    if (n == 0)
+      XSRETURN_EMPTY;
+    validate_and_set_signed(cv, k, "k", strk, VSETNEG_OK);
+    mpz_init(f);  mpz_init(p);
+    New(0, perm, n, UV);
+    for (i = 0; i < n; i++)
+      perm[i] = i;
+    mpz_fac_ui(f, n);
+    mpz_mod(k,k,f);
+    for (i = 0; i < n-1; i++) {
+      mpz_divexact_ui(f, f, n-i);
+      mpz_tdiv_qr(p, k, k, f);
+      if (mpz_sgn(p)) {
+        for (j = i + mpz_get_ui(p), tv = perm[j]; j > i; j--)
+          perm[j] = perm[j-1];
+        perm[i] = tv;
+      }
+    }
+    EXTEND(SP, n-1);
+    for (i = 0; i < n; i++)
+      PUSHs(sv_2mortal(newSVuv( perm[i] )));
+    Safefree(perm);
+    mpz_clear(p);  mpz_clear(f); mpz_clear(k);
+
 void
 sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
   ALIAS:
