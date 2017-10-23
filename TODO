@@ -134,4 +134,4 @@
 - Add:
    permtonum
    numtoperm
-   factorialmod
+   hammingweight

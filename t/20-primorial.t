@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/primorial pn_primorial factorial/;
+use Math::Prime::Util::GMP qw/primorial pn_primorial factorial
+                              factorialmod addmod/;
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71
@@ -91,6 +92,7 @@ my @factorials = (qw/
 /);
 
 plan tests =>   1    # factorial
+              + 1    # factorialmod
               + 2    # primorial and pn_primorial
               + 2;   # extra primorial tests
 
@@ -98,6 +100,10 @@ plan tests =>   1    # factorial
   my @fact = map { factorial($_) }  0 .. $#factorials;
   is_deeply( \@fact, \@factorials, "factorial 0 .. $#factorials" );
 }
+
+is_deeply( [map { factorialmod($_>>2,$_) }        10000 .. 10100],
+           [map { addmod(factorial($_>>2),0,$_) } 10000 .. 10100],
+           "factorialmod" );
 
 {
   my @prim   = map { primorial(nth_prime($_)) }  0 .. $#pn_primorials;

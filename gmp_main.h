@@ -21,6 +21,7 @@ extern void harmfrac(mpz_t num, mpz_t den, mpz_t n);
 extern void stirling(mpz_t r, unsigned long n, unsigned long m, UV type);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
+extern void factorialmod(mpz_t r, UV n, mpz_t m);
 
 extern UV   is_power(mpz_t n, UV a);
 extern int  is_carmichael(mpz_t n);

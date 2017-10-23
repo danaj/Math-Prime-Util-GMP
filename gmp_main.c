@@ -1344,6 +1344,60 @@ void binomial(mpz_t r, UV n, UV k)
   Safefree(mprimes);
 }
 
+void factorialmod(mpz_t r, UV N, mpz_t m)
+{
+  mpz_t t;
+  UV i, D = N;
+
+  if (mpz_cmp_ui(m,N) <= 0 || mpz_cmp_ui(m,1) <= 0) {
+    mpz_set_ui(r,0);
+    return;
+  }
+
+  mpz_init(t);
+  mpz_tdiv_q_2exp(t, m, 1);
+  if (mpz_cmp_ui(t, N) < 0 && _GMP_is_prime(m))
+    D = mpz_get_ui(m) - N - 1;
+
+  if (D < 2 && N > D) {
+    if (D == 0) mpz_sub_ui(r, m, 1);
+    else        mpz_set_ui(r, 1);
+    mpz_clear(t);
+    return;
+  }
+
+  if (D == N && D > 5000000) {   /* TODO: tune this threshold */
+    mpz_t *factors;
+    int nfactors, *exponents, reszero;
+    nfactors = factor(m, &factors, &exponents);
+    /* Find max factor */
+    mpz_set_ui(t, 0);
+    for (i = 0; i < nfactors; i++) {
+      if (exponents[i] > 1)
+        mpz_pow_ui(factors[i], factors[i], exponents[i]);
+      if (mpz_cmp(factors[i], t) > 0)
+        mpz_set(t, factors[i]);
+    }
+    reszero = (mpz_cmp_ui(t, N) <= 0);
+    clear_factors(nfactors, &factors, &exponents);
+    if (reszero) { mpz_clear(t); mpz_set_ui(r,0); return; }
+  }
+
+  mpz_set_ui(t,1);
+  for (i = 2; i <= D && mpz_sgn(t); i++) {
+    mpz_mul_ui(t, t, i);
+    if ((i & 15) == 0) mpz_mod(t, t, m);
+  }
+  mpz_mod(r, t, m);
+
+  if (D != N && mpz_sgn(r)) {
+    if (!(D&1)) mpz_sub(r, m, r);
+    mpz_invert(r, r, m);
+  }
+
+  mpz_clear(t);
+}
+
 void partitions(mpz_t npart, UV n)
 {
   mpz_t psum, *part;

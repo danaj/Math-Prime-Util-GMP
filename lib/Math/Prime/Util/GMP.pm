@@ -65,7 +65,7 @@ our @EXPORT_OK = qw(
                      prime_count
                      primorial
                      pn_primorial
-                     factorial
+                     factorial factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      zeta riemannr lambertw
@@ -1067,6 +1067,12 @@ Given positive integer argument C<n>, returns the factorial of C<n>,
 defined as the product of the integers 1 to C<n> with the special case
 of C<factorial(0) = 1>.  This corresponds to Pari's C<factorial(n)>
 and Mathematica's C<Factorial[n]> functions.
+
+=head2 factorialmod
+
+Given two positive integer arguments C<n> and C<m>, returns C<n! mod m>.
+This is much faster than computing the large C<factorial(n)> followed
+by a mod operation.
 
 =head2 gcd
 

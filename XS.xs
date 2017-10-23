@@ -688,6 +688,7 @@ invmod(IN char* stra, IN char* strb)
     polygonal_nth = 8
     rootint = 9
     logint = 10
+    factorialmod = 11
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -748,10 +749,13 @@ invmod(IN char* stra, IN char* strb)
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
-    } else {
+    } else if (ix == 10) {
       if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
       if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
       mpz_set_ui(a, logint(a, mpz_get_ui(b)));
+    } else {
+      if (mpz_sgn(b) < 0) retundef = 1;
+      else                factorialmod(a, mpz_get_ui(a), b);
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
