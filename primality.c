@@ -1281,7 +1281,7 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
   mpz_mod(temp1, temp1, n);
   if (mpz_cmp_ui(s, 0) == 0 && mpz_cmp(t, temp1) == 0)
     rval = 1;
-  if (_verbose>1) gmp_printf("%Zd is %s with a = %"UVuf"\n", n, (rval) ? "probably prime" : "composite", a);
+  if (_verbose>1) { gmp_printf("%Zd is %s with a = %"UVuf"\n", n, (rval) ? "probably prime" : "composite", a); fflush(stdout); }
 
   mpz_clear(temp1); mpz_clear(temp2); mpz_clear(n_plus_1);
   mpz_clear(s); mpz_clear(t);
