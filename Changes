@@ -5,12 +5,12 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - is_square(n)           Returns 1 if n is a perfect square
-    - logint(n,base)         Integer log: largest e s.t. b^e <= n
     - is_carmichael(n)       Returns 1 if n is a Carmichael number
     - is_fundamental(n)      Returns 1 if n is a fundamental discriminant
     - is_totient(n)          Returns 1 if euler_phi(x) == n for some x
     - is_polygonal(n,k)      Returns 1 if n is a k-gonal number
     - polygonal_nth(n,k)     Returns N if n is the Nth k-gonal number
+    - logint(n,base)         Integer log: largest e s.t. b^e <= n
 
     [FIXES]
 

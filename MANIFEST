@@ -52,7 +52,9 @@ t/23-gcd.t
 t/24-bernfrac.t
 t/25-pi.t
 t/26-digits.t
+t/26-ismisc.t
 t/26-lambertw.t
+t/26-logs.t
 t/26-mersenne.t
 t/26-mod.t
 t/26-riemann.t

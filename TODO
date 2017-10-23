@@ -135,10 +135,3 @@
    permtonum
    numtoperm
    factorialmod
-
-- logint test
-- is_carmichael test
-- is_polygonal test
-- polygonal_nth test
-- is_fundamental test
-- is_totient test
