@@ -7,6 +7,7 @@ use Math::Prime::Util::GMP qw/invmod sqrtmod addmod mulmod divmod powmod/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @invmods = (
  [ 0, 0, undef],
@@ -58,7 +59,7 @@ foreach my $r (@sqrtmods) {
 
 ##########################################################################
 
-my $num = 99;
+my $num = ($extra) ? 199 : 39;
 my @i1 = map { nrand() } 0 .. $num;
 my @i2 = map { nrand() } 0 .. $num;
 my @i2t= map { $i2[$_] >> 1 } 0 .. $num;
