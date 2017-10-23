@@ -132,6 +132,5 @@
 - Make a SQUFOF that uses native 64-bit to handle 126-bit inputs.
 
 - Add:
-   permtonum
    numtoperm
    hammingweight

@@ -94,6 +94,7 @@ our @EXPORT_OK = qw(
                      random_shawe_taylor_prime_with_cert
                      seed_csprng is_csprng_well_seeded
                      irand irand64 drand urandomb urandomm urandomr random_bytes
+                     permtonum
                    );
                    # Should add:
                    # nth_prime
@@ -1421,6 +1422,16 @@ If you want the enumerated partitions, see L<Math::Prime::Util/forpart>
 or L<Integer::Partition>.  These are fast and memory efficient iterators,
 but not practical for producing the partition I<number> for values
 over 100 or so.
+
+
+=head2 permtonum
+
+  $k = permtonum([1,8,2,7,6,5,3,4,9,0]);  # $k = 654321
+
+Given an array reference containing integers from C<0> to C<n>,
+returns the lexicographic permutation rank of the set.  This is
+the inverse of the L</numtoperm> function.  All integers up to
+C<n> must be present.  The result will be between C<0> and C<n!-1>.
 
 
 =head2 Pi

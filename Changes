@@ -12,6 +12,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - polygonal_nth(n,k)     Returns N if n is the Nth k-gonal number
     - logint(n,base)         Integer log: largest e s.t. b^e <= n
     - factorialmod(n,m)      Returns n! mod m
+    - permtonum([...])       Returns rank of permutation array ref
 
     [FIXES]
 

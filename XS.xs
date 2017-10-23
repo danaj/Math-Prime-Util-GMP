@@ -935,6 +935,50 @@ chinese(...)
     if (!doretval) XSRETURN_UNDEF;
 
 void
+permtonum(SV* svp)
+  PREINIT:
+    AV *av;
+    char* seen;
+    UV val, *V;
+    int plen, n, i, j, k;
+    mpz_t f, t, num;
+  PPCODE:
+    if ((!SvROK(svp)) || (SvTYPE(SvRV(svp)) != SVt_PVAV))
+      croak("permtonum argument must be an array reference");
+    av = (AV*) SvRV(svp);
+    plen = av_len(av);
+    if (plen < 0) XSRETURN_IV(0);
+    Newz(0, seen, plen+1, char);
+    New(0, V, plen+1, UV);
+    for (i = 0; i <= plen; i++) {
+      SV **iv = av_fetch(av, i, 0);
+      if (iv == 0) break;
+      val = SvUV(*iv);
+      if (val > (UV)plen || seen[val] != 0) break;
+      seen[val] = 1;
+      V[i] = val;
+    }
+    Safefree(seen);
+    if (i <= plen)
+      croak("permtonum invalid permutation array");
+
+    mpz_init(f);  mpz_init(t);
+    mpz_init_set_ui(num, 0);
+    n = plen+1;
+    mpz_fac_ui(f, n-1);
+    for (i = 0; i < n-1; i++) {
+      for (j = i+1, k = 0; j < n; j++)
+        if (V[j] < V[i])
+          k++;
+      mpz_mul_ui(t, f, k);
+      mpz_add(num, num, t);
+      mpz_divexact_ui(f, f, n-i-1);
+    }
+    Safefree(V);
+    XPUSH_MPZ(num);
+    mpz_clear(num);  mpz_clear(t);  mpz_clear(f);
+
+void
 sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
   ALIAS:
     sieve_primes = 1
