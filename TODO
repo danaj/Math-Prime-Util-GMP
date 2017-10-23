@@ -138,6 +138,6 @@
    is_totient
    is_fundamental
    is_polygonal
-   is_carmichael
 
 - logint test
+- is_carmichael test

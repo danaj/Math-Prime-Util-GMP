@@ -647,6 +647,7 @@ liouville(IN char* strn)
   ALIAS:
     is_square = 1
     is_semiprime = 2
+    is_carmichael = 3
   PREINIT:
     mpz_t n;
   CODE:
@@ -655,8 +656,9 @@ liouville(IN char* strn)
     switch (ix) {
       case 0:  RETVAL = liouville(n);  break;
       case 1:  RETVAL = is_power(n,2);  break;
-      case 2:
-      default: RETVAL = is_semiprime(n);  break;
+      case 2:  RETVAL = is_semiprime(n);  break;
+      case 3:
+      default: RETVAL = is_carmichael(n);  break;
     }
     mpz_clear(n);
   OUTPUT:

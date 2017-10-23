@@ -23,6 +23,7 @@ extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
 
 extern UV   is_power(mpz_t n, UV a);
+extern int  is_carmichael(mpz_t n);
 
 extern UV   prime_power(mpz_t prime, mpz_t n);
 extern void exp_mangoldt(mpz_t res, mpz_t n);

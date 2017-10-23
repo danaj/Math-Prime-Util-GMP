@@ -78,7 +78,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint logint
-                     is_power is_prime_power is_semiprime is_square
+                     is_power is_prime_power is_semiprime is_square is_carmichael
                      is_primitive_root
                      znorder
                      znprimroot
@@ -1248,6 +1248,18 @@ A semiprime is the product of exactly two primes.
 
 The boolean result is the same as C<scalar(factor(n)) == 2>, but this
 function performs shortcuts that can greatly speed up the operation.
+
+=head2 is_carmichael
+
+Given a positive integer C<n>, returns 1 if C<n> is a Carmichael number,
+0 otherwise.
+These are composites that satisfy C<b^(n-1) ≡ 1 mod n> for all
+C<1 E<lt> b E<lt> n> relatively prime to C<n>.
+Alternately Korselt's theorem says these are composites such that C<n> is
+square-free and C<p-1> divides C<n-1> for all prime divisors C<p> of C<n>.
+
+Inputs greater than 50 digits use a probabilistic test to avoid fully
+factoring the input.
 
 
 =head2 sigma
