@@ -4,7 +4,9 @@ use warnings;
 
 use Test::More;
 use Math::BigInt try=>"GMP,Pari";
-use Math::Prime::Util::GMP qw/urandomb urandomr urandomm  seed_csprng random_bytes/;
+use Math::Prime::Util::GMP qw/urandomb urandomr urandomm
+                              seed_csprng random_bytes
+                              todigits/;
 
 my $use64 = (~0 > 4294967295);
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -33,9 +35,8 @@ check_nbit_range($_) for @nbit_check;
 ########
 
 for my $b (@large_nbit) {
-  my $n = Math::BigInt->new(urandomb($b));
-  my $cmp = Math::BigInt->new(1)->blsft($b);
-  cmp_ok($n, '<', $cmp, "Random $b-bit in range");
+  my @bits = todigits(urandomb($b),2);
+  ok( scalar(@bits) <= $b, "Random $b-bit in range" );
 }
 
 ########
