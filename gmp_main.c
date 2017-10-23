@@ -1610,41 +1610,44 @@ int is_totient(mpz_t n)
 
 void polygonal_nth(mpz_t r, mpz_t n, UV k)
 {
-  mpz_t D, R;
+  mpz_t D, t;
+  UV R;
 
   if (k < 3 || mpz_sgn(n) < 0) { mpz_set_ui(r,0); return; }
   if (mpz_cmp_ui(n,1) <= 0)    { mpz_set_ui(r,1); return; }
 
   if (k == 4) {
-    if (mpz_perfect_square_p(n))
-      mpz_sqrt(r, n);
-    else
-      mpz_set_ui(r, 0);
+    if (mpz_perfect_square_p(n)) mpz_sqrt(r, n);
+    else                         mpz_set_ui(r, 0);
     return;
   }
 
-  mpz_init(D);  mpz_init(R);
+  mpz_init(D);
   if (k == 3) {
     mpz_mul_2exp(D, n, 3);
-    mpz_set_ui(R, 1);
+    mpz_add_ui(D, D, 1);
+  } else if (k == 5) {
+    mpz_mul_ui(D, n, (8*k-16));
+    mpz_add_ui(D, D, 1);
   } else {
     mpz_mul_ui(D, n, (8*k-16));
-    mpz_set_ui(R, k-4);
-    mpz_mul(R, R, R);
+    mpz_init_set_ui(t, k-4);
+    mpz_mul(t, t, t);
+    mpz_add(D, D, t);
+    mpz_clear(t);
   }
-  mpz_add(D, D, R);
   if (mpz_perfect_square_p(D)) {
     mpz_sqrt(D, D);
     if (k == 3)  mpz_sub_ui(D, D, 1);
     else         mpz_add_ui(D, D, k-4);
-    mpz_set_ui(R, 2*k-4);
-    if (mpz_divisible_p(D, R)) {
-      mpz_divexact(r, D, R);
-      mpz_clear(R);  mpz_clear(D);
+    R = 2*k-4;
+    if (mpz_divisible_ui_p(D, R)) {
+      mpz_divexact_ui(r, D, R);
+      mpz_clear(D);
       return;
     }
   }
-  mpz_clear(R);  mpz_clear(D);
+  mpz_clear(D);
   mpz_set_ui(r, 0);
 }
 
