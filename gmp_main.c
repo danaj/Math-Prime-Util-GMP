@@ -1536,6 +1536,118 @@ int is_carmichael(mpz_t n)
   return res;
 }
 
+int is_fundamental(mpz_t n)
+{
+  int r, neg = (mpz_sgn(n) < 0), ret = 0;
+  if (neg) mpz_neg(n,n);
+
+  r = mpz_fdiv_ui(n,16);
+  if (r != 0) {
+    int r4 = r & 3;
+    if (!neg && r4 == 1 && moebius(n) != 0) ret = 1;
+    if ( neg && r4 == 3 && moebius(n) != 0) ret = 1;
+    if (r4 == 0 && ((!neg && r != 4) || (neg && r != 12))) {
+      mpz_t t;
+      mpz_init(t);
+      mpz_tdiv_q_2exp(t, n, 2);
+      if (moebius(t) != 0)
+        ret = 1;
+      mpz_clear(t);
+    }
+  }
+  if (neg) mpz_neg(n,n);
+  return ret;
+}
+
+int _totpred(mpz_t n, mpz_t maxd)
+{
+    int i, res, ndivisors;
+    mpz_t N, r, d, p, *D;
+
+    if (mpz_odd_p(n)) return 0;
+    if (mpz_cmp_ui(n,2) == 0) return 1;
+
+    mpz_init(N);  mpz_init(p);
+    mpz_tdiv_q_2exp(N, n, 1);
+    res = 0;
+    mpz_add_ui(p, n, 1);
+    if (mpz_cmp(N, maxd) < 0 && _GMP_is_prime(p)) {
+      res = 1;
+    } else {
+      mpz_init(d);  mpz_init(r);
+      D = divisor_list(&ndivisors, N);
+      for (i = 0; res == 0 && i < ndivisors && mpz_cmp(D[i],maxd) < 0; i++) {
+        mpz_set(d, D[i]);
+        mpz_mul_2exp(p,d,1);  mpz_add_ui(p,p,1);
+        if (!_GMP_is_prime(p))
+          continue;
+        mpz_divexact(r, N, d);
+        while (1) {
+          if (mpz_cmp(r, p) == 0 || _totpred(r, d)) {
+            res = 1;
+            break;
+          }
+          if (!mpz_divisible_p(r, p))
+            break;
+          mpz_divexact(r, r, p);
+        }
+      }
+      mpz_clear(r);  mpz_clear(d);
+      for (i = 0; i < ndivisors; i++)
+        mpz_clear(D[i]);
+      Safefree(D);
+    }
+    mpz_clear(p);  mpz_clear(N);
+    return res;
+}
+
+int is_totient(mpz_t n)
+{
+  if (mpz_sgn(n) == 0 || mpz_odd_p(n))
+    return !mpz_cmp_ui(n,1) ? 1 : 0;
+  return _totpred(n, n);
+}
+
+void polygonal_nth(mpz_t r, mpz_t n, UV k)
+{
+  mpz_t D, R;
+
+  if (k < 3 || mpz_sgn(n) < 0) { mpz_set_ui(r,0); return; }
+  if (mpz_cmp_ui(n,1) <= 0)    { mpz_set_ui(r,1); return; }
+
+  if (k == 4) {
+    if (mpz_perfect_square_p(n))
+      mpz_sqrt(r, n);
+    else
+      mpz_set_ui(r, 0);
+    return;
+  }
+
+  mpz_init(D);  mpz_init(R);
+  if (k == 3) {
+    mpz_mul_2exp(D, n, 3);
+    mpz_set_ui(R, 1);
+  } else {
+    mpz_mul_ui(D, n, (8*k-16));
+    mpz_set_ui(R, k-4);
+    mpz_mul(R, R, R);
+  }
+  mpz_add(D, D, R);
+  if (mpz_perfect_square_p(D)) {
+    mpz_sqrt(D, D);
+    if (k == 3)  mpz_sub_ui(D, D, 1);
+    else         mpz_add_ui(D, D, k-4);
+    mpz_set_ui(R, 2*k-4);
+    if (mpz_divisible_p(D, R)) {
+      mpz_divexact(r, D, R);
+      mpz_clear(R);  mpz_clear(D);
+      return;
+    }
+  }
+  mpz_clear(R);  mpz_clear(D);
+  mpz_set_ui(r, 0);
+}
+
 
 static void word_tile(uint32_t* source, uint32_t from, uint32_t to) {
   while (from < to) {

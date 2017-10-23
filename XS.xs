@@ -52,6 +52,17 @@ static void validate_string_number(CV* cv, const char* var, const char* s)
     mpz_init_set_str(var, s, 10); \
   } while (0)
 
+#define VSETNEG_ERR 0
+#define VSETNEG_POS 1
+#define VSETNEG_OK  2
+static int validate_and_set_signed(CV* cv, mpz_t v, const char* vname, const char* s, int negflag) {
+  int neg = (s && *s == '-');
+  if (s && *s == '+') s++;
+  validate_string_number(cv, vname, (neg && negflag != VSETNEG_ERR) ? s+1 : s);
+  mpz_init_set_str(v, (neg && negflag == VSETNEG_POS) ? s+1 : s, 10);
+  return neg;
+}
+
 static char* cert_with_header(char* proof, mpz_t n) {
   char *str, *strptr;
   if (proof == 0) {
@@ -340,20 +351,17 @@ is_power(IN char* strn, IN UV a = 0)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = (strn[0] == '-');
-    if (isneg) strn++;
-    validate_string_number(cv, "n", strn);
+    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
     RETVAL = 0;
     if (!isneg || (a == 0 || a & 1)) {
-      mpz_init_set_str(n, strn, 10);
       RETVAL = is_power(n, a);
-      mpz_clear(n);
     }
     if (isneg && a == 0 && RETVAL != 0) {
       UV r = RETVAL;
       while (!(r & 1)) r >>= 1;
       RETVAL = (r == 1) ? 0 : r;
     }
+    mpz_clear(n);
   OUTPUT:
     RETVAL
 
@@ -548,8 +556,7 @@ gcd(...)
       New(0, list, items, mpz_t);
       for (i = 0; i < items; i++) {
         char* strn = SvPV_nolen(ST(i));
-        validate_string_number(cv, "arg", (strn[0]=='-') ? strn+1 : strn);
-        mpz_init_set_str(list[i], strn, 10);
+        validate_and_set_signed(cv, list[i], "arg", strn, VSETNEG_OK);
       }
       mpz_product(list, 0, items-1);
       XPUSH_MPZ(list[0]);
@@ -561,9 +568,7 @@ gcd(...)
     mpz_init_set_ui(ret, (ix == 1 || ix == 3) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
-      validate_string_number(cv,"arg", (strn[0]=='-') ? strn+1 : strn);
-      if (ix <= 1 && strn != 0 && strn[0] == '-') strn++;
-      mpz_set_str(n, strn, 10);
+      validate_and_set_signed(cv, n, "arg", strn, (ix <= 1) ? VSETNEG_POS : VSETNEG_OK);
       switch (ix) {
         case 0:  mpz_gcd(ret, ret, n); break;
         case 1:  mpz_lcm(ret, ret, n); break;
@@ -583,10 +588,8 @@ kronecker(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   CODE:
-    validate_string_number(cv,"a", (stra[0]=='-') ? stra+1 : stra);
-    validate_string_number(cv,"b", (strb[0]=='-') ? strb+1 : strb);
-    mpz_init_set_str(a, stra, 10);
-    mpz_init_set_str(b, strb, 10);
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     if (ix == 0) {
       RETVAL = mpz_kronecker(a, b);
     } else {
@@ -647,18 +650,26 @@ liouville(IN char* strn)
   ALIAS:
     is_square = 1
     is_semiprime = 2
-    is_carmichael = 3
+    is_totient = 3
+    is_carmichael = 4
+    is_fundamental = 5
   PREINIT:
     mpz_t n;
+    int isneg;
   CODE:
-    if (ix == 1 && strn[0] == '-') XSRETURN_IV(0);
-    VALIDATE_AND_SET(n, strn);
-    switch (ix) {
-      case 0:  RETVAL = liouville(n);  break;
-      case 1:  RETVAL = is_power(n,2);  break;
-      case 2:  RETVAL = is_semiprime(n);  break;
-      case 3:
-      default: RETVAL = is_carmichael(n);  break;
+    isneg = validate_and_set_signed(cv, n, "n", strn, (ix==0) ? VSETNEG_ERR : VSETNEG_OK);
+    if (isneg && (ix == 1 || ix == 2 || ix == 3 || ix == 4)) {
+      RETVAL = 0;
+    } else {
+      switch (ix) {
+        case 0:  RETVAL = liouville(n);      break;
+        case 1:  RETVAL = is_power(n,2);     break;
+        case 2:  RETVAL = is_semiprime(n);   break;
+        case 3:  RETVAL = is_totient(n);     break;
+        case 4:  RETVAL = is_carmichael(n);  break;
+        case 5:
+        default: RETVAL = is_fundamental(n); break;
+      }
     }
     mpz_clear(n);
   OUTPUT:
@@ -673,16 +684,16 @@ invmod(IN char* stra, IN char* strb)
     znorder = 4
     sqrtmod = 5
     is_primitive_root = 6
-    rootint = 7
-    logint = 8
+    is_polygonal = 7
+    polygonal_nth = 8
+    rootint = 9
+    logint = 10
   PREINIT:
     mpz_t a, b, t;
     int retundef;
   PPCODE:
-    validate_string_number(cv,"a", (stra[0]=='-') ? stra+1 : stra);
-    validate_string_number(cv,"b", (strb[0]=='-') ? strb+1 : strb);
-    mpz_init_set_str(a, stra, 10);
-    mpz_init_set_str(b, strb, 10);
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     retundef = 0;
     if (ix == 0) {
       /* undef if a|b is zero, 0 if b is 1, otherwise result of mpz_invert */
@@ -727,6 +738,13 @@ invmod(IN char* stra, IN char* strb)
       int ret = is_primitive_root(a, b, 0);
       mpz_set_si(a, ret);
     } else if (ix == 7) {
+      if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
+      polygonal_nth(a, a, mpz_get_ui(b));
+      mpz_set_si(a, mpz_sgn(a));
+    } else if (ix == 8) {
+      if (mpz_cmp_ui(b,3) < 0) croak("polygonal_nth: k must be >= 3");
+      polygonal_nth(a, a, mpz_get_ui(b));
+    } else if (ix == 9) {
       if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
       if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
       mpz_root(a, a, mpz_get_ui(b));
@@ -749,12 +767,9 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     mpz_t a, b, n;
     int retundef;
   PPCODE:
-    validate_string_number(cv,"a", (stra[0]=='-') ? stra+1 : stra);
-    validate_string_number(cv,"b", (strb[0]=='-') ? strb+1 : strb);
-    validate_string_number(cv,"n", strn);
-    mpz_init_set_str(a, stra, 10);
-    mpz_init_set_str(b, strb, 10);
-    mpz_init_set_str(n, strn, 10);
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 3) {
       if (!mpz_sgn(n) || !mpz_sgn(b))  retundef = 1;
@@ -898,12 +913,10 @@ chinese(...)
       psvn = av_fetch(av, 1, 0);
 
       strn = SvPV_nolen(*psva);
-      validate_string_number(cv,"a", (strn[0]=='-') ? strn+1 : strn);
-      mpz_init_set_str(an[i+0], strn, 10);
+      validate_and_set_signed(cv, an[i+0], "a", strn, VSETNEG_OK);
 
       strn = SvPV_nolen(*psvn);
-      validate_string_number(cv,"b", (strn[0]=='-') ? strn+1 : strn);
-      mpz_init_set_str(an[i+items], strn, 10);
+      validate_and_set_signed(cv, an[i+items], "b", strn, VSETNEG_OK);
     }
     mpz_init(lcm);
     doretval = chinese(ret, lcm, an, an+items, items);

@@ -78,8 +78,10 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint logint
-                     is_power is_prime_power is_semiprime is_square is_carmichael
+                     is_power is_prime_power is_semiprime is_square
+                     is_carmichael is_fundamental is_totient
                      is_primitive_root
+                     is_polygonal polygonal_nth
                      znorder
                      znprimroot
                      ramanujan_tau
@@ -1260,6 +1262,26 @@ square-free and C<p-1> divides C<n-1> for all prime divisors C<p> of C<n>.
 
 Inputs greater than 50 digits use a probabilistic test to avoid fully
 factoring the input.
+
+=head2 is_fundamental
+
+Given a positive integer C<n>, returns 1 if C<n> is a fundamental
+discriminant, 0 otherwise.
+
+=head2 is_totient
+
+Given an integer C<n>, returns 1 if there exists an integer C<x> where
+C<euler_phi(x) == n>.
+
+=head2 is_polygonal
+
+Given integers C<x> and C<s>, return 1 if x is an s-gonal number, 0 otherwise.
+C<s> must be greater than 2.
+
+=head2 polygonal_nth
+
+Given integers C<x> and C<s>, return N if C<x> is the C<N>-th s-gonal number,
+0 otherwise.
 
 
 =head2 sigma

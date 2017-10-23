@@ -24,6 +24,9 @@ extern void partitions(mpz_t npart, UV n);
 
 extern UV   is_power(mpz_t n, UV a);
 extern int  is_carmichael(mpz_t n);
+extern int  is_fundamental(mpz_t n);
+extern int  is_totient(mpz_t n);
+extern void polygonal_nth(mpz_t r, mpz_t n, UV k);
 
 extern UV   prime_power(mpz_t prime, mpz_t n);
 extern void exp_mangoldt(mpz_t res, mpz_t n);
