@@ -1826,6 +1826,18 @@ char* pidigits(UV n) {
     return out;
 
 #if 0
+  /* If we want to compare with MPFR.  Add -lmpfr in Makefile. */
+  #include <mpfr.h>
+  mpfr_t pi;
+  mpfr_exp_t exp;
+  mpfr_init2(pi,  (n * 3.322) + 40  );
+  mpfr_const_pi(pi, MPFR_RNDN);
+  mpfr_free_cache();
+  char* mpi = mpfr_get_str(NULL, &exp, 10, n, pi, MPFR_RNDN);
+  strncpy(out+1, mpi, n);
+  mpfr_free_str(mpi);
+  out[1] = '.';
+#elif 0
   /* Spigot method.
    * ~40x slower than the Machin formulas, 2x slower than spigot in plain C */
   {
