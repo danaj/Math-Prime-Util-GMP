@@ -700,7 +700,6 @@ void mpz_product(mpz_t* A, UV a, UV b) {
 UV logint(mpz_t n, UV base) {
   double logn, logbn, coreps;
   UV res, nbits, logn_red;
-  int i, do_correct = 0;
 
   if (mpz_cmp_ui(n,0) <= 0 || base <= 1)
     croak("mpz_logint: bad input\n");
