@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation invmod
+use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight invmod
                               is_power is_prime_power is_square
                               binomial gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -157,6 +157,7 @@ plan tests => scalar(@gcds)
             + scalar(@lcms)
             + scalar(@kroneckers)
             + scalar(@valuations)
+            + 5
             + 2 + scalar(@binomials)
             + scalar(@gcdexts)
             + scalar(@vecsums)
@@ -185,6 +186,12 @@ foreach my $r (@valuations) {
   my($n, $k, $exp) = @$r;
   is( valuation($n, $k), $exp, "valuation($n,$k) = $exp" );
 }
+
+is(hammingweight(0), 0, "hammingweight(0) = 0");
+is(hammingweight(1), 1, "hammingweight(1) = 1");
+is(hammingweight(2304786), 9, "hammingweight(2304786) = 9");
+is(hammingweight(-2304786), 9, "hammingweight(-2304786) = 9");
+is(hammingweight("19795792123893480164707100824397222730984965037169701408771662919270303874559"), 128, "hammingweight(<256-bit prime>) = 128");
 
 foreach my $r (@binomials) {
   my($n, $k, $exp) = @$r;

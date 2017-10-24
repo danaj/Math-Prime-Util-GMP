@@ -130,5 +130,3 @@
 - random prime should be more efficient (use A2 instead of A1).
 
 - Make a SQUFOF that uses native 64-bit to handle 126-bit inputs.
-
-- Add:  hammingweight

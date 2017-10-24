@@ -14,6 +14,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - factorialmod(n,m)      Returns n! mod m
     - permtonum([...])       Returns rank of permutation array ref
     - numtoperm(n,k)         Returns kth permutation of n elems
+    - hammingweight(n)       Returns bitwise population count of n
 
     [FIXES]
 

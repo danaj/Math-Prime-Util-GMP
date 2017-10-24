@@ -69,7 +69,7 @@ our @EXPORT_OK = qw(
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      zeta riemannr lambertw
-                     gcd lcm kronecker valuation binomial gcdext
+                     gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
                      exp_mangoldt
@@ -1325,6 +1325,13 @@ by C<k>.  This is a very limited version of the algebraic valuation meaning,
 just applied to integers.
 This corresponds to Pari's C<valuation> function.
 C<0> is returned if C<n> or C<k> is one of the values C<-1>, C<0>, or C<1>.
+
+=head2 hammingweight
+
+Given an integer C<n>, returns the binary Hamming weight of C<abs(n)>.  This
+is also called the population count, and is the number of 1s in the binary
+representation.  This corresponds to Pari's C<hammingweight> function for
+C<t_INT> arguments.
 
 =head2 moebius
 
