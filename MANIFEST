@@ -14,8 +14,10 @@ primality.h
 primality.c
 prime_iterator.h
 prime_iterator.c
-small_factor.h
-small_factor.c
+pbrent63.h
+pbrent63.c
+squfof126.h
+squfof126.c
 factor.h
 factor.c
 ecm.h

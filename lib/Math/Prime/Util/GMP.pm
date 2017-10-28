@@ -189,7 +189,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1287,7 +1287,7 @@ C<s> must be greater than 2.
 
 =head2 polygonal_nth
 
-Given integers C<x> and C<s>, return N if C<x> is the C<N>-th s-gonal number,
+Given integers C<x> and C<s>, return N if C<x> is the C<N-th> s-gonal number,
 0 otherwise.
 
 

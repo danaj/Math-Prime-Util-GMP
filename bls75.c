@@ -5,7 +5,8 @@
 #include "bls75.h"
 #include "primality.h"
 #include "prime_iterator.h"
-#include "small_factor.h"
+#include "pbrent63.h"
+#include "squfof126.h"
 #include "factor.h"
 #include "simpqs.h"
 #include "ecm.h"
@@ -88,19 +89,11 @@ static int tfe(mpz_t f, mpz_t n, int effort)
     return 1;
   }
 
-  if (!success && mpz_cmp_ui(n, (unsigned long)(UV_MAX>>4)) < 0) {
-    UV ui_n = mpz_get_ui(n);
-    UV ui_factors[2];
-    if (!mpz_cmp_ui(n, ui_n)) {
-      success = racing_squfof_factor(ui_n, ui_factors, 200000)-1;
-      if (success)
-        mpz_set_ui(f, ui_factors[0]);
-    }
+  if (effort == 0) {
+    if (!success && log2n <= 63) success = pbrent63(n, f, 1000000);
+    if (!success) success = (int)power_factor(n, f);
+    if (success) return success;
   }
-
-  if (!success && effort == 0)  success = (int)power_factor(n, f);
-
-  if (success) return success;
 
   switch (effort) {
     case 0: success = _GMP_pminus1_factor(n, f, 400, 400);
@@ -118,6 +111,7 @@ static int tfe(mpz_t f, mpz_t n, int effort)
                 success = _GMP_pminus1_factor(n, f, 10000, final_B2);
             } break;
     case 3: success = _GMP_pminus1_factor(n, f, 20000, 200000);
+            if (!success && log2n <= 80) success = squfof126(n, f, 2000000);
             break;
     case 4: success = _GMP_ECM_FACTOR(n, f, 500, 30);
             break;
@@ -180,6 +174,7 @@ static int tfe(mpz_t f, mpz_t n, int effort)
     default: break;
   }
 
+  /* if (success) printf("   bls75 factored %lu-bit at effort %d\n", log2n, effort); */
   return success;
 }
 

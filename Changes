@@ -29,9 +29,22 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Slightly faster twin prime sieve by splitting BPSW test.
 
+    - Factoring is faster with new SQUFOF and native pbrent.
+
     [OTHER]
 
     - is_primitive_root internal func doesn't modify inputs.
+
+    - non-exported factor methods (e.g. squfof_factor, ecm_factor, etc.)
+      now always return smallest factor first.
+
+    - old native SQUFOF and GMP SQUFOF removed.
+
+    - On x86-64 use a very fast Pollard Rho Brent for 63-bit.
+
+    - On 64-bit platforms (long = 64-bit), use new SQUFOF126 which can
+      handle up to 126-bit inputs using only native math in the core.
+      This is about 10x faster than our old SQUFOF.
 
 
 0.46 2017-04-17

@@ -10,7 +10,7 @@
 #include "ptypes.h"
 #include "gmp_main.h"
 #include "primality.h"
-#include "small_factor.h"
+#include "squfof126.h"
 #include "ecm.h"
 #include "simpqs.h"
 #include "bls75.h"
@@ -1209,7 +1209,7 @@ trial_factor(IN char* strn, ...)
         case 4: if (arg2 == 0)  arg2 = arg1*10;
                 success = _GMP_pplus1_factor(n, f, 0,arg1,arg2);  break;
         case 5: success = _GMP_holf_factor(n, f, arg1);           break;
-        case 6: success = _GMP_squfof_factor(n, f, arg1);         break;
+        case 6: success = squfof126(n, f, arg1);         break;
         case 7: if (arg2 == 0) arg2 = 100;
                 if (arg1 == 0) {
                   success =    _GMP_ECM_FACTOR(n, f,     1000, 40)
@@ -1239,8 +1239,10 @@ trial_factor(IN char* strn, ...)
       }
 
       if (success) {
-        XPUSH_MPZ(f);
         mpz_divexact(n, n, f);
+        if (mpz_cmp(f,n) > 0)  /* print smallest first */
+          mpz_swap(n, f);
+        XPUSH_MPZ(f);
       }
       mpz_clear(f);
     }

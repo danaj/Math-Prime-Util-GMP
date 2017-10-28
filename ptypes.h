@@ -84,15 +84,15 @@ typedef __int8 int8_t;
   #define UVCONST(x)     U32_CONST(x)
 #endif
 
-/* Try to determine if we have 64-bit available via uint64_t */
-#define HAVE_STD_U64 0
-#if defined(UINT64_MAX) && defined(__UINT64_C)
-  #if (UINT64_MAX >= __UINT64_C(18446744073709551615))
-    #undef HAVE_STD_U64
-    #define HAVE_STD_U64 1
-  #endif
 #endif
 
+/* Try to determine if we have 64-bit available via uint64_t */
+#if defined(UINT64_MAX) || defined(_UINT64_T) || defined(__UINT64_TYPE__)
+  #define HAVE_STD_U64 1
+#elif defined(_MSC_VER)   /* We set up the types earlier */
+  #define HAVE_STD_U64 1
+#else
+  #define HAVE_STD_U64 0
 #endif
 
 #define MAXBIT        (BITS_PER_WORD-1)

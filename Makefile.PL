@@ -12,15 +12,16 @@ WriteMakefile1(
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
     OBJECT       => 'prime_iterator.o ' .
-                    'small_factor.o '   .
                     'utility.o '        .
                     'primality.o '      .
                     'factor.o '         .
+                    'pbrent63.o '       .
+                    'squfof126.o '      .
+                    'simpqs.o '         .
                     'ecm.o '            .
                     'bls75.o '          .
                     'ecpp.o '           .
                     'aks.o '            .
-                    'simpqs.o '         .
                     'gmp_main.o '       .
                     'isaac.o '          .
                     'random_prime.o '   .
