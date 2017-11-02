@@ -33,6 +33,8 @@
  * gyrations to get 64-bit results from GMP's mpz types, which use
  * unsigned long for their interface.
  * Sorry people with IA-32 or Windows (LLP64).
+ *
+ * TODO: See Jason P's simple front ends in co-siqs.
  */
 #define SQUFOF_TYPE unsigned long
 
@@ -148,8 +150,11 @@ static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
  *    http://www.ams.org/journals/mcom/2008-77-261/S0025-5718-07-02010-8/
  * Section 5.3.  I've added some with 13,17,19.  Sorted by F(). */
 static const SQUFOF_TYPE squfof_multipliers[] =
-  /* { 3*5*7*11, 3*5*7, 3*5*11, 3*5, 3*7*11, 3*7, 5*7*11, 5*7,
-       3*11,     3,     5*11,   5,   7*11,   7,   11,     1   }; */
+#if 0
+  { 3*5*7*11, 3*5*7, 3*5*11, 3*5, 3*7*11, 3*7, 5*7*11, 5*7,
+    3*11,     3,     5*11,   5,   7*11,   7,   11,     1   };
+#endif
+#if 0
   { 3*5*7*11, 3*5*7,  3*5*7*11*13, 3*5*7*13, 3*5*7*11*17, 3*5*11,
     3*5*7*17, 3*5,    3*5*7*11*19, 3*5*11*13,3*5*7*19,    3*5*7*13*17,
     3*5*13,   3*7*11, 3*7,         5*7*11,   3*7*13,      5*7,
@@ -157,6 +162,19 @@ static const SQUFOF_TYPE squfof_multipliers[] =
     3*11*13,  5*11,   3*7*19,      3*13,     5,           5*11*13,
     5*7*19,   5*13,   7*11,        7,        3*17,        7*13,
     11,       1 };
+#endif
+#if 1
+  { 33*1680, 11*1680, 66*1680,  3*1680,  2*1680,  6*1680, 22*1680, 78*1680,
+     1*1680, 26*1680, 39*1680, 13*1680,102*1680, 30*1680, 34*1680, 10*1680,
+    15*1680, 51*1680,  5*1680, 57*1680, 17*1680, 19*1680,
+    3*5*7*11, 3*5*7,  3*5*7*11*13, 3*5*7*13, 3*5*7*11*17, 3*5*11,
+    3*5*7*17, 3*5,    3*5*7*11*19, 3*5*11*13,3*5*7*19,    3*5*7*13*17,
+    3*5*13,   3*7*11, 3*7,         5*7*11,   3*7*13,      5*7,
+    3*5*17,   5*7*13, 3*5*19,      3*11,     3*7*17,      3,
+    3*11*13,  5*11,   3*7*19,      3*13,     5,           5*11*13,
+    5*7*19,   5*13,   7*11,        7,        3*17,        7*13,
+    11,       1 };
+#endif
 #define NSQUFOF_MULT (sizeof(squfof_multipliers)/sizeof(squfof_multipliers[0]))
 
 int squfof126(mpz_t n, mpz_t f, UV rounds)
@@ -179,7 +197,7 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
   }
   mpz_init(t);  mpz_init(nn64);
 
-  /* Process the multipliers a little at a time: ~.05 * (n*mult)^1/4 */
+  /* Process the multipliers a little at a time: 0.5 * (n*mult)^1/5 */
   do {
     still_racing = 0;
     for (i = 0; i < NSQUFOF_MULT && rounds_done < rounds; i++) {
@@ -205,12 +223,12 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
           mpz_set_ui(f, sqrtnn64);
           return 1;  /* nn64 is a perfect square */
         }
+        mpz_root(t, nn64, 5);
         mult_save[i].bn    = (2 * sqrtnn64) / mult_save[i].Qn; /* n < 127-bit */
         mult_save[i].it    = 0;
         mult_save[i].mult  = mult;
-        mult_save[i].imax  = (SQUFOF_TYPE) (sqrt(mult_save[i].b0) / 32);
+        mult_save[i].imax  = (SQUFOF_TYPE) (0.5 * mpz_get_ui(t));
         if (mult_save[i].imax < 20)     mult_save[i].imax = 20;
-        if (mult_save[i].imax > 100000) mult_save[i].imax = 100000;
         if (mult_save[i].imax > rounds) mult_save[i].imax = rounds;
       }
       f64 = squfof_unit(nn64, &mult_save[i]);
@@ -222,12 +240,12 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
           mult_save[i].valid = 0;
           continue;
         }
-        /*gmp_printf("   n %Zd mult %lu it %lu (%lu)\n",n,mult,rounds_done,mult_save[i].it);*/
         mpz_clear(t); mpz_clear(nn64);
         mpz_set_ui(f, f64red);
         return 1;
       }
-      still_racing = 1;
+      if (mult_save[i].valid == 1)
+        still_racing = 1;
     }
   } while (still_racing && rounds_done < rounds);
 
