@@ -122,11 +122,11 @@ static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
 #define SYMMETRY_POINT_ITERATION \
       t1 = Ro; \
       Ro = bbn*So - Ro; \
+      if (Ro == t1) break; \
       t2 = So; \
       So = S + bbn*(t1-Ro); \
       S = t2; \
-      bbn = (b0+Ro)/So; \
-      if (Ro == t1) break;
+      bbn = (b0+Ro)/So;
 
     j = 0;
     while (1) {
@@ -134,7 +134,7 @@ static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
       SYMMETRY_POINT_ITERATION;
       SYMMETRY_POINT_ITERATION;
       SYMMETRY_POINT_ITERATION;
-      if (j++ > imax) {
+      if (j++ > 2*imax) {
          mult_save->valid = 0;
          return 0;
       }
@@ -182,7 +182,7 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
   mpz_t t, nn64;
   mult_t mult_save[NSQUFOF_MULT];
   SQUFOF_TYPE i, mult, f64, sqrtnn64, rounds_done = 0;
-  int still_racing;
+  int mults_racing = NSQUFOF_MULT;
   const int max_bits = 2 * sizeof(SQUFOF_TYPE)*8 - 2;
 
   if (sizeof(SQUFOF_TYPE) <  8 || mpz_sizeinbase(n,2) > max_bits) {
@@ -198,8 +198,7 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
   mpz_init(t);  mpz_init(nn64);
 
   /* Process the multipliers a little at a time: 0.5 * (n*mult)^1/5 */
-  do {
-    still_racing = 0;
+  while (mults_racing > 0 && rounds_done < rounds) {
     for (i = 0; i < NSQUFOF_MULT && rounds_done < rounds; i++) {
       if (mult_save[i].valid == 0)  continue;
       mult = squfof_multipliers[i];
@@ -207,6 +206,7 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
       if (mult_save[i].valid == -1) {
         if (mpz_sizeinbase(nn64,2) > max_bits) {
           mult_save[i].valid = 0; /* This multiplier would overflow */
+          mults_racing--;
           continue;
         }
         mpz_sqrt(t,nn64);
@@ -228,26 +228,27 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
         mult_save[i].it    = 0;
         mult_save[i].mult  = mult;
         mult_save[i].imax  = (SQUFOF_TYPE) (0.5 * mpz_get_ui(t));
-        if (mult_save[i].imax < 20)     mult_save[i].imax = 20;
-        if (mult_save[i].imax > rounds) mult_save[i].imax = rounds;
+        if (mult_save[i].imax < 20)
+          mult_save[i].imax = 20;
       }
+      if (mults_racing == 1 || mult_save[i].imax > (rounds-rounds_done))
+        mult_save[i].imax = (rounds - rounds_done);
       f64 = squfof_unit(nn64, &mult_save[i]);
-      rounds_done += mult_save[i].imax;
       if (f64 > 1) {
         SQUFOF_TYPE f64red = f64 / gcd_ui(f64,mult);
-        if (f64red == 1) {
-          /* Found trivial factor.  Quit working with this multiplier. */
-          mult_save[i].valid = 0;
-          continue;
+        if (f64red > 1) {
+          mpz_clear(t); mpz_clear(nn64);
+          mpz_set_ui(f, f64red);
+          return 1;
         }
-        mpz_clear(t); mpz_clear(nn64);
-        mpz_set_ui(f, f64red);
-        return 1;
+        /* Found trivial factor.  Quit working with this multiplier. */
+        mult_save[i].valid = 0;
       }
-      if (mult_save[i].valid == 1)
-        still_racing = 1;
+      if (mult_save[i].valid == 0)
+        mults_racing--;
+      rounds_done += mult_save[i].imax;   /* Assume we did all rounds */
     }
-  } while (still_racing && rounds_done < rounds);
+  }
 
   /* No factors found */
   mpz_clear(t);
