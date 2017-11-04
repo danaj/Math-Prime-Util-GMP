@@ -1792,7 +1792,7 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
       UV lastp, pos;
       mpz_t mp, rem;
       mpz_init(rem);
-      mpz_init_set_ui(mp, p >> 32);
+      mpz_init_set_ui(mp, (p >> 16) >> 16);
       mpz_mul_2exp(mp, mp, 32);
       mpz_add_ui(mp, mp, p & 0xFFFFFFFFUL);
       for (lastp = p;  p <= maxprime;  lastp=p, p=prime_iterator_next(&iter)) {
