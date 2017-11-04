@@ -15,9 +15,6 @@
 #include <gmp.h>
 #include "ptypes.h"
 #include "squfof126.h"
-#define FUNC_gcd_ui
-#define FUNC_isqrt
-#include "utility.h"
 
 #define TEST_FOR_2357(n, f) \
   { \
@@ -28,15 +25,34 @@
     if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
   }
 
-/*
- * We could do this with uint64_t, but then we'd have to go through
- * gyrations to get 64-bit results from GMP's mpz types, which use
- * unsigned long for their interface.
- * Sorry people with IA-32 or Windows (LLP64).
- *
- * TODO: See Jason P's simple front ends in co-siqs.
- */
-#define SQUFOF_TYPE unsigned long
+/* Pick type for 64-bit core, plus methods to get/set from GMP */
+
+#if HAVE_STD_U64
+#define SQUFOF_TYPE uint64_t
+#elif BITS_PER_WORD == 64
+#define SQUFOF_TYPE UV
+#else
+#define SQUFOF_TYPE unsigned long long
+#endif
+
+static INLINE SQUFOF_TYPE mpz_get64(mpz_t n) {
+  SQUFOF_TYPE v = mpz_getlimbn(n,0);
+  if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(SQUFOF_TYPE))
+    v |= ((SQUFOF_TYPE)mpz_getlimbn(n,1)) << 32;
+  return v;
+}
+static INLINE void mpz_set64(mpz_t n, SQUFOF_TYPE v) {
+  if (v == 0) {
+    mpz_set_ui(n,0);
+  } else if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(SQUFOF_TYPE)) {
+    mpz_set_ui(n, (uint32_t)(v >> 32));
+    mpz_mul_2exp(n, n, 32);
+    mpz_add_ui(n, n, (uint32_t)v);
+  } else {
+    n->_mp_d[0] = v;
+    n->_mp_size = 1;
+  }
+}
 
 typedef struct
 {
@@ -52,7 +68,7 @@ typedef struct
 } mult_t;
 
 /* Return 0 or factor */
-static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
+static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save, mpz_t t)
 {
   SQUFOF_TYPE imax,i,j,Q0,Qn,bn,b0,P,bbn,Ro,S,So,t1,t2;
 
@@ -102,23 +118,19 @@ static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
 
       SQUARE_SEARCH_ITERATION;  /* Odd iteration */
     }
-    S = isqrt(Qn);
+    S = t1;
     mult_save->it = i;
 
     /* Reduce to G0 */
     Ro = P + S*((b0 - P)/S);
-    { /* So = (n - (UV)Ro*(UV)Ro)/(UV)S; */
-       mpz_t t;
-       mpz_init_set_ui(t, Ro);
-       mpz_mul(t,t,t);
-       mpz_sub(t, n, t);
-       mpz_div_ui(t, t, S);
-       So = mpz_get_ui(t);
-       mpz_clear(t);
-    }
+    /* So = (n - (UV)Ro*(UV)Ro)/(UV)S; */
+    mpz_set64(t, Ro);
+    mpz_mul(t, t, t);
+    mpz_sub(t, n, t);
+    mpz_div_ui(t, t, S);   /* S is 32-bit so this is ok */
+    So = mpz_get64(t);
     bbn = (b0+Ro)/So;
 
-    /* Search for symmetry point */
 #define SYMMETRY_POINT_ITERATION \
       t1 = Ro; \
       Ro = bbn*So - Ro; \
@@ -128,19 +140,22 @@ static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save)
       S = t2; \
       bbn = (b0+Ro)/So;
 
+    /* Search for symmetry point, occurs at approximately i/2 */
     j = 0;
     while (1) {
       SYMMETRY_POINT_ITERATION;
       SYMMETRY_POINT_ITERATION;
       SYMMETRY_POINT_ITERATION;
       SYMMETRY_POINT_ITERATION;
-      if (j++ > 2*imax) {
+      if (j++ > imax) {
          mult_save->valid = 0;
          return 0;
       }
     }
 
-    t1 = mpz_gcd_ui(NULL, n, Ro);
+    mpz_set64(t, Ro);
+    mpz_gcd(t, t, n);
+    t1 = mpz_get64(t);
     if (t1 > 1)
       return t1;
   }
@@ -181,9 +196,9 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
 {
   mpz_t t, nn64;
   mult_t mult_save[NSQUFOF_MULT];
-  SQUFOF_TYPE i, mult, f64, sqrtnn64, rounds_done = 0;
+  SQUFOF_TYPE i, mult, f64, f64red, sqrtnn64, rounds_done = 0;
   int mults_racing = NSQUFOF_MULT;
-  const int max_bits = 2 * sizeof(SQUFOF_TYPE)*8 - 2;
+  const uint32_t max_bits = 2 * sizeof(SQUFOF_TYPE)*8 - 2;
 
   if (sizeof(SQUFOF_TYPE) <  8 || mpz_sizeinbase(n,2) > max_bits) {
     mpz_set(f, n);
@@ -210,35 +225,36 @@ int squfof126(mpz_t n, mpz_t f, UV rounds)
           continue;
         }
         mpz_sqrt(t,nn64);
-        sqrtnn64 = mpz_get_ui(t);
+        sqrtnn64 = mpz_get64(t);
         mpz_mul(t,t,t);
         mpz_sub(t, nn64, t);
         mult_save[i].valid = 1;
         mult_save[i].Q0    = 1;
         mult_save[i].b0    = sqrtnn64;
         mult_save[i].P     = sqrtnn64;
-        mult_save[i].Qn    = mpz_get_ui(t);  /* nn64 - isqrt(nn64)^2 */
+        mult_save[i].Qn    = mpz_get64(t);  /* nn64 - isqrt(nn64)^2 */
         if (mult_save[i].Qn == 0) {
           mpz_clear(t); mpz_clear(nn64);
-          mpz_set_ui(f, sqrtnn64);
+          mpz_set64(f, sqrtnn64);
           return 1;  /* nn64 is a perfect square */
         }
         mpz_root(t, nn64, 5);
         mult_save[i].bn    = (2 * sqrtnn64) / mult_save[i].Qn; /* n < 127-bit */
         mult_save[i].it    = 0;
         mult_save[i].mult  = mult;
-        mult_save[i].imax  = (SQUFOF_TYPE) (0.5 * mpz_get_ui(t));
+        mult_save[i].imax  = (SQUFOF_TYPE) (0.5 * mpz_get64(t));
         if (mult_save[i].imax < 20)
           mult_save[i].imax = 20;
       }
       if (mults_racing == 1 || mult_save[i].imax > (rounds-rounds_done))
         mult_save[i].imax = (rounds - rounds_done);
-      f64 = squfof_unit(nn64, &mult_save[i]);
+      f64 = squfof_unit(nn64, &mult_save[i], t);
       if (f64 > 1) {
-        SQUFOF_TYPE f64red = f64 / gcd_ui(f64,mult);
+        mpz_set64(t, f64);
+        f64red = f64 / mpz_gcd_ui(t, t, mult);
         if (f64red > 1) {
           mpz_clear(t); mpz_clear(nn64);
-          mpz_set_ui(f, f64red);
+          mpz_set64(f, f64red);
           return 1;
         }
         /* Found trivial factor.  Quit working with this multiplier. */
