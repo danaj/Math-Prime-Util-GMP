@@ -1368,15 +1368,15 @@ void factorialmod(mpz_t r, UV N, mpz_t m)
 
   if (D == N && D > 5000000) {   /* TODO: tune this threshold */
     mpz_t *factors;
-    int nfactors, *exponents, reszero;
+    int j, nfactors, *exponents, reszero;
     nfactors = factor(m, &factors, &exponents);
     /* Find max factor */
     mpz_set_ui(t, 0);
-    for (i = 0; i < nfactors; i++) {
-      if (exponents[i] > 1)
-        mpz_pow_ui(factors[i], factors[i], exponents[i]);
-      if (mpz_cmp(factors[i], t) > 0)
-        mpz_set(t, factors[i]);
+    for (j = 0; j < nfactors; j++) {
+      if (exponents[j] > 1)
+        mpz_pow_ui(factors[j], factors[j], exponents[j]);
+      if (mpz_cmp(factors[j], t) > 0)
+        mpz_set(t, factors[j]);
     }
     reszero = (mpz_cmp_ui(t, N) <= 0);
     clear_factors(nfactors, &factors, &exponents);
