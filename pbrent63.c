@@ -89,7 +89,9 @@ int uvpbrent63(UV n, UV *factors, UV rounds, UV a)
   int irounds, fails = 6;
   const uint64_t npi = mont_inverse(n),  mont1 = mont_get1(n);
 
-  MPUassert( (n >= 3) && ((n%2) != 0) , "bad n in pbrent_factor");
+  if (n <= 3) { factors[0] = n; return 1; }
+  if (!(n&1)) { factors[0] = 2; factors[1] = n/2; return 2; }
+
   r = f = 1;
   Xi = Xm = Xs = mont1;
   a = mont_geta(a,n);

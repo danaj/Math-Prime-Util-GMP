@@ -1006,7 +1006,7 @@ void numtoperm(IN UV n, IN char* strk)
         perm[i] = tv;
       }
     }
-    EXTEND(SP, n-1);
+    EXTEND(SP, (IV)n);
     for (i = 0; i < n; i++)
       PUSHs(sv_2mortal(newSVuv( perm[i] )));
     Safefree(perm);
