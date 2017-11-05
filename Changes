@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Issues with 32-bit GMP on 64-bit platforms.
 
+    - Use log instead of logl.
+
 
 0.47 2017-10-04
 
