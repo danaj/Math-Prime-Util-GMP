@@ -723,7 +723,7 @@ UV logint(mpz_t n, UV base) {
   /* Step 1, get an approximation of log(n) */
   nbits = mpz_sizeinbase(n,2);
   if (nbits < 768) {
-    logn = logl(mpz_get_d(n));
+    logn = log(mpz_get_d(n));
     coreps = 1e-8;
   } else {
     long double logn_adj = 45426.093625176575797967724311883L;/* log(2^65536) */
@@ -738,12 +738,12 @@ UV logint(mpz_t n, UV base) {
         logn += logn_adj;
       }
     }
-    logn += logl(mpz_get_d(nr));
+    logn += log(mpz_get_d(nr));
     mpz_clear(nr);
     coreps = 1e-4;
   }
   /* Step 2, approximate log_base(n) */
-  logbn = logn / logl(base);
+  logbn = logn / log(base);
   res = (UV) logbn;
 
   /* Step 3, ensure exact if logbn might be rounded wrong */
