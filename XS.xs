@@ -1164,8 +1164,8 @@ trial_factor(IN char* strn, ...)
     mpz_t n;
     UV arg1, arg2, uf;
     static const UV default_arg1[] =
-       {0,    64000000,64000000,5000000,5000000,256000000,16000000,0,  0  };
-     /* Trial,Rho,     Brent,   P-1,    P+1,    HOLF,     SQUFOF,  ECM,QS */
+      {0,   64000000,64000000,5000000,5000000,256000000,100000000,0,  0  };
+    /*Trial,Rho,     Brent,   P-1,    P+1,    HOLF,     SQUFOF,   ECM,QS */
   PPCODE:
     VALIDATE_AND_SET(n, strn);
     {
