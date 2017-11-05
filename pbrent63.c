@@ -8,14 +8,23 @@
 
 #if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
 
+static INLINE UV mpz_getuv(mpz_t n) {
+  UV v = mpz_getlimbn(n,0);
+  if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
+    v |= ((UV)mpz_getlimbn(n,1)) << 32;
+  return v;
+}
+
 int pbrent63(mpz_t n, mpz_t f, UV rounds) {
   UV facs[2];
-  int res;
+  int nfactors;
 
   if (mpz_sizeinbase(n,2) > 63) return 0;
-  res = uvpbrent63(mpz_get_ui(n), facs, rounds, 1);
-  if (res) mpz_set_ui(f, (facs[0] < facs[1]) ? facs[0] : facs[1]);
-  return res;
+  nfactors = uvpbrent63(mpz_getuv(n), facs, rounds, 1);
+  if (nfactors < 2) return 0;
+  /* Smallest factor of 64-bit n always fits in 32-bit */
+  mpz_set_ui(f, (facs[0] < facs[1]) ? facs[0] : facs[1]);
+  return 1;
 }
 
 /* Trimmed out all the extra stuff and the 64-bit variation */

@@ -129,4 +129,9 @@
 
 - random prime should be more efficient (use A2 instead of A1).
 
-- Make a SQUFOF that uses native 64-bit to handle 126-bit inputs.
+- integrate co-siqs as tinyqs.  Small, self-contained, factors 50- to 126-bit
+  in very little time.  We want to use:
+     1.  < 64-bit   pbrent
+     2.  < 61-bit   squfof126 (if pbrent isn't avail)
+     3.  < 127-bit  tinyqs
+     4.  127+ bit   other
