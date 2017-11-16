@@ -766,55 +766,69 @@ UV logint(mpz_t n, UV base) {
 /*
  * Floating point routines.
  * These are very crude.  Use MPFR if at all possible.
- *
  */
+
+void mpf_logn2(mpf_t logn)
+{
+  mpf_t a, b, t;
+  unsigned long k, iter, bits = mpf_get_prec(logn);
+
+  mpf_init2(t,   64 + bits);
+  mpf_init2(a,   64 + bits);
+  mpf_init2(b,   64 + bits);
+
+  mpf_set_str(logn, "0.693147180559945309417232121458176568075500134360", 10);
+  for (iter = 0, k = bits; k > 155; k /= 3) iter++;
+
+  for (k = 0; k < iter; k++) {
+    mpf_exp(t, logn);
+    mpf_mul_2exp(a, t, 2);
+    mpf_add_ui(b, t, 2);
+    mpf_div(t, a, b);
+    mpf_ui_sub(t, 2, t);
+    mpf_add(logn, logn, t);
+  }
+  mpf_clear(b); mpf_clear(a); mpf_clear(t);
+}
 
 void mpf_log(mpf_t logn, mpf_t n)
 {
-  mpf_t N, a, b, t;
-  unsigned long k, bits = mpf_get_prec(n);
+  mpf_t N, a, b, t, logdn;
+  unsigned long k, iter, bits = mpf_get_prec(n);
 
   mpf_init2(N, bits);
-  mpf_init2(a, 64 + bits);
-  mpf_init2(b, 64 + bits);
   mpf_init2(t, 64 + bits);
-
   mpf_set(N, n);
   mpf_set_ui(logn, 0);
-  mpf_set_ui(t, 1);
-  mpf_mul_2exp(t, t, 32);
-  for (k = 0; mpf_cmp(N, t) > 0; k++) {
+
+  /* Reduce N to <= 2^32 if necessary. */
+  mpf_set_ui(t, 1); mpf_mul_2exp(t, t, 32);
+  for (k = 0; mpf_cmp(N, t) > 0; k += 32)
     mpf_div_2exp(N, N, 32);
-  }
   if (k > 0) {
-    mpf_log(b, t);
-    mpf_mul_ui(logn, b, k);
+    mpf_logn2(t);
+    mpf_mul_ui(logn, t, k);
   }
 
-  mpf_set_ui(a, 1);
-  mpf_set(b, N);
-  /* TODO: this is AGM(1,N), make this generic */
-  mpf_mul(t, a, b);
-  mpf_add(a, a, b);
-  mpf_div_2exp(a, a, 1);
-  mpf_sqrt(b, t);
-  while (1) {
-    mpf_sub(t, a, b);
-    mpf_abs(t, t);
-    mpf_mul_2exp(t, t, bits);
-    if (mpf_cmp_d(t, .5) < 0)
-      break;
-    mpf_add(t, a, b);
-    mpf_div_2exp(a, t, 1);
-    mpf_mul(t, b, a);
-    mpf_sqrt(b, t);
-  }
-  /* End of generic AGM */
-  mpf_sub_ui(t, N, 1);
-  mpf_div(t, t, a);
-  mpf_add(logn, logn, t);
+  mpf_init2(a, 64 + bits);
+  mpf_init2(b, 64 + bits);
+  mpf_init2(logdn, 64 + bits);
 
-  mpf_clear(t); mpf_clear(b); mpf_clear(a); mpf_clear(N);
+  mpf_set_d(logdn, log(mpf_get_d(N)));
+  /* Assume log() gives 45 correct bits.  We triple every iteration. */
+  for (iter = 0, k = bits; k > 45; k /= 3) iter++;
+
+  for (k = 0; k < iter; k++) { /* Halley */
+    mpf_exp(t, logdn);
+    mpf_mul_2exp(a, t, 2);
+    mpf_add(b, t, N);
+    mpf_div(t, a, b);
+    mpf_ui_sub(t, 2, t);
+    mpf_add(logdn, logdn, t);
+  }
+  mpf_add(logn, logn, logdn);
+  mpf_clear(logdn); mpf_clear(b); mpf_clear(a);
+  mpf_clear(t); mpf_clear(N);
 }
 
 void _mpf_lift_exp(mpf_t xj, mpf_t y, mpf_t t, mpf_t t2)
