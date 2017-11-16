@@ -8,6 +8,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Change mpf_log from AGM to Newton/Halley.  Faster.
 
+    - internal: Euler and lir (LogarithmicIntegral)
+
 
 0.48 2017-10-05
 

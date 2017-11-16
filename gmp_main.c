@@ -1,5 +1,6 @@
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include <gmp.h>
 #include "ptypes.h"
 
@@ -821,6 +822,146 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_clear(term); mpf_clear(sum); mpf_clear(logn);
 }
 
+/**************     Euler Constant and Logarithmic Integral      **************/
+
+/* See:
+ *   http://numbers.computation.free.fr/Constants/Gamma/gamma.pdf
+ *   https://www.ginac.de/CLN/binsplit.pdf (3.1)
+ *   Pari/GP trans1.c
+ *
+ * Mortici and Chen (2013) have a O(n^-12) method, but it still too slow.
+ * https://link.springer.com/content/pdf/10.1186/1029-242X-2013-222.pdf
+ *
+ * The Stieltjes zeta method isn't terrible but too slow for large n.
+ *
+ * We'll use the series method as Pari does.  We should use binary splitting,
+ * as it still isn't really fast.  For high precision it's about 2x slower
+ * than Pari due to mpf_log / mpf_exp.
+ */
+static void _eulerconst(mpf_t gamma, unsigned long prec)
+{
+  const double log2 = 0.693147180559945309417232121458176568L;
+  const unsigned long maxsqr = (1UL << (4*sizeof(unsigned long))) - 1;
+  unsigned long bits = ceil(40 + prec * 3.322);
+  unsigned long x = ceil((2 + bits) * log2/4);
+  unsigned long N = ceil(1 + 3.591121477*x - 0.195547*log(x));
+  unsigned long xx = x*x;
+  unsigned long k;
+  mpf_t u, v, a, b, fxx;
+
+  if (prec <= 100) {
+    mpf_set_str(gamma, "0.5772156649015328606065120900824024310421593359399235988057672348848677267776646709369470632917467495", 10);
+    return;
+  }
+
+  mpf_init2(u,    bits);
+  mpf_init2(v,    bits);
+  mpf_init2(a,    bits);
+  mpf_init2(b,    bits);
+
+  mpf_set_ui(u, x);
+  mpf_log(u, u);       /* <-- About 80-90% of the time is spent here. */
+  mpf_neg(u, u);
+  mpf_set(a, u);
+  mpf_set_ui(b, 1);
+  mpf_set_ui(v, 1);
+
+  if (x <= maxsqr && N <= maxsqr) {
+    for (k = 1; k <= N; k++) {
+      mpf_mul_ui(b, b, xx);
+      mpf_div_ui(b, b, k*k);
+      mpf_mul_ui(a, a, xx);
+      mpf_div_ui(a, a, k);
+      mpf_add(a, a, b);
+      mpf_div_ui(a, a, k);
+      mpf_add(u, u, a);
+      mpf_add(v, v, b);
+    }
+  } else {
+    mpf_init2(fxx,bits);
+    mpf_set_ui(fxx, x);
+    mpf_mul(fxx, fxx, fxx);
+    for (k = 1; k <= N; k++) {
+      mpf_mul(b,b,fxx);
+      if (k <= maxsqr) { mpf_div_ui(b,b,k*k); }
+      else             { mpf_div_ui(b,b,k);  mpf_div_ui(b,b,k); }
+      mpf_mul(a,a,fxx);
+      mpf_div_ui(a, a, k);
+      mpf_add(a, a, b);
+      mpf_div_ui(a, a, k);
+      mpf_add(u, u, a);
+      mpf_add(v, v, b);
+    }
+    mpf_clear(fxx);
+  }
+  mpf_div(gamma, u, v);
+  mpf_clear(u); mpf_clear(v); mpf_clear(a); mpf_clear(b);
+}
+
+static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
+{
+  mpz_t factorial;
+  mpf_t logn, sum, inner_sum, term, p, q, tol;
+  unsigned long j, k, bits = mpf_get_prec(n);
+
+  mpf_init2(logn,      bits);
+  mpf_init2(sum,       bits);
+  mpf_init2(inner_sum, bits);
+  mpf_init2(term,      bits);
+  mpf_init2(p,         bits);
+  mpf_init2(q,         bits);
+  mpf_init2(tol,       bits);
+
+  mpf_log(logn, n);
+  mpf_neg(logn, logn);
+
+  mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec);  mpf_ui_div(tol,1,tol);
+
+  mpz_init_set_ui(factorial, 1);
+  mpf_set_si(p, -1);
+
+  for (j = 1, k = 0; j < 1000000; j++) {
+    mpz_mul_ui(factorial, factorial, j);
+    mpf_mul(p, p, logn);
+    for (; k <= (j - 1) / 2; k++) {
+      mpf_set_ui(q, 1);
+      mpf_div_ui(q, q, 2*k+1);
+      mpf_add(inner_sum, inner_sum, q);
+    }
+    mpf_set_z(q, factorial);
+    mpf_mul_2exp(q, q, j-1);
+    mpf_mul(term, p, inner_sum);
+    mpf_div(term, term, q);
+    mpf_add(sum, sum, term);
+
+    mpf_abs(term, term);
+    mpf_mul(q, sum, tol);
+    if (mpf_cmp(term, q) <= 0) break;
+  }
+  mpf_sqrt(q, n);
+  mpf_mul(r, sum, q);
+
+  mpf_neg(logn, logn);
+  mpf_log(q, logn);
+  mpf_add(r, r, q);
+
+  /* Find out roughly how many digits of C we need, then get it and add */
+  mpf_set(q, r);
+  for (k = prec; mpf_cmp_ui(q, 1024*1024) >= 0; k -= 6)
+    mpf_div_2exp(q, q, 20);
+  _eulerconst(q, k);
+  mpf_add(r, r, q);
+
+  mpz_clear(factorial);
+  mpf_clear(tol);
+  mpf_clear(q);
+  mpf_clear(p);
+  mpf_clear(term);
+  mpf_clear(inner_sum);
+  mpf_clear(sum);
+  mpf_clear(logn);
+}
+
 
 char* zetareal(mpf_t z, unsigned long prec)
 {
@@ -840,6 +981,27 @@ char* riemannrreal(mpf_t r, unsigned long prec)
   _riemann_r(r, r, prec);
   return _str_real(r, prec);
 }
+
+char* lireal(mpf_t r, unsigned long prec)
+{
+  if (mpf_cmp_ui(r,1) <= 0) return 0;
+  _li_r(r, r, prec);
+  return _str_real(r, prec);
+}
+
+char* eulerconst(unsigned long prec) {
+  char* out;
+  mpf_t gamma;
+  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+
+  mpf_init2(gamma, bits);
+  _eulerconst(gamma, prec);
+  New(0, out, prec+4, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec), gamma);
+  mpf_clear(gamma);
+  return out;
+}
+
 
 /***************************        Harmonic        ***************************/
 
