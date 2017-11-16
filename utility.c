@@ -766,6 +766,8 @@ UV logint(mpz_t n, UV base) {
 /*
  * Floating point routines.
  * These are very crude.  Use MPFR if at all possible.
+ *
+ * https://pdfs.semanticscholar.org/8aec/ea97b8f2f23d4f09ec8f69025598f742ae9e.pdf
  */
 
 void mpf_logn2(mpf_t logn)
@@ -831,34 +833,17 @@ void mpf_log(mpf_t logn, mpf_t n)
   mpf_clear(t); mpf_clear(N);
 }
 
-void _mpf_lift_exp(mpf_t xj, mpf_t y, mpf_t t, mpf_t t2)
-{
-  unsigned long k;
-
-  mpf_log(t, xj);
-
-  mpf_sub(t2, y, t);      /* t2 = y-ln(xj) */
-  mpf_mul(t, xj, t2);     /* t = xj(y-ln(x)) */
-  mpf_add(xj, xj, t);
-
-  /* third and higher orders */
-  for (k = 3; k <= 8; k++) {
-    mpf_mul(t, t, t2);
-    mpf_div_ui(t, t, k-1);
-    mpf_add(xj, xj, t);
-  }
-}
-
 void mpf_exp(mpf_t expn, mpf_t x)
 {
   mpf_t N, D, X, s, t;
   unsigned long k, kinit, bits = mpf_get_prec(x);
+  const unsigned long maxred = 8*sizeof(unsigned long)-1;
 
   mpf_init2(t, 64 + bits);
 
   /* Doubling rule, to make -.25 < x < .25.  Speeds convergence. */
   mpf_abs(t, x);
-  for (k = 0; k < 30 && mpf_cmp_d(t, .25) > 0; k++)
+  for (k = 0; k < maxred && mpf_cmp_d(t, 1.0L/1024.0L) > 0; k++)
     mpf_div_2exp(t, t, 1);
   if (k > 0) {
     if (mpf_sgn(x) < 0)
@@ -866,7 +851,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
 
     mpf_exp(expn, t);
 
-    mpf_pow_ui(expn, expn, 1 << k);
+    mpf_pow_ui(expn, expn, 1UL << k);
     mpf_clear(t);
     return;
   }
@@ -881,7 +866,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
   mpf_set(N,x);
   mpf_mul(X,x,x);
   mpf_set_ui(D,1);
-  kinit = bits/10;
+  kinit = bits;
   for (k = 1; k < kinit; k++) {
     mpf_mul(N, N, X);
     mpf_mul_ui(D, D, 2*k);
@@ -902,18 +887,9 @@ void mpf_exp(mpf_t expn, mpf_t x)
   mpf_sqrt(t, t);
   mpf_add(s, s, t);
 
-  /* 3. If needed, use high-order Newton for more bits */
-  if (k >= kinit) {
-    for (k = 1; k < 100; k++) {
-      mpf_set(t, s);
-      _mpf_lift_exp(s, x, N, D);
-      mpf_sub(t, s, t);
-      mpf_abs(t,t);
-      mpf_mul_2exp(t, t, bits);
-      if (mpf_cmp_d(t, .5) < 0)
-        break;
-    }
-  }
+  /* We'd like to do fewer iterations in the loop above, then use higher
+   * order Newton to rapidly fill in bits.  However, that means calling
+   * log, and our log calls exp.  So we can't do that. */
 
   mpf_set(expn, s);
   mpf_clear(s); mpf_clear(D); mpf_clear(N); mpf_clear(t);
