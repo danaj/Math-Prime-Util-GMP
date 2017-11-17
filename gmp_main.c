@@ -505,7 +505,12 @@ static char* _str_real(mpf_t f, unsigned long prec) {
 
   New(0, out, 10+((k>prec) ? k : prec), char);
   gmp_sprintf(out, "%.*Ff", prec, f);
-  memmove(out, out+2, prec);
+  if (out[0] == '0') {
+    memmove(out, out+2, prec);
+  } else { /* We rounded up.  Treat like 0.1 with one larger k */
+    memmove(out+1, out+2, prec);
+    k++;
+  }
 
   if (k >= prec) { /* No decimal */
     if (k-prec < 10) {
@@ -524,7 +529,6 @@ static char* _str_real(mpf_t f, unsigned long prec) {
     memmove(out+1, out, prec+2);
     out[0] = '-';
   }
-//printf("out=%s\n",out);
   return out;
 }
 
@@ -827,6 +831,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
 /* See:
  *   http://numbers.computation.free.fr/Constants/Gamma/gamma.pdf
  *   https://www.ginac.de/CLN/binsplit.pdf (3.1)
+ *   https://www-fourier.ujf-grenoble.fr/~demailly/manuscripts/gamma_gazmath_eng.pdf
  *   Pari/GP trans1.c
  *
  * Mortici and Chen (2013) have a O(n^-12) method, but it still too slow.
@@ -860,13 +865,14 @@ static void _eulerconst(mpf_t gamma, unsigned long prec)
   mpf_init2(b,    bits);
 
   mpf_set_ui(u, x);
-  mpf_log(u, u);       /* <-- About 80-90% of the time is spent here. */
+  mpf_log(u, u);       /* <-- About 50% of the time is spent here. */
   mpf_neg(u, u);
   mpf_set(a, u);
   mpf_set_ui(b, 1);
   mpf_set_ui(v, 1);
 
   if (x <= maxsqr && N <= maxsqr) {
+    /*  v_k = x^2 / k^2  |  u_k = x^2 / k + v_k) / k  */
     for (k = 1; k <= N; k++) {
       mpf_mul_ui(b, b, xx);
       mpf_div_ui(b, b, k*k);
@@ -986,6 +992,17 @@ char* lireal(mpf_t r, unsigned long prec)
 {
   if (mpf_cmp_ui(r,1) <= 0) return 0;
   _li_r(r, r, prec);
+  return _str_real(r, prec);
+}
+
+char* logreal(mpf_t r, unsigned long prec)
+{
+  mpf_log(r, r);
+  return _str_real(r, prec);
+}
+char* expreal(mpf_t r, unsigned long prec)
+{
+  mpf_exp(r, r);
   return _str_real(r, prec);
 }
 
