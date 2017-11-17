@@ -775,12 +775,19 @@ void mpf_logn2(mpf_t logn)
   mpf_t a, b, t;
   unsigned long k, iter, bits = mpf_get_prec(logn);
 
-  mpf_init2(t,   64 + bits);
-  mpf_init2(a,   64 + bits);
-  mpf_init2(b,   64 + bits);
+  if (bits <= 155*3*3) {
+    mpf_set_str(logn, "0.693147180559945309417232121458176568075500134360", 10);
+    for (iter = 0, k = bits; k > 155; k /= 3) iter++;
+  } else {
+    mpf_set_prec_raw(logn, (bits+2)/3);
+    mpf_logn2(logn);
+    mpf_set_prec_raw(logn, bits);
+    iter = 1;
+  }
 
-  mpf_set_str(logn, "0.693147180559945309417232121458176568075500134360", 10);
-  for (iter = 0, k = bits; k > 155; k /= 3) iter++;
+  mpf_init2(t, 64 + bits);
+  mpf_init2(a, 64 + bits);
+  mpf_init2(b, 64 + bits);
 
   for (k = 0; k < iter; k++) {
     mpf_exp(t, logn);
@@ -796,11 +803,19 @@ void mpf_logn2(mpf_t logn)
 void mpf_log(mpf_t logn, mpf_t n)
 {
   mpf_t N, a, b, t, logdn;
-  unsigned long k, iter, bits = mpf_get_prec(n);
+  unsigned long k, iter, bits = mpf_get_prec(logn);
+  int neg = 0;
+
+  if (mpf_sgn(n) == 0) croak("mpf_log(0)");
+  if (mpf_cmp_ui(n,2) == 0) { mpf_logn2(logn); return; }
 
   mpf_init2(N, bits);
-  mpf_init2(t, 64 + bits);
   mpf_set(N, n);
+  if (mpf_sgn(N) < 0) {
+    mpf_neg(N, N);
+    neg = 1;
+  }
+  mpf_init2(t, 64 + bits);
   mpf_set_ui(logn, 0);
 
   /* Reduce N to <= 2^32 if necessary. */
@@ -816,9 +831,15 @@ void mpf_log(mpf_t logn, mpf_t n)
   mpf_init2(b, 64 + bits);
   mpf_init2(logdn, 64 + bits);
 
-  mpf_set_d(logdn, log(mpf_get_d(N)));
-  /* Assume log() gives 45 correct bits.  We triple every iteration. */
-  for (iter = 0, k = bits; k > 45; k /= 3) iter++;
+  if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
+    mpf_set_d(logdn, log(mpf_get_d(N)));
+    for (iter = 0, k = bits; k > 45; k /= 3) iter++;
+  } else {                    /* Recursive call with lower prec. */
+    mpf_set_prec_raw(logdn, (bits+2)/3);
+    mpf_log(logdn, N);
+    mpf_set_prec_raw(logdn, 64+bits);
+    iter = 1;
+  }
 
   for (k = 0; k < iter; k++) { /* Halley */
     mpf_exp(t, logdn);
@@ -831,26 +852,34 @@ void mpf_log(mpf_t logn, mpf_t n)
   mpf_add(logn, logn, logdn);
   mpf_clear(logdn); mpf_clear(b); mpf_clear(a);
   mpf_clear(t); mpf_clear(N);
+  if (neg) mpf_neg(logn, logn);
 }
 
 void mpf_exp(mpf_t expn, mpf_t x)
 {
   mpf_t N, D, X, s, t;
   unsigned long k, kinit, bits = mpf_get_prec(x);
-  const unsigned long maxred = 8*sizeof(unsigned long)-1;
 
   mpf_init2(t, 64 + bits);
 
+  if (mpf_sgn(x) < 0) { /* As per Brent, exp(x) = 1/exp(-x) */
+    mpf_neg(t, x);
+    mpf_exp(t, t);
+    if (mpf_sgn(t) != 0) mpf_ui_div(expn, 1, t);
+    else                 mpf_set_ui(expn, 0);
+    mpf_clear(t);
+    return;
+  }
+
   /* Doubling rule, to make -.25 < x < .25.  Speeds convergence. */
-  mpf_abs(t, x);
-  for (k = 0; k < maxred && mpf_cmp_d(t, 1.0L/1024.0L) > 0; k++)
+  mpf_set(t, x);
+  for (k = 0; mpf_cmp_d(t, 1.0L/1024.0L) > 0; k++)
     mpf_div_2exp(t, t, 1);
   if (k > 0) {
-    if (mpf_sgn(x) < 0)
-      mpf_neg(t, t);
-
+    const unsigned long maxred = 8*sizeof(unsigned long)-1;
     mpf_exp(expn, t);
-
+    for ( ; k > maxred; k -= maxred)
+      mpf_pow_ui(expn, expn, 1UL << maxred);
     mpf_pow_ui(expn, expn, 1UL << k);
     mpf_clear(t);
     return;
