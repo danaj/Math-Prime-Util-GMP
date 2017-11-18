@@ -52,7 +52,8 @@ t/21-conseq-lcm.t
 t/22-partitions.t
 t/23-gcd.t
 t/24-bernfrac.t
-t/25-pi.t
+t/25-const-euler.t
+t/25-const-pi.t
 t/26-combinatorial.t
 t/26-digits.t
 t/26-ismisc.t

@@ -140,7 +140,6 @@
 
 - is_totient
 
-- Euler test
 - li test
 - mpf_pow XS, doc, test
 
