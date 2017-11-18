@@ -60,6 +60,7 @@ t/26-lambertw.t
 t/26-logs.t
 t/26-mersenne.t
 t/26-mod.t
+t/26-real.t
 t/26-riemann.t
 t/26-roots.t
 t/27-clusters.t

@@ -137,3 +137,16 @@
      4.  127+ bit   other
 
 - is_totient
+
+- Euler test
+- lir test
+- mpf_pow XS, doc, test
+- Ei?
+
+- zeta(2,40) isn't rounded correctly
+
+- Split pi into mpf_const_pi and pireal
+
+- mpf_agm(result, a,b)
+
+- try AGM based log, just like MPFR log

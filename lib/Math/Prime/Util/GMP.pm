@@ -68,7 +68,8 @@ our @EXPORT_OK = qw(
                      factorial factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     zeta riemannr lambertw
+                     zeta lir riemannr lambertw
+                     logreal expreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -85,7 +86,7 @@ our @EXPORT_OK = qw(
                      znorder
                      znprimroot
                      ramanujan_tau
-                     Pi
+                     Pi Euler
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
                      random_strong_prime
@@ -189,7 +190,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal stirling zeta riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal stirling zeta lir riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1144,6 +1145,27 @@ case.  GMP's API does not allow negative C<k> but otherwise matches.
 L<Math::BigInt> does not implement any extensions and the results for
 C<n E<lt> 0, k E<gt> 0> are undefined.
 
+=head2 logreal
+
+Returns the natural logarithm of the input C<n>.
+An optional second argument indicates the number of significant digits
+(default 40) with the result rounded.
+
+The implementation uses 2nd order Newton (i.e. Halley) on exp(n).
+Performance is about 1000x faster than Math::BigFloat using its GMP
+backend.  It is 2-1000x slower than Pari/GP 2.10.
+
+Negative inputs are returned as C<-log(-n)>, which matches L<bignum>.
+Pari/GP and Mathematica return C<log(-n) + Pi*i>.
+
+=head expreal
+
+Returns C<e^n> for the input C<n>.
+An optional second argument indicates the number of significant digits
+(default 40) with the result rounded.
+
+The implementation computes C<sinh(n)>, then C<e^x> from that.
+
 =head2 bernfrac
 
 Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
@@ -1200,8 +1222,17 @@ the number of digits past the decimal point (default 40).
 
 The implementation is algorithm 2 of Borwein (1991).  Performance with
 integer inputs is good, but floating point arguments with high precision
-will be much slower than methods using MPFR.  L<Math::Prime::Util> will
+will be slower than methods using MPFR.  L<Math::Prime::Util> will
 try to use L<Math::MPFR> if possible.
+
+=head2 lir
+
+Given a positive integer or float C<n>, returns the real Logarithmic Integral
+as a string floating point.  An optional second argument indicates the number
+of significant digits (default 40) with the result rounded.
+
+The implementation uses Ramanjan's series.
+This corresponds to Mathematica's C<Li> function.
 
 =head2 riemannr
 
@@ -1210,6 +1241,7 @@ as a string floating point.  An optional second argument indicates the number
 of significant digits (default 40) with the result rounded.
 
 The implementation is the standard Gram series.
+This corresponds to Mathematica's C<RiemannR> function.
 
 =head2 lambertw
 
@@ -1455,7 +1487,18 @@ Takes a positive integer argument C<n> and returns the constant Pi with that
 many digits (including the leading 3).  Rounding is performed.
 
 The implementation uses AGM and is only slightly slower than MPFR (which has
-tighter bounds on the intermediate bits and exit conditions).
+tighter bounds on the intermediate bits and exit conditions).  It is about
+4x slower than Pari/GP's Ramanujan/Chudnovsky binary splitting method, and
+almost identical to MPFR.
+
+
+=head2 Euler
+
+Takes a positive integer argument C<n> and returns Euler's constant
+with that many digits.  Rounding is performed.
+
+The implementation is Brent-McMillan algorithm B, just like Pari/GP.
+Performance is about 2x faster than Pari/GP, but 2-10x slower than MPFR.
 
 
 =head2 exp_mangoldt
