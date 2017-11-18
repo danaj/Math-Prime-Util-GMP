@@ -68,7 +68,7 @@ our @EXPORT_OK = qw(
                      factorial factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     zeta lir riemannr lambertw
+                     zeta li riemannr lambertw
                      logreal expreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
@@ -190,7 +190,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal stirling zeta lir riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal stirling zeta li riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1225,7 +1225,7 @@ integer inputs is good, but floating point arguments with high precision
 will be slower than methods using MPFR.  L<Math::Prime::Util> will
 try to use L<Math::MPFR> if possible.
 
-=head2 lir
+=head2 li
 
 Given a positive integer or float C<n>, returns the real Logarithmic Integral
 as a string floating point.  An optional second argument indicates the number

@@ -136,12 +136,13 @@
      3.  < 127-bit  tinyqs
      4.  127+ bit   other
 
+- add ei (exponential integral)
+
 - is_totient
 
 - Euler test
-- lir test
+- li test
 - mpf_pow XS, doc, test
-- Ei?
 
 - zeta(2,40) isn't rounded correctly
 
