@@ -142,8 +142,6 @@
 
 - zeta(2,40) isn't rounded correctly
 
-- Split pi into mpf_const_pi and pireal
-
 - mpf_agm(result, a,b)
 
 - try AGM based log, just like MPFR log

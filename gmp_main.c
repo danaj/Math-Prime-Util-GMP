@@ -660,13 +660,11 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
 
   if (S && S <= 14 && !(S & 1)) {         /* Small even S can be done with Pi */
     unsigned long div[]={0,6,90,945,9450,93555,638512875,18243225};
-    char* pi = pidigits(prec+8);
-    mpf_set_str(z, pi, 10);
+    const_pi(z, prec);
     mpf_pow_ui(z, z, S);
     if (S == 12) mpf_mul_ui(z, z, 691);
     if (S == 14) mpf_mul_ui(z, z, 2);
     mpf_div_ui(z, z, div[S/2]);
-    Safefree(pi);
   } else if (mpf_cmp_ui(f, 3+prec*2.15) > 0) {  /* Only one term (3^s < prec) */
     if (S) {
       mpf_set_ui(term, 1);
@@ -826,7 +824,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_clear(term); mpf_clear(sum); mpf_clear(logn);
 }
 
-/**************     Euler Constant and Logarithmic Integral      **************/
+/***********************     Constants: Euler, Pi      ***********************/
 
 /* See:
  *   http://numbers.computation.free.fr/Constants/Gamma/gamma.pdf
@@ -843,7 +841,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
  * as it still isn't really fast.  For high precision it's about 2x slower
  * than Pari due to mpf_log / mpf_exp.
  */
-static void _eulerconst(mpf_t gamma, unsigned long prec)
+void const_euler(mpf_t gamma, unsigned long prec)
 {
   const double log2 = 0.693147180559945309417232121458176568L;
   const unsigned long maxsqr = (1UL << (4*sizeof(unsigned long))) - 1;
@@ -904,6 +902,48 @@ static void _eulerconst(mpf_t gamma, unsigned long prec)
   mpf_clear(u); mpf_clear(v); mpf_clear(a); mpf_clear(b);
 }
 
+void const_pi(mpf_t pi, unsigned long prec)
+{
+  mpf_t t, an, bn, tn, prev_an;
+  unsigned long k, bits = ceil(10 + prec * 3.322);
+
+  if (prec <= 100) {
+    mpf_set_str(pi, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215", 10);
+    return;
+  }
+
+  mpf_init2(t,       bits);
+  mpf_init2(an,      bits);
+  mpf_init2(bn,      bits);
+  mpf_init2(tn,      bits);
+  mpf_init2(prev_an, bits);
+
+  mpf_set_d(an, 1);
+  mpf_set_d(bn, 0.5);
+  mpf_set_d(tn, 0.25);
+  mpf_sqrt(bn, bn);
+
+  for (k = 0; (prec >> k) > 0; k++) {
+    mpf_set(prev_an, an);
+    mpf_add(t, an, bn);
+    mpf_div_ui(an, t, 2);
+    mpf_mul(t, bn, prev_an);
+    mpf_sqrt(bn, t);
+    mpf_sub(prev_an, prev_an, an);
+    mpf_mul(t, prev_an, prev_an);
+    mpf_mul_2exp(t, t, k);
+    mpf_sub(tn, tn, t);
+  }
+  mpf_add(t, an, bn);
+  mpf_mul(an, t, t);
+  mpf_mul_2exp(t, tn, 2);
+  mpf_div(pi, an, t);
+  mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
+  mpf_clear(prev_an); mpf_clear(t);
+}
+
+/***********************     Logarithmic Integral      ***********************/
+
 static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpz_t factorial;
@@ -955,7 +995,7 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_set(q, r);
   for (k = prec; mpf_cmp_ui(q, 1024*1024) >= 0; k -= 6)
     mpf_div_2exp(q, q, 20);
-  _eulerconst(q, k);
+  const_euler(q, k);
   mpf_add(r, r, q);
 
   mpz_clear(factorial);
@@ -1019,10 +1059,22 @@ char* eulerconst(unsigned long prec) {
   unsigned long bits = 7 + (unsigned long)(prec*3.32193);
 
   mpf_init2(gamma, bits);
-  _eulerconst(gamma, prec);
+  const_euler(gamma, prec);
   New(0, out, prec+4, char);
   gmp_sprintf(out, "%.*Ff", (int)(prec), gamma);
   mpf_clear(gamma);
+  return out;
+}
+char* piconst(unsigned long prec) {
+  char* out;
+  mpf_t pi;
+  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+
+  mpf_init2(pi, bits);
+  const_pi(pi, prec);
+  New(0, out, prec+4, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec-1), pi);
+  mpf_clear(pi);
   return out;
 }
 
@@ -1102,7 +1154,7 @@ static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec)
   mpf_mul(bn, bn, tf);
   /* bn = s! * zeta(s) */
 
-  { char* pi = pidigits(prec+8); mpf_set_str(tf, pi, 10); Safefree(pi); }
+  const_pi(tf, prec);
   mpf_mul_ui(tf, tf, 2);
   mpf_pow_ui(tf, tf, s);
   mpf_div(bn, bn, tf);
@@ -2002,175 +2054,6 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   return comp;
 }
 
-
-char* pidigits(UV n) {
-  char* out;
-
-  New(0, out, n+4, char);
-  out[0] = '3';  out[1] = '\0';
-  if (n <= 1)
-    return out;
-
-#if 0
-  /* If we want to compare with MPFR.  Add -lmpfr in Makefile. */
-  #include <mpfr.h>
-  mpfr_t pi;
-  mpfr_exp_t exp;
-  mpfr_init2(pi,  (n * 3.322) + 40  );
-  mpfr_const_pi(pi, MPFR_RNDN);
-  mpfr_free_cache();
-  char* mpi = mpfr_get_str(NULL, &exp, 10, n, pi, MPFR_RNDN);
-  strncpy(out+1, mpi, n);
-  mpfr_free_str(mpi);
-  out[1] = '.';
-#elif 0
-  /* Spigot method.
-   * ~40x slower than the Machin formulas, 2x slower than spigot in plain C */
-  {
-    mpz_t t1, t2, acc, den, num;
-    UV i, k, d, d2;
-
-    mpz_init(t1);  mpz_init(t2);
-    mpz_init_set_ui(acc, 0);
-    mpz_init_set_ui(den, 1);
-    mpz_init_set_ui(num, 1);
-    n++;   /* rounding */
-    for (i = k = 0; i < n; ) {
-      {
-        UV k2 = ++k * 2 + 1;
-        mpz_mul_2exp(t1, num, 1);
-        mpz_add(acc, acc, t1);
-        mpz_mul_ui(acc, acc, k2);
-        mpz_mul_ui(den, den, k2);
-        mpz_mul_ui(num, num, k);
-      }
-      if (mpz_cmp(num, acc) > 0)  continue;
-      {
-        mpz_mul_ui(t1, num, 3);
-        mpz_add(t2, t1, acc);
-        mpz_tdiv_q(t1, t2, den);
-        d = mpz_get_ui(t1);
-      }
-      {
-        mpz_mul_ui(t1, num, 4);
-        mpz_add(t2, t1, acc);
-        mpz_tdiv_q(t1, t2, den);
-        d2 = mpz_get_ui(t1);
-      }
-      if (d != d2)  continue;
-      out[++i] = '0' + d;
-      {
-        mpz_submul_ui(acc, den, d);
-        mpz_mul_ui(acc, acc, 10);
-        mpz_mul_ui(num, num, 10);
-      }
-    }
-    mpz_clear(num); mpz_clear(den); mpz_clear(acc); mpz_clear(t2);mpz_clear(t1);
-    if (out[n] >= '5') out[n-1]++;  /* Round */
-    for (i = n-1; out[i] == '9'+1; i--)    /* Keep rounding */
-      { out[i] = '0';  out[i-1]++; }
-    n--;  /* Undo the extra digit we used for rounding */
-    out[1] = '.';
-    out[n+1] = '\0';
-  }
-#elif 0
-  /* https://en.wikipedia.org/wiki/Machin-like_formula
-   * Thanks to Ledrug from RosettaCode for the simple code for base 10.
-   * Pretty fast, but growth is a lot slower than AGM. */
-  {
-    mpz_t t1, t2, term1, term2, pows;
-    UV i, k;
-
-    mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
-    n++;   /* rounding */
-    mpz_ui_pow_ui(pows, 10, n+20);
-
-#if 0
-    /* Machin 1706 */
-    mpz_arctan(term1,       5, pows, t1, t2);  mpz_mul_ui(term1, term1, 4);
-    mpz_arctan(term2,     239, pows, t1, t2);
-    mpz_sub(term1, term1, term2);
-#elif 0
-    /* Störmer 1896 */
-    mpz_arctan(term1,      57, pows, t1, t2);  mpz_mul_ui(term1, term1, 44);
-    mpz_arctan(term2,     239, pows, t1, t2);  mpz_mul_ui(term2, term2, 7);
-    mpz_add(term1, term1, term2);
-    mpz_arctan(term2,     682, pows, t1, t2);  mpz_mul_ui(term2, term2, 12);
-    mpz_sub(term1, term1, term2);
-    mpz_arctan(term2,   12943, pows, t1, t2);  mpz_mul_ui(term2, term2, 24);
-    mpz_add(term1, term1, term2);
-#else
-    /* Chien-Lih 1997 */
-    mpz_arctan(term1,     239, pows, t1, t2);  mpz_mul_ui(term1, term1, 183);
-    mpz_arctan(term2,    1023, pows, t1, t2);  mpz_mul_ui(term2, term2,  32);
-    mpz_add(term1, term1, term2);
-    mpz_arctan(term2,    5832, pows, t1, t2);  mpz_mul_ui(term2, term2,  68);
-    mpz_sub(term1, term1, term2);
-    mpz_arctan(term2,  110443, pows, t1, t2);  mpz_mul_ui(term2, term2,  12);
-    mpz_add(term1, term1, term2);
-    mpz_arctan(term2, 4841182, pows, t1, t2);  mpz_mul_ui(term2, term2,  12);
-    mpz_sub(term1, term1, term2);
-    mpz_arctan(term2, 6826318, pows, t1, t2);  mpz_mul_ui(term2, term2, 100);
-    mpz_sub(term1, term1, term2);
-#endif
-    mpz_mul_ui(term1, term1, 4);
-
-    mpz_ui_pow_ui(pows, 10, 20);
-    mpz_tdiv_q(term1, term1, pows);
-
-    mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
-
-    k = mpz_sizeinbase(term1, 10);           /* Copy result to out string */
-    while (k > n+1) {                        /* making sure we don't overflow */
-      mpz_tdiv_q_ui(term1, term1, 10);
-      k = mpz_sizeinbase(term1, 10);
-    }
-    (void) mpz_get_str(out+1, 10, term1);
-    mpz_clear(term1);
-
-    if (out[n] >= '5') out[n-1]++;  /* Round */
-    for (i = n-1; out[i] == '9'+1; i--)    /* Keep rounding */
-      { out[i] = '0';  out[i-1]++; }
-    n--;  /* Undo the extra digit we used for rounding */
-    out[1] = '.';
-    out[n+1] = '\0';
-  }
-#else
-  /* AGM using GMP's floating point.  Fast and very good growth. */
-  {
-    mpf_t t, an, bn, tn, prev_an;
-    UV k = 0;
-    unsigned long oldprec = mpf_get_default_prec();
-    mpf_set_default_prec(10 + n * 3.322);
-
-    mpf_init(t);  mpf_init(prev_an);
-    mpf_init_set_d(an, 1);  mpf_init_set_d(bn, 0.5);  mpf_init_set_d(tn, 0.25);
-    mpf_sqrt(bn, bn);
-
-    while ((n >> k) > 0) {
-      mpf_set(prev_an, an);
-      mpf_add(t, an, bn);
-      mpf_div_ui(an, t, 2);
-      mpf_mul(t, bn, prev_an);
-      mpf_sqrt(bn, t);
-      mpf_sub(prev_an, prev_an, an);
-      mpf_mul(t, prev_an, prev_an);
-      mpf_mul_2exp(t, t, k);
-      mpf_sub(tn, tn, t);
-      k++;
-    }
-    mpf_add(t, an, bn);
-    mpf_mul(an, t, t);
-    mpf_mul_2exp(t, tn, 2);
-    mpf_div(bn, an, t);
-    gmp_sprintf(out, "%.*Ff", (int)(n-1), bn);
-    mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
-    mpf_clear(prev_an); mpf_clear(t);
-    mpf_set_default_prec(oldprec);
-  }
-#endif
-  return out;
-}
 
 /*****************************************************************************/
 

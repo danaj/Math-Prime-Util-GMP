@@ -850,7 +850,7 @@ void Pi(IN UV n)
       if (n == 1)
         XSRETURN_IV(3);
       else if (n > 0) {
-        char* pi = pidigits(n);
+        char* pi = piconst(n);
         XPUSHs(sv_2mortal(newSVpvn(pi, n+1)));
         Safefree(pi);
       }

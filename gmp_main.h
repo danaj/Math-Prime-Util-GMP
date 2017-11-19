@@ -34,7 +34,7 @@ extern void exp_mangoldt(mpz_t res, mpz_t n);
 
 extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
 extern char* pidigits(UV n);
-extern char* eulerconst(UV n);
+
 extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 extern char* zetareal(mpf_t r, unsigned long prec);
@@ -44,6 +44,11 @@ extern char* lambertwreal(mpf_t r, unsigned long prec);
 extern char* logreal(mpf_t r, unsigned long prec);
 extern char* expreal(mpf_t r, unsigned long prec);
 extern char* powreal(mpf_t r, mpf_t x, unsigned long prec);
+extern char* eulerconst(UV n);
+extern char* piconst(UV n);
+
+extern void const_euler(mpf_t gamma, unsigned long prec);
+extern void const_pi(mpf_t pi, unsigned long prec);
 
 extern void count_primes(mpz_t count, mpz_t lo, mpz_t hi);
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
