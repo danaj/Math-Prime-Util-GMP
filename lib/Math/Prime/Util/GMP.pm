@@ -69,7 +69,7 @@ our @EXPORT_OK = qw(
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      zeta li ei riemannr lambertw
-                     logreal expreal powreal
+                     logreal expreal powreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -190,7 +190,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal powreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal powreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1169,12 +1169,26 @@ The implementation computes C<sinh(n)>, then C<e^x> from that.
 =head2 powreal
 
 Returns C<n^x> for the inputs C<n> and C<x>.
-An optional second argument indicates the number of significant digits
+An optional third argument indicates the number of significant digits
 (default 40) with the result rounded.
 
 Like L<logreal> and L<expreal>, this is a basic math function that is
 not available from the GMP library but implemented in MPFR.  Since the
 latter is not always available, this can be useful to have.
+
+=head2 agmreal
+
+Returns the Arithmetic-Geometric mean (AGM) of C<a> and C<b>.
+An optional third argument indicates the number of significant digits
+(default 40) with the result rounded.
+
+Examples of use include elementary constants (e.g. C<Pi> and C<e>),
+logs, exponentials, trigonometric functions, elliptic integrals,
+computing pendulum periods, and more.
+
+This corresponds to Pari's C<agm(x,y)> function, limited to positive
+reals (Pari also handles negative, complex, p-adic, and power series
+arguments).
 
 =head2 bernfrac
 

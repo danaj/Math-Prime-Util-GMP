@@ -547,6 +547,8 @@ void harmreal(IN char* strn, IN UV prec = 40)
     }
 
 void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
+  ALIAS:
+    agmreal = 1
   PREINIT:
     mpf_t n, x;
     char* res;
@@ -562,7 +564,7 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
     mpf_init2(x, bits);
     if (mpf_set_str(x, strx, 10) != 0)
       croak("Not valid base-10 floating point input: %s", strx);
-    res = powreal(n, x, prec);
+    res = (ix == 0) ? powreal(n, x, prec) : agmreal(n, x, prec);
     mpf_clear(n);
     mpf_clear(x);
     if (res == 0)

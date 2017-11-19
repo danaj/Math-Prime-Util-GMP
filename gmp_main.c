@@ -905,39 +905,44 @@ void const_euler(mpf_t gamma, unsigned long prec)
 void const_pi(mpf_t pi, unsigned long prec)
 {
   mpf_t t, an, bn, tn, prev_an;
-  unsigned long k, bits = ceil(10 + prec * 3.322);
+  unsigned long k, bits = ceil(prec * 3.322);
 
   if (prec <= 100) {
     mpf_set_str(pi, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215", 10);
     return;
   }
 
-  mpf_init2(t,       bits);
-  mpf_init2(an,      bits);
-  mpf_init2(bn,      bits);
-  mpf_init2(tn,      bits);
-  mpf_init2(prev_an, bits);
+  mpf_init2(t,       10+bits);
+  mpf_init2(an,      10+bits);
+  mpf_init2(bn,      10+bits);
+  mpf_init2(tn,      10+bits);
+  mpf_init2(prev_an, 10+bits);
 
   mpf_set_d(an, 1);
   mpf_set_d(bn, 0.5);
   mpf_set_d(tn, 0.25);
   mpf_sqrt(bn, bn);
-
-  for (k = 0; (prec >> k) > 0; k++) {
-    mpf_set(prev_an, an);
+                                    /* Comments from Brent 1976 */
+  for (k = 0; (prec >> (k+1)) > 0; k++) {
+    mpf_set(prev_an, an);           /* Y <- A */
     mpf_add(t, an, bn);
-    mpf_div_ui(an, t, 2);
+    mpf_div_ui(an, t, 2);           /* A <- (A+B)/2 */
     mpf_mul(t, bn, prev_an);
-    mpf_sqrt(bn, t);
+    mpf_sqrt(bn, t);                /* B <- (BY)^(1/2) */
     mpf_sub(prev_an, prev_an, an);
     mpf_mul(t, prev_an, prev_an);
     mpf_mul_2exp(t, t, k);
-    mpf_sub(tn, tn, t);
+    mpf_sub(tn, tn, t);             /* T <- T - 2^k (A-Y)^2 */
+#if 0 /* Instead of doing the comparison, we assume doubling per iteration */
+    mpf_sub(t, an, bn);
+    mpf_mul_2exp(t, t, bits);
+    if (mpf_cmp_ui(t,1) <= 0) break;
+#endif
   }
   mpf_add(t, an, bn);
   mpf_mul(an, t, t);
   mpf_mul_2exp(t, tn, 2);
-  mpf_div(pi, an, t);
+  mpf_div(pi, an, t);               /* return (A+B)^2 / 4T */
   mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
   mpf_clear(prev_an); mpf_clear(t);
 }
@@ -1062,6 +1067,16 @@ char* powreal(mpf_t r, mpf_t x, unsigned long prec)
 {
   mpf_pow(r, r, x);
   return _str_real(r, prec);
+}
+char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
+{
+  if (mpz_sgn(a) == 0 || mpz_sgn(b) == 0) {
+     mpf_set_ui(a,0);
+  } else if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) {
+     return 0;  /* NaN */
+  }
+  mpf_agm(a, a, b);
+  return _str_real(a, prec);
 }
 
 char* eulerconst(unsigned long prec) {

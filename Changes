@@ -11,6 +11,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - logreal(x[,digits])    Natural logarithm of x
     - expreal(x[,digits])    e^x
     - powreal(n,x[,digits])  n^x
+    - agmreal(a,b[,digits])  AGM(a,b) - arithmetic-geometric mean
 
     [FIXES]
 

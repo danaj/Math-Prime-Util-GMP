@@ -1025,13 +1025,17 @@ void mpf_agm(mpf_t r, mpf_t a, mpf_t b)
   mpf_t t;
   unsigned long k, bits = mpf_get_prec(r);
 
-  mpf_init2(t, 10+bits);
+  if (mpf_cmp(a,b) > 0) mpf_swap(a,b);
+
+  mpf_init2(t, 6+bits);
   while (1) {
-    mpf_sub(t, a, b);
+    mpf_sub(t, b, a);
     mpf_abs(t, t);
     mpf_mul_2exp(t, t, bits);
-    if (mpf_cmp_d(t, .5) < 0)
+    mpf_sub_ui(t,t,1);
+    if (mpf_sgn(t) < 0)
       break;
+    mpf_sub_ui(t,t,1);
     mpf_set(t, a);
     mpf_add(a, a, b);
     mpf_div_2exp(a, a, 1);

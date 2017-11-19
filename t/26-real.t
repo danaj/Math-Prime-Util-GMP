@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/logreal expreal powreal/;
+use Math::Prime::Util::GMP qw/logreal expreal powreal agmreal/;
 
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -53,7 +53,11 @@ my @log_neg = (qw/
 -0.69314718055994530941723212145817656807550013436025525412068000949339362
 /);
 
-plan tests => 1 + 2 + 2 + 3    + 6  + 7;
+plan tests => 1+2+2+3  # logreal
+            + 6        # expreal
+            + 7        # powreal
+            + 5        # agmreal
+            ;
 
 ######## log
 
@@ -97,3 +101,20 @@ is(powreal(2,-5,5),".03125","powreal(2,-5,5)");
 is(powreal(1234.5678, 9.87654321, 60),
    "3415709626357388739894539947448.87170455872193676278327545082",
    "powreal(1234.5678, 9.87654321, 60)");
+
+######## agm
+is(agmreal(1,'1.4142135623730950488016887242096980785696718753769480731766797379907325',71),
+   '1.1981402347355922074399224922803238782272126632156515582636749529464052',
+   "AGM(1, sqrt(2)) = reciprocal of Gauss's constant");
+is(agmreal(1,'0.707106781186547524400844362104849039284835937688474036588339868995366239',72),
+   '.847213084793979086606499123482191636481445910326942185060579372659734005',
+   "AGM(1, 1/sqrt(2))");
+is(agmreal(0.5,1,71),
+   '.72839551552345343459321619163254098748693197161065279539708619163396323',
+   "AGM(0.5, 1)");
+is(agmreal(6,24,30),
+   '13.4581714817256154207668131570',
+   "AGM(6, 24)");
+is(agmreal(-6,24,30),
+   undef,
+   "AGM with negative argument returns undef");
