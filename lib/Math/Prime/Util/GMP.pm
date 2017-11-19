@@ -1158,7 +1158,7 @@ backend.  It is 2-1000x slower than Pari/GP 2.10.
 Negative inputs are returned as C<-log(-n)>, which matches L<bignum>.
 Pari/GP and Mathematica return C<log(-n) + Pi*i>.
 
-=head expreal
+=head2 expreal
 
 Returns C<e^n> for the input C<n>.
 An optional second argument indicates the number of significant digits
@@ -1166,7 +1166,7 @@ An optional second argument indicates the number of significant digits
 
 The implementation computes C<sinh(n)>, then C<e^x> from that.
 
-=head powreal
+=head2 powreal
 
 Returns C<n^x> for the inputs C<n> and C<x>.
 An optional second argument indicates the number of significant digits
