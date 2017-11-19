@@ -818,13 +818,25 @@ void mpf_log(mpf_t logn, mpf_t n)
   mpf_init2(t, 64 + bits);
   mpf_set_ui(logn, 0);
 
-  /* Reduce N to <= 2^32 if necessary. */
+  /* Reduce N to 2^-32 < N < 2^32 */
   mpf_set_ui(t, 1); mpf_mul_2exp(t, t, 32);
-  for (k = 0; mpf_cmp(N, t) > 0; k += 32)
-    mpf_div_2exp(N, N, 32);
-  if (k > 0) {
-    mpf_logn2(t);
-    mpf_mul_ui(logn, t, k);
+  if (mpf_cmp(N, t) > 0) {
+    for (k = 0; mpf_cmp(N, t) > 0; k += 32)
+      mpf_div_2exp(N, N, 32);
+    if (k > 0) {
+      mpf_logn2(t);
+      mpf_mul_ui(logn, t, k);
+    }
+  }
+  mpf_set_ui(t, 1); mpf_div_2exp(t, t, 32);
+  if (mpf_cmp(N, t) < 0) {
+    for (k = 0; mpf_cmp(N, t) < 0; k += 32)
+      mpf_mul_2exp(N, N, 32);
+    if (k > 0) {
+      mpf_logn2(t);
+      mpf_mul_ui(logn, t, k);
+      mpf_neg(logn, logn);
+    }
   }
 
   mpf_init2(a, 64 + bits);
