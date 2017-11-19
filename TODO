@@ -138,8 +138,4 @@
 
 - is_totient
 
-- mpf_agm(result, a,b)
-
-- try AGM based log, just like MPFR log
-
-- li for 0 <= x < 1
+- export agm, doc, test

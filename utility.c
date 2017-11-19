@@ -680,6 +680,18 @@ void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
     if (i++ & 1) mpz_sub(r, r, t2); else mpz_add(r, r, t2);
   } while (mpz_sgn(t2));
 }
+void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
+{
+  unsigned long i = 1;
+  mpz_tdiv_q_ui(r, pow, base);
+  mpz_set(t1, r);
+  do {
+    mpz_ui_pow_ui(t2, base, 2);
+    mpz_tdiv_q(t1, t1, t2);
+    mpz_tdiv_q_ui(t2, t1, 1 + (i++ << 1));
+    mpz_add(r, r, t2);
+  } while (mpz_sgn(t2));
+}
 
 void mpz_product(mpz_t* A, UV a, UV b) {
   if (b <= a) {
@@ -770,8 +782,33 @@ UV logint(mpz_t n, UV base) {
  * https://pdfs.semanticscholar.org/8aec/ea97b8f2f23d4f09ec8f69025598f742ae9e.pdf
  */
 
+/* http://numbers.computation.free.fr/Constants/Log2/log2.ps */
 void mpf_logn2(mpf_t logn)
 {
+#if 1
+  /* Formula 25, Machin-like */
+  mpf_t t;
+  mpz_t t1, t2, term1, term2, pows;
+  unsigned long k, bits = mpf_get_prec(logn);
+  unsigned long digits = 20 + (unsigned long)(bits/3.322);
+
+  mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
+  mpf_init2(t, 64+bits);
+  mpz_ui_pow_ui(pows, 10, digits);
+  mpz_arctanh(term1,   26, pows, t1, t2);  mpz_mul_ui(term1, term1,  18);
+  mpz_arctanh(term2, 4801, pows, t1, t2);  mpz_mul_ui(term2, term2,   2);
+  mpz_sub(term1, term1, term2);
+  mpz_arctanh(term2, 8749, pows, t1, t2);  mpz_mul_ui(term2, term2,   8);
+  mpz_add(term1, term1, term2);
+  /* term1 = 69313147... */
+  mpf_set_z(logn, term1);
+  mpf_set_z(t, pows);
+  mpf_div(logn, logn, t);
+  /* logn = .69313147... */
+  mpf_clear(t);
+  mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
+#else
+  /* Newton / Halley on exp */
   mpf_t a, b, t;
   unsigned long k, iter, bits = mpf_get_prec(logn);
 
@@ -798,7 +835,10 @@ void mpf_logn2(mpf_t logn)
     mpf_add(logn, logn, t);
   }
   mpf_clear(b); mpf_clear(a); mpf_clear(t);
+#endif
 }
+
+extern void const_pi(mpf_t pi, unsigned long prec);
 
 void mpf_log(mpf_t logn, mpf_t n)
 {
@@ -843,23 +883,41 @@ void mpf_log(mpf_t logn, mpf_t n)
   mpf_init2(b, 64 + bits);
   mpf_init2(logdn, 64 + bits);
 
-  if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
-    mpf_set_d(logdn, log(mpf_get_d(N)));
-    for (iter = 0, k = bits; k > 45; k /= 3) iter++;
-  } else {                    /* Recursive call with lower prec. */
-    mpf_set_prec_raw(logdn, (bits+2)/3);
-    mpf_log(logdn, N);
-    mpf_set_prec_raw(logdn, 64+bits);
-    iter = 1;
-  }
+  if (bits > 12000) {   /* AGM method.  Should look at accuracy some more. */
+    unsigned long p, i, m;
+    for (p = 1, i = bits; i >>= 1; ) p++;
+    p = bits + 5 + 2*p;
+    m = (p+1)/2;   /* - exponent(n) + 1 */
 
-  for (k = 0; k < iter; k++) { /* Halley */
-    mpf_exp(t, logdn);
-    mpf_mul_2exp(a, t, 2);
-    mpf_add(b, t, N);
+    mpf_set_ui(a, 1);
+    mpf_mul_2exp(b, a, m);
+    mpf_mul(b, b, N);
+    mpf_ui_div(b, 4, b);
+    mpf_agm(t, a, b);
+    mpf_mul_2exp(b, t, 1);
+    const_pi(a, (unsigned long)(3.322 * bits));
     mpf_div(t, a, b);
-    mpf_ui_sub(t, 2, t);
-    mpf_add(logdn, logdn, t);
+    mpf_logn2(b);
+    mpf_mul_ui(a, b, m);
+    mpf_sub(logdn, t, a);
+  } else {
+    if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
+      mpf_set_d(logdn, log(mpf_get_d(N)));
+      for (iter = 0, k = bits; k > 45; k /= 3) iter++;
+    } else {                    /* Recursive call with lower prec. */
+      mpf_set_prec_raw(logdn, (bits+2)/3);
+      mpf_log(logdn, N);
+      mpf_set_prec_raw(logdn, 64+bits);
+      iter = 1;
+    }
+    for (k = 0; k < iter; k++) { /* Halley */
+      mpf_exp(t, logdn);
+      mpf_mul_2exp(a, t, 2);
+      mpf_add(b, t, N);
+      mpf_div(t, a, b);
+      mpf_ui_sub(t, 2, t);
+      mpf_add(logdn, logdn, t);
+    }
   }
   mpf_add(logn, logn, logdn);
   mpf_clear(logdn); mpf_clear(b); mpf_clear(a);
@@ -959,6 +1017,28 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
   mpf_mul(t, t, x);
   mpf_exp(powx, t);
   if (neg) mpf_neg(powx,powx);
+  mpf_clear(t);
+}
+
+void mpf_agm(mpf_t r, mpf_t a, mpf_t b)
+{
+  mpf_t t;
+  unsigned long k, bits = mpf_get_prec(r);
+
+  mpf_init2(t, 10+bits);
+  while (1) {
+    mpf_sub(t, a, b);
+    mpf_abs(t, t);
+    mpf_mul_2exp(t, t, bits);
+    if (mpf_cmp_d(t, .5) < 0)
+      break;
+    mpf_set(t, a);
+    mpf_add(a, a, b);
+    mpf_div_2exp(a, a, 1);
+    mpf_mul(b, b, t);
+    mpf_sqrt(b, b);
+  }
+  mpf_set(r, b);
   mpf_clear(t);
 }
 
