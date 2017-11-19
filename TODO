@@ -140,7 +140,6 @@
 
 - is_totient
 
-- li test
 - mpf_pow XS, doc, test
 
 - zeta(2,40) isn't rounded correctly
@@ -150,3 +149,5 @@
 - mpf_agm(result, a,b)
 
 - try AGM based log, just like MPFR log
+
+- li for 0 <= x < 1

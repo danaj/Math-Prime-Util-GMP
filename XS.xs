@@ -521,7 +521,9 @@ void harmreal(IN char* strn, IN UV prec = 40)
       XPUSHs(sv_2mortal(newSVpv(res, 0)));
       Safefree(res);
     } else {
-      unsigned long bits = 64 + (unsigned long)(prec*3.32193);
+      unsigned long bits  = 64 + (unsigned long)(3.32193 * prec);
+      unsigned long bits2 = 64 + (unsigned long)(3.32193 * strlen(strn));
+      if (bits2 > bits) bits = bits2;
       mpf_init2(f, bits);
       if (mpf_set_str(f, strn, 10) != 0)
         croak("Not valid base-10 floating point input: %s", strn);
@@ -829,7 +831,7 @@ void Pi(IN UV n)
         Safefree(pi);
       }
     } else if (ix == 1) {
-      if (n == 0)  XSRETURN_IV(0);
+      if (n == 0)  XSRETURN_IV(1);
       char* econst = eulerconst(n);
       XPUSHs(sv_2mortal(newSVpvn(econst, n+2)));
       Safefree(econst);

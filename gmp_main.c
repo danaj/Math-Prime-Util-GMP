@@ -990,7 +990,9 @@ char* riemannrreal(mpf_t r, unsigned long prec)
 
 char* lireal(mpf_t r, unsigned long prec)
 {
-  if (mpf_cmp_ui(r,1) <= 0) return 0;
+  if (mpf_cmp_ui(r,0) < 0) return 0;
+  if (mpf_cmp_ui(r,1) == 0) return 0;
+  /* TODO: make this work */  if (mpf_cmp_ui(r,1) < 0) return 0;
   _li_r(r, r, prec);
   return _str_real(r, prec);
 }
