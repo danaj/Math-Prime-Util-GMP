@@ -544,6 +544,30 @@ void harmreal(IN char* strn, IN UV prec = 40)
       Safefree(res);
     }
 
+void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
+  PREINIT:
+    mpf_t n, x;
+    char* res;
+  PPCODE:
+    unsigned long bits  = 64 + (unsigned long)(3.32193 * prec);
+    unsigned long bits2 = 64 + (unsigned long)(3.32193 * strlen(strn));
+    unsigned long bits3 = 64 + (unsigned long)(3.32193 * strlen(strx));
+    if (bits2 > bits) bits = bits2;
+    if (bits3 > bits) bits = bits3;
+    mpf_init2(n, bits);
+    if (mpf_set_str(n, strn, 10) != 0)
+      croak("Not valid base-10 floating point input: %s", strn);
+    mpf_init2(x, bits);
+    if (mpf_set_str(x, strx, 10) != 0)
+      croak("Not valid base-10 floating point input: %s", strx);
+    res = powreal(n, x, prec);
+    mpf_clear(n);
+    mpf_clear(x);
+    if (res == 0)
+      XSRETURN_UNDEF;
+    XPUSHs(sv_2mortal(newSVpv(res, 0)));
+    Safefree(res);
+
 void
 gcd(...)
   PROTOTYPE: @

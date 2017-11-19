@@ -140,8 +140,6 @@
 
 - is_totient
 
-- mpf_pow XS, doc, test
-
 - zeta(2,40) isn't rounded correctly
 
 - Split pi into mpf_const_pi and pireal

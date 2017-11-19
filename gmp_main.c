@@ -1007,6 +1007,11 @@ char* expreal(mpf_t r, unsigned long prec)
   mpf_exp(r, r);
   return _str_real(r, prec);
 }
+char* powreal(mpf_t r, mpf_t x, unsigned long prec)
+{
+  mpf_pow(r, r, x);
+  return _str_real(r, prec);
+}
 
 char* eulerconst(unsigned long prec) {
   char* out;

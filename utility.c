@@ -936,19 +936,29 @@ void mpf_exp(mpf_t expn, mpf_t x)
   mpf_clear(s); mpf_clear(D); mpf_clear(N); mpf_clear(t);
 }
 
+/* Negative b with non-int x usually gives a complex result.
+ * We try to at least give a consistent result. */
+
 void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
 {
   mpf_t t;
+  int neg = 0;
+
+  if (mpf_sgn(b) == 0) { mpf_set_ui(powx, 0); return; }
+  if (mpf_sgn(b) <  0) { neg = 1; }
+  if (mpf_cmp_ui(b,1) == 0) { mpf_set_ui(powx, 1-2*neg); return; }
 
   if (mpf_integer_p(x) && mpf_fits_ulong_p(x)) {
     mpf_pow_ui(powx, b, mpf_get_ui(x));
     return;
   }
 
+  if (neg) mpf_neg(b,b);
   mpf_init2(t, mpf_get_prec(powx));
   mpf_log(t, b);
   mpf_mul(t, t, x);
   mpf_exp(powx, t);
+  if (neg) mpf_neg(powx,powx);
   mpf_clear(t);
 }
 

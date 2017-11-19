@@ -43,6 +43,7 @@ extern char* riemannrreal(mpf_t r, unsigned long prec);
 extern char* lambertwreal(mpf_t r, unsigned long prec);
 extern char* logreal(mpf_t r, unsigned long prec);
 extern char* expreal(mpf_t r, unsigned long prec);
+extern char* powreal(mpf_t r, mpf_t x, unsigned long prec);
 
 extern void count_primes(mpz_t count, mpz_t lo, mpz_t hi);
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
