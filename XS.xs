@@ -494,15 +494,16 @@ void harmreal(IN char* strn, IN UV prec = 40)
     expreal = 3
     zeta = 4
     li = 5
-    riemannr = 6
-    lambertw = 7
-    surround_primes = 8
+    ei = 6
+    riemannr = 7
+    lambertw = 8
+    surround_primes = 9
   PREINIT:
     mpz_t n;
     mpf_t f;
     char* res;
   PPCODE:
-    if (ix == 8) {  /* surround_primes */
+    if (ix == 9) {  /* surround_primes */
       UV prev, next;
       VALIDATE_AND_SET(n, strn);
       next = 1 + (mpz_sgn(n)==0);
@@ -533,8 +534,9 @@ void harmreal(IN char* strn, IN UV prec = 40)
         case 3:  res = expreal(f, prec); break;
         case 4:  res = zetareal(f, prec); break;
         case 5:  res = lireal(f, prec); break;
-        case 6:  res = riemannrreal(f, prec); break;
-        case 7:
+        case 6:  res = eireal(f, prec); break;
+        case 7:  res = riemannrreal(f, prec); break;
+        case 8:
         default: res = lambertwreal(f, prec); break;
       }
       mpf_clear(f);

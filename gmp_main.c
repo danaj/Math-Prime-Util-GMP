@@ -942,7 +942,7 @@ void const_pi(mpf_t pi, unsigned long prec)
   mpf_clear(prev_an); mpf_clear(t);
 }
 
-/***********************     Logarithmic Integral      ***********************/
+/*****************     Exponential / Logarithmic Integral     *****************/
 
 static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
 {
@@ -951,6 +951,8 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
   unsigned long j, k, bits = mpf_get_prec(n);
 
   mpf_init2(logn,      bits);
+  mpf_log(logn, n);
+
   mpf_init2(sum,       bits);
   mpf_init2(inner_sum, bits);
   mpf_init2(term,      bits);
@@ -958,17 +960,15 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_init2(q,         bits);
   mpf_init2(tol,       bits);
 
-  mpf_log(logn, n);
-  mpf_neg(logn, logn);
-
   mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec);  mpf_ui_div(tol,1,tol);
 
   mpz_init_set_ui(factorial, 1);
-  mpf_set_si(p, -1);
 
+  mpf_set_si(p, -1);
   for (j = 1, k = 0; j < 1000000; j++) {
     mpz_mul_ui(factorial, factorial, j);
     mpf_mul(p, p, logn);
+    mpf_neg(p, p);
     for (; k <= (j - 1) / 2; k++) {
       mpf_set_ui(q, 1);
       mpf_div_ui(q, q, 2*k+1);
@@ -982,12 +982,13 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
 
     mpf_abs(term, term);
     mpf_mul(q, sum, tol);
+    mpf_abs(q, q);
     if (mpf_cmp(term, q) <= 0) break;
   }
   mpf_sqrt(q, n);
   mpf_mul(r, sum, q);
 
-  mpf_neg(logn, logn);
+  mpf_abs(logn,logn);
   mpf_log(q, logn);
   mpf_add(r, r, q);
 
@@ -1008,6 +1009,11 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_clear(logn);
 }
 
+static void _ei_r(mpf_t r, mpf_t n, unsigned long prec)
+{
+  mpf_exp(r, n);
+  _li_r(r, r, prec);
+}
 
 char* zetareal(mpf_t z, unsigned long prec)
 {
@@ -1032,8 +1038,13 @@ char* lireal(mpf_t r, unsigned long prec)
 {
   if (mpf_cmp_ui(r,0) < 0) return 0;
   if (mpf_cmp_ui(r,1) == 0) return 0;
-  /* TODO: make this work */  if (mpf_cmp_ui(r,1) < 0) return 0;
   _li_r(r, r, prec);
+  return _str_real(r, prec);
+}
+char* eireal(mpf_t r, unsigned long prec)
+{
+  if (mpf_cmp_ui(r,0) == 0) return 0;
+  _ei_r(r, r, prec);
   return _str_real(r, prec);
 }
 

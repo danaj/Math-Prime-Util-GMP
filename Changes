@@ -7,8 +7,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_square(n)           Returns 1 if n is a perfect square
     - Euler([digits])        Euler's constant with this many digits
     - li(x[,digits])         Logarithmic Integral of x (x floating point)
+    - ei(x[,digits])         Exponential Integral of x (x floating point)
     - logreal(x[,digits])    Natural logarithm of x
     - expreal(x[,digits])    e^x
+    - powreal(n,x[,digits])  n^x
 
     [FIXES]
 

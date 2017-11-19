@@ -38,6 +38,7 @@ extern char* pidigits(UV n);
 extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 extern char* zetareal(mpf_t r, unsigned long prec);
+extern char* eireal(mpf_t r, unsigned long prec);
 extern char* lireal(mpf_t r, unsigned long prec);
 extern char* riemannrreal(mpf_t r, unsigned long prec);
 extern char* lambertwreal(mpf_t r, unsigned long prec);

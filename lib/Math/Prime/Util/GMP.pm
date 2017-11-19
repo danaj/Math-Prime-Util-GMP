@@ -68,7 +68,7 @@ our @EXPORT_OK = qw(
                      factorial factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     zeta li riemannr lambertw
+                     zeta li ei riemannr lambertw
                      logreal expreal powreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
@@ -190,7 +190,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal powreal stirling zeta li riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal logreal expreal powreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1243,6 +1243,14 @@ of significant digits (default 40) with the result rounded.
 
 The implementation uses Ramanjan's series.
 This corresponds to Mathematica's C<Li> function.
+
+=head2 ei
+
+Given a positive integer or float C<n>, returns the real Exponential Integral
+as a string floating point.  An optional second argument indicates the number
+of significant digits (default 40) with the result rounded.
+
+The implementation is simply li(exp(x)).
 
 =head2 riemannr
 

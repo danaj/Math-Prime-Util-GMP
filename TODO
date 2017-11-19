@@ -136,11 +136,7 @@
      3.  < 127-bit  tinyqs
      4.  127+ bit   other
 
-- add ei (exponential integral)
-
 - is_totient
-
-- zeta(2,40) isn't rounded correctly
 
 - mpf_agm(result, a,b)
 
