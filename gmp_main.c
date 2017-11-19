@@ -863,7 +863,7 @@ void const_euler(mpf_t gamma, unsigned long prec)
   mpf_init2(b,    bits);
 
   mpf_set_ui(u, x);
-  mpf_log(u, u);       /* <-- About 50% of the time is spent here. */
+  mpf_log(u, u);       /* <-- About 20% of the time is spent here. */
   mpf_neg(u, u);
   mpf_set(a, u);
   mpf_set_ui(b, 1);

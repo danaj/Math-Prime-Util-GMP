@@ -21,7 +21,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - moebius handles negative inputs
 
-    - Rewrite mpf_log internal function.  Use Newton/Halley insteaf of AGM.
+    - Rewrite mpf_log internal function.
       Among other things, this speeds up floating point zeta by about 4x.
 
 
