@@ -135,7 +135,3 @@
      2.  < 61-bit   squfof126 (if pbrent isn't avail)
      3.  < 127-bit  tinyqs
      4.  127+ bit   other
-
-- is_totient
-
-- export agm, doc, test
