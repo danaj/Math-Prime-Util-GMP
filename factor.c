@@ -8,6 +8,7 @@
 #include "pbrent63.h"
 #include "squfof126.h"
 #include "ecm.h"
+#include "tinyqs.h"
 #include "simpqs.h"
 
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
@@ -168,12 +169,18 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
        * of many 12-digit or 14-digit primes should take under 10 seconds.
        */
 
-      /* Do a quick path for small inputs */
-
+      /* Handle small inputs here */
       if (nbits <= 63) {
         if (!success) success = pbrent63(n, f, 400000);
         if (success&&o) {gmp_printf("UV Rho-Brent found factor %Zd\n", f);o=0;}
       }
+      if (nbits >= 65 && nbits <= 126) {
+        if (!success) success = _GMP_pminus1_factor(n, f, 5000, 5000);
+        if (!success) success = tinyqs(n, f);
+        if (success&&o) {gmp_printf("cof-siqs found factor %Zd\n", f);o=0;}
+      }
+
+      /* It's possible the previous calls failed or weren't available */
       if (nbits <= 53) {
         if (!success)  success = squfof126(n, f, 400000);
         if (success&&o) {gmp_printf("UV SQUFOF126 found factor %Zd\n", f);o=0;}
@@ -441,7 +448,13 @@ int moebius(mpz_t n)
   int* exponents;
   int i, nfactors, result;
 
-  if (mpz_sgn(n) <= 0)       return 0;
+  if (mpz_sgn(n) < 0) {
+    mpz_neg(n,n);
+    result = moebius(n);
+    mpz_neg(n,n);
+    return result;
+  }
+  if (mpz_sgn(n) == 0) return 0;
   if (mpz_cmp_ui(n, 1) == 0) return 1;
 
   for (i = 0; i < 7; i++)
@@ -1075,6 +1088,16 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   return 1;
 }
 
+/* References for P-1:
+ *  Montgomery 1987:  https://cr.yp.to/bib/1987/montgomery.pdf
+ *  Brent 1990:       http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.127.4316
+ *
+ * The main advantage of this over ECM is that it is *much* lower overhead,
+ * so very cheap to run with relatively small B1,B2 values.  A disadvantage
+ * is no continuation method, so subsequent calls with larger B1,B2 will
+ * repeat all the previous work.  ECM is much better for harder factorisations,
+ * so we typically want to try a little p-1 then move to ECM (or QS).
+ */
 int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, savea, t;
@@ -1092,20 +1115,12 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
   if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%"UVuf" B2=%"UVuf")\n", n, (unsigned long)B1, (unsigned long)B2);
 
   /* STAGE 1
-   * Montgomery 1987 p249-250 and Brent 1990 p5 both indicate we can calculate
-   * a^m mod n where m is the lcm of the integers to B1.  This can be done
-   * using either
-   *    m = calc_lcm(B), b = a^m mod n
-   * or
-   *    calculate_b_lcm(b, B1, a, n);
-   *
-   * The first means raising a to a huge power then doing the mod, which is
-   * inefficient and can be _very_ slow on some machines.  The latter does
-   * one powmod for each prime power, which works pretty well.  Yet another
-   * way to handle this is to loop over each prime p below B1, calculating
+   * See Montgomery 1987 p249-250 or Brent 1990 p5.  We can take E to be the
+   * lcm of integers to B1, then gcd(a^E-1,n) may be a factor of n.  While
+   * we could actually calculate the LCM, it is quite inefficient to do so.
+   * There are various ways to speed it up, but generally we prefer to do it
+   * the way Brent indicates, which is one powmod for each prime p below B1,
    * a = a^(p^e) mod n, where e is the largest e such that p^e <= B1.
-   * My experience with GMP is that this last method is faster with large B1,
-   * sometimes a lot faster.
    *
    * One thing that can speed things up quite a bit is not running the GCD
    * on every step.  However with small factors this means we can easily end

@@ -94,6 +94,7 @@ static int tfe(mpz_t f, mpz_t n, int effort)
     if (!success) success = (int)power_factor(n, f);
     if (success) return success;
   }
+  /* TODO: Use tinyqs effectively here, e.g. stage 3 for 50-90 bit */
 
   switch (effort) {
     case 0: success = _GMP_pminus1_factor(n, f, 400, 400);

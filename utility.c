@@ -789,7 +789,7 @@ void mpf_logn2(mpf_t logn)
   /* Formula 25, Machin-like */
   mpf_t t;
   mpz_t t1, t2, term1, term2, pows;
-  unsigned long k, bits = mpf_get_prec(logn);
+  unsigned long bits = mpf_get_prec(logn);
   unsigned long digits = 20 + (unsigned long)(bits/3.322);
 
   mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
@@ -1023,7 +1023,7 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
 void mpf_agm(mpf_t r, mpf_t a, mpf_t b)
 {
   mpf_t t;
-  unsigned long k, bits = mpf_get_prec(r);
+  unsigned long bits = mpf_get_prec(r);
 
   if (mpf_cmp(a,b) > 0) mpf_swap(a,b);
 

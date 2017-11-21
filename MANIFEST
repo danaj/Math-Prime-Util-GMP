@@ -31,6 +31,8 @@ aks.h
 aks.c
 simpqs.h
 simpqs.c
+tinyqs.h
+tinyqs.c
 isaac.h
 isaac.c
 random_prime.h

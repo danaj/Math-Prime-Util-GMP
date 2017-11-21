@@ -17,8 +17,9 @@ WriteMakefile1(
                     'factor.o '         .
                     'pbrent63.o '       .
                     'squfof126.o '      .
-                    'simpqs.o '         .
                     'ecm.o '            .
+                    'tinyqs.o '         .
+                    'simpqs.o '         .
                     'bls75.o '          .
                     'ecpp.o '           .
                     'aks.o '            .
