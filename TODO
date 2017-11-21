@@ -125,15 +125,10 @@
   By Corollary 10, N is prime
   By Theorem 19, N is prime
 
-- zeta below -3
+- zeta below -20 or so is increasingly wrong.  We should use reflection
+  formula, but that requires some new functions.  The MPU interface doesn't
+  even allow negative inputs at all so it isn't critical.
 
 - random prime should be more efficient (use A2 instead of A1).
-
-- integrate co-siqs as tinyqs.  Small, self-contained, factors 50- to 126-bit
-  in very little time.  We want to use:
-     1.  < 64-bit   pbrent
-     2.  < 61-bit   squfof126 (if pbrent isn't avail)
-     3.  < 127-bit  tinyqs
-     4.  127+ bit   other
 
 - gamma, lngamma

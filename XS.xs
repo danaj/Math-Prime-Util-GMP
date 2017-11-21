@@ -20,6 +20,7 @@
 #include "factor.h"
 #include "isaac.h"
 #include "random_prime.h"
+#include "real.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 

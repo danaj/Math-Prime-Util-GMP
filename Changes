@@ -26,7 +26,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Added Jason P's cofactorize-tinyqs, which handles up to 126 bit.
       This gives us faster and more consistent timing when factoring
-      20 to 40 digit inputs.
+      20 to 38 digit inputs.
 
 
 0.48 2017-10-05

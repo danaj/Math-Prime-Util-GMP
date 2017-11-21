@@ -24,6 +24,7 @@ WriteMakefile1(
                     'ecpp.o '           .
                     'aks.o '            .
                     'gmp_main.o '       .
+                    'real.o '           .
                     'isaac.o '          .
                     'random_prime.o '   .
                     'XS.o',

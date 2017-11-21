@@ -16,8 +16,6 @@ extern void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width);
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, UV n);
 extern void consecutive_integer_lcm(mpz_t m, UV B);
-extern void bernfrac(mpz_t num, mpz_t den, mpz_t n);
-extern void harmfrac(mpz_t num, mpz_t den, mpz_t n);
 extern void stirling(mpz_t r, unsigned long n, unsigned long m, UV type);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
@@ -33,24 +31,6 @@ extern UV   prime_power(mpz_t prime, mpz_t n);
 extern void exp_mangoldt(mpz_t res, mpz_t n);
 
 extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
-extern char* pidigits(UV n);
-
-extern char* bernreal(mpz_t zn, unsigned long prec);
-extern char* harmreal(mpz_t zn, unsigned long prec);
-extern char* zetareal(mpf_t r, unsigned long prec);
-extern char* eireal(mpf_t r, unsigned long prec);
-extern char* lireal(mpf_t r, unsigned long prec);
-extern char* riemannrreal(mpf_t r, unsigned long prec);
-extern char* lambertwreal(mpf_t r, unsigned long prec);
-extern char* logreal(mpf_t r, unsigned long prec);
-extern char* expreal(mpf_t r, unsigned long prec);
-extern char* powreal(mpf_t r, mpf_t x, unsigned long prec);
-extern char* agmreal(mpf_t a, mpf_t b, unsigned long prec);
-extern char* eulerconst(UV n);
-extern char* piconst(UV n);
-
-extern void const_euler(mpf_t gamma, unsigned long prec);
-extern void const_pi(mpf_t pi, unsigned long prec);
 
 extern void count_primes(mpz_t count, mpz_t lo, mpz_t hi);
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);

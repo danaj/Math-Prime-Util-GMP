@@ -11,6 +11,7 @@ prime_iterator.o
 factor.o
 pbrent63.o
 squfof126.o
+tinyqs.o
 simpqs.o
 ecm.o
 bls75.o
@@ -18,6 +19,7 @@ ecpp.o
 aks.o
 isaac.o
 random_prime.o
+real.o
 utility.o
 blib*
 pm_to_blib
