@@ -2109,7 +2109,8 @@ preprint, Jan 2003.  L<http://cr.yp.to/papers/aks.pdf>
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
-William Hart wrote the SIMPQS code which is the basis for the QS code.
+Jason Papadopoulos wrote the tinyqs code which is basically unchanged.
+William Hart wrote SIMPQS which is the basis for the QS code.
 
 
 =head1 ACKNOWLEDGEMENTS
@@ -2125,8 +2126,8 @@ and the like happen, and still get decent performance for my purposes.
 
 Ben Buhrow and Jason Papadopoulos deserve special mention for their open
 source factoring tools, which are both readable and fast.  In particular I am
-leveraging their SQUFOF work in the current implementation.  They are a huge
-resource to the community.
+leveraging their work on SQUFOF in the current implementation.
+They are a huge resource to the community.
 
 Jonathan Leto and Bob Kuo, who wrote and distributed the L<Math::Primality>
 module on CPAN.  Their implementation of BPSW provided the motivation I needed
@@ -2134,7 +2135,7 @@ to do it in this module and L<Math::Prime::Util>.  I also used their
 module quite a bit for testing against.
 
 Paul Zimmermann's papers and GMP-ECM code were of great value for my projective
-ECM implementation, as well as the papers by Brent and Montgomery.
+ECM implementation, as well as the many papers by Brent and Montgomery.
 
 
 =head1 COPYRIGHT

@@ -543,90 +543,6 @@ static void _ei_r(mpf_t r, mpf_t n, unsigned long prec)
   _li_r(r, r, prec+3);
 }
 
-char* zetareal(mpf_t z, unsigned long prec)
-{
-  size_t est_digits = 10+prec;
-  char* out;
-  if (mpf_cmp_ui(z,1) == 0) return 0;
-  if (mpz_sgn(z) < 0) est_digits += -mpf_get_si(z);
-  _zeta(z, z, prec);
-  New(0, out, est_digits, char);
-  gmp_sprintf(out, "%.*Ff", (int)(prec), z);
-  return out;
-}
-
-char* riemannrreal(mpf_t r, unsigned long prec)
-{
-  if (mpf_cmp_ui(r,0) <= 0) return 0;
-  _riemann_r(r, r, prec);
-  return _str_real(r, prec);
-}
-
-char* lireal(mpf_t r, unsigned long prec)
-{
-  if (mpf_cmp_ui(r,0) < 0) return 0;
-  if (mpf_cmp_ui(r,1) == 0) return 0;
-  _li_r(r, r, prec);
-  return _str_real(r, prec);
-}
-char* eireal(mpf_t r, unsigned long prec)
-{
-  if (mpf_cmp_ui(r,0) == 0) return 0;
-  _ei_r(r, r, prec);
-  return _str_real(r, prec);
-}
-
-char* logreal(mpf_t r, unsigned long prec)
-{
-  mpf_log(r, r);
-  return _str_real(r, prec);
-}
-char* expreal(mpf_t r, unsigned long prec)
-{
-  mpf_exp(r, r);
-  return _str_real(r, prec);
-}
-char* powreal(mpf_t r, mpf_t x, unsigned long prec)
-{
-  mpf_pow(r, r, x);
-  return _str_real(r, prec);
-}
-char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
-{
-  if (mpz_sgn(a) == 0 || mpz_sgn(b) == 0) {
-     mpf_set_ui(a,0);
-  } else if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) {
-     return 0;  /* NaN */
-  }
-  mpf_agm(a, a, b);
-  return _str_real(a, prec);
-}
-
-char* eulerconst(unsigned long prec) {
-  char* out;
-  mpf_t gamma;
-  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
-
-  mpf_init2(gamma, bits);
-  const_euler(gamma, prec);
-  New(0, out, prec+4, char);
-  gmp_sprintf(out, "%.*Ff", (int)(prec), gamma);
-  mpf_clear(gamma);
-  return out;
-}
-char* piconst(unsigned long prec) {
-  char* out;
-  mpf_t pi;
-  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
-
-  mpf_init2(pi, bits);
-  const_pi(pi, prec);
-  New(0, out, prec+4, char);
-  gmp_sprintf(out, "%.*Ff", (int)(prec-1), pi);
-  mpf_clear(pi);
-  return out;
-}
-
 
 /***************************        Harmonic        ***************************/
 
@@ -661,18 +577,6 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_divexact(num, num, t);
   mpz_divexact(den, den, t);
   mpz_clear(t);
-}
-
-char* harmreal(mpz_t zn, unsigned long prec) {
-  char* out;
-  mpz_t num, den;
-
-  mpz_init(num); mpz_init(den);
-  harmfrac(num, den, zn);
-  out = _frac_real(num, den, prec);
-  mpz_clear(den); mpz_clear(num);
-
-  return out;
 }
 
 /**************************        Bernoulli        **************************/
@@ -832,26 +736,6 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
   mpz_clear(t);
 }
 
-char* bernreal(mpz_t zn, unsigned long prec) {
-  char* out;
-
-  if (mpz_cmp_ui(zn,40) < 0) {
-    mpz_t num, den, t;
-    mpz_init(num); mpz_init(den); mpz_init(t);
-    _bernfrac_comb(num, den, zn, t);
-    out = _frac_real(num, den, prec);
-    mpz_clear(t); mpz_clear(den); mpz_clear(num);
-  } else {
-    mpf_t z;
-    unsigned long bits = 32+(unsigned long)(prec*3.32193);
-    mpf_init2(z, bits);
-    _bern_real_zeta(z, zn, prec);
-    out = _str_real(z, prec);
-    mpf_clear(z);
-  }
-  return out;
-}
-
 /***************************       Lambert W       ***************************/
 
 static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
@@ -992,6 +876,124 @@ static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
 
   mpf_clear(en); mpf_clear(qn); mpf_clear(zn);
   mpf_clear(w1); mpf_clear(t); mpf_clear(tol);
+}
+
+/*****************************************************************************/
+
+/*****************************************************************************/
+
+char* zetareal(mpf_t z, unsigned long prec)
+{
+  size_t est_digits = 10+prec;
+  char* out;
+  if (mpf_cmp_ui(z,1) == 0) return 0;
+  if (mpz_sgn(z) < 0) est_digits += -mpf_get_si(z);
+  _zeta(z, z, prec);
+  New(0, out, est_digits, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec), z);
+  return out;
+}
+
+char* riemannrreal(mpf_t r, unsigned long prec)
+{
+  if (mpf_cmp_ui(r,0) <= 0) return 0;
+  _riemann_r(r, r, prec);
+  return _str_real(r, prec);
+}
+char* lireal(mpf_t r, unsigned long prec)
+{
+  if (mpf_cmp_ui(r,0) < 0) return 0;
+  if (mpf_cmp_ui(r,1) == 0) return 0;
+  _li_r(r, r, prec);
+  return _str_real(r, prec);
+}
+char* eireal(mpf_t r, unsigned long prec)
+{
+  if (mpf_cmp_ui(r,0) == 0) return 0;
+  _ei_r(r, r, prec);
+  return _str_real(r, prec);
+}
+char* logreal(mpf_t r, unsigned long prec)
+{
+  mpf_log(r, r);
+  return _str_real(r, prec);
+}
+char* expreal(mpf_t r, unsigned long prec)
+{
+  mpf_exp(r, r);
+  return _str_real(r, prec);
+}
+char* powreal(mpf_t r, mpf_t x, unsigned long prec)
+{
+  mpf_pow(r, r, x);
+  return _str_real(r, prec);
+}
+char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
+{
+  if (mpz_sgn(a) == 0 || mpz_sgn(b) == 0) {
+     mpf_set_ui(a,0);
+  } else if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) {
+     return 0;  /* NaN */
+  }
+  mpf_agm(a, a, b);
+  return _str_real(a, prec);
+}
+
+char* eulerconst(unsigned long prec) {
+  char* out;
+  mpf_t gamma;
+  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+
+  mpf_init2(gamma, bits);
+  const_euler(gamma, prec);
+  New(0, out, prec+4, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec), gamma);
+  mpf_clear(gamma);
+  return out;
+}
+char* piconst(unsigned long prec) {
+  char* out;
+  mpf_t pi;
+  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+
+  mpf_init2(pi, bits);
+  const_pi(pi, prec);
+  New(0, out, prec+4, char);
+  gmp_sprintf(out, "%.*Ff", (int)(prec-1), pi);
+  mpf_clear(pi);
+  return out;
+}
+
+char* harmreal(mpz_t zn, unsigned long prec) {
+  char* out;
+  mpz_t num, den;
+
+  mpz_init(num); mpz_init(den);
+  harmfrac(num, den, zn);
+  out = _frac_real(num, den, prec);
+  mpz_clear(den); mpz_clear(num);
+
+  return out;
+}
+
+char* bernreal(mpz_t zn, unsigned long prec) {
+  char* out;
+
+  if (mpz_cmp_ui(zn,40) < 0) {
+    mpz_t num, den, t;
+    mpz_init(num); mpz_init(den); mpz_init(t);
+    _bernfrac_comb(num, den, zn, t);
+    out = _frac_real(num, den, prec);
+    mpz_clear(t); mpz_clear(den); mpz_clear(num);
+  } else {
+    mpf_t z;
+    unsigned long bits = 32+(unsigned long)(prec*3.32193);
+    mpf_init2(z, bits);
+    _bern_real_zeta(z, zn, prec);
+    out = _str_real(z, prec);
+    mpf_clear(z);
+  }
+  return out;
 }
 
 char* lambertwreal(mpf_t x, unsigned long prec) {
