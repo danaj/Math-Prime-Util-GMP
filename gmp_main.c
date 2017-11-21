@@ -613,9 +613,8 @@ static void _borwein_d(unsigned long D) {
  * certainly have done more rigorous error bounding, allowing fewer guard
  * bits and earlier loop exits.
  *
- * For real values, we use our home-grown mpf_pow function, which is very
- * slow at high precisions and again very crude compared to MPFR.
- * For non-integer values this won't compare at all in speed to MPFR or Pari.
+ * For real values, we use our home-grown mpf_pow function, which is slower
+ * at high precisions compared to MPFR or Pari.
  */
 
 static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
@@ -653,9 +652,9 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     return;
   }
 
-  mpf_init2(s,    mpf_get_prec(z));   mpf_set(s, f);
-  mpf_init2(tf,   mpf_get_prec(z));
-  mpf_init2(term, mpf_get_prec(z));
+  mpf_init2(s,    96+mpf_get_prec(z));   mpf_set(s, f);
+  mpf_init2(tf,   96+mpf_get_prec(z));
+  mpf_init2(term, 96+mpf_get_prec(z));
   mpz_init(t1);
 
   if (S && S <= 14 && !(S & 1)) {         /* Small even S can be done with Pi */
@@ -953,7 +952,7 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpz_t factorial;
   mpf_t logn, sum, inner_sum, term, p, q, tol;
-  unsigned long j, k, bits = mpf_get_prec(n);
+  unsigned long j, k, bits = 10 + mpf_get_prec(n);
 
   mpf_init2(logn,      bits);
   mpf_log(logn, n);
@@ -1017,7 +1016,7 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
 static void _ei_r(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpf_exp(r, n);
-  _li_r(r, r, prec);
+  _li_r(r, r, prec+3);
 }
 
 char* zetareal(mpf_t z, unsigned long prec)
