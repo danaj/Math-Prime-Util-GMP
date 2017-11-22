@@ -789,8 +789,6 @@ UV logint(mpz_t n, UV base) {
 
 extern void const_pi(mpf_t pi, unsigned long prec);
 extern void const_log2(mpf_t logn, unsigned long prec);
-#define BITS2DIGS(bits) ceil(bits/3.322)
-#define DIGS2BITS(digs) ceil(digs*3.322)
 
 /* Log using Brent's second AGM algorithm (Sasaki and Kanada theta) */
 void mpf_log(mpf_t logn, mpf_t n)

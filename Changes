@@ -28,6 +28,9 @@ Revision history for Perl module Math::Prime::Util::GMP
       This gives us faster and more consistent timing when factoring
       20 to 38 digit inputs.
 
+    - Constants Euler, Pi, and Log2 are cached, just like Pari/GP, MPFR, etc.
+      All three are used quite a bit internally.
+
 
 0.48 2017-10-05
 

@@ -364,7 +364,7 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
  * as it still isn't really fast.  For high precision it's about 2x slower
  * than Pari due to mpf_log / mpf_exp.
  */
-void const_euler(mpf_t gamma, unsigned long prec)
+static void _const_euler(mpf_t gamma, unsigned long prec)
 {
   const double log2 = 0.693147180559945309417232121458176568L;
   const unsigned long maxsqr = (1UL << (4*sizeof(unsigned long))) - 1;
@@ -425,7 +425,7 @@ void const_euler(mpf_t gamma, unsigned long prec)
   mpf_clear(u); mpf_clear(v); mpf_clear(a); mpf_clear(b);
 }
 
-void const_pi(mpf_t pi, unsigned long prec)
+static void _const_pi(mpf_t pi, unsigned long prec)
 {
   mpf_t t, an, bn, tn, prev_an;
   unsigned long k, bits = ceil(prec * 3.322);
@@ -472,7 +472,7 @@ void const_pi(mpf_t pi, unsigned long prec)
 
 /* http://numbers.computation.free.fr/Constants/Log2/log2.ps
  * Machin-like formula 25. */
-void const_log2(mpf_t logn, unsigned long prec)
+static void _const_log2(mpf_t logn, unsigned long prec)
 {
   mpf_t t;
   mpz_t t1, t2, term1, term2, pows;
@@ -493,6 +493,32 @@ void const_log2(mpf_t logn, unsigned long prec)
   /* logn = .69313147... */
   mpf_clear(t);
   mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
+}
+
+/* Cache constants.  We should thread lock these. */
+static mpf_t _fconst_euler, _fconst_pi, _fconst_log2;
+static unsigned long _prec_euler = 0, _prec_pi = 0, _prec_log2 = 0;
+
+#define CONST_FUNC(name) \
+  void const_##name(mpf_t c, unsigned long prec) { \
+    if (prec > _prec_##name) { \
+      prec += 10; \
+      if (_prec_##name == 0) mpf_init2(_fconst_##name, DIGS2BITS(prec)); \
+      else                   mpf_set_prec(_fconst_##name, DIGS2BITS(prec)); \
+      _const_##name(_fconst_##name, prec); \
+      _prec_##name = prec; \
+    } \
+    mpf_set(c, _fconst_##name); \
+  }
+
+CONST_FUNC(euler);
+CONST_FUNC(pi);
+CONST_FUNC(log2);
+
+void free_constants(void) {
+  _prec_euler = 0;  mpf_clear(_fconst_euler);
+  _prec_pi    = 0;  mpf_clear(_fconst_pi);
+  _prec_log2  = 0;  mpf_clear(_fconst_log2);
 }
 
 /*****************     Exponential / Logarithmic Integral     *****************/
