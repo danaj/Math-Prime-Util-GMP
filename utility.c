@@ -792,15 +792,19 @@ extern void const_log2(mpf_t logn, unsigned long prec);
 #define BITS2DIGS(bits) ceil(bits/3.322)
 #define DIGS2BITS(digs) ceil(digs*3.322)
 
-/* Log using Brent's second algorithm (Sasaki and Kanada theta) */
-void _mpf_log_agm(mpf_t logn, mpf_t n)
+/* Log using Brent's second AGM algorithm (Sasaki and Kanada theta) */
+void mpf_log(mpf_t logn, mpf_t n)
 {
   mpf_t N, t, q, theta2, theta3, logdn;
   unsigned long k, iter, bits = mpf_get_prec(logn);
   int neg = (mpf_sgn(n) < 0);
 
-  if (mpf_sgn(n) == 0) croak("mpf_log(0)");
-  if (mpf_cmp_ui(n,2) == 0) { const_log2(logn,BITS2DIGS(bits)); return; }
+  if (mpf_sgn(n) == 0)
+    croak("mpf_log(0)");
+  if (mpf_cmp_ui(n,2) == 0)
+    { const_log2(logn,BITS2DIGS(bits)); return; }
+  if ((neg && !mpf_cmp_si(n,-1)) || (!neg && !mpf_cmp_si(n,1)))
+    { mpf_set_ui(logn,0); return; }
 
   mpf_init2(N, bits);
   mpf_set(N, n);
@@ -850,80 +854,11 @@ void _mpf_log_agm(mpf_t logn, mpf_t n)
   mpf_agm(t, theta2, theta3);
   mpf_mul_2exp(t, t, 1);
 
-  const_pi(logdn, (unsigned long)(3.322 * bits));
+  const_pi(logdn, BITS2DIGS(bits));
   mpf_div(logdn, logdn, t);
 
   mpf_add(logn, logn, logdn);
   mpf_clear(logdn); mpf_clear(theta3); mpf_clear(theta2); mpf_clear(q);
-  mpf_clear(t); mpf_clear(N);
-  if (neg) mpf_neg(logn, logn);
-}
-
-void mpf_log(mpf_t logn, mpf_t n)
-{
-  mpf_t N, a, b, t, logdn;
-  unsigned long k, iter, bits = mpf_get_prec(logn);
-  int neg = (mpf_sgn(n) < 0);
-
-  if (mpf_sgn(n) == 0) croak("mpf_log(0)");
-  if (mpf_cmp_ui(n,2) == 0) { const_log2(logn,BITS2DIGS(bits)); return; }
-
-  if (bits > 40000) {   /* If caching log2 and pi, then this changes */
-    _mpf_log_agm(logn, n);
-    return;
-  }
-
-  mpf_init2(N, bits);
-  mpf_set(N, n);
-  if (neg) mpf_neg(N, N);
-
-  mpf_init2(t, 64 + bits);
-  mpf_set_ui(logn, 0);
-
-  /* Reduce N to 2^-32 < N < 2^32 */
-  mpf_set_ui(t, 1); mpf_mul_2exp(t, t, 32);
-  if (mpf_cmp(N, t) > 0) {
-    for (k = 0; mpf_cmp(N, t) > 0; k += 32)
-      mpf_div_2exp(N, N, 32);
-    if (k > 0) {
-      const_log2(t, BITS2DIGS(bits));
-      mpf_mul_ui(logn, t, k);
-    }
-  }
-  mpf_set_ui(t, 1); mpf_div_2exp(t, t, 32);
-  if (mpf_cmp(N, t) < 0) {
-    for (k = 0; mpf_cmp(N, t) < 0; k += 32)
-      mpf_mul_2exp(N, N, 32);
-    if (k > 0) {
-      const_log2(t, BITS2DIGS(bits));
-      mpf_mul_ui(logn, t, k);
-      mpf_neg(logn, logn);
-    }
-  }
-
-  mpf_init2(a,     64 + bits);
-  mpf_init2(b,     64 + bits);
-  mpf_init2(logdn, 64 + bits);
-
-  if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
-    mpf_set_d(logdn, log(mpf_get_d(N)));
-    for (iter = 0, k = bits; k > 45; k /= 3) iter++;
-  } else {                    /* Recursive call with lower prec. */
-    mpf_set_prec_raw(logdn, (bits+2)/3);
-    mpf_log(logdn, N);
-    mpf_set_prec_raw(logdn, 64+bits);
-    iter = 1;
-  }
-  for (k = 0; k < iter; k++) { /* Halley */
-    mpf_exp(t, logdn);
-    mpf_mul_2exp(a, t, 2);
-    mpf_add(b, t, N);
-    mpf_div(t, a, b);
-    mpf_ui_sub(t, 2, t);
-    mpf_add(logdn, logdn, t);
-  }
-  mpf_add(logn, logn, logdn);
-  mpf_clear(logdn); mpf_clear(b); mpf_clear(a);
   mpf_clear(t); mpf_clear(N);
   if (neg) mpf_neg(logn, logn);
 }
@@ -989,11 +924,9 @@ void mpf_exp(mpf_t expn, mpf_t x)
   mpf_sqrt(t, t);
   mpf_add(s, s, t);
 
-  /* We'd like to do fewer iterations in the loop above, then use higher
-   * order Newton to rapidly fill in bits.  However, that means calling
-   * log, and our log calls exp.  So we can't do that.
-   * TODO: We could using the AGM log call.  Do the sinh/e calc above with
-   * reduced precision then use Newton+ using AGM log to fill in bits.
+  /* Now that log doesn't call us, consider either:
+   *   1) exp via log entirely
+   *   2) what we used to do: fewer iterations of sinh loop, then Newton.
    */
 
   mpf_set(expn, s);
