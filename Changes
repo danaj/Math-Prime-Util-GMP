@@ -21,8 +21,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - moebius handles negative inputs
 
-    - Rewrite mpf_log internal function.
-      Among other things, this speeds up floating point zeta by about 4x.
+    - Rewrite internal log and exp functions.
+      Among other things, this speeds up floating point zeta by 10x.
 
     - Added Jason P's cofactorize-tinyqs, which handles up to 126 bit.
       This gives us faster and more consistent timing when factoring

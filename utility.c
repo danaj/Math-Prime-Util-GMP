@@ -861,12 +861,79 @@ void mpf_log(mpf_t logn, mpf_t n)
   if (neg) mpf_neg(logn, logn);
 }
 
+/* x should be 0 < x < 1 */
+static void _exp_sinh(mpf_t expx, mpf_t x, unsigned long bits)
+{
+  unsigned long k;
+  mpf_t t, s, N, D, X;
+
+  mpf_init2(t, 10 + bits);
+  mpf_init2(s, 10 + bits);
+  mpf_init2(N, 10 + bits);
+  mpf_init2(D, 10 + bits);
+  mpf_init2(X, 10 + bits);
+
+  /* 1. Compute s =~ sinh(x). */
+  mpf_set(s,x);
+  mpf_set(N,x);
+  mpf_mul(X,x,x);
+  mpf_set_ui(D,1);
+  for (k = 1; k < bits; k++) {
+    mpf_mul(N, N, X);
+    mpf_mul_ui(D, D, 2*k);
+    mpf_mul_ui(D, D, 2*k+1);
+    mpf_div(t, N, D);
+    mpf_add(s, s, t);
+
+    mpf_abs(t, t);
+    mpf_mul_2exp(t, t, bits);
+    if (mpf_cmp_d(t, .5) < 0)
+      break;
+  }
+  mpf_clear(X); mpf_clear(D); mpf_clear(N);
+
+  /* 2. Compute s =~ e(x) from sinh(x). */
+  mpf_mul(t, s, s);
+  mpf_add_ui(t, t, 1);
+  mpf_sqrt(t, t);
+  mpf_add(s, s, t);
+
+  mpf_set(expx, s);
+  mpf_clear(s); mpf_clear(t);
+}
+
+static void _exp_lift(mpf_t expx, mpf_t x, unsigned long bits)
+{
+  mpf_t s, t1, t2;
+  unsigned long k;
+
+  mpf_init2(s,  10 + bits);
+  mpf_init2(t1, 10 + bits);
+  mpf_init2(t2, 10 + bits);
+
+  mpf_set(s, expx);
+  mpf_log(t1, s);
+  mpf_sub(t2, x, t1);     /* t2 = s-ln(x) */
+  mpf_mul(t1, s, t2);     /* t1 = s(s-ln(x) */
+  mpf_add(s, s, t1);
+  /* third and higher orders */
+  for (k = 3; k <= 8; k++) {
+    mpf_mul(t1, t1, t2);
+    mpf_div_ui(t1, t1, k-1);
+    mpf_add(s, s, t1);
+  }
+  mpf_set(expx, s);
+  mpf_clear(t2); mpf_clear(t1); mpf_clear(s);
+}
+
 void mpf_exp(mpf_t expn, mpf_t x)
 {
   mpf_t N, D, X, s, t;
-  unsigned long k, kinit, bits = mpf_get_prec(x);
+  unsigned long k, bits = mpf_get_prec(expn);
 
-  mpf_init2(t, 64 + bits);
+  if (mpf_sgn(x) == 0) { mpf_set_ui(expn, 1); return; }
+
+  mpf_init2(t, 10 + bits);
 
   if (mpf_sgn(x) < 0) { /* As per Brent, exp(x) = 1/exp(-x) */
     mpf_neg(t, x);
@@ -881,55 +948,27 @@ void mpf_exp(mpf_t expn, mpf_t x)
   mpf_set(t, x);
   for (k = 0; mpf_cmp_d(t, 1.0L/8192.0L) > 0; k++)
     mpf_div_2exp(t, t, 1);
+
+  if (bits < 1600) {
+    _exp_sinh(expn, t, bits);
+  } else if (bits < 320000) {
+    _exp_sinh(expn, t, bits/8);
+    _exp_lift(expn, t, bits);
+  } else {
+    _exp_sinh(expn, t, bits/64);
+    _exp_lift(expn, t, bits);
+    _exp_lift(expn, t, bits);
+  }
+
   if (k > 0) {
     const unsigned long maxred = 8*sizeof(unsigned long)-1;
-    mpf_exp(expn, t);
     for ( ; k > maxred; k -= maxred)
       mpf_pow_ui(expn, expn, 1UL << maxred);
     mpf_pow_ui(expn, expn, 1UL << k);
-    mpf_clear(t);
-    return;
   }
-
-  mpf_init2(N, 64 + bits);
-  mpf_init2(D, 64 + bits);
-  mpf_init2(s, 64 + bits);
-  mpf_init2(X, 64 + bits);
-
-  /* 1. Compute s =~ sinh(x). */
-  mpf_set(s,x);
-  mpf_set(N,x);
-  mpf_mul(X,x,x);
-  mpf_set_ui(D,1);
-  kinit = bits;
-  for (k = 1; k < kinit; k++) {
-    mpf_mul(N, N, X);
-    mpf_mul_ui(D, D, 2*k);
-    mpf_mul_ui(D, D, 2*k+1);
-    mpf_div(t, N, D);
-    mpf_add(s, s, t);
-
-    mpf_abs(t, t);
-    mpf_mul_2exp(t, t, bits);
-    if (mpf_cmp_d(t, .5) < 0)
-      break;
-  }
-  mpf_clear(X);
-
-  /* 2. Compute s =~ e(x) from sinh(x). */
-  mpf_mul(t, s, s);
-  mpf_add_ui(t, t, 1);
-  mpf_sqrt(t, t);
-  mpf_add(s, s, t);
-
-  /* Now that log doesn't call us, consider either:
-   *   1) exp via log entirely
-   *   2) what we used to do: fewer iterations of sinh loop, then Newton.
-   */
-
-  mpf_set(expn, s);
-  mpf_clear(s); mpf_clear(D); mpf_clear(N); mpf_clear(t);
+  mpf_clear(t);
 }
+
 
 /* Negative b with non-int x usually gives a complex result.
  * We try to at least give a consistent result. */
