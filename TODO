@@ -132,3 +132,7 @@
 - random prime should be more efficient (use A2 instead of A1).
 
 - gamma, lngamma
+
+- move log2 to a const
+
+- cache euler, pi, log2

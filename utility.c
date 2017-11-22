@@ -674,8 +674,8 @@ void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
   mpz_tdiv_q_ui(r, pow, base);
   mpz_set(t1, r);
   do {
-    mpz_ui_pow_ui(t2, base, 2);
-    mpz_tdiv_q(t1, t1, t2);
+    if (base > 65535) { mpz_ui_pow_ui(t2, base, 2); mpz_tdiv_q(t1, t1, t2); }
+    else               mpz_tdiv_q_ui(t1, t1, base*base);
     mpz_tdiv_q_ui(t2, t1, 2*i+1);
     if (i++ & 1) mpz_sub(r, r, t2); else mpz_add(r, r, t2);
   } while (mpz_sgn(t2));
@@ -686,8 +686,8 @@ void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
   mpz_tdiv_q_ui(r, pow, base);
   mpz_set(t1, r);
   do {
-    mpz_ui_pow_ui(t2, base, 2);
-    mpz_tdiv_q(t1, t1, t2);
+    if (base > 65535) { mpz_ui_pow_ui(t2, base, 2); mpz_tdiv_q(t1, t1, t2); }
+    else               mpz_tdiv_q_ui(t1, t1, base*base);
     mpz_tdiv_q_ui(t2, t1, 1 + (i++ << 1));
     mpz_add(r, r, t2);
   } while (mpz_sgn(t2));
@@ -777,8 +777,12 @@ UV logint(mpz_t n, UV base) {
 /******************************************************************************/
 /*
  * Floating point routines.
- * These are very crude.  Use MPFR if at all possible.
+ * These are not rigorously accurate.  Use MPFR if possible.
  *
+ * See also: http://fredrikj.net/math/elefun.pdf
+ * for how to really look at this correctly.
+ *
+ * Many ideas from Brent's presentation:
  * https://pdfs.semanticscholar.org/8aec/ea97b8f2f23d4f09ec8f69025598f742ae9e.pdf
  */
 
@@ -840,21 +844,91 @@ void mpf_logn2(mpf_t logn)
 
 extern void const_pi(mpf_t pi, unsigned long prec);
 
-void mpf_log(mpf_t logn, mpf_t n)
+/* Log using Brent's second algorithm (Sasaki and Kanada theta) */
+void _mpf_log_agm(mpf_t logn, mpf_t n)
 {
-  mpf_t N, a, b, t, logdn;
+  mpf_t N, t, q, theta2, theta3, logdn;
   unsigned long k, iter, bits = mpf_get_prec(logn);
-  int neg = 0;
+  int neg = (mpf_sgn(n) < 0);
 
   if (mpf_sgn(n) == 0) croak("mpf_log(0)");
   if (mpf_cmp_ui(n,2) == 0) { mpf_logn2(logn); return; }
 
   mpf_init2(N, bits);
   mpf_set(N, n);
-  if (mpf_sgn(N) < 0) {
-    mpf_neg(N, N);
-    neg = 1;
+  if (neg) mpf_neg(N, N);
+
+  mpf_init2(t, 64 + bits);
+  mpf_init2(q,      64 + bits);
+  mpf_init2(theta2, 64 + bits);
+  mpf_init2(theta3, 64 + bits);
+  mpf_init2(logdn,  64 + bits);
+  mpf_set_ui(logn, 0);
+
+  /* ensure N >> 1 */
+  mpf_set_ui(t, 1);  mpf_mul_2exp(t, t, 1+(35+bits)/36);
+  if (mpf_cmp(N, t) <= 0) {
+    /* log(n) = log(n*2^k) - k*log(2) */
+    for (k = 0; mpf_cmp(N, t) <= 0; k += 16)
+      mpf_mul_2exp(N, N, 16);
+    if (k > 0) {
+      mpf_logn2(t); /* <-- A depressingly large amount of time is spent here */
+      mpf_mul_ui(logn, t, k);
+      mpf_neg(logn, logn);
+    }
   }
+
+  mpf_ui_div(q, 1, N);
+  mpf_pow_ui(t,q,9); mpf_add(theta2, q, t);
+  mpf_pow_ui(t,q,25); mpf_add(theta2, theta2, t);
+  mpf_mul_2exp(theta2, theta2, 1);
+  mpf_pow_ui(theta3,q,4);
+  mpf_pow_ui(t,q,16); mpf_add(theta3, theta3, t);
+  mpf_mul_2exp(theta3, theta3, 1);
+  mpf_add_ui(theta3, theta3, 1);
+
+  /* Normally we would do:
+   *   mpf_mul(theta2, theta2, theta2); mpf_mul(theta3, theta3, theta3);
+   *   mpf_agm(t, theta2, theta3); mpf_mul_2exp(t, t, 2);
+   * but Brent points out the one term acceleration:
+   *   AGM(t2^2,t3^2)  =>  AGM(2*t2*t3,t2^2+t3^2)/2
+   */
+  mpf_mul(t, theta2, theta3);
+  mpf_mul_2exp(q, t, 1);  /* q = 2*t2*t3 */
+  mpf_add(t, theta2, theta3);
+  mpf_mul(t, t, t);       /* t = (t2+t3)^2 = t2^2 + t3^2 + 2*t2*t3 */
+  mpf_sub(theta3, t, q);
+  mpf_set(theta2, q);
+  mpf_agm(t, theta2, theta3);
+  mpf_mul_2exp(t, t, 1);
+
+  const_pi(logdn, (unsigned long)(3.322 * bits));
+  mpf_div(logdn, logdn, t);
+
+  mpf_add(logn, logn, logdn);
+  mpf_clear(logdn); mpf_clear(theta3); mpf_clear(theta2); mpf_clear(q);
+  mpf_clear(t); mpf_clear(N);
+  if (neg) mpf_neg(logn, logn);
+}
+
+void mpf_log(mpf_t logn, mpf_t n)
+{
+  mpf_t N, a, b, t, logdn;
+  unsigned long k, iter, bits = mpf_get_prec(logn);
+  int neg = (mpf_sgn(n) < 0);
+
+  if (mpf_sgn(n) == 0) croak("mpf_log(0)");
+  if (mpf_cmp_ui(n,2) == 0) { mpf_logn2(logn); return; }
+
+  if (bits > 40000) {   /* If caching log2 and pi, then this changes */
+    _mpf_log_agm(logn, n);
+    return;
+  }
+
+  mpf_init2(N, bits);
+  mpf_set(N, n);
+  if (neg) mpf_neg(N, N);
+
   mpf_init2(t, 64 + bits);
   mpf_set_ui(logn, 0);
 
@@ -879,45 +953,26 @@ void mpf_log(mpf_t logn, mpf_t n)
     }
   }
 
-  mpf_init2(a, 64 + bits);
-  mpf_init2(b, 64 + bits);
+  mpf_init2(a,     64 + bits);
+  mpf_init2(b,     64 + bits);
   mpf_init2(logdn, 64 + bits);
 
-  if (bits > 12000) {   /* AGM method.  Should look at accuracy some more. */
-    unsigned long p, i, m;
-    for (p = 1, i = bits; i >>= 1; ) p++;
-    p = bits + 5 + 2*p;
-    m = (p+1)/2;   /* - exponent(n) + 1 */
-
-    mpf_set_ui(a, 1);
-    mpf_mul_2exp(b, a, m);
-    mpf_mul(b, b, N);
-    mpf_ui_div(b, 4, b);
-    mpf_agm(t, a, b);
-    mpf_mul_2exp(b, t, 1);
-    const_pi(a, (unsigned long)(3.322 * bits));
+  if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
+    mpf_set_d(logdn, log(mpf_get_d(N)));
+    for (iter = 0, k = bits; k > 45; k /= 3) iter++;
+  } else {                    /* Recursive call with lower prec. */
+    mpf_set_prec_raw(logdn, (bits+2)/3);
+    mpf_log(logdn, N);
+    mpf_set_prec_raw(logdn, 64+bits);
+    iter = 1;
+  }
+  for (k = 0; k < iter; k++) { /* Halley */
+    mpf_exp(t, logdn);
+    mpf_mul_2exp(a, t, 2);
+    mpf_add(b, t, N);
     mpf_div(t, a, b);
-    mpf_logn2(b);
-    mpf_mul_ui(a, b, m);
-    mpf_sub(logdn, t, a);
-  } else {
-    if (bits <= 45*3*3*3*3) {   /* Initial estimate from log(). */
-      mpf_set_d(logdn, log(mpf_get_d(N)));
-      for (iter = 0, k = bits; k > 45; k /= 3) iter++;
-    } else {                    /* Recursive call with lower prec. */
-      mpf_set_prec_raw(logdn, (bits+2)/3);
-      mpf_log(logdn, N);
-      mpf_set_prec_raw(logdn, 64+bits);
-      iter = 1;
-    }
-    for (k = 0; k < iter; k++) { /* Halley */
-      mpf_exp(t, logdn);
-      mpf_mul_2exp(a, t, 2);
-      mpf_add(b, t, N);
-      mpf_div(t, a, b);
-      mpf_ui_sub(t, 2, t);
-      mpf_add(logdn, logdn, t);
-    }
+    mpf_ui_sub(t, 2, t);
+    mpf_add(logdn, logdn, t);
   }
   mpf_add(logn, logn, logdn);
   mpf_clear(logdn); mpf_clear(b); mpf_clear(a);
@@ -943,7 +998,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
 
   /* Doubling rule, to make -.25 < x < .25.  Speeds convergence. */
   mpf_set(t, x);
-  for (k = 0; mpf_cmp_d(t, 1.0L/1024.0L) > 0; k++)
+  for (k = 0; mpf_cmp_d(t, 1.0L/8192.0L) > 0; k++)
     mpf_div_2exp(t, t, 1);
   if (k > 0) {
     const unsigned long maxred = 8*sizeof(unsigned long)-1;
@@ -988,7 +1043,10 @@ void mpf_exp(mpf_t expn, mpf_t x)
 
   /* We'd like to do fewer iterations in the loop above, then use higher
    * order Newton to rapidly fill in bits.  However, that means calling
-   * log, and our log calls exp.  So we can't do that. */
+   * log, and our log calls exp.  So we can't do that.
+   * TODO: We could using the AGM log call.  Do the sinh/e calc above with
+   * reduced precision then use Newton+ using AGM log to fill in bits.
+   */
 
   mpf_set(expn, s);
   mpf_clear(s); mpf_clear(D); mpf_clear(N); mpf_clear(t);

@@ -1151,9 +1151,11 @@ Returns the natural logarithm of the input C<n>.
 An optional second argument indicates the number of significant digits
 (default 40) with the result rounded.
 
-The implementation uses 2nd order Newton (i.e. Halley) on exp(n).
-Performance is about 1000x faster than Math::BigFloat using its GMP
-backend.  It is 2-1000x slower than Pari/GP 2.10.
+For C<logreal(2)> we use Formula 25 from Gourdon and Sebah (2010).
+For other values, depending on how much precision is needed, either
+Newton-Halley iteration with increasing precision ladder or AGM is used.
+Performance is 100-1000x faster than Math::BigFloat's GMP backend.
+It is 10x slower than Pari/GP 2.10 and MPFR.
 
 Negative inputs are returned as C<-log(-n)>, which matches L<bignum>.
 Pari/GP and Mathematica return C<log(-n) + Pi*i>.
@@ -1518,10 +1520,10 @@ C<n> must be present.  The result will be between C<0> and C<n!-1>.
 Takes a positive integer argument C<n> and returns the constant Pi with that
 many digits (including the leading 3).  Rounding is performed.
 
-The implementation uses AGM and is only slightly slower than MPFR (which has
-tighter bounds on the intermediate bits and exit conditions).  It is about
-4x slower than Pari/GP's Ramanujan/Chudnovsky binary splitting method, and
-almost identical to MPFR.
+The implementation uses AGM and is similar in speed to MPFR.
+It is about 4x slower than Pari/GP's Ramanujan/Chudnovsky binary splitting
+method, and much slower than specialized programs such as C<y-cruncher>.
+No caching is performed, unlike those libraries.
 
 
 =head2 Euler
@@ -1531,6 +1533,7 @@ with that many digits.  Rounding is performed.
 
 The implementation is Brent-McMillan algorithm B, just like Pari/GP.
 Performance is about 2x faster than Pari/GP, but 2-10x slower than MPFR.
+No caching is performed, unlike those libraries.
 
 
 =head2 exp_mangoldt
