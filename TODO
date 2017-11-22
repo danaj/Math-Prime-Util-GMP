@@ -133,6 +133,4 @@
 
 - gamma, lngamma
 
-- move log2 to a const
-
-- cache euler, pi, log2
+- cache euler, pi, log2.  Make sure to change docs.

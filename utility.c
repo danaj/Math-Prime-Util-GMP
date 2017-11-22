@@ -786,63 +786,11 @@ UV logint(mpz_t n, UV base) {
  * https://pdfs.semanticscholar.org/8aec/ea97b8f2f23d4f09ec8f69025598f742ae9e.pdf
  */
 
-/* http://numbers.computation.free.fr/Constants/Log2/log2.ps */
-void mpf_logn2(mpf_t logn)
-{
-#if 1
-  /* Formula 25, Machin-like */
-  mpf_t t;
-  mpz_t t1, t2, term1, term2, pows;
-  unsigned long bits = mpf_get_prec(logn);
-  unsigned long digits = 20 + (unsigned long)(bits/3.322);
-
-  mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
-  mpf_init2(t, 64+bits);
-  mpz_ui_pow_ui(pows, 10, digits);
-  mpz_arctanh(term1,   26, pows, t1, t2);  mpz_mul_ui(term1, term1,  18);
-  mpz_arctanh(term2, 4801, pows, t1, t2);  mpz_mul_ui(term2, term2,   2);
-  mpz_sub(term1, term1, term2);
-  mpz_arctanh(term2, 8749, pows, t1, t2);  mpz_mul_ui(term2, term2,   8);
-  mpz_add(term1, term1, term2);
-  /* term1 = 69313147... */
-  mpf_set_z(logn, term1);
-  mpf_set_z(t, pows);
-  mpf_div(logn, logn, t);
-  /* logn = .69313147... */
-  mpf_clear(t);
-  mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
-#else
-  /* Newton / Halley on exp */
-  mpf_t a, b, t;
-  unsigned long k, iter, bits = mpf_get_prec(logn);
-
-  if (bits <= 155*3*3) {
-    mpf_set_str(logn, "0.693147180559945309417232121458176568075500134360", 10);
-    for (iter = 0, k = bits; k > 155; k /= 3) iter++;
-  } else {
-    mpf_set_prec_raw(logn, (bits+2)/3);
-    mpf_logn2(logn);
-    mpf_set_prec_raw(logn, bits);
-    iter = 1;
-  }
-
-  mpf_init2(t, 64 + bits);
-  mpf_init2(a, 64 + bits);
-  mpf_init2(b, 64 + bits);
-
-  for (k = 0; k < iter; k++) {
-    mpf_exp(t, logn);
-    mpf_mul_2exp(a, t, 2);
-    mpf_add_ui(b, t, 2);
-    mpf_div(t, a, b);
-    mpf_ui_sub(t, 2, t);
-    mpf_add(logn, logn, t);
-  }
-  mpf_clear(b); mpf_clear(a); mpf_clear(t);
-#endif
-}
 
 extern void const_pi(mpf_t pi, unsigned long prec);
+extern void const_log2(mpf_t logn, unsigned long prec);
+#define BITS2DIGS(bits) ceil(bits/3.322)
+#define DIGS2BITS(digs) ceil(digs*3.322)
 
 /* Log using Brent's second algorithm (Sasaki and Kanada theta) */
 void _mpf_log_agm(mpf_t logn, mpf_t n)
@@ -852,7 +800,7 @@ void _mpf_log_agm(mpf_t logn, mpf_t n)
   int neg = (mpf_sgn(n) < 0);
 
   if (mpf_sgn(n) == 0) croak("mpf_log(0)");
-  if (mpf_cmp_ui(n,2) == 0) { mpf_logn2(logn); return; }
+  if (mpf_cmp_ui(n,2) == 0) { const_log2(logn,BITS2DIGS(bits)); return; }
 
   mpf_init2(N, bits);
   mpf_set(N, n);
@@ -872,7 +820,7 @@ void _mpf_log_agm(mpf_t logn, mpf_t n)
     for (k = 0; mpf_cmp(N, t) <= 0; k += 16)
       mpf_mul_2exp(N, N, 16);
     if (k > 0) {
-      mpf_logn2(t); /* <-- A depressingly large amount of time is spent here */
+      const_log2(t, BITS2DIGS(bits));
       mpf_mul_ui(logn, t, k);
       mpf_neg(logn, logn);
     }
@@ -918,7 +866,7 @@ void mpf_log(mpf_t logn, mpf_t n)
   int neg = (mpf_sgn(n) < 0);
 
   if (mpf_sgn(n) == 0) croak("mpf_log(0)");
-  if (mpf_cmp_ui(n,2) == 0) { mpf_logn2(logn); return; }
+  if (mpf_cmp_ui(n,2) == 0) { const_log2(logn,BITS2DIGS(bits)); return; }
 
   if (bits > 40000) {   /* If caching log2 and pi, then this changes */
     _mpf_log_agm(logn, n);
@@ -938,7 +886,7 @@ void mpf_log(mpf_t logn, mpf_t n)
     for (k = 0; mpf_cmp(N, t) > 0; k += 32)
       mpf_div_2exp(N, N, 32);
     if (k > 0) {
-      mpf_logn2(t);
+      const_log2(t, BITS2DIGS(bits));
       mpf_mul_ui(logn, t, k);
     }
   }
@@ -947,7 +895,7 @@ void mpf_log(mpf_t logn, mpf_t n)
     for (k = 0; mpf_cmp(N, t) < 0; k += 32)
       mpf_mul_2exp(N, N, 32);
     if (k > 0) {
-      mpf_logn2(t);
+      const_log2(t, BITS2DIGS(bits));
       mpf_mul_ui(logn, t, k);
       mpf_neg(logn, logn);
     }

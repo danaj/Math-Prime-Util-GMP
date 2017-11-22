@@ -91,7 +91,6 @@ extern int* poly_class_nums(void);
  */
 extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
 
-extern void mpf_logn2(mpf_t logn);
 extern void mpf_log(mpf_t logx, mpf_t x);
 extern void mpf_exp(mpf_t expx, mpf_t x);
 extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);

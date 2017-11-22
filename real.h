@@ -22,5 +22,6 @@ extern char* piconst(UV n);
 
 extern void const_euler(mpf_t gamma, unsigned long prec);
 extern void const_pi(mpf_t pi, unsigned long prec);
+extern void const_log2(mpf_t logn, unsigned long prec);
 
 #endif

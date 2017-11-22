@@ -386,7 +386,7 @@ void const_euler(mpf_t gamma, unsigned long prec)
   mpf_init2(b,    bits);
 
   mpf_set_ui(u, x);
-  mpf_log(u, u);       /* <-- About 20% of the time is spent here. */
+  mpf_log(u, u);
   mpf_neg(u, u);
   mpf_set(a, u);
   mpf_set_ui(b, 1);
@@ -468,6 +468,31 @@ void const_pi(mpf_t pi, unsigned long prec)
   mpf_div(pi, an, t);               /* return (A+B)^2 / 4T */
   mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
   mpf_clear(prev_an); mpf_clear(t);
+}
+
+/* http://numbers.computation.free.fr/Constants/Log2/log2.ps
+ * Machin-like formula 25. */
+void const_log2(mpf_t logn, unsigned long prec)
+{
+  mpf_t t;
+  mpz_t t1, t2, term1, term2, pows;
+  unsigned long bits = mpf_get_prec(logn);
+
+  mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
+  mpf_init2(t, 64+bits);
+  mpz_ui_pow_ui(pows, 10, 20+prec);
+  mpz_arctanh(term1,   26, pows, t1, t2);  mpz_mul_ui(term1, term1,  18);
+  mpz_arctanh(term2, 4801, pows, t1, t2);  mpz_mul_ui(term2, term2,   2);
+  mpz_sub(term1, term1, term2);
+  mpz_arctanh(term2, 8749, pows, t1, t2);  mpz_mul_ui(term2, term2,   8);
+  mpz_add(term1, term1, term2);
+  /* term1 = 69313147... */
+  mpf_set_z(logn, term1);
+  mpf_set_z(t, pows);
+  mpf_div(logn, logn, t);
+  /* logn = .69313147... */
+  mpf_clear(t);
+  mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
 }
 
 /*****************     Exponential / Logarithmic Integral     *****************/
