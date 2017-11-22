@@ -55,7 +55,7 @@ static INLINE void u64_2gmp(u64 src, mpz_t dest)
 /* High-throughput, low-overhead implementation of the self-
    initializing multiple polynomial quadratic sieve, optimized
    for small inputs (50-120 bits). Many of the ideas here are
-   extensions of the remarkable MPQS code of F. Bahr, used 
+   extensions of the remarkable MPQS code of F. Bahr, used
    in the lattice sievers by Jens Franke */
 
 /* TODO: lots of static mpz_t is an issue for threading */
@@ -94,7 +94,7 @@ static const u64 bitmask[] = {
   B(56), B(57), B(58), B(59), B(60), B(61), B(62), B(63),
 };
 
-/* maximum size pool of primes from which 
+/* maximum size pool of primes from which
    factor base is constructed */
 #define NUM_PRIMES_TINY 1024
 
@@ -114,7 +114,7 @@ static const u64 bitmask[] = {
 /* offset of the first valid factor base prime */
 #define MIN_FB_OFFSET_TINY 1
 
-/* offset of the first factor base prime 
+/* offset of the first factor base prime
    actually contributing to the sieving */
 #define MIN_FB_OFFSET_TO_SIEVE_TINY 7
 
@@ -128,7 +128,7 @@ static const u64 bitmask[] = {
 /* maximum number of MPQS polynomials to be computed */
 #define MAX_POLY_TINY 256
 
-/* maximum number of FB primes that contribute to 
+/* maximum number of FB primes that contribute to
    a single polynomial 'A' value */
 #define MAX_POLY_FACTORS_TINY 5
 
@@ -146,8 +146,8 @@ static const u64 bitmask[] = {
    large prime is stored separately) */
 #define MAX_FACTORS_TINY 20
 
-/* partial relations are listed in the order 
-   in which they occur, and a hashtable matches 
+/* partial relations are listed in the order
+   in which they occur, and a hashtable matches
    up partial relations with the same large prime. */
 #define LOG2_PARTIAL_TABLE_SIZE 10
 #define LARGE_PRIME_HASH(x) (((u32)(x) * ((u32)40499 * 65543)) >> \
@@ -159,11 +159,11 @@ static const u64 bitmask[] = {
 /* scale factor for all log values */
 #define LOGPRIME_SCALE_TINY 2
 
-/* maximum number of relations to be saved for 
+/* maximum number of relations to be saved for
    resieving, used in place of trial factoring */
 #define SIEVE_BATCH_SIZE_TINY 128
 
-/* maximum size of the pool of FB primes that 
+/* maximum size of the pool of FB primes that
    can appear in a polynomial 'A' value */
 #define POLY_SELECT_BITS_TINY 12
 
@@ -231,10 +231,10 @@ typedef struct {
   s32 fb_size;                      /* number of FB primes */
   u16 prime_list[NUM_PRIMES_TINY];  /* complete list of primes from which
                                        factor base is generated */
-  float test_prime_contrib[NUM_TEST_PRIMES_TINY]; /* scratch space used in 
+  float test_prime_contrib[NUM_TEST_PRIMES_TINY]; /* scratch space used in
                                                      multiplier selection */
   tiny_fb factor_base[MAX_FB_SIZE_TINY];          /* the factor base */
-  u16 root_aux[MAX_POLY_FACTORS_TINY * 
+  u16 root_aux[MAX_POLY_FACTORS_TINY *
                MAX_FB_SIZE_TINY];      /* scratch value for initializing
                                           sieve roots */
   /* relation stuff */
@@ -251,7 +251,7 @@ typedef struct {
      from the beginning of the list, while partial relations that
      have not been matched up yet are stored in a list growing down
      from the end of relation_list. num_full_relations is the index
-     of the first free space for full relations, and partial_idx 
+     of the first free space for full relations, and partial_idx
      does the same for unmatched partial relations. */
 
   tiny_relation relation_list[4 * MAX_RELATIONS_TINY];
@@ -277,9 +277,9 @@ static tiny_qs_params *g_params = NULL;
 
 /* The following utility routines are not really
    a performance bottleneck, but since they always
-   deal with 16-bit data at most their input 
-   datatypes should really by u16's. This will 
-   make all the division and remainder operations 
+   deal with 16-bit data at most their input
+   datatypes should really by u16's. This will
+   make all the division and remainder operations
    a lot faster */
 
 /***********************************/
@@ -315,7 +315,7 @@ Compute the Legendre symbol (a/p)
 }
 
 /***********************************/
-static s32 powm_16(s32 a, s32 b, s32 n) 
+static s32 powm_16(s32 a, s32 b, s32 n)
 /***********************************
 Compute a^b mod n
 ************************************/
@@ -380,7 +380,7 @@ for coming up with this
     ps2 = ps1;
     ps1 = q;
   }
-  
+
   if (parity == 0)
     return ps1;
   else
@@ -391,7 +391,7 @@ for coming up with this
 static s32 sqrtModP_16(s32 a, s32 p)
 /***********************************
 Compute the square root of 'a' mod 'p'
-This is Algorithm 2.3.8 from Crandall & 
+This is Algorithm 2.3.8 from Crandall &
 Pomerance, "Prime Numbers: A Computational
 Perspective"
 ************************************/
@@ -402,7 +402,7 @@ Perspective"
   else if ( (p & 7) == 5 ) {
 #if 0
     s32 x, y;
-    
+
     x = powm_16(a, (p+3)/8, p);
     if ((x * x % p) == a)
       return x;
@@ -511,7 +511,7 @@ static void init_tinyqs(void)
      these quantities are */
 
   for (i = 1; i < NUM_TEST_PRIMES_TINY; i++) {
-    p->test_prime_contrib[i] = 2 * log((double)p->prime_list[i]) / 
+    p->test_prime_contrib[i] = 2 * log((double)p->prime_list[i]) /
                                (p->prime_list[i] - 1) / M_LN2;
   }
 }
@@ -520,25 +520,25 @@ static void init_tinyqs(void)
    algorithm. This borrows ideas from at least four different
    sources, and seems to choose multipliers that are better on
    average than many of the other methods available.
-   
+
    There are many misconceptions about what this algorithm is
    supposed to do. We want to multiply the input number n by a
-   small odd squarefree constant k, chosen so that the factor base 
+   small odd squarefree constant k, chosen so that the factor base
    for k * n contains as many small primes as possible. Since small primes
    occur more often than big ones, this makes sieve values smaller
    on average and so more likely to be smooth. We quantify this
    by measuring the average contribution of the first NUM_TEST_PRIMES_TINY
-   primes to sieve values. There are two constraints: first, larger 
-   multipliers mean a larger number to factor. Second, we can't spend 
-   all day testing multipliers, so the set of multipliers to test should 
-   be small. 
+   primes to sieve values. There are two constraints: first, larger
+   multipliers mean a larger number to factor. Second, we can't spend
+   all day testing multipliers, so the set of multipliers to test should
+   be small.
 
    The list of available multipliers depends on the value of n mod
    8, 3, and 5; each row of the table below gives the multipliers
    to try, pre-sorted by how well they approximately optimize sieving
    (the routine below computes a better approximation). Note that a
    multiplier of 1 (i.e. no multiplier) is always possible. Experiments
-   show that 90% of the time the optimal multiplier is in one of the 
+   show that 90% of the time the optimal multiplier is in one of the
    first four columns of the table */
 
 #define MAX_MULTIPLIERS 13                           /* for residue classes: */
@@ -591,7 +591,7 @@ static void find_multiplier_tiny(void)
   u8 *mult_row;
   s32 num_tests;
 
-  /* precompute information that will be needed 
+  /* precompute information that will be needed
      for all multipliers */
 
   for (i = 1; i < NUM_TEST_PRIMES_TINY; i++)
@@ -601,7 +601,7 @@ static void find_multiplier_tiny(void)
      value of n */
 
   mult_row = mult_list[ test_nmodp[2] - 1 +
-                        4*(test_nmodp[1] - 1) + 
+                        4*(test_nmodp[1] - 1) +
 		        8*(nmod8 / 2) ];
 
   /* test less than the whole row if n is small */
@@ -620,7 +620,7 @@ static void find_multiplier_tiny(void)
        values. The multiplier itself must also be taken into
        account in the score. 'score' is the correction that
        is implicitly applied to the size of sieve values; a
-       negative score makes sieve values smaller, and so is 
+       negative score makes sieve values smaller, and so is
        better. */
 
     if (knmod8 == 1)
@@ -634,7 +634,7 @@ static void find_multiplier_tiny(void)
       s32 prime = prime_list[j];
       s32 knmodp = (s32)test_nmodp[j] * curr_mult % prime;
 
-      /* if prime j is actually in the factor base 
+      /* if prime j is actually in the factor base
          for k * n ... */
 
       if (legendre_16(knmodp, prime) != -1) {
@@ -642,11 +642,11 @@ static void find_multiplier_tiny(void)
         /* ...add its contribution. A prime p con-
            tributes log(p) to 1 in p sieve values, plus
            log(p) to 1 in p^2 sieve values, etc. The
-           average contribution of all multiples of p 
+           average contribution of all multiples of p
            to a random sieve value is thus
 
            log(p) * (1/p + 1/p^2 + 1/p^3 + ...)
-           = (log(p) / p) * 1 / (1 - (1/p)) 
+           = (log(p) / p) * 1 / (1 - (1/p))
            = log(p) / (p-1)
 
            This contribution occurs once for each
@@ -654,7 +654,7 @@ static void find_multiplier_tiny(void)
            roots for each factor base prime, unless
            the prime divides the multiplier. In that
            case there is only one root. The scores are
-           premultiplied by 2.0, and logarithms are 
+           premultiplied by 2.0, and logarithms are
            in base 2 (though any base will do) */
 
         if (knmodp == 0)
@@ -704,7 +704,7 @@ static s32 init_fb_tiny(s32 fb_size)
                              log((double)prime) / M_LN2 + 0.5);
       fbptr->recip = (u32)(B(32) / (u64)prime);
 
-      /* if the prime divides n, it is part of n's 
+      /* if the prime divides n, it is part of n's
          multiplier and is treated separately */
 
       if (nmodp != 0) {
@@ -733,15 +733,15 @@ Core sieving routine
   u8 *sieve_block = params->sieve_block;
   tiny_fb *factor_base = params->factor_base;
 
-  /* Note that since this code will only ever 
+  /* Note that since this code will only ever
      factor small inputs, the sieve interval will
-     always be ridiculously small and does not 
+     always be ridiculously small and does not
      need to be broken up into chunks. Further,
      the bottleneck with small inputs is the trial
      factoring of relations and not the sieving,
      so no crazy unrolling tricks are needed
      here either */
-     
+
   for (i = MIN_FB_OFFSET_TO_SIEVE_TINY; i < fb_size; i++) {
     tiny_fb *fbptr = factor_base + i;
     s32 prime = fbptr->prime;
@@ -766,7 +766,7 @@ Core sieving routine
 /***********************************/
 static s32 mark_sieve_block_tiny(void)
 /***********************************
-Walk through a filled-in sieve block and find 
+Walk through a filled-in sieve block and find
 the offsets correspodning to relations that
 are probably useful
 ************************************/
@@ -780,8 +780,8 @@ are probably useful
      in parallel: initialize each byte to the target
      sieve value, and subtract logs of the factor base
      primes instead of adding them. Sieve offsets that
-     accumulate enough log values become negative, 
-     and it's easy to simultaneously test for the top 
+     accumulate enough log values become negative,
+     and it's easy to simultaneously test for the top
      bit in several bytes being set */
 
   for (i = j = 0; i < SIEVE_SIZE_TINY / 8; i += 4) {
@@ -801,7 +801,7 @@ are probably useful
        as a hashtable, and associate entry j in the list
        of relations to be resieved (params->sieve_batch[])
        with a byte that is negative. The high-order bit of
-       the byte is set to indicate that the low-order bits 
+       the byte is set to indicate that the low-order bits
        mean something */
 
     for (k = 0; k < 32; k++) {
@@ -869,7 +869,7 @@ on all the relations previously found
 }
 
 /***********************************/
-static s32 check_sieve_val_tiny(mpz_t a, mpz_t b, mpz_t c, 
+static s32 check_sieve_val_tiny(mpz_t a, mpz_t b, mpz_t c,
                                  tiny_relation *r,
 				 s32 sign_of_index)
 /***********************************
@@ -921,7 +921,7 @@ Trial factor a relation that survived sieving
 
   /* divide out the unsieved factor base primes */
 
-  for (i = MIN_FB_OFFSET_TINY + 1; 
+  for (i = MIN_FB_OFFSET_TINY + 1;
              i < MIN_FB_OFFSET_TO_SIEVE_TINY; i++) {
     tiny_fb *fbptr = factor_base + i;
     s32 prime = fbptr->prime;
@@ -948,9 +948,9 @@ Trial factor a relation that survived sieving
     }
   }
 
-  /* divide out the factors of the multiplier, 
+  /* divide out the factors of the multiplier,
      if any */
-     
+
   for (i = 0; i < 2; i++) {
     if (params->multiplier_fb[i]) {
       s32 prime;
@@ -959,7 +959,7 @@ Trial factor a relation that survived sieving
       while (mpz_tdiv_q_ui(res2, res, prime) == 0) {
         if (num_factors >= MAX_FACTORS_TINY)
           return 0;
-  
+
         fb_offsets[num_factors++] = j;
         mpz_swap(res, res2);
       }
@@ -969,9 +969,9 @@ Trial factor a relation that survived sieving
   /* We should probably have been adding log values
      to the log of this relation in the previous loops,
      and testing that the complete log value now
-     exceeds the trial factoring cutoff. However, 
-     resieving has already found the remaining factors, 
-     so we wouldn't save much time bailing out at 
+     exceeds the trial factoring cutoff. However,
+     resieving has already found the remaining factors,
+     so we wouldn't save much time bailing out at
      this point */
 
   for (i = 0; i < r->num_factors; i++) {
@@ -1066,7 +1066,7 @@ sieve polynomials
   /* compute the optimal size of the factors of
      the polynomial 'A' value. We know how many
      primes it should have, and know the optimal
-     A value that will minimize sieving time. 
+     A value that will minimize sieving time.
      Assume further that all factors are the
      same size. First compute the factor size,
      then locate the factor base offset where
@@ -1091,7 +1091,7 @@ sieve polynomials
   minus_idx = i-1;
   i = 0;
   while (1) {
-    if (plus_idx < fb_size && 
+    if (plus_idx < fb_size &&
         factor_base[plus_idx].modsqrt != DO_NOT_SIEVE_TINY) {
       params->poly_select_offsets[i] = plus_idx;
       if (++i == POLY_SELECT_BITS_TINY)
@@ -1124,11 +1124,11 @@ sieve polynomials
    Fortunately, we will only need a few polynomials
    so the sets to use can be precomputed. Each prime in
    the pool is assigned a bit in a bitfield. Consecutive
-   bits in the bitfield refer to primes alternately 
+   bits in the bitfield refer to primes alternately
    above and below the optimal factor size. The low-order
    bits correspond to factors near the optimal value, and
    the more significant bits march away from the optimal
-   value. Hence, setting the bitfield to an integer 
+   value. Hence, setting the bitfield to an integer
    will select a unique set of primes, the number of which
    is the number of set bits in the integer. Small integer
    values of the bitfield will pick primes close to the
@@ -1144,19 +1144,19 @@ sieve polynomials
    by at least two bits from all other bitfields with the
    same weight, and there are enough bitfields to generate
    256 polynomials, whether A values contain 3, 4, or 5 primes */
-   
+
 static u8 popcount[] = {
        3,     4,     3,     5,     3,     4,
-       3,     4,     3,     3,     4,     4,     
-       3,     4,     5,     4,     5,     4,     
-       4,     4,     4,     5,     5,     4,     
-       4,     5,     5,     4,     5,     5,     
-       5,     5,     3,     5,     5,     5,     
-       5,     5,     3,     4,     3,     4,     
-       4,     4,     3,     3,     4,     4,     
-       4,     4,     3,     4,     4,     4,     
-       4,     3,     4,     4,     3,     4,     
-       4,     4,     4,     3,     4,     3,     
+       3,     4,     3,     3,     4,     4,
+       3,     4,     5,     4,     5,     4,
+       4,     4,     4,     5,     5,     4,
+       4,     5,     5,     4,     5,     5,
+       5,     5,     3,     5,     5,     5,
+       5,     5,     3,     4,     3,     4,
+       4,     4,     3,     3,     4,     4,
+       4,     4,     3,     4,     4,     4,
+       4,     3,     4,     4,     3,     4,
+       4,     4,     4,     3,     4,     3,
 };
 
 static u16 a_choice[] = {
@@ -1252,18 +1252,18 @@ B values
     g = (s32)g * fbptr->modsqrt % prime;
     if (g > prime/2)
       g = prime - g;
-    mpz_mul_ui(params->poly_b_aux[i], 
+    mpz_mul_ui(params->poly_b_aux[i],
                params->poly_b_aux[i], g);
     mpz_add(b, b, params->poly_b_aux[i]);
     mpz_add(params->poly_b_aux[i],
             params->poly_b_aux[i],
             params->poly_b_aux[i]);
   }
-  /* This first B is the sum of the auxiliary 
+  /* This first B is the sum of the auxiliary
      quantities computed previously */
 
   mpz_set(poly->b, b);
-  
+
   /* Form C, a helper for computing the value
      of a polynomial before trial factoring */
 
@@ -1282,7 +1282,7 @@ B values
 
     if (fbptr->modsqrt == DO_NOT_SIEVE_TINY) {
 
-      /* factors of the multiplier never 
+      /* factors of the multiplier never
          contribute to sieving */
 
       fbptr->roots[0] = DO_NOT_SIEVE_TINY;
@@ -1456,13 +1456,13 @@ Do all the sieving for one polynomial
   /* compute the cutoff beyond which trial factoring
      will be used on sieve values. */
 
-  cutoff1 = LOGPRIME_SCALE_TINY * (mpz_sizeinbase(c, 2) - 
+  cutoff1 = LOGPRIME_SCALE_TINY * (mpz_sizeinbase(c, 2) -
                   params->error_bits - SMALL_PRIME_FUDGE_TINY - 1);
 
   /* the trial factoring code wants 2*B and not B */
 
   mpz_add(b, b, b);
-  
+
   /* sieve over positive offsets, mark the most
      promising offsets, resieve to trial factor
      them all at once and then finish each in turn */
@@ -1482,7 +1482,7 @@ Do all the sieving for one polynomial
         return 0;
     }
   }
-    
+
   /* flip the sieve roots from positive to
      negative values */
   for (i = MIN_FB_OFFSET_TINY + 1; i < fb_size; i++) {
@@ -1495,7 +1495,7 @@ Do all the sieving for one polynomial
     if (root2 != DO_NOT_SIEVE_TINY && root2)
       fbptr->roots[1] = prime - root2;
   }
-    
+
   /* repeat the sieve procedure for negative
      sieve offsets */
 
@@ -1514,7 +1514,7 @@ Do all the sieving for one polynomial
         return 0;
     }
   }
-    
+
   return 0;
 }
 
@@ -1536,7 +1536,7 @@ Find linear dependencies among a set of relations
   memset(params->matrix, 0, sizeof(params->matrix));
 
   /* build the matrix; relations become columns, and
-     pairs of matched partial relations fuse into 
+     pairs of matched partial relations fuse into
      columns as well */
 
   for (i = 0; i < ncols; i++) {
@@ -1585,7 +1585,7 @@ Find linear dependencies among a set of relations
   /* perform the elimination */
 
   for (i = start_row = 0; start_row < nrows && i < ncols; i++) {
-    
+
     /* find the next pivot */
 
     for (j = start_row; j < nrows; j++) {
@@ -1627,7 +1627,7 @@ Find linear dependencies among a set of relations
 }
 
 /***********************************/
-static u32 find_factors_tiny(mpz_t factor1, 
+static u32 find_factors_tiny(mpz_t factor1,
                              mpz_t factor2)
 /***********************************
 perform MPQS square root phase
@@ -1673,7 +1673,7 @@ perform MPQS square root phase
           s32 partial_idx;
           for (k = 0; k < LP_HASH_DEPTH_TINY; k++) {
             partial_idx = params->partial_hash[hash_idx][k];
-            if (params->relation_list[partial_idx].large_prime == 
+            if (params->relation_list[partial_idx].large_prime ==
                 r->large_prime)
               break;
           }
@@ -1682,13 +1682,13 @@ perform MPQS square root phase
           mpz_mod(y, t0, params->n);
         }
         poly = params->poly_list + r->poly_num;
-  
+
         /* add the factors of this relation to the table
            of factors. Include the factors of A as well */
 
         for (k = 0; k < r->num_factors; k++)
           fb_counts[r->fb_offsets[k]]++;
-  
+
         mpz_set_ui(t1, 1);
         for (k = 0; k < params->num_a_factors; k++) {
           s32 idx = poly->a_fb_offsets[k];
@@ -1696,7 +1696,7 @@ perform MPQS square root phase
           mpz_mul_ui(t1, t1, factor_base[idx].prime);
         }
 
-        /* multiply A * sieve_offset + B into the left 
+        /* multiply A * sieve_offset + B into the left
            side of the congruence */
 
         if (r->sieve_offset < 0) {
@@ -1743,7 +1743,7 @@ perform MPQS square root phase
       mpz_mod(y, t1, params->n);
     }
 
-    /* For x and y the halves of the congruence, 
+    /* For x and y the halves of the congruence,
        compute gcd(x+-y, n) */
 
     for (i = 0; i < 2; i++) {
@@ -1781,7 +1781,7 @@ perform MPQS square root phase
             mpz_divexact_ui(t1, t1, mult2);
         }
 
-        /* If both remaining factors exceed unity, 
+        /* If both remaining factors exceed unity,
            we've factored n and can stop */
         if (mpz_cmp_ui(t0, 1) && mpz_cmp_ui(t1, 1)) {
           mpz_set(factor1, t0);
@@ -1802,8 +1802,7 @@ typedef struct {
   s32 num_poly_factors;
 } tiny_qs_config;
 
-/* factor base sizes for 50 to 120-bit 
-   factorizations */
+/* factor base sizes for 50 to 120-bit factorizations */
 
 static tiny_qs_config static_config[] = {
  { 40, 3 },
