@@ -21,12 +21,14 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - moebius handles negative inputs
 
-    - Rewrite internal log and exp functions.
-      Among other things, this speeds up floating point zeta by 10x.
-
     - Added Jason P's cofactorize-tinyqs, which handles up to 126 bit.
       This gives us faster and more consistent timing when factoring
       20 to 38 digit inputs.
+
+    - Rewrite internal log and exp functions.  Among other things, this
+      speeds up LambertW and non-integer Zeta by 10x.
+
+    - Use Ramanujan/Chudnovsky Pi algorithm.  2x faster with many digits.
 
     - Constants Euler, Pi, and Log2 are cached, just like Pari/GP, MPFR, etc.
       All three are used quite a bit internally.

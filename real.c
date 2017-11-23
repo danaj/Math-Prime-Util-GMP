@@ -425,15 +425,88 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
   mpf_clear(u); mpf_clear(v); mpf_clear(a); mpf_clear(b);
 }
 
-static void _const_pi(mpf_t pi, unsigned long prec)
+/* There are a plethora of interesting ways to calculate Pi.
+ *
+ * - Spigot.  Far too slow, though nice in plain C for a few hundred digits.
+ *
+ * - Machin-like, using Machin, Störmer, Chien-lih, Arndt, etc.
+ *   See http://www.jjj.de/arctan/arctanpage.html for best arctan series.
+ *
+ * - AGM.  Quite good, and this seems to be best for relatively small sizes.
+ *
+ * - Ramanujan / Chudnovsky with binary splitting.
+ *   About 2-4x faster than AGM for large enough sizes.  This version is
+ *   based on Alexander Yee's example.  I have tested with a port of Pari/GP's
+ *   abpq_sum and it came out about the same speed (albeit is more generic).
+ *   There are many more optimizations that can be done for this.
+ */
+
+static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long a, unsigned long b)
+{
+  if (b-a == 1) {
+    mpz_set_ui(P, b);
+    mpz_mul(Q, P, P);
+    mpz_mul_ui(R, P, 26726400UL);
+    mpz_mul_ui(R, R, 409297880UL);
+    mpz_mul(Q, Q, R);
+
+    mpz_set_ui(R,    2*b-1);
+    mpz_mul_ui(R, R, 6*b-5);
+    mpz_mul_ui(R, R, 6*b-1);
+
+    mpz_mul_ui(P, P, 545140134UL);
+    mpz_add_ui(P, P, 13591409UL);
+    mpz_mul(P, P, R);
+    if (b % 2 == 1) mpz_neg(P, P);
+  } else {
+    mpz_t P0, Q0, R0, P1, Q1, R1;
+    unsigned long m = a + (b-a)/2;
+
+    mpz_init(P0); mpz_init(Q0); mpz_init(R0);
+    mpz_init(P1); mpz_init(Q1); mpz_init(R1);
+
+    _sum_pqr(P0, Q0, R0, a, m);
+    _sum_pqr(P1, Q1, R1, m, b);
+
+    mpz_mul(Q, P1, R0);
+    mpz_mul(P, P0, Q1);  mpz_add(P, P, Q);
+    mpz_mul(Q, Q0, Q1);
+    mpz_mul(R, R0, R1);
+
+    mpz_clear(P0); mpz_clear(Q0); mpz_clear(R0);
+    mpz_clear(P1); mpz_clear(Q1); mpz_clear(R1);
+  }
+}
+
+static void _ramanujan_pi(mpf_t pi, unsigned long prec)
+{
+  unsigned long terms = (1 + DIGS2BITS(prec)/47.11041314);
+  mpz_t P, Q, R;
+  mpf_t t;
+
+  mpz_init(P); mpz_init(Q); mpz_init(R);
+  _sum_pqr(P, Q, R, 0, terms);
+
+  mpz_mul_ui(R, Q, 13591409UL);
+  mpz_add(P, P, R);
+  mpz_mul_ui(Q, Q, 4270934400UL);
+
+  /* pi = Q / (P * sqrt(10005)) */
+  mpf_init2(t, mpf_get_prec(pi));
+  mpf_set_ui(t, 10005);
+  mpf_sqrt(t, t);
+  mpf_set_z(pi, P);
+  mpf_mul(t, t, pi);
+  mpf_set_z(pi, Q);
+  mpf_div(pi, pi, t);
+  mpz_clear(R); mpz_clear(Q); mpz_clear(P);
+  mpf_clear(t);
+}
+
+static void _agm_pi(mpf_t pi, unsigned long prec)
 {
   mpf_t t, an, bn, tn, prev_an;
   unsigned long k, bits = ceil(prec * 3.322);
-
-  if (prec <= 100) {
-    mpf_set_str(pi, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215", 10);
-    return;
-  }
 
   mpf_init2(t,       10+bits);
   mpf_init2(an,      10+bits);
@@ -468,6 +541,17 @@ static void _const_pi(mpf_t pi, unsigned long prec)
   mpf_div(pi, an, t);               /* return (A+B)^2 / 4T */
   mpf_clear(tn); mpf_clear(bn); mpf_clear(an);
   mpf_clear(prev_an); mpf_clear(t);
+}
+
+static void _const_pi(mpf_t pi, unsigned long prec)
+{
+  if (prec <= 100) {
+    mpf_set_str(pi, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215", 10);
+  } else if (prec <= 6000) {
+    _agm_pi(pi, prec);
+  } else {
+    _ramanujan_pi(pi, prec);
+  }
 }
 
 /* http://numbers.computation.free.fr/Constants/Log2/log2.ps

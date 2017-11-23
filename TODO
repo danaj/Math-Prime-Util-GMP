@@ -68,8 +68,6 @@
 - merge the two frobenius tests.  cp is faster, needs the deterministic
   version, we should switch to the two input version (allow GMP), etc.
 
-- New version of Pi code using Chudnovsky.  See Pari.
-
 - tests for sieve_primes.
 
 - speed up range sieving.
@@ -132,3 +130,5 @@
 - random prime should be more efficient (use A2 instead of A1).
 
 - gamma, lngamma
+
+- lambertw should use increasing precision.
