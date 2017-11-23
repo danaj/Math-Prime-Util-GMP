@@ -130,5 +130,7 @@
 - random prime should be more efficient (use A2 instead of A1).
 
 - gamma, lngamma
+  See http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.527.8519
+  https://www.researchgate.net/publication/272039164_A_new_fast_asymptotic_series_for_the_gamma_function
 
 - lambertw should use increasing precision.

@@ -438,35 +438,54 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
  *   About 2-4x faster than AGM for large enough sizes.  This version is
  *   based on Alexander Yee's example.  I have tested with a port of Pari/GP's
  *   abpq_sum and it came out about the same speed (albeit is more generic).
- *   There are many more optimizations that can be done for this.
+ *   There are many more optimizations that can be done for this.  Xue's code
+ *   on the GMP page uses quite a bit of code to do running reduction of P,Q
+ *   which makes it about 1.5x faster.
  */
 
-static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long a, unsigned long b)
+static void _set_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long b)
 {
-  if (b-a == 1) {
+  if (sizeof(unsigned long) < 8 || b > 630000) {
     mpz_set_ui(P, b);
     mpz_mul(Q, P, P);
     mpz_mul_ui(R, P, 26726400UL);
     mpz_mul_ui(R, R, 409297880UL);
     mpz_mul(Q, Q, R);
-
     mpz_set_ui(R,    2*b-1);
     mpz_mul_ui(R, R, 6*b-5);
     mpz_mul_ui(R, R, 6*b-1);
-
     mpz_mul_ui(P, P, 545140134UL);
     mpz_add_ui(P, P, 13591409UL);
-    mpz_mul(P, P, R);
-    if (b % 2 == 1) mpz_neg(P, P);
+  } else {
+    mpz_set_ui(Q, b*b*b);
+    mpz_mul_ui(Q, Q, 10939058860032000UL);
+    mpz_set_ui(R, (2*b-1) * (6*b-5) * (6*b-1));
+    mpz_set_ui(P, b*545140134UL);
+    mpz_add_ui(P, P, 13591409UL);
+  }
+  mpz_mul(P, P, R);
+  if (b % 2 == 1) mpz_neg(P, P);
+}
+
+static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long a, unsigned long b)
+{
+  if (b-a == 1) {
+    _set_pqr(P, Q, R, b);
   } else {
     mpz_t P0, Q0, R0, P1, Q1, R1;
-    unsigned long m = a + (b-a)/2;
+    unsigned long m = a + (b-a)*0.54;   /* Biased splitting */
 
     mpz_init(P0); mpz_init(Q0); mpz_init(R0);
     mpz_init(P1); mpz_init(Q1); mpz_init(R1);
 
-    _sum_pqr(P0, Q0, R0, a, m);
-    _sum_pqr(P1, Q1, R1, m, b);
+    if (b-a == 2) {
+      /* This doesn't save any time, but cuts out the recursions */
+      _set_pqr(P0, Q0, R0, b-1);
+      _set_pqr(P1, Q1, R1, b);
+    } else {
+      _sum_pqr(P0, Q0, R0, a, m);
+      _sum_pqr(P1, Q1, R1, m, b);
+    }
 
     mpz_mul(Q, P1, R0);
     mpz_mul(P, P0, Q1);  mpz_add(P, P, Q);
