@@ -23,6 +23,7 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  semiprime semiprimes coprime k-tuples
                  precalculated premultiplier
                  pseudoprime pseudoprimes
+                 p-adic tinyqs
                  von
                  PSP-2
                  pp/);

@@ -435,9 +435,9 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
  * - AGM.  Quite good, and this seems to be best for relatively small sizes.
  *
  * - Ramanujan / Chudnovsky with binary splitting.
- *   About 2-4x faster than AGM for large enough sizes.  This version is
- *   based on Alexander Yee's example.  I have tested with a port of Pari/GP's
- *   abpq_sum and it came out about the same speed (albeit is more generic).
+ *   About 2-4x faster than AGM for large enough sizes.  This version is based
+ *   on Alexander Yee's example.  I have tested with a port of Pari/GP's abpq_sum
+ *   and it came out about the same speed but uses a lot more memory.
  *   There are many more optimizations that can be done for this.  Xue's code
  *   on the GMP page uses quite a bit of code to do running reduction of P,Q
  *   which makes it about 1.5x faster.
@@ -506,8 +506,10 @@ static void _ramanujan_pi(mpf_t pi, unsigned long prec)
   mpz_t P, Q, R, u;
   mpf_t t;
 
-  mpz_init(P); mpz_init(Q); mpz_init(R); mpz_init(u);
+  mpz_init(P); mpz_init(Q); mpz_init(R);
+  mpz_init(u);
   _sum_pqr(P, Q, R, u, 0, terms);
+  mpz_clear(u);
 
   mpz_mul_ui(R, Q, 13591409UL);
   mpz_add(P, P, R);
@@ -521,8 +523,8 @@ static void _ramanujan_pi(mpf_t pi, unsigned long prec)
   mpf_mul(t, t, pi);
   mpf_set_z(pi, Q);
   mpf_div(pi, pi, t);
-  mpz_clear(R); mpz_clear(Q); mpz_clear(P);
   mpf_clear(t);
+  mpz_clear(R); mpz_clear(Q); mpz_clear(P);
 }
 
 static void _agm_pi(mpf_t pi, unsigned long prec)

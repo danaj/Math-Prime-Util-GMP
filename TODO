@@ -134,3 +134,5 @@
   https://www.researchgate.net/publication/272039164_A_new_fast_asymptotic_series_for_the_gamma_function
 
 - lambertw should use increasing precision.
+
+- prime_count_lower, prime_count_upper
