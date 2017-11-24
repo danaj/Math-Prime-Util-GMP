@@ -1519,9 +1519,17 @@ C<n> must be present.  The result will be between C<0> and C<n!-1>.
 Takes a positive integer argument C<n> and returns the constant Pi with that
 many digits (including the leading 3).  Rounding is performed.
 
-The implementation uses AGM and is similar in speed to MPFR.
-It is about 4x slower than Pari/GP's Ramanujan/Chudnovsky binary splitting
-method, and much slower than specialized programs such as C<y-cruncher>.
+The implementation uses either AGM or Ramanujan/Chudnovsky with binary
+splitting, depending on the number of digits.  It is a little over 2x
+faster than MPFR, similar in speed to Pari/GP, but about 1.5x slower than
+Xue's Chudnovsky demo from the GMP web site.
+Specialized programs such as C<y-cruncher> are even faster.
+
+Note there is a non-trivial amount of overhead in turning the result into
+a string, as well as even more if using the L<ntheory> module which
+further converts the result into a Math::BigFloat object.
+
+Called in void context, this just calculates and caches the result.
 
 
 =head2 Euler
@@ -1531,6 +1539,8 @@ with that many digits.  Rounding is performed.
 
 The implementation is Brent-McMillan algorithm B, just like Pari/GP.
 Performance is about 2x faster than Pari/GP, but 2-10x slower than MPFR.
+
+Called in void context, this just calculates and caches the result.
 
 
 =head2 exp_mangoldt

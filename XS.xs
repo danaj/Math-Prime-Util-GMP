@@ -88,6 +88,8 @@ void _GMP_init()
 
 void _GMP_destroy()
 
+void _GMP_memfree()
+
 void _GMP_set_verbose(IN int v)
   PPCODE:
      set_verbose_level(v);
@@ -850,21 +852,10 @@ void Pi(IN UV n)
   ALIAS:
     Euler = 1
     random_bytes = 2
+  PREINIT:
+    UV prec;
   PPCODE:
-    if (ix == 0) {
-      if (n == 1)
-        XSRETURN_IV(3);
-      else if (n > 0) {
-        char* pi = piconst(n);
-        XPUSHs(sv_2mortal(newSVpvn(pi, n+1)));
-        Safefree(pi);
-      }
-    } else if (ix == 1) {
-      if (n == 0)  XSRETURN_IV(1);
-      char* econst = eulerconst(n);
-      XPUSHs(sv_2mortal(newSVpvn(econst, n+2)));
-      Safefree(econst);
-    } else {
+    if (ix == 2) {  /* random_bytes */
       char* sptr;
       SV* sv = newSV(n == 0 ? 1 : n);
       SvPOK_only(sv);
@@ -874,6 +865,21 @@ void Pi(IN UV n)
       sptr[n] = '\0';
       PUSHs(sv_2mortal(sv));
       XSRETURN(1);
+    }
+    if (ix == 0 && n == 0) XSRETURN(0);
+    if (ix == 0 && n == 1) XSRETURN_IV(3);
+    if (ix == 1 && n == 0) XSRETURN_IV(1);
+    prec = (ix == 0) ? n+1 : n+2;
+    if (GIMME_V == G_VOID) {
+      mpf_t c;
+      mpf_init2(c, 7+prec*3.32193);
+      if (ix == 0)  const_pi(c, prec);
+      else          const_euler(c, prec);
+      mpf_clear(c);
+    } else {
+      char* cstr = (ix == 0) ? piconst(n) : eulerconst(n);
+      XPUSHs(sv_2mortal(newSVpvn(cstr, prec)));
+      Safefree(cstr);
     }
 
 void random_nbit_prime(IN UV n)

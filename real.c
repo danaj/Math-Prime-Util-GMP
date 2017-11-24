@@ -467,32 +467,35 @@ static void _set_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long b)
   if (b % 2 == 1) mpz_neg(P, P);
 }
 
-static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long a, unsigned long b)
+static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, mpz_t u, unsigned long a, unsigned long b)
 {
   if (b-a == 1) {
     _set_pqr(P, Q, R, b);
   } else {
-    mpz_t P0, Q0, R0, P1, Q1, R1;
-    unsigned long m = a + (b-a)*0.54;   /* Biased splitting */
+    mpz_t P1, Q1, R1;
+    unsigned long m;
 
-    mpz_init(P0); mpz_init(Q0); mpz_init(R0);
     mpz_init(P1); mpz_init(Q1); mpz_init(R1);
 
     if (b-a == 2) {
-      /* This doesn't save any time, but cuts out the recursions */
-      _set_pqr(P0, Q0, R0, b-1);
+      _set_pqr(P, Q, R, b-1);
+      _set_pqr(P1, Q1, R1, b);
+    } else if (b-a == 3) {
+      m = a+2;
+      _sum_pqr(P, Q, R, u, a, m);
       _set_pqr(P1, Q1, R1, b);
     } else {
-      _sum_pqr(P0, Q0, R0, a, m);
-      _sum_pqr(P1, Q1, R1, m, b);
+       m = a + (b-a)*0.54;   /* Biased splitting */
+      _sum_pqr(P, Q, R, u, a, m);
+      _sum_pqr(P1, Q1, R1, u, m, b);
     }
 
-    mpz_mul(Q, P1, R0);
-    mpz_mul(P, P0, Q1);  mpz_add(P, P, Q);
-    mpz_mul(Q, Q0, Q1);
-    mpz_mul(R, R0, R1);
+    /* P = P0*Q1+P1*R0  Q = Q0*Q1  R = R0*R1 */
+    mpz_mul(u, P1, R);
+    mpz_mul(P, P, Q1);  mpz_add(P, P, u);
+    mpz_mul(Q, Q, Q1);
+    mpz_mul(R, R, R1);
 
-    mpz_clear(P0); mpz_clear(Q0); mpz_clear(R0);
     mpz_clear(P1); mpz_clear(Q1); mpz_clear(R1);
   }
 }
@@ -500,11 +503,11 @@ static void _sum_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long a, unsigned long b
 static void _ramanujan_pi(mpf_t pi, unsigned long prec)
 {
   unsigned long terms = (1 + DIGS2BITS(prec)/47.11041314);
-  mpz_t P, Q, R;
+  mpz_t P, Q, R, u;
   mpf_t t;
 
-  mpz_init(P); mpz_init(Q); mpz_init(R);
-  _sum_pqr(P, Q, R, 0, terms);
+  mpz_init(P); mpz_init(Q); mpz_init(R); mpz_init(u);
+  _sum_pqr(P, Q, R, u, 0, terms);
 
   mpz_mul_ui(R, Q, 13591409UL);
   mpz_add(P, P, R);
@@ -566,7 +569,7 @@ static void _const_pi(mpf_t pi, unsigned long prec)
 {
   if (prec <= 100) {
     mpf_set_str(pi, "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215", 10);
-  } else if (prec <= 6000) {
+  } else if (prec <= 3000) {
     _agm_pi(pi, prec);
   } else {
     _ramanujan_pi(pi, prec);
@@ -618,7 +621,7 @@ CONST_FUNC(euler);
 CONST_FUNC(pi);
 CONST_FUNC(log2);
 
-void free_constants(void) {
+void free_float_constants(void) {
   _prec_euler = 0;  mpf_clear(_fconst_euler);
   _prec_pi    = 0;  mpf_clear(_fconst_pi);
   _prec_log2  = 0;  mpf_clear(_fconst_log2);

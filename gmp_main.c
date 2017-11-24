@@ -9,6 +9,7 @@
 #include "prime_iterator.h"
 #include "ecpp.h"
 #include "factor.h"
+#include "real.h"
 
 #define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
@@ -49,14 +50,19 @@ void _GMP_init(void)
 
 void _GMP_destroy(void)
 {
+  _GMP_memfree();
   prime_iterator_global_shutdown();
   clear_randstate();
   mpz_clear(_bgcd);
   mpz_clear(_bgcd2);
   mpz_clear(_bgcd3);
-  destroy_ecpp_gcds();
 }
 
+void _GMP_memfree(void)
+{
+  free_float_constants();
+  destroy_ecpp_gcds();
+}
 
 static const unsigned char next_wheel[30] =
   {1,7,7,7,7,7,7,11,11,11,11,13,13,17,17,17,17,19,19,23,23,23,23,29,29,29,29,29,29,1};
