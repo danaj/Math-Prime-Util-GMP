@@ -136,3 +136,7 @@
 - lambertw should use increasing precision.
 
 - prime_count_lower, prime_count_upper
+
+- Euler using binary splitting.
+
+- Euler with 5.2.1 from http://www.mpfr.org/algorithms.pdf.

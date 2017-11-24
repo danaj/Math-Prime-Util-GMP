@@ -360,15 +360,15 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
  *
  * The Stieltjes zeta method isn't terrible but too slow for large n.
  *
- * We'll use the series method as Pari does.  We should use binary splitting,
- * as it still isn't really fast.  For high precision it's about 2x slower
- * than Pari due to mpf_log / mpf_exp.
+ * We use the same series method as Pari, running about 3x faster.
+ * We should use binary splitting as it still isn't really fast.
+ * Each doubling of digits increases time by 4x.
  */
 static void _const_euler(mpf_t gamma, unsigned long prec)
 {
   const double log2 = 0.693147180559945309417232121458176568L;
   const unsigned long maxsqr = (1UL << (4*sizeof(unsigned long))) - 1;
-  unsigned long bits = ceil(40 + prec * 3.322);
+  unsigned long bits = 40 + DIGS2BITS(prec);
   unsigned long x = ceil((2 + bits) * log2/4);
   unsigned long N = ceil(1 + 3.591121477*x - 0.195547*log(x));
   unsigned long xx = x*x;
@@ -392,8 +392,12 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
   mpf_set_ui(b, 1);
   mpf_set_ui(v, 1);
 
+  /* Let v(x) = sum_n[      x^n / n!^2]
+   *     u(x) = sum_n[H_n * x^n / n!^2]    (H_n = 1 + 1/2 + 1/3 + ... + 1/n)
+   * Then C = u(x)/v(x) - log(x)/2
+   */
   if (x <= maxsqr && N <= maxsqr) {
-    /*  v_k = x^2 / k^2  |  u_k = x^2 / k + v_k) / k  */
+    /*  v_k *= x^2 / k^2  |  u_k *= x^2 / k + v_k) / k  */
     for (k = 1; k <= N; k++) {
       mpf_mul_ui(b, b, xx);
       mpf_div_ui(b, b, k*k);

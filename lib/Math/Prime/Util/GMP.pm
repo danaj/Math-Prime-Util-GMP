@@ -1538,7 +1538,8 @@ Takes a positive integer argument C<n> and returns Euler's constant
 with that many digits.  Rounding is performed.
 
 The implementation is Brent-McMillan algorithm B, just like Pari/GP.
-Performance is about 2x faster than Pari/GP, but 2-10x slower than MPFR.
+Performance is about 3x faster than Pari/GP, but 2-10x slower than MPFR
+which uses binary splitting.
 
 Called in void context, this just calculates and caches the result.
 
