@@ -929,7 +929,7 @@ static void _exp_lift(mpf_t expx, mpf_t x, unsigned long bits)
 void mpf_exp(mpf_t expn, mpf_t x)
 {
   mpf_t N, D, X, s, t;
-  unsigned long k, bits = mpf_get_prec(expn);
+  unsigned long k, r, rbits, bits = mpf_get_prec(expn);
 
   if (mpf_sgn(x) == 0) { mpf_set_ui(expn, 1); return; }
 
@@ -949,16 +949,16 @@ void mpf_exp(mpf_t expn, mpf_t x)
   for (k = 0; mpf_cmp_d(t, 1.0L/8192.0L) > 0; k++)
     mpf_div_2exp(t, t, 1);
 
-  if (bits < 1600) {
-    _exp_sinh(expn, t, bits);
-  } else if (bits < 320000) {
-    _exp_sinh(expn, t, bits/8);
-    _exp_lift(expn, t, bits);
-  } else {
-    _exp_sinh(expn, t, bits/64);
-    _exp_lift(expn, t, bits);
-    _exp_lift(expn, t, bits);
+  /* exp with sinh method, then Newton lift to final bits */
+  for (rbits = bits, r = 0;  rbits > 4000;  rbits = (rbits+7)/8)
+    r++;
+  _exp_sinh(expn, t, rbits);
+  while (r-- > 0) {
+    rbits *= 8;
+    _exp_lift(expn, t, rbits);
   }
+  if (rbits < bits)
+    _exp_lift(expn, t, bits);
 
   if (k > 0) {
     const unsigned long maxred = 8*sizeof(unsigned long)-1;
