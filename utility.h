@@ -91,8 +91,8 @@ extern int* poly_class_nums(void);
  */
 extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
 
-#define BITS2DIGS(bits) ceil(bits/3.322)
-#define DIGS2BITS(digs) ceil(digs*3.322)
+#define BITS2DIGS(bits) ceil(bits/3.3219281)
+#define DIGS2BITS(digs) ceil(digs*3.3219281)
 
 extern void mpf_log(mpf_t logx, mpf_t x);
 extern void mpf_exp(mpf_t expx, mpf_t x);

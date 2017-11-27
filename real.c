@@ -466,7 +466,7 @@ static void _set_pqr(mpz_t P, mpz_t Q, mpz_t R, unsigned long b)
     mpz_add_ui(P, P, 13591409UL);
   } else {
     mpz_set_ui(Q, b*b*b);
-    mpz_mul_ui(Q, Q, 10939058860032000UL);
+    mpz_mul_ui(Q, Q, 26726400UL*409297880UL); /* 10939058860032000UL */
     mpz_set_ui(R, (2*b-1) * (6*b-5) * (6*b-1));
     mpz_set_ui(P, b*545140134UL);
     mpz_add_ui(P, P, 13591409UL);
@@ -546,9 +546,9 @@ static void _agm_pi(mpf_t pi, unsigned long prec)
   mpf_init2(tn,      10+bits);
   mpf_init2(prev_an, 10+bits);
 
-  mpf_set_d(an, 1);
-  mpf_set_d(bn, 0.5);
-  mpf_set_d(tn, 0.25);
+  mpf_set_ui(an, 1);
+  mpf_div_2exp(bn, an, 1);
+  mpf_div_2exp(tn, an, 2);
   mpf_sqrt(bn, bn);
                                     /* Comments from Brent 1976 */
   for (k = 0; (prec >> (k+1)) > 0; k++) {
@@ -619,8 +619,8 @@ static unsigned long _prec_euler = 0, _prec_pi = 0, _prec_log2 = 0;
   void const_##name(mpf_t c, unsigned long prec) { \
     if (prec > _prec_##name) { \
       prec += 10; \
-      if (_prec_##name == 0) mpf_init2(_fconst_##name, DIGS2BITS(prec)); \
-      else                   mpf_set_prec(_fconst_##name, DIGS2BITS(prec)); \
+      if (_prec_##name == 0) mpf_init2(_fconst_##name, 1+DIGS2BITS(prec)); \
+      else                   mpf_set_prec(_fconst_##name, 1+DIGS2BITS(prec)); \
       _const_##name(_fconst_##name, prec); \
       _prec_##name = prec; \
     } \
@@ -1109,7 +1109,7 @@ char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
 char* eulerconst(unsigned long prec) {
   char* out;
   mpf_t gamma;
-  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+  unsigned long bits = 7 + DIGS2BITS(prec);
 
   mpf_init2(gamma, bits);
   const_euler(gamma, prec);
@@ -1121,7 +1121,7 @@ char* eulerconst(unsigned long prec) {
 char* piconst(unsigned long prec) {
   char* out;
   mpf_t pi;
-  unsigned long bits = 7 + (unsigned long)(prec*3.32193);
+  unsigned long bits = 7 + DIGS2BITS(prec);
 
   mpf_init2(pi, bits);
   const_pi(pi, prec);
@@ -1154,7 +1154,7 @@ char* bernreal(mpz_t zn, unsigned long prec) {
     mpz_clear(t); mpz_clear(den); mpz_clear(num);
   } else {
     mpf_t z;
-    unsigned long bits = 32+(unsigned long)(prec*3.32193);
+    unsigned long bits = 32 + DIGS2BITS(prec);
     mpf_init2(z, bits);
     _bern_real_zeta(z, zn, prec);
     out = _str_real(z, prec);
@@ -1166,7 +1166,7 @@ char* bernreal(mpz_t zn, unsigned long prec) {
 char* lambertwreal(mpf_t x, unsigned long prec) {
   char* out;
   mpf_t w;
-  unsigned long bits = 64+(unsigned long)(prec*3.32193);
+  unsigned long bits = 64 + DIGS2BITS(prec);
 
   mpf_init2(w, bits);
   _lambertw(w, x, 10+prec);
