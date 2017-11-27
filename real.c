@@ -619,8 +619,8 @@ static unsigned long _prec_euler = 0, _prec_pi = 0, _prec_log2 = 0;
   void const_##name(mpf_t c, unsigned long prec) { \
     if (prec > _prec_##name) { \
       prec += 10; \
-      if (_prec_##name == 0) mpf_init2(_fconst_##name, 1+DIGS2BITS(prec)); \
-      else                   mpf_set_prec(_fconst_##name, 1+DIGS2BITS(prec)); \
+      if (_prec_##name == 0) mpf_init2(_fconst_##name, 7+DIGS2BITS(prec)); \
+      else                   mpf_set_prec(_fconst_##name, 7+DIGS2BITS(prec)); \
       _const_##name(_fconst_##name, prec); \
       _prec_##name = prec; \
     } \
