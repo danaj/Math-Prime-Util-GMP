@@ -10,6 +10,10 @@
 #define FUNC_mpz_logn 1
 #include "utility.h"
 
+static unsigned long precbits(mpf_t x, unsigned long prec, unsigned long add) {
+  unsigned long bits1 = mpf_get_prec(x), bits2 = DIGS2BITS(prec);
+  return add + ((bits1 > bits2) ? bits1 : bits2);
+}
 
 /*****************************************************************************/
 
@@ -282,7 +286,7 @@ static void _zetaint(mpf_t z, unsigned long s, unsigned long prec)
 static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpf_t logn, sum, term, part_term, tol, tf;
-  unsigned long k, bits = mpf_get_prec(n);
+  unsigned long k, bits = precbits(r, prec, 7);
 
   mpf_init2(logn,      bits);
   mpf_init2(sum,       bits);
@@ -588,10 +592,10 @@ static void _const_log2(mpf_t logn, unsigned long prec)
 {
   mpf_t t;
   mpz_t t1, t2, term1, term2, pows;
-  unsigned long bits = mpf_get_prec(logn);
+  unsigned long bits = precbits(logn, prec, 64);
 
   mpz_init(t1); mpz_init(t2); mpz_init(term1); mpz_init(term2); mpz_init(pows);
-  mpf_init2(t, 64+bits);
+  mpf_init2(t, bits);
   mpz_ui_pow_ui(pows, 10, 20+prec);
   mpz_arctanh(term1,   26, pows, t1, t2);  mpz_mul_ui(term1, term1,  18);
   mpz_arctanh(term2, 4801, pows, t1, t2);  mpz_mul_ui(term2, term2,   2);
@@ -635,11 +639,11 @@ void free_float_constants(void) {
 
 /*****************     Exponential / Logarithmic Integral     *****************/
 
-static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
+void li(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpz_t factorial;
   mpf_t logn, sum, inner_sum, term, p, q, tol;
-  unsigned long j, k, bits = 10 + mpf_get_prec(n);
+  unsigned long j, k, bits = precbits(r, prec, 10);
 
   mpf_init2(logn,      bits);
   mpf_log(logn, n);
@@ -700,10 +704,10 @@ static void _li_r(mpf_t r, mpf_t n, unsigned long prec)
   mpf_clear(logn);
 }
 
-static void _ei_r(mpf_t r, mpf_t n, unsigned long prec)
+void ei(mpf_t r, mpf_t n, unsigned long prec)
 {
   mpf_exp(r, n);
-  _li_r(r, r, prec+3);
+  li(r, r, prec+3);
 }
 
 
@@ -1067,13 +1071,13 @@ char* lireal(mpf_t r, unsigned long prec)
 {
   if (mpf_cmp_ui(r,0) < 0) return 0;
   if (mpf_cmp_ui(r,1) == 0) return 0;
-  _li_r(r, r, prec);
+  li(r, r, prec);
   return _str_real(r, prec);
 }
 char* eireal(mpf_t r, unsigned long prec)
 {
   if (mpf_cmp_ui(r,0) == 0) return 0;
-  _ei_r(r, r, prec);
+  ei(r, r, prec);
   return _str_real(r, prec);
 }
 char* logreal(mpf_t r, unsigned long prec)

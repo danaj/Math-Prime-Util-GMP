@@ -6,6 +6,14 @@
 
 extern void bernfrac(mpz_t num, mpz_t den, mpz_t n);
 extern void harmfrac(mpz_t num, mpz_t den, mpz_t n);
+extern void li(mpf_t li, mpf_t x, unsigned long prec);
+extern void ei(mpf_t li, mpf_t x, unsigned long prec);
+
+extern void const_euler(mpf_t gamma, unsigned long prec);
+extern void const_pi(mpf_t pi, unsigned long prec);
+extern void const_log2(mpf_t logn, unsigned long prec);
+extern void free_float_constants(void);
+
 extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
 extern char* zetareal(mpf_t r, unsigned long prec);
@@ -19,10 +27,5 @@ extern char* powreal(mpf_t r, mpf_t x, unsigned long prec);
 extern char* agmreal(mpf_t a, mpf_t b, unsigned long prec);
 extern char* eulerconst(UV n);
 extern char* piconst(UV n);
-
-extern void const_euler(mpf_t gamma, unsigned long prec);
-extern void const_pi(mpf_t pi, unsigned long prec);
-extern void const_log2(mpf_t logn, unsigned long prec);
-extern void free_float_constants(void);
 
 #endif
