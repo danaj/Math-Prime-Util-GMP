@@ -1095,7 +1095,7 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 
 static unsigned long small_prime_count(unsigned long n)
 {
-  unsigned long i, pc = 0;
+  unsigned long i;
   for (i = 0; i <= NSMALLPRIMES; i++)
     if (n < sprimes[i])
       break;

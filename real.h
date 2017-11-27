@@ -25,7 +25,7 @@ extern char* logreal(mpf_t r, unsigned long prec);
 extern char* expreal(mpf_t r, unsigned long prec);
 extern char* powreal(mpf_t r, mpf_t x, unsigned long prec);
 extern char* agmreal(mpf_t a, mpf_t b, unsigned long prec);
-extern char* eulerconst(UV n);
-extern char* piconst(UV n);
+extern char* eulerconst(unsigned long n);
+extern char* piconst(unsigned long n);
 
 #endif

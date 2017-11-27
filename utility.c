@@ -794,7 +794,7 @@ extern void const_log2(mpf_t logn, unsigned long prec);
 void mpf_log(mpf_t logn, mpf_t n)
 {
   mpf_t N, t, q, theta2, theta3, logdn;
-  unsigned long k, iter, bits = mpf_get_prec(logn);
+  unsigned long k, bits = mpf_get_prec(logn);
   int neg = (mpf_sgn(n) < 0);
 
   if (mpf_sgn(n) == 0)
@@ -928,7 +928,7 @@ static void _exp_lift(mpf_t expx, mpf_t x, unsigned long bits)
 
 void mpf_exp(mpf_t expn, mpf_t x)
 {
-  mpf_t N, D, X, s, t;
+  mpf_t t;
   unsigned long k, r, rbits, bits = mpf_get_prec(expn);
 
   if (mpf_sgn(x) == 0) { mpf_set_ui(expn, 1); return; }
