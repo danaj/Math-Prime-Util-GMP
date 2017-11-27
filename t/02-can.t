@@ -49,13 +49,15 @@ my @functions = qw(
                      sigma
                      chinese
                      moebius
-                     prime_count
+                     prime_count prime_count_lower prime_count_upper
                      primorial
                      pn_primorial
-                     factorial
+                     factorial factorialmod
                      consecutive_integer_lcm
-                     partitions bernfrac harmfrac harmreal stirling
-                     gcd lcm kronecker valuation invmod binomial gcdext
+                     partitions bernfrac bernreal harmfrac harmreal stirling
+                     zeta li ei riemannr lambertw
+                     logreal expreal powreal agmreal
+                     gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
                      exp_mangoldt
@@ -63,11 +65,23 @@ my @functions = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     is_power
+                     sqrtint rootint logint
+                     is_power is_prime_power is_semiprime is_square
+                     is_carmichael is_fundamental is_totient
                      is_primitive_root
+                     is_polygonal polygonal_nth
                      znorder
                      znprimroot
                      ramanujan_tau
-                     Pi
+                     Pi Euler
+                     todigits
+                     random_prime random_nbit_prime random_ndigit_prime
+                     random_strong_prime
+                     random_maurer_prime random_shawe_taylor_prime
+                     random_maurer_prime_with_cert
+                     random_shawe_taylor_prime_with_cert
+                     seed_csprng is_csprng_well_seeded
+                     irand irand64 drand urandomb urandomm urandomr random_bytes
+                     permtonum numtoperm
 );
 can_ok( 'Math::Prime::Util::GMP', @functions);

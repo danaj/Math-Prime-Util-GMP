@@ -11,6 +11,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - expreal(x[,digits])    e^x
     - powreal(n,x[,digits])  n^x
     - agmreal(a,b[,digits])  AGM(a,b) - arithmetic-geometric mean
+    - prime_count_lower(n)   lower bounds for prime count
+    - prime_count_upper(n)   upper bounds for prime count
 
     [FIXES]
 

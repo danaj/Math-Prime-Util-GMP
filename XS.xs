@@ -456,7 +456,9 @@ totient(IN char* strn)
     ramanujan_tau = 6
     sqrtint = 7
     is_prime_power = 8
-    urandomm = 9
+    prime_count_lower = 9
+    prime_count_upper = 10
+    urandomm = 11
   PREINIT:
     mpz_t res, n;
   PPCODE:
@@ -481,7 +483,9 @@ totient(IN char* strn)
       case 6:  ramanujan_tau(res, n);  break;
       case 7:  mpz_sqrt(res, n);  break;
       case 8:  mpz_set_ui(res, prime_power(res, n)); break;
-      case 9:
+      case 9:  prime_count_lower(res, n); break;
+      case 10: prime_count_upper(res, n); break;
+      case 11:
       default: mpz_isaac_urandomm(res, n); break;
     }
     if (ix == 5 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)

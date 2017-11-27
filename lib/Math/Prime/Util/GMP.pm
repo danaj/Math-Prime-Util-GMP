@@ -62,7 +62,7 @@ our @EXPORT_OK = qw(
                      sigma
                      chinese
                      moebius
-                     prime_count
+                     prime_count prime_count_lower prime_count_upper
                      primorial
                      pn_primorial
                      factorial factorialmod
@@ -791,6 +791,26 @@ An array reference is returned, matching the signature of the function
 of the same name in L<Math::Prime::Util>.
 
 Values above 64-bit are extra-strong BPSW probable primes.
+
+
+=head2 prime_count
+
+Returns the number of primes between 2 and C<n> (single argument)
+or C<lo> and C<hi> given two arguments.  The values are inclusive.
+
+The method is simple sieving followed by primality testing.  This is
+appropriate for small ranges and is useful for very large arguments.
+The L<Math::Prime::Util> module has much more sophisticated methods
+for 64-bit arguments.
+
+
+=head2 prime_count_lower
+
+=head2 prime_count_upper
+
+Returns lower or upper bounds for the prime count of the input C<n>.
+
+Bounds use Dusart 2010, Büthe 2014, Büthe 2015, and Axler 2017.
 
 
 =head2 sieve_primes

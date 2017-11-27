@@ -1093,6 +1093,229 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 
 /*****************************************************************************/
 
+static unsigned long small_prime_count(unsigned long n)
+{
+  unsigned long i, pc = 0;
+  for (i = 0; i <= NSMALLPRIMES; i++)
+    if (n < sprimes[i])
+      break;
+  return i;
+}
+
+void prime_count_lower(mpz_t pc, mpz_t n)
+{
+  mpf_t x, logx, logx2, t, s;
+  unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
+  unsigned long N = mpz_get_ui(n);
+
+  if (mpz_cmp_ui(n, 1000) < 0)
+    { mpz_set_ui(pc, small_prime_count(N)); return; }
+
+  mpf_init2(x,     bits);
+  mpf_init2(logx,  bits);
+  mpf_init2(logx2, bits);
+  mpf_init2(t,     bits);
+  mpf_init2(s,     bits);
+
+  mpf_set_z(x, n);
+  mpf_log(logx, x);
+  mpf_mul(logx2, logx, logx);
+
+  if (mpz_cmp_ui(n, 300000) < 0) {
+    double a = (N <  33000) ? 1190
+             : (N <  70200) ? 947
+             : (N < 176000) ? 904
+                            : 829;
+    mpf_set(s, logx);
+    mpf_sub_ui(s, s, 1);
+    mpf_ui_div(t, 1, logx);
+    mpf_sub(s, s, t);
+    mpf_set_d(t, 2.85);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_d(t, 13.15);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_d(t, a);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_add(s, s, t);
+    mpf_div(x, x, s);
+  } else if (mpf_cmp_d(x, 1e19) < 0) { /* Büthe 2015 1.9    1511.02032v2.pdf */
+    double a = 2.50;
+    double b = (N <     88783) ?   4.0
+             : (N <    300000) ?  -3.0
+             : (N <    303000) ?   5.0
+             : (N <   1100000) ?  -7.0
+             : (N <   4500000) ? -37.0
+             : (N <  10200000) ? -70.0
+             : (N <  36900000) ? -53.0
+             : (N <  38100000) ? -29.0
+             :                   -84.0;
+    mpf_set_str(s, "1.95", 10);
+    if (N >= 4000000000UL) {
+      mpf_set_str(t, "3.9", 10);
+      mpf_div(t, t, logx);
+      mpf_add(s, s, t);
+      mpf_set_str(t, "19.5", 10);
+      mpf_div(t, t, logx2);
+      mpf_add(s, s, t);
+    } else {
+      mpf_set_d(t, a);
+      mpf_div(t, t, logx);
+      mpf_add(s, s, t);
+      mpf_set_d(t, b);
+      mpf_div(t, t, logx2);
+      mpf_add(s, s, t);
+    }
+    mpf_sqrt(t, x);
+    mpf_div(t, t, logx);
+    mpf_mul(s, s, t);
+
+    li(t, x, 20);
+    mpf_sub(x, t, s);
+
+  } else if (mpf_cmp_d(x, 5.5e25) < 0) { /* Büthe 2014 v3 7.2 1410.7015v3.pdf */
+    mpf_sqrt(t, x);                      /* Axler 2017 2.2    1703.08032.pdf */
+    mpf_mul(s, logx, t);
+    const_pi(t, 30);
+    mpf_mul_2exp(t, t, 3);
+    mpf_div(s, s, t);
+    li(t, x, 30);
+    mpf_sub(x, t, s);
+  } else { /* Axler 2017 1.3  https://arxiv.org/pdf/1703.08032.pdf */
+    mpf_set(s, logx);
+    mpf_sub_ui(s, s, 1);
+    mpf_ui_div(t, 1, logx);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "2.85", 10);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "13.15", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "70.7", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "458.7275", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "3428.7225", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_div(x, x, s);
+  }
+  if (!mpf_integer_p(x)) mpf_add_ui(x, x, 1);  /* ceil */
+  mpz_set_f(pc,x);
+  mpf_clear(logx2); mpf_clear(logx); mpf_clear(x); mpf_clear(t); mpf_clear(s);
+}
+void prime_count_upper(mpz_t pc, mpz_t n)
+{
+  mpf_t x, logx, logx2, t, s;
+  unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
+  unsigned long N = mpz_get_ui(n);
+
+  if (mpz_cmp_ui(n, 1000) < 0)
+    { mpz_set_ui(pc, small_prime_count(N)); return; }
+
+  if (mpz_cmp_ui(n, 15900) < 0) {
+    if (N < 7) {
+      mpz_set_ui(pc, 0 + (N >= 2) + (N >= 3) + (N >= 5));
+    } else {
+      double a = (N < 1621) ? 1.048 : (N < 5000) ? 1.071 : 1.098;
+      double X = 1.0 + ((double)N) / (log((double)N) - a);
+      mpz_set_d(pc, X);
+    }
+    return;
+  }
+
+  mpf_init2(x,     bits);
+  mpf_init2(logx,  bits);
+  mpf_init2(logx2, bits);
+  mpf_init2(t,     bits);
+  mpf_init2(s,     bits);
+
+  mpf_set_z(x, n);
+  mpf_log(logx, x);
+  mpf_mul(logx2, logx, logx);
+
+  if (mpz_cmp_ui(n, 821800000UL) < 0) {
+    double a = (N <    356000) ? 2.54
+             : (N <  48000000) ? 2.51
+             : (N < 400000000) ? 2.47
+                               : 2.37;
+    mpf_set_ui(s, 1);
+    mpf_ui_div(t, 1, logx);
+    mpf_add(s, s, t);
+    mpf_set_d(t, a);
+    mpf_div(t, t, logx2);
+    mpf_add(s, s, t);
+
+    mpf_div(t, x, logx);
+    mpf_mul(x, t, s);
+  } else if (mpf_cmp_d(x, 1e19) < 0) { /* Büthe 2015 1.10    1511.02032v2.pdf */
+    double a = (mpf_cmp_d(x,   1100000000.0) < 0) ? 0.032
+             : (mpf_cmp_d(x,  10010000000.0) < 0) ? 0.027
+             : (mpf_cmp_d(x, 101260000000.0) < 0) ? 0.021
+                                                  : 0.0;
+    if (a > 0) {
+      mpf_sqrt(t, x);
+      mpf_mul(s, logx, t);
+      mpf_set_d(t, a);
+      mpf_mul(s, s, t);
+      const_pi(t, 25);
+      mpf_mul_2exp(t, t, 3);
+      mpf_div(s, s, t);
+      li(t, x, 25);
+      mpf_sub(x, t, s);
+    } else {
+      li(x, x, 25);
+    }
+  } else if (mpf_cmp_d(x, 5.5e25) < 0) { /* Büthe 2014 v3 7.2 1410.7015v3.pdf */
+    mpf_sqrt(t, x);                      /* Axler 2017 2.2    1703.08032.pdf */
+    mpf_mul(s, logx, t);
+    const_pi(t, 30);
+    mpf_mul_2exp(t, t, 3);
+    mpf_div(s, s, t);
+    li(t, x, 30);
+    mpf_add(x, t, s);
+  } else { /* Axler 2017 1.2  https://arxiv.org/pdf/1703.08032.pdf */
+    mpf_set(s, logx);
+    mpf_sub_ui(s, s, 1);
+    mpf_ui_div(t, 1, logx);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "3.15", 10);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "12.85", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "71.3", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "463.2275", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_set_str(t, "4585", 10);
+    mpf_mul(logx2, logx2, logx);
+    mpf_div(t, t, logx2);
+    mpf_sub(s, s, t);
+    mpf_div(x, x, s);
+  }
+  /* floor */
+  mpz_set_f(pc,x);
+  mpf_clear(logx2); mpf_clear(logx); mpf_clear(x); mpf_clear(t); mpf_clear(s);
+}
+/*****************************************************************************/
+
 void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
 {
   uint32_t* comp;
