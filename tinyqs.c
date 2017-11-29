@@ -1111,7 +1111,7 @@ sieve polynomials
    optimal factor size, with later bitfield values selecting
    prime factors that march away from the optimal size.
 
-   popcount[] gives the number of set bits for each value
+   _popcount[] gives the number of set bits for each value
    of the bitfield, and a_choice[] lists the bitfields
    themselves. A given factorization only uses one of the
    population count sizes from the table; bitfields are
@@ -1121,7 +1121,8 @@ sieve polynomials
    same weight, and there are enough bitfields to generate
    256 polynomials, whether A values contain 3, 4, or 5 primes */
 
-static u8 popcount[] = {
+/* DAJ: Renamed because NetBSD is broken. */
+static u8 _popcount[] = {
        3,     4,     3,     5,     3,     4,
        3,     4,     3,     3,     4,     4,
        3,     4,     5,     4,     5,     4,
@@ -1165,11 +1166,11 @@ Compute the next polynomial A value
   /* choose the next bitfield representing
      primes to use */
 
-  for (i = params->poly_select_idx; i < sizeof(popcount); i++) {
-    if (popcount[i] == num_a_factors)
+  for (i = params->poly_select_idx; i < sizeof(_popcount); i++) {
+    if (_popcount[i] == num_a_factors)
       break;
   }
-  if (i >= sizeof(popcount))
+  if (i >= sizeof(_popcount))
     return -1;
   mask = a_choice[i];
   params->poly_select_idx = i + 1;

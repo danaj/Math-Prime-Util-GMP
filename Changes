@@ -1,5 +1,12 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.51 2017-?
+
+    [FIXES]
+
+    - Work around a bug in NetBSD.
+
+
 0.50 2017-11-28
 
     [FIXES]
