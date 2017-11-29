@@ -370,10 +370,10 @@ static void _riemann_r(mpf_t r, mpf_t n, unsigned long prec)
  */
 static void _const_euler(mpf_t gamma, unsigned long prec)
 {
-  const double log2 = 0.693147180559945309417232121458176568L;
+  const double log10 = 2.3025850929940456840179914546843642076L;
   const unsigned long maxsqr = (1UL << (4*sizeof(unsigned long))) - 1;
   unsigned long bits = 40 + DIGS2BITS(prec);
-  unsigned long x = ceil((2 + bits) * log2/4);
+  unsigned long x = floor(2 + prec * log10/4);
   unsigned long N = ceil(1 + 3.591121477*x - 0.195547*log(x));
   unsigned long xx = x*x;
   unsigned long k;
@@ -389,6 +389,10 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
   mpf_init2(a,    bits);
   mpf_init2(b,    bits);
 
+  /*
+   * Brent and McMillan (1980) algorithm B1.
+   * http://www.ams.org/journals/mcom/1980-34-149/S0025-5718-1980-0551307-4/
+   */
   mpf_set_ui(u, x);
   mpf_log(u, u);
   mpf_neg(u, u);
@@ -396,19 +400,14 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
   mpf_set_ui(b, 1);
   mpf_set_ui(v, 1);
 
-  /* Let v(x) = sum_n[      x^n / n!^2]
-   *     u(x) = sum_n[H_n * x^n / n!^2]    (H_n = 1 + 1/2 + 1/3 + ... + 1/n)
-   * Then C = u(x)/v(x) - log(x)/2
-   */
   if (x <= maxsqr && N <= maxsqr) {
-    /*  v_k *= x^2 / k^2  |  u_k *= x^2 / k + v_k) / k  */
     for (k = 1; k <= N; k++) {
       mpf_mul_ui(b, b, xx);
-      mpf_div_ui(b, b, k*k);
+      mpf_div_ui(b, b, k*k);   /* B_k = B_{k-1} * x^2 / k^2 */
       mpf_mul_ui(a, a, xx);
       mpf_div_ui(a, a, k);
       mpf_add(a, a, b);
-      mpf_div_ui(a, a, k);
+      mpf_div_ui(a, a, k);     /* A_k = (A_{k-1} * x^2 / k + B_k) / k */
       mpf_add(u, u, a);
       mpf_add(v, v, b);
     }

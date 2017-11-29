@@ -78,7 +78,7 @@
   Using sieve_range doesn't help, as the issue is the massive return array.
 
 - More efficient version of ramanujan_tau?  MPU has an hclassno implementation
-  now.
+  now.  FLINT does an interesting method as well.
 
 - Consider ranged ramanujan_tau.  See:
   https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
@@ -135,8 +135,7 @@
 
 - lambertw should use increasing precision.
 
-- prime_count_lower, prime_count_upper
-
-- Euler using binary splitting.
-
-- Euler with 5.2.1 from http://www.mpfr.org/algorithms.pdf.
+- Euler using:
+   = binary splitting
+   = B3 from Brent/McMillan (1980)
+   = FLINT's B3 (b6ebd880cea55e6e6cf99d6c454607a5872b2c96)
