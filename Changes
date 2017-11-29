@@ -2,7 +2,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.51 2017-?
 
-    [FIXES]
+    [OTHER]
 
     - Work around a bug in NetBSD.
 
