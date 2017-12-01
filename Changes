@@ -10,6 +10,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Work around a bug in NetBSD.
 
+    - Standalone ecpp creation fixed.
+
 
 0.50 2017-11-28
 
