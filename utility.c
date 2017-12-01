@@ -996,6 +996,21 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
   mpf_clear(t);
 }
 
+void mpf_root(mpf_t rootx, mpf_t x, mpf_t n)
+{
+  if (mpf_sgn(n) == 0) {
+   mpf_set_ui(rootx, 0);
+  } else if (mpf_cmp_ui(n, 2) == 0) {
+    mpf_sqrt(rootx, x);
+  } else {
+    mpf_t t;
+    mpf_init2(t, mpf_get_prec(rootx));
+    mpf_ui_div(t, 1, n);
+    mpf_pow(rootx, x, t);
+    mpf_clear(t);
+  }
+}
+
 void mpf_agm(mpf_t r, mpf_t a, mpf_t b)
 {
   mpf_t t;

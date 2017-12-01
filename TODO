@@ -139,3 +139,13 @@
    = binary splitting
    = B3 from Brent/McMillan (1980)
    = FLINT's B3 (b6ebd880cea55e6e6cf99d6c454607a5872b2c96)
+
+- Functions used in MPU that were MPFR.  Verify decent speed:
+    = Pi  (we're faster)
+    = Euler  (slower)
+    = harmreal
+    = li
+    = ei
+    = prime_count_lower, prime_count_upper
+    = zeta  (worrisome for large precision.  does it matter?)
+    = riemannr

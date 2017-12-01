@@ -1094,6 +1094,11 @@ char* powreal(mpf_t r, mpf_t x, unsigned long prec)
   mpf_pow(r, r, x);
   return _str_real(r, prec);
 }
+char* rootreal(mpf_t r, mpf_t x, unsigned long prec)
+{
+  mpf_root(r, r, x);
+  return _str_real(r, prec);
+}
 char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
 {
   if (mpz_sgn(a) == 0 || mpz_sgn(b) == 0) {

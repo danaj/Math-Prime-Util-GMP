@@ -97,6 +97,7 @@ extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
 extern void mpf_log(mpf_t logx, mpf_t x);
 extern void mpf_exp(mpf_t expx, mpf_t x);
 extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);
+extern void mpf_root(mpf_t rootx, mpf_t x, mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
 extern UV logint(mpz_t n, UV base);

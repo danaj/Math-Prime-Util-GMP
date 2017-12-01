@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.51 2017-?
 
+    [ADDED]
+
+    - rootreal(x,n[,digits])  nth root of x:  x^(1/n)
+
     [OTHER]
 
     - Work around a bug in NetBSD.
@@ -23,7 +27,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - ei(x[,digits])         Exponential Integral of x (x floating point)
     - logreal(x[,digits])    Natural logarithm of x
     - expreal(x[,digits])    e^x
-    - powreal(n,x[,digits])  n^x
+    - powreal(x,n[,digits])  x^n
     - agmreal(a,b[,digits])  AGM(a,b) - arithmetic-geometric mean
     - prime_count_lower(n)   lower bounds for prime count
     - prime_count_upper(n)   upper bounds for prime count

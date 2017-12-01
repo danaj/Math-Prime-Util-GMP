@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/logreal expreal powreal agmreal/;
+use Math::Prime::Util::GMP qw/logreal expreal powreal rootreal agmreal/;
 
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -56,6 +56,7 @@ my @log_neg = (qw/
 plan tests => 1+2+2+3  # logreal
             + 6        # expreal
             + 7        # powreal
+            + 6        # rootreal
             + 5        # agmreal
             ;
 
@@ -101,6 +102,14 @@ is(powreal(2,-5,5),".03125","powreal(2,-5,5)");
 is(powreal(1234.5678, 9.87654321, 60),
    "3415709626357388739894539947448.87170455872193676278327545082",
    "powreal(1234.5678, 9.87654321, 60)");
+
+######## root
+is(rootreal(0,2,20),'.00000000000000000000',"rootreal(0,2,20)");
+is(rootreal(1,2,20),'1.0000000000000000000',"rootreal(1,2,20)");
+is(rootreal(2,2,20),'1.4142135623730950488',"rootreal(2,2,20)");
+is(rootreal(2,3,20),'1.2599210498948731648',"rootreal(2,3,20)");
+is(rootreal(2,2,80),'1.4142135623730950488016887242096980785696718753769480731766797379907324784621070',"rootreal(2,2,80)");
+is(rootreal(100.19,17,80),'1.3112803450586508207655195395037621220588179920316817022058520019614000795229155',"rootreal(100.19,17,80)");
 
 ######## agm
 is(agmreal(1,'1.4142135623730950488016887242096980785696718753769480731766797379907325',71),

@@ -13,6 +13,7 @@
  */
 
 #include <gmp.h>
+#include <math.h>
 #include "ptypes.h"
 #include "squfof126.h"
 
