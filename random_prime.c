@@ -165,7 +165,7 @@ void mpz_random_ndigit_prime(mpz_t p, UV n)
   mpz_mul_ui(hi, lo, 10);
 
   if (!mpz_random_prime(p, lo, hi))
-    croak("Failed to find %lu digit prime\n", n);
+    croak("Failed to find %"UVuf" digit prime\n", n);
 
   mpz_clear(lo);
   mpz_clear(hi);
@@ -351,7 +351,7 @@ void mpz_random_maurer_prime(mpz_t n, UV k, char** proofptr)
         mpz_powm(a, a, q, n);
         mpz_add_ui(t,a,1);
         if (mpz_cmp(t, n) != 0) continue;
-        if (verbose > 2) { printf("(%lu)",k); fflush(stdout); }
+        if (verbose > 2) { printf("(%"UVuf")",k); fflush(stdout); }
         /* Ensure all results passed BPSW.  ~20% speed penalty. */
         if (!_GMP_is_lucas_pseudoprime(n,2)) croak("Maurer internal failure");
         MAKE_PROOF_START(proofptr, n, 3)
