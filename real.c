@@ -101,6 +101,16 @@ static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec);
 static unsigned long zeta_n = 0;
 static mpz_t* zeta_d = 0;
 
+void free_borwein_zeta(void) {
+  unsigned long i;
+  if (zeta_n > 0) {
+    for (i = 0; i <= zeta_n; i++)
+      mpz_clear(zeta_d[i]);
+    Safefree(zeta_d);
+    zeta_n = 0;
+  }
+}
+
 static void _borwein_d(unsigned long D) {
   mpz_t t1, t2, t3, sum;
   unsigned long i, n = 3 + (1.31 * D);
@@ -108,11 +118,7 @@ static void _borwein_d(unsigned long D) {
   if (zeta_n >= n)
     return;
 
-  if (zeta_n > 0) {
-    for (i = 0; i <= zeta_n; i++)
-      mpz_clear(zeta_d[i]);
-    Safefree(zeta_d);
-  }
+  free_borwein_zeta();
 
   n += 10;   /* Add some in case we want a few more digits later */
   zeta_n = n;
@@ -607,7 +613,7 @@ static void _const_log2(mpf_t logn, unsigned long prec)
   mpf_div(logn, logn, t);
   /* logn = .69313147... */
   mpf_clear(t);
-  mpz_clear(t1); mpz_clear(t2); mpz_clear(term2); mpz_clear(pows);
+  mpz_clear(t1); mpz_clear(t2); mpz_clear(term1); mpz_clear(term2); mpz_clear(pows);
 }
 
 /* Cache constants.  We should thread lock these. */

@@ -142,6 +142,7 @@ void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
     do {
       mpz_isaac_urandomb(rop, nbits+8);
     } while (mpz_cmp(rop, rmax) >= 0 && count-- > 0);
+    mpz_clear(rmax);
     mpz_mod(rop, rop, n);
   }
 }

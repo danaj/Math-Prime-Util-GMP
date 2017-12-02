@@ -1513,6 +1513,7 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
       }
     }
   }
+  mpz_clear(mult);
   clear_factors(nfactors, &factors, &exponents);
 
   qsort(divs, ndivisors, sizeof(mpz_t), numcmp);

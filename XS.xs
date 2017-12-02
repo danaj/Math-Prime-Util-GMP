@@ -479,7 +479,12 @@ totient(IN char* strn)
       case 4:  harmfrac(n, res, n);
                XPUSH_MPZ(n);
                break;
-      case 5:  znprimroot(res, n);  break;
+      case 5:  znprimroot(res, n);
+               if (!mpz_sgn(res) && mpz_cmp_ui(n,1) != 0) {
+                 mpz_clear(n);  mpz_clear(res);
+                 XSRETURN_UNDEF;
+               }
+               break;
       case 6:  ramanujan_tau(res, n);  break;
       case 7:  mpz_sqrt(res, n);  break;
       case 8:  mpz_set_ui(res, prime_power(res, n)); break;
@@ -488,8 +493,6 @@ totient(IN char* strn)
       case 11:
       default: mpz_isaac_urandomm(res, n); break;
     }
-    if (ix == 5 && !mpz_sgn(res) && mpz_cmp_ui(n,1) != 0)
-      {  mpz_clear(n);  mpz_clear(res);  XSRETURN_UNDEF;  }
     XPUSH_MPZ(res);
     mpz_clear(n);
     mpz_clear(res);

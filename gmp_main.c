@@ -62,6 +62,7 @@ void _GMP_memfree(void)
 {
   free_float_constants();
   destroy_ecpp_gcds();
+  free_borwein_zeta();
 }
 
 static const unsigned char next_wheel[30] =

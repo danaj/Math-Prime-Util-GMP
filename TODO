@@ -149,3 +149,5 @@
     = prime_count_lower, prime_count_upper
     = zeta  (worrisome for large precision.  does it matter?)
     = riemannr
+
+- tinyqs needs a destroy to clear all the init vars

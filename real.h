@@ -13,6 +13,7 @@ extern void const_euler(mpf_t gamma, unsigned long prec);
 extern void const_pi(mpf_t pi, unsigned long prec);
 extern void const_log2(mpf_t logn, unsigned long prec);
 extern void free_float_constants(void);
+extern void free_borwein_zeta(void);
 
 extern char* bernreal(mpz_t zn, unsigned long prec);
 extern char* harmreal(mpz_t zn, unsigned long prec);
