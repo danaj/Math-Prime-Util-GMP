@@ -141,11 +141,15 @@ is_pseudoprime(IN char* strn, ...)
         default:  break; /* let 9 fall through */
       }
     }
-    mpz_init_set_str(n, strn, 10);
     for (i = 1; i < items; i++) {
       const char* strbase = SvPV_nolen(ST(i));
       validate_string_number(cv, "base", strbase);
-      mpz_init_set_str(a, strbase, 10);
+      if (strbase[1] == '\0' && (strbase[0] == '0' || strbase[0] == '1'))
+        croak("Base %s is invalid", strbase);
+    }
+    mpz_init_set_str(n, strn, 10);
+    for (i = 1; i < items; i++) {
+      mpz_init_set_str(a, SvPV_nolen(ST(i)), 10);
       switch (ix) {
         case 0:  RETVAL = is_pseudoprime(n, a); break;
         case 1:  RETVAL = is_euler_pseudoprime(n, a); break;
@@ -413,8 +417,12 @@ prime_count(IN char* strlo, IN char* strhi = 0)
       mpz_init_set_ui(lo, 0);
       VALIDATE_AND_SET(hi, strlo);
     } else {
-      VALIDATE_AND_SET(lo, strlo);
-      VALIDATE_AND_SET(hi, strhi);
+      if (*strlo == '+')  strlo++;
+      if (*strhi == '+')  strhi++;
+      validate_string_number(cv, "lo", strlo);
+      validate_string_number(cv, "hi", strhi);
+      mpz_init_set_str(lo, strlo, 10);
+      mpz_init_set_str(hi, strhi, 10);
     }
     if (ix == 2 && mpz_sizeinbase(hi,2) <= 32) {
       uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
@@ -613,7 +621,6 @@ gcd(...)
       Safefree(list);
       XSRETURN(1);
     }
-    mpz_init(n);
     mpz_init_set_ui(ret, (ix == 1 || ix == 3) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
@@ -625,9 +632,9 @@ gcd(...)
         case 3:
         default: mpz_mul(ret, ret, n); break;
       }
+      mpz_clear(n);
     }
     XPUSH_MPZ(ret);
-    mpz_clear(n);
     mpz_clear(ret);
 
 int

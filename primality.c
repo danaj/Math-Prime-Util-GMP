@@ -18,7 +18,7 @@ static const unsigned char sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,31
 /* 0 fail, 1 pass, -1 nothing.  Modifies base a */
 static int _preprocess_base(mpz_t n, mpz_t a)
 {
-  if (mpz_cmp_ui(a, 1) < 0)
+  if (mpz_cmp_ui(a, 1) <= 0)
     croak("Base %ld is invalid", mpz_get_si(a));
   if (mpz_cmp_ui(n, 3) <= 0)
     return (mpz_cmp_ui(n, 2) >= 0);
