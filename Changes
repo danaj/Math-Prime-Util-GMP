@@ -6,6 +6,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - rootreal(x,n[,digits])  nth root of x:  x^(1/n)
 
+    [FIXES]
+
+    - Some memory leaks squashed.
+
     [OTHER]
 
     - Work around a bug in NetBSD.
