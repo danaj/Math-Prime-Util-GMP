@@ -114,6 +114,7 @@ static int _random_prime_trivial(mpz_t p, mpz_t lo_in, mpz_t hi_in)
       mpz_set(p,lo);
       res = 1;
     }
+    mpz_clear(hi); mpz_clear(lo);
     return res;
   }
   /* lo and hi are now odd and at least one odd between them */
@@ -137,10 +138,7 @@ static int _random_prime_trivial(mpz_t p, mpz_t lo_in, mpz_t hi_in)
     /* We couldn't find anything.  Perhaps no primes in range. */
     res = _random_prime_primeinc(p, lo, hi);
   }
-  mpz_clear(r);
-  mpz_clear(t);
-  mpz_clear(lo);
-  mpz_clear(hi);
+  mpz_clear(r); mpz_clear(t); mpz_clear(hi); mpz_clear(lo);
   return res;
 }
 
