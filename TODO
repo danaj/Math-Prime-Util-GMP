@@ -140,14 +140,12 @@
    = B3 from Brent/McMillan (1980)
    = FLINT's B3 (b6ebd880cea55e6e6cf99d6c454607a5872b2c96)
 
-- Functions used in MPU that were MPFR.  Verify decent speed:
-    = Pi  (we're faster)
-    = Euler  (slower)
-    = harmreal
-    = li
-    = ei
-    = prime_count_lower, prime_count_upper
-    = zeta  (worrisome for large precision.  does it matter?)
-    = riemannr
+- Functions used in MPU that were MPFR.
+    = (++) Pi is about 2x faster than MPFR
+    = (--) li(10^17) is 2x slower than MPFR
+    = (--) ei(0.5) is much slower than MPFR (20x and worse exponent)
+    = (--) Euler is much slower than MPFR (10x and worse exponent)
+    = (--) zeta is much slower than MPFR (10x and worse exponent)
+    =      harmreal, riemannr, prime_count_lower, prime_count_upper
 
 - tinyqs needs a destroy to clear all the init vars

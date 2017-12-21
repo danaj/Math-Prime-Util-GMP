@@ -317,6 +317,31 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
     mpz_set_ui(r, 0);
   mpz_clear(A);  mpz_clear(t);
 }
+/* See:
+ *   Konstantinou and Kontogeorgis (2008) https://arxiv.org/abs/0804.1652
+ *   http://www.math.leidenuniv.nl/~psh/konto5.pdf
+ */
+static void ramanujan_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
+{
+  mpz_t A, t;
+
+  if (D < 0) D = -D;
+  if (D % 24 != 11) return;   /* croak("Bad Ramanujan root D: %ld", D); */
+
+  mpz_init(A);  mpz_init(t);
+  if (!mpz_invert(t, r, N)) mpz_set_ui(t, 0);
+  mpz_powm_ui(A, t, 6, N);
+  mpz_mul_ui(A, A, 27);
+  mpz_powm_ui(t, r, 6, N);
+  mpz_sub(A, t, A);
+  mpz_sub_ui(A, A, 6);
+  mpz_powm_ui(r, A, 3, N);
+  /* mpz_powm_ui(t, A, 3, N);
+   * gmp_printf("Converted Ramanujan root %Zd to Hilbert %Zd\n", r, t);
+   * mpz_set(r, t);
+   */
+  mpz_clear(A);  mpz_clear(t);
+}
 
 
 static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroots)
@@ -332,7 +357,7 @@ static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroo
   }
 
   degree = poly_class_poly_num(poly_index, NULL, &T, &poly_type);
-  if (degree == 0 || (poly_type != 1 && poly_type != 2))
+  if (degree == 0 || (poly_type != 1 && poly_type != 2 && poly_type != 3))
     return 0;
 
   dT = degree;
@@ -351,10 +376,13 @@ static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroo
     printf("  found %ld roots of the %ld degree poly\n", nroots, dT);
 #endif
 
-  /* Convert Weber roots to Hilbert roots */
+  /* Convert Weber and Ramanujan roots to Hilbert roots */
   if (poly_type == 2)
     for (i = 0; i < nroots; i++)
       weber_root_to_hilbert_root((*roots)[i], N, D);
+  if (poly_type == 3)
+    for (i = 0; i < nroots; i++)
+      ramanujan_root_to_hilbert_root((*roots)[i], N, D);
 
   return nroots;
 }
@@ -770,7 +798,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
         }
 
         if (verbose)
-          { printf(" %d (%s %d)\n", D, (poly_type == 1) ? "Hilbert" : "Weber", poly_degree); fflush(stdout); }
+          { printf(" %d (%s %d)\n", D, poly_class_type_name(poly_type), poly_degree); fflush(stdout); }
         if (maxH == 0) {
           maxH = minH-1 + poly_degree;
           if (facstage > 1)              /* We worked hard to get here, */
@@ -791,7 +819,7 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
 
         /* Awesome, we found the q chain and are in STAGE 2 */
         if (verbose)
-          { printf("%*sN[%d] (%d dig) %d (%s %d)", i, "", i, nidigits, D, (poly_type == 1) ? "Hilbert" : "Weber", poly_degree); fflush(stdout); }
+          { printf("%*sN[%d] (%d dig) %d (%s %d)", i, "", i, nidigits, D, poly_class_type_name(poly_type), poly_degree); fflush(stdout); }
 
         /* Try with only one or two roots, then 8 if that didn't work. */
         /* TODO: This should be done using a root iterator in find_curve() */
