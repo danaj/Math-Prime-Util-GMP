@@ -79,6 +79,8 @@ extern int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
 /* return a class poly (Hilbert [type 1] or Weber [type 2]) */
 extern UV poly_class_poly(IV D, mpz_t**T, int* type);
 
+extern const char* poly_class_type_name(int type);
+
 /* return a 0 terminated list of all D's sorted by degree */
 extern IV* poly_class_degrees(int insert_1s);
 

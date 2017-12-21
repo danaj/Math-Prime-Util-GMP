@@ -1730,6 +1730,16 @@ void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
 
 #include "class_poly_data.h"
 
+const char* poly_class_type_name(int type)
+{
+  switch (type) {
+    case 1: return "Hilbert";
+    case 2: return "Weber";
+    case 3: return "Ramanujan";
+    default: return "Unknown";
+  }
+}
+
 int* poly_class_nums(void)
 {
   int* dlist;
