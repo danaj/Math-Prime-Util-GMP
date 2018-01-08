@@ -336,6 +336,7 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
  *
  * "Evaluating recurrences of form X_{m+n} = f(X_m, X_n, X_{m-n}) via
  *  Lucas chains, Peter L. Montgomery, Dec 1983 (revised Jan 1992).
+ *  https://cr.yp.to/bib/1992/montgomery-lucas.pdf
  *  http://research.microsoft.com/en-us/um/people/petmon/lucas.pdf
  *
  * "20 years of ECM" by Paul Zimmermann, 2006.
