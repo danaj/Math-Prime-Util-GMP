@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/logreal expreal powreal rootreal agmreal/;
+use Math::Prime::Util::GMP qw/logreal expreal powreal rootreal agmreal addreal subreal mulreal divreal/;
 
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -58,6 +58,7 @@ plan tests => 1+2+2+3  # logreal
             + 7        # powreal
             + 6        # rootreal
             + 5        # agmreal
+            + 4        # add,sub,mul,div
             ;
 
 ######## log
@@ -127,3 +128,13 @@ is(agmreal(6,24,30),
 is(agmreal(-6,24,30),
    undef,
    "AGM with negative argument returns undef");
+
+######## add, sub, mul, div
+{
+  my $x='31622.7766016837933199889354443271853371955513932521682685750485279259444';
+  my $y='0.64185388617239477599103597720348932963627777267035584250463233544172009';
+  is(addreal($x, $y, 70), '31623.41845556996571476492648030438882652518767102483862441755316026139', "addreal");
+  is(subreal($x, $y, 70), '31622.13474779762092521294440834998184786591511547949791273254389559050', "subreal");
+  is(mulreal($x, $y, 70), '20297.20205335221837411759117382787166239120864815030509715811057060388', "mulreal");
+  is(divreal($x, $y, 70), '49267.87432925235753958333652192275718354249610085655599278344889912783', "divreal");
+}

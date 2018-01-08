@@ -568,6 +568,10 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
   ALIAS:
     rootreal = 1
     agmreal = 2
+    addreal = 3
+    subreal = 4
+    mulreal = 5
+    divreal = 6
   PREINIT:
     mpf_t n, x;
     char* res;
@@ -586,8 +590,12 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
     switch (ix) {
       case 0:  res = powreal(n, x, prec);  break;
       case 1:  res = rootreal(n, x, prec); break;
-      case 2:
-      default: res = agmreal(n, x, prec);  break;
+      case 2:  res = agmreal(n, x, prec); break;
+      case 3:  res = addreal(n, x, prec); break;
+      case 4:  res = subreal(n, x, prec); break;
+      case 5:  res = mulreal(n, x, prec); break;
+      case 6:
+      default: res = divreal(n, x, prec);  break;
     }
     mpf_clear(n);
     mpf_clear(x);

@@ -1085,26 +1085,25 @@ char* eireal(mpf_t r, unsigned long prec)
   ei(r, r, prec);
   return _str_real(r, prec);
 }
-char* logreal(mpf_t r, unsigned long prec)
-{
-  mpf_log(r, r);
-  return _str_real(r, prec);
-}
-char* expreal(mpf_t r, unsigned long prec)
-{
-  mpf_exp(r, r);
-  return _str_real(r, prec);
-}
-char* powreal(mpf_t r, mpf_t x, unsigned long prec)
-{
-  mpf_pow(r, r, x);
-  return _str_real(r, prec);
-}
-char* rootreal(mpf_t r, mpf_t x, unsigned long prec)
-{
-  mpf_root(r, r, x);
-  return _str_real(r, prec);
-}
+#define DEFINE_REAL_1ARG(func, mfunc) \
+  char* func(mpf_t r, unsigned long prec) { \
+    mfunc(r, r); \
+    return _str_real(r, prec); \
+  }
+#define DEFINE_REAL_2ARG(func, mfunc) \
+  char* func(mpf_t r, mpf_t x, unsigned long prec) { \
+    mfunc(r, r, x); \
+    return _str_real(r, prec); \
+  }
+DEFINE_REAL_1ARG(logreal, mpf_log)
+DEFINE_REAL_1ARG(expreal, mpf_exp)
+DEFINE_REAL_2ARG(powreal, mpf_pow)
+DEFINE_REAL_2ARG(rootreal, mpf_root)
+DEFINE_REAL_2ARG(addreal, mpf_add)
+DEFINE_REAL_2ARG(subreal, mpf_sub)
+DEFINE_REAL_2ARG(mulreal, mpf_mul)
+DEFINE_REAL_2ARG(divreal, mpf_div)
+
 char* agmreal(mpf_t a, mpf_t b, unsigned long prec)
 {
   if (mpz_sgn(a) == 0 || mpz_sgn(b) == 0) {

@@ -5,6 +5,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     [ADDED]
 
     - rootreal(x,n[,digits])  nth root of x:  x^(1/n)
+    - addreal(x,y[,digits])   x+y
+    - subreal(x,y[,digits])   x-y
+    - mulreal(x,y[,digits])   x*y
+    - divreal(x,y[,digits])   x/y
 
     [FIXES]
 
