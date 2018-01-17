@@ -910,24 +910,25 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
 
 /***************************       Lambert W       ***************************/
 
-static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
+static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
 {
   int i;
-  unsigned long bits = 96+mpf_get_prec(x);  /* More bits for intermediate */
-  mpf_t t, w1, zn, qn, en, tol;
+  unsigned long bits = 96+mpf_get_prec(r);  /* More bits for intermediate */
+  mpf_t w, t, tol, w1, zn, qn, en;
 
   if (mpf_cmp_d(x, -0.36787944117145) < 0)
     croak("Invalid input to LambertW:  x must be >= -1/e");
   if (mpf_sgn(x) == 0)
-    { mpf_set(w, x); return; }
+    { mpf_set(r, x); return; }
 
   /* Use Fritsch rather than Halley. */
+  mpf_init2(w,   bits);
   mpf_init2(t,   bits);
+  mpf_init2(tol, bits);
   mpf_init2(w1,  bits);
   mpf_init2(zn,  bits);
   mpf_init2(qn,  bits);
   mpf_init2(en,  bits);
-  mpf_init2(tol, bits);
 
   /* Initial estimate */
   if (mpf_cmp_d(x, -0.06) < 0) {  /* Pade(3,2) */
@@ -1043,11 +1044,14 @@ static void _lambertw(mpf_t w, mpf_t x, unsigned long prec)
     if (mpf_cmp_d(w,-1) <= 0) break;
   }
 
-  if (mpf_cmp_d(w, -1) <= 0)
-    mpf_set_si(w, -1);
-
   mpf_clear(en); mpf_clear(qn); mpf_clear(zn);
-  mpf_clear(w1); mpf_clear(t); mpf_clear(tol);
+  mpf_clear(w1); mpf_clear(tol); mpf_clear(t);
+
+  if (mpf_cmp_d(w, -1) <= 0)
+    mpf_set_si(r, -1);
+  else
+    mpf_set(r, w);
+  mpf_clear(w);
 }
 
 /*****************************************************************************/
@@ -1065,12 +1069,15 @@ char* zetareal(mpf_t z, unsigned long prec)
   gmp_sprintf(out, "%.*Ff", (int)(prec), z);
   return out;
 }
-
 char* riemannrreal(mpf_t r, unsigned long prec)
 {
   if (mpf_cmp_ui(r,0) <= 0) return 0;
   _riemann_r(r, r, prec);
   return _str_real(r, prec);
+}
+char* lambertwreal(mpf_t x, unsigned long prec) {
+  _lambertw(x, x, prec);
+  return _str_real(x, prec);
 }
 char* lireal(mpf_t r, unsigned long prec)
 {
@@ -1169,17 +1176,5 @@ char* bernreal(mpz_t zn, unsigned long prec) {
     out = _str_real(z, prec);
     mpf_clear(z);
   }
-  return out;
-}
-
-char* lambertwreal(mpf_t x, unsigned long prec) {
-  char* out;
-  mpf_t w;
-  unsigned long bits = 64 + DIGS2BITS(prec);
-
-  mpf_init2(w, bits);
-  _lambertw(w, x, 10+prec);
-  out = _str_real(w, prec);
-  mpf_clear(w);
   return out;
 }
