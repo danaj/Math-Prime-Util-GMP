@@ -619,6 +619,67 @@ void binomial(mpz_t r, UV n, UV k)
   Safefree(mprimes);
 }
 
+void multifactorial(mpz_t r, UV n, UV k)
+{
+  if (k == 0) {  mpz_set_ui(r, 1); return;  }
+  if (k == 1) {  mpz_fac_ui(r, n); return;  }
+#if (__GNU_MP_VERSION > 5) || (__GNU_MP_VERSION == 5 && __GNU_MP_VERSION_MINOR >= 1)
+  mpz_mfac_uiui(r, n, k);
+#else
+  /* Naive code.  Slow with large n and small k.
+   * See Luschny or mpz_mfac_uiui for better. */
+  mpz_set_ui(r, (n > 1) ? n : 1);
+  while (n > k) {
+    n -= k;
+    mpz_mul_ui(r, r, n);
+  }
+#endif
+}
+
+void factorial_sum(mpz_t r, UV n)
+{
+  mpz_t t;
+  UV k;
+  if (n == 0) { mpz_set_ui(r,0); return; }
+
+  mpz_set_ui(r,1);
+  mpz_init_set_ui(t,1);
+  for (k = 1; k < n; k++) {
+    mpz_mul_ui(t, t, k);
+    mpz_add(r, r, t);
+  }
+  mpz_clear(t);
+}
+
+void subfactorial(mpz_t r, UV n)
+{
+  UV k;
+  if (n == 0) { mpz_set_ui(r,1); return; }
+  if (n == 1) { mpz_set_ui(r,0); return; }
+  /* We could loop using Pochhammer, but that's much slower. */
+  mpz_set_ui(r,0);
+  for (k = 2; k <= n; k++) {
+    mpz_mul_ui(r, r, k);
+    if (k & 1) mpz_sub_ui(r, r, 1);
+    else       mpz_add_ui(r, r, 1);
+  }
+}
+
+void falling_factorial(mpz_t r, UV x, UV n)
+{
+  mpz_t t;
+  if (n == 0) { mpz_set_ui(r,1); return; }
+  mpz_init(t);
+  mpz_bin_uiui(t, x, n);
+  mpz_fac_ui(r, n);
+  mpz_mul(r, r, t);
+  mpz_clear(t);
+}
+void rising_factorial(mpz_t r, UV x, UV n) {
+  falling_factorial(r, x+n-1, n);
+}
+
+
 void factorialmod(mpz_t r, UV N, mpz_t m)
 {
   mpz_t t;

@@ -3,8 +3,9 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/primorial pn_primorial factorial
-                              factorialmod addmod/;
+use Math::Prime::Util::GMP qw/primorial pn_primorial factorial factorialmod
+                              multifactorial subfactorial factorial_sum
+                              addmod/;
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71
@@ -94,7 +95,10 @@ my @factorials = (qw/
 plan tests =>   1    # factorial
               + 1    # factorialmod
               + 2    # primorial and pn_primorial
-              + 2;   # extra primorial tests
+              + 2    # extra primorial tests
+              + 1    # subfactorial
+              + 1    # factorial_sum
+              + 4;   # multifactorial
 
 {
   my @fact = map { factorial($_) }  0 .. $#factorials;
@@ -119,3 +123,27 @@ is(
     '4711930799906184953162487834760260422020574773409675520188634839616415335845034221205289256705544681972439104097777157991804380284218315038719444943990492579030720635990538452312528339864352999310398481791730017201031090',
     "primorial(541)"
   );
+
+is_deeply( [ map { subfactorial($_) } 0..23 ],
+           [qw/1 0 1 2 9 44 265 1854 14833 133496 1334961 14684570 176214841 2290792932 32071101049 481066515734 7697064251745 130850092279664 2355301661033953 44750731559645106 895014631192902121 18795307255050944540 413496759611120779881 9510425471055777937262/],
+           "subfactoral(n) for 0..23" );
+
+is_deeply( [ map { factorial_sum($_) } 0..22 ],
+           [qw/0 1 2 4 10 34 154 874 5914 46234 409114 4037914 43954714 522956314 6749977114 93928268314 1401602636314 22324392524314 378011820620314 6780385526348314 128425485935180314 2561327494111820314 53652269665821260314/],
+           "factorial_sum(n) for 0..22" );
+
+is_deeply( [ map { multifactorial($_,0) } 0..22 ],
+           [ map { 1 } 0..22 ],
+           "multifactorial(n,0) for 0..22" );
+
+is_deeply( [ map { multifactorial($_,1) } 0..22 ],
+           [ map { factorial($_) } 0..22 ],
+           "multifactorial(n,1) for 0..22" );
+
+is_deeply( [ map { multifactorial($_,2) } 0..26 ],
+           [qw/1 1 2 3 8 15 48 105 384 945 3840 10395 46080 135135 645120 2027025 10321920 34459425 185794560 654729075 3715891200 13749310575 81749606400 316234143225 1961990553600 7905853580625 51011754393600/],
+           "multifactorial(n,2) for 0..26" );
+
+is_deeply( [ map { multifactorial($_,3) } 0..29 ],
+           [qw/1 1 2 3 4 10 18 28 80 162 280 880 1944 3640 12320 29160 58240 209440 524880 1106560 4188800 11022480 24344320 96342400 264539520 608608000 2504902400 7142567040 17041024000 72642169600/],
+           "multifactorial(n,3) for 0..29" );

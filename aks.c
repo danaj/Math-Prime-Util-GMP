@@ -399,6 +399,7 @@ int is_aks_prime(mpz_t n)
       { mpz_clear(tmp); mpz_clear(tmp2); return 1; }
 
     /* Check b^(n-1) = 1 mod n for b in [2..s] */
+    if (_verbose > 1) printf("# aks checking fermat to %"UVuf"\n", s);
     mpz_sub_ui(tmp2, n, 1);
     for (i = 2; i <= s; i++) {
       mpz_set_ui(tmp, i);

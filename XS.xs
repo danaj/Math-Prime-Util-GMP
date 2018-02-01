@@ -758,6 +758,7 @@ invmod(IN char* stra, IN char* strb)
     rootint = 9
     logint = 10
     factorialmod = 11
+    multifactorial = 12
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -822,9 +823,12 @@ invmod(IN char* stra, IN char* strb)
       if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
       if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
       mpz_set_ui(a, logint(a, mpz_get_ui(b)));
-    } else {
+    } else if (ix == 11) {
       if (mpz_sgn(b) < 0) retundef = 1;
       else                factorialmod(a, mpz_get_ui(a), b);
+    } else {
+      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
+      else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
@@ -920,10 +924,12 @@ void random_nbit_prime(IN UV n)
     random_ndigit_prime = 6
     urandomb = 7
     factorial = 8
-    partitions = 9
-    primorial = 10
-    pn_primorial = 11
-    consecutive_integer_lcm = 12
+    factorial_sum = 9
+    subfactorial = 10
+    partitions = 11
+    primorial = 12
+    pn_primorial = 13
+    consecutive_integer_lcm = 14
   PREINIT:
     mpz_t p;
     char* proof;
@@ -949,10 +955,12 @@ void random_nbit_prime(IN UV n)
       case 6:  mpz_random_ndigit_prime(p, n); break;
       case 7:  mpz_isaac_urandomb(p, n); break;
       case 8:  mpz_fac_ui(p, n); break;   /* swing impl in 5.1+, so fast */
-      case 9:  partitions(p, n); break;
-      case 10: _GMP_primorial(p, n);  break;
-      case 11: _GMP_pn_primorial(p, n);  break;
-      case 12:
+      case 9:  factorial_sum(p, n); break;
+      case 10: subfactorial(p, n); break;
+      case 11: partitions(p, n); break;
+      case 12: _GMP_primorial(p, n);  break;
+      case 13: _GMP_pn_primorial(p, n);  break;
+      case 14:
       default: consecutive_integer_lcm(p, n);  break;
     }
     XPUSH_MPZ(p);

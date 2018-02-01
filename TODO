@@ -149,3 +149,5 @@
     =      harmreal, riemannr, prime_count_lower, prime_count_upper
 
 - tinyqs needs a destroy to clear all the init vars
+
+- maybe export rising_factorial and falling_factorial.

@@ -9,6 +9,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - subreal(x,y[,digits])   x-y
     - mulreal(x,y[,digits])   x*y
     - divreal(x,y[,digits])   x/y
+    - subfactorial(n)         !n (derangements)
+    - factorial_sum(n)        !n (sum of factorials)
+    - multifactorial(x,n)     x!, x!!, x!!!, etc.
 
     [FIXES]
 

@@ -65,7 +65,8 @@ our @EXPORT_OK = qw(
                      prime_count prime_count_lower prime_count_upper
                      primorial
                      pn_primorial
-                     factorial factorialmod
+                     factorial subfactorial multifactorial factorial_sum
+                     factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      zeta li ei riemannr lambertw
@@ -1091,11 +1092,49 @@ defined as the product of the integers 1 to C<n> with the special case
 of C<factorial(0) = 1>.  This corresponds to Pari's C<factorial(n)>
 and Mathematica's C<Factorial[n]> functions.
 
+=head2 multifactorial
+
+Given two positive integer arguments C<n> and C<m>, returns C<n!^(m)>,
+the multifactorial.  C<m=1> is the standard L</factorial> while C<m=2>
+is the double factorial.  While the factorial is the product of all
+integers C<n> and below, the multifactorial skips those without the
+same parity as C<n mod m>.  Hence
+
+  multifactorial(n,2) = n * (n-2) * (n-4) * ...
+
+The multifactorials are the OEIS series
+(m=1) L<OEIS series A000142|http://oeis.org/A000142>,
+(m=2) L<OEIS series A006882|http://oeis.org/A006882>,
+(m=3) L<OEIS series A007661|http://oeis.org/A007661>,
+(m=4) L<OEIS series A007662|http://oeis.org/A007662>, ...
+
+Also see L<Peter Luschny's excellent writeup|http://oeis.org/wiki/User:Peter_Luschny/Multifactorials>.
+
 =head2 factorialmod
 
 Given two positive integer arguments C<n> and C<m>, returns C<n! mod m>.
 This is much faster than computing the large C<factorial(n)> followed
 by a mod operation.
+
+=head2 factorial_sum
+
+Given positive integer argument C<n>, returns the factorial sum of C<n>.
+This is defined as the sum of C<factorial(k)> for C<0 .. n-1>.  These
+are equivalent, though this function is faster:
+
+  factorial_sum($n) == vecsum(map{ factorial($_) } 0..$n-1)
+
+This is sometimes called the left factorial, confusingly also used for
+L</subfactorial>.  This is L<OEIS series A003422|http://oeis.org/A003422>.
+
+=head2 subfactorial
+
+Given positive integer argument C<n>, returns the subfactorial of C<n>.
+This is also called the derangement number, and occasionally the left
+factorial.
+
+This is L<OEIS series A000166|http://oeis.org/A000166>.
+This corresponds to Mathematica's C<Subfactorial[n]> function.
 
 =head2 gcd
 
