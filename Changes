@@ -25,6 +25,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Allow Ramanujan polynomials (D = 11 mod 24) for ECPP, reducing sizes.
 
+    - Some new code for ei().
+
 
 0.50 2017-11-28
 

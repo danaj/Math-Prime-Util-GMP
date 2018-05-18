@@ -446,10 +446,11 @@ static void _const_euler(mpf_t gamma, unsigned long prec)
  *   See http://www.jjj.de/arctan/arctanpage.html for best arctan series.
  *
  * - AGM.  Quite good, and this seems to be best for relatively small sizes.
+ *   See: https://arxiv.org/abs/1802.07558
  *
  * - Ramanujan / Chudnovsky with binary splitting.
  *   About 2-4x faster than AGM for large enough sizes.  This version is based
- *   on Alexander Yee's example.  I have tested with a port of Pari/GP's abpq_sum
+ *   on Alexander Yee's example.  I have tested vs a port of Pari/GP's abpq_sum
  *   and it came out about the same speed but uses a lot more memory.
  *   There are many more optimizations that can be done for this.  Xue's code
  *   on the GMP page uses quite a bit of code to do running reduction of P,Q
@@ -559,7 +560,7 @@ static void _agm_pi(mpf_t pi, unsigned long prec)
   for (k = 0; (prec >> (k+1)) > 0; k++) {
     mpf_set(prev_an, an);           /* Y <- A */
     mpf_add(t, an, bn);
-    mpf_div_ui(an, t, 2);           /* A <- (A+B)/2 */
+    mpf_div_2exp(an, t, 1);         /* A <- (A+B)/2 */
     mpf_mul(t, bn, prev_an);
     mpf_sqrt(bn, t);                /* B <- (BY)^(1/2) */
     mpf_sub(prev_an, prev_an, an);
@@ -709,10 +710,59 @@ void li(mpf_t r, mpf_t n, unsigned long prec)
   mpf_clear(logn);
 }
 
-void ei(mpf_t r, mpf_t n, unsigned long prec)
+void ei(mpf_t r, mpf_t x, unsigned long prec)
 {
-  mpf_exp(r, n);
-  li(r, r, prec+3);
+#if 0
+  #include <mpfr.h>
+  mpfr_t C, Cin;
+  mpfr_init2(C,    10+DIGS2BITS(prec));
+  mpfr_init2(Cin,  mpf_get_prec(x));
+  mpfr_set_f(Cin, x, MPFR_RNDN);
+  mpfr_eint(C, Cin, MPFR_RNDN);
+  mpfr_get_f(r, C, MPFR_RNDN);
+  mpfr_clear(Cin);
+  mpfr_clear(C);
+  return;
+#endif
+  if (mpf_sgn(x) > 0 && mpf_cmp_ui(x, 100) < 0) {
+    /* x > 0 only */
+    mpf_t factn, invn, term, sum, t, tol;
+    unsigned long n, bits = precbits(r, prec, 14);
+
+    mpf_init2(factn, bits);
+    mpf_init2(invn,  bits);
+    mpf_init2(term,  bits);
+    mpf_init2(sum,   bits);
+    mpf_init2(t,     bits);
+    mpf_init2(tol,   bits);
+
+    mpf_set_ui(tol, 10);  mpf_pow_ui(tol, tol, prec+4);  mpf_ui_div(tol,1,tol);
+    mpf_set(factn, x);
+
+    for (n = 2; n <= 1000000; n++) {
+      mpf_set_ui(t, n);
+      mpf_ui_div(invn, 1, t);
+      mpf_mul(t, x, invn);
+      mpf_mul(factn, factn, t);
+      mpf_mul(term, factn, invn);
+      mpf_add(sum, sum, term);
+
+      mpf_abs(term, term);
+      mpf_mul(t, sum, tol);
+      mpf_abs(t, t);
+      if (mpf_cmp(term, t) <= 0) break;
+    }
+    const_euler(t, prec+4);  mpf_add(sum, sum, t);
+    mpf_log(t, x);           mpf_add(sum, sum, t);
+    mpf_add(sum, sum, x);
+    mpf_set(r, sum);
+
+    mpf_clear(tol); mpf_clear(t); mpf_clear(sum);
+    mpf_clear(term); mpf_clear(invn); mpf_clear(factn);
+  } else {
+    mpf_exp(r, x);
+    li(r, r, prec+3);
+  }
 }
 
 
