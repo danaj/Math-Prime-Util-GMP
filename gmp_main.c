@@ -815,47 +815,6 @@ void consecutive_integer_lcm(mpz_t m, UV B)
 }
 
 
-/* a=0, return power.  a>1, return bool if an a-th power */
-UV is_power(mpz_t n, UV a)
-{
-  if (mpz_cmp_ui(n,3) <= 0 && a == 0)
-    return 0;
-  else if (a == 1)
-    return 1;
-  else if (a == 2)
-    return mpz_perfect_square_p(n);
-  else {
-    UV result;
-    mpz_t t;
-    mpz_init(t);
-    result = (a == 0)  ?  power_factor(n, t)  :  (UV)mpz_root(t, n, a);
-    mpz_clear(t);
-    return result;
-  }
-}
-
-UV prime_power(mpz_t prime, mpz_t n)
-{
-  UV k;
-  if (mpz_even_p(n)) {
-    k = mpz_scan1(n, 0);
-    if (k+1 == mpz_sizeinbase(n, 2)) {
-      mpz_set_ui(prime, 2);
-      return k;
-    }
-    return 0;
-  }
-  if (_GMP_is_prob_prime(n)) {
-    mpz_set(prime, n);
-    return 1;
-  }
-  k = power_factor(n, prime);
-  if (k && !_GMP_is_prob_prime(prime))
-    k = 0;
-  return k;
-}
-
-
 void exp_mangoldt(mpz_t res, mpz_t n)
 {
   if (prime_power(res, n) < 1)
