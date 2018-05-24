@@ -27,6 +27,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Some new code for ei().
 
+    - is_primitive_root quite a bit faster.
+
 
 0.50 2017-11-28
 

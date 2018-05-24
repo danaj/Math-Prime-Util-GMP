@@ -151,5 +151,3 @@
 - tinyqs needs a destroy to clear all the init vars
 
 - maybe export rising_factorial and falling_factorial.
-
-- faster is_primitive_root from MPU

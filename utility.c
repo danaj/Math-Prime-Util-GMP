@@ -189,7 +189,7 @@ UV prime_power(mpz_t prime, mpz_t n)
 
 int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
 {
-  mpz_t a, s, sreduced, t, *factors;
+  mpz_t a, s, r, sreduced, t, *factors;
   int ret, i, nfactors, *exponents;
 
   if (mpz_sgn(n) == 0)
@@ -198,6 +198,10 @@ int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
     mpz_neg(n,n);
   if (mpz_cmp_ui(n,1) == 0)
     return 1;
+  if (mpz_cmp_ui(n,4) <= 0)
+    return mpz_get_ui(ina) == mpz_get_ui(n)-1;
+  if (mpz_divisible_2exp_p(n,2))
+    return 0;
 
   mpz_init(a);
   mpz_mod(a,ina,n);
@@ -209,14 +213,33 @@ int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
     mpz_clear(a);
     return 0;
   }
+
+  mpz_init(t);
   if (nprime) {
     mpz_sub_ui(s, n, 1);
-  } else {
-    totient(s, n);
+  } else { /* totient(s, n); */   /* Fine, but slow. */
+    UV k;
+    mpz_init(r);
+    if (mpz_odd_p(n)) mpz_set(t, n); else mpz_fdiv_q_2exp(t, n, 1);
+    k = prime_power(r, t);
+    if (!k) {  /* Not of form p^a or 2p^a */
+      mpz_clear(r); mpz_clear(t); mpz_clear(s); mpz_clear(a); return 0;
+    }
+    mpz_divexact(t, t, r);
+    mpz_mul(s, t, r);  mpz_sub(s, s, t);
+    mpz_clear(r);
   }
   mpz_init_set(sreduced, s);
-  mpz_init(t);
-  ret = 1;
+
+  ret = 0;
+  mpz_sub_ui(t, n, 1);
+  if (mpz_cmp(s,t) == 0 && mpz_kronecker(a,n) != -1)
+    goto DONE_IPR;
+  /* Unclear if this is worth doing.
+  i = is_power(a, 0);
+  if (i > 1 && mpz_gcd_ui(NULL, s, i) != 1)
+    goto DONE_IPR;
+  */
 
 #define IPR_TEST_UI(s, p, a, n, t, ret) \
   mpz_divexact_ui(t, s, p); \
@@ -228,6 +251,7 @@ int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
   mpz_powm(t, a, t, n); \
   if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
 
+  ret = 1;
   { /* Pull out small factors and test */
     UV p, fromp = 0;
     while (ret == 1 && (p = _GMP_trial_factor(sreduced, fromp, 60))) {
