@@ -17,6 +17,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Some memory leaks squashed.
 
+    - Trizen reported a factor bug.  Fixed with patch to tinyqs.c init code.
+
     [OTHER]
 
     - Work around a bug in NetBSD.

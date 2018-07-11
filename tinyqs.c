@@ -1079,6 +1079,8 @@ sieve polynomials
       if (++i == POLY_SELECT_BITS_TINY)
         break;
     }
+    if (minus_idx == 0)  /* Something has gone wrong.  Exit. */
+      break;
     plus_idx++;
     minus_idx--;
   }
