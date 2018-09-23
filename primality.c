@@ -413,6 +413,7 @@ void alt_lucas_seq(mpz_t Uh, mpz_t Vl, mpz_t n, IV P, IV Q, mpz_t k,
       mpz_mul_si(t, Ql, P);  mpz_mul(Vh, Vh, Vl); mpz_sub(Vh, Vh, t);
       mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
     }
+    mpz_mod(Ql, Ql, n);
     mpz_mod(Qh, Qh, n);
     mpz_mod(Uh, Uh, n);
     mpz_mod(Vh, Vh, n);
