@@ -773,6 +773,21 @@ void mpz_product(mpz_t* A, UV a, UV b) {
     mpz_mul(A[a], A[a], A[c]);
   }
 }
+void mpz_veclcm(mpz_t* A, UV a, UV b) {
+  if (b <= a) {
+    /* nothing */
+  } else if (b == a+1) {
+    mpz_lcm(A[a], A[a], A[b]);
+  } else if (b == a+2) {
+    mpz_lcm(A[a+1], A[a+1], A[a+2]);
+    mpz_lcm(A[a], A[a], A[a+1]);
+  } else {
+    UV c = a + (b-a+1)/2;
+    mpz_veclcm(A, a, c-1);
+    mpz_veclcm(A, c, b);
+    mpz_lcm(A[a], A[a], A[c]);
+  }
+}
 
 UV logint(mpz_t n, UV base) {
   double logn, logbn, coreps;

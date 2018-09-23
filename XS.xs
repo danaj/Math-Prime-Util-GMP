@@ -616,14 +616,15 @@ gcd(...)
     mpz_t ret, n;
   PPCODE:
     if (items == 0) XSRETURN_IV( (ix == 3) ? 1 : 0);
-    if (ix == 3) {
+    if (ix == 1 || ix == 3) {
       mpz_t* list;
       New(0, list, items, mpz_t);
       for (i = 0; i < items; i++) {
         char* strn = SvPV_nolen(ST(i));
         validate_and_set_signed(cv, list[i], "arg", strn, VSETNEG_OK);
       }
-      mpz_product(list, 0, items-1);
+      if (ix == 1) mpz_veclcm(list, 0, items-1);
+      else         mpz_product(list, 0, items-1);
       XPUSH_MPZ(list[0]);
       for (i = 0; i < items; i++)  mpz_clear(list[i]);
       Safefree(list);
