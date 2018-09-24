@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.
 
+    - Trizen improved speed of lucas sequence for large n and even modulus.
+
 
 0.51 2018-08-27
 
