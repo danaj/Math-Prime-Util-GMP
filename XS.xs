@@ -758,8 +758,15 @@ invmod(IN char* stra, IN char* strb)
     polygonal_nth = 8
     rootint = 9
     logint = 10
-    factorialmod = 11
-    multifactorial = 12
+    powint = 11
+    mulint = 12
+    addint = 13
+    divint = 14
+    remint = 15
+    tdivrem = 16
+    divrem = 17
+    factorialmod = 18
+    multifactorial = 19
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -767,69 +774,102 @@ invmod(IN char* stra, IN char* strb)
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     retundef = 0;
-    if (ix == 0) {
-      /* undef if a|b is zero, 0 if b is 1, otherwise result of mpz_invert */
-      if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
-      else if (!mpz_cmp_ui(b,1))       mpz_set_ui(a,0);
-      else                             retundef = !mpz_invert(a,a,b);
-    } else if (ix == 1) {
-      unsigned long n, k;
-      if (mpz_sgn(b) < 0) {   /* Handle negative k */
-        if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
-        else                                      mpz_sub(b, a, b);
-      }
-      n = mpz_get_ui(a);
-      k = mpz_get_ui(b);
-      if (k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
-        mpz_bin_ui(a, a, k);
-      } else {
-        if (k > n/2) k = n-k;
-        /* Note: mpz_bin_uiui is *much* faster than mpz_bin_ui.  It is a
-         * bit faster than our code for small values, and a tiny bit slower
-         * for larger values. */
-        if (n > 50000 && k > 1000)  binomial(a, n, k);
-        else                        mpz_bin_uiui(a, n, k);
-      }
-    } else if (ix == 2) {
-      mpz_init(t);
-      if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
-        mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
-      } else {
-        gcdext(a, t, b, a, b);
-      }
-      XPUSH_MPZ(t);  XPUSH_MPZ(b);
-      mpz_clear(t);
-    } else if (ix == 3) {
-      jordan_totient(a, b, mpz_get_ui(a));
-    } else if (ix == 4) {
-      znorder(a, a, b);
-      if (!mpz_sgn(a)) retundef = 1;
-    } else if (ix == 5) {
-      retundef = !sqrtmod(a, a, b);
-    } else if (ix == 6) {
-      int ret = is_primitive_root(a, b, 0);
-      mpz_set_si(a, ret);
-    } else if (ix == 7) {
-      if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
-      polygonal_nth(a, a, mpz_get_ui(b));
-      mpz_set_si(a, mpz_sgn(a));
-    } else if (ix == 8) {
-      if (mpz_cmp_ui(b,3) < 0) croak("polygonal_nth: k must be >= 3");
-      polygonal_nth(a, a, mpz_get_ui(b));
-    } else if (ix == 9) {
-      if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
-      if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
-      mpz_root(a, a, mpz_get_ui(b));
-    } else if (ix == 10) {
-      if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
-      if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
-      mpz_set_ui(a, logint(a, mpz_get_ui(b)));
-    } else if (ix == 11) {
-      if (mpz_sgn(b) < 0) retundef = 1;
-      else                factorialmod(a, mpz_get_ui(a), b);
-    } else {
-      if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
-      else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
+    switch (ix) {
+               /* undef if a|b = 0, 0 if b is 1, else result of mpz_invert */
+      case 0:{ if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
+               else if (!mpz_cmp_ui(b,1))       mpz_set_ui(a,0);
+               else                             retundef = !mpz_invert(a,a,b);
+             } break;
+      case 1:{ unsigned long n, k;
+               if (mpz_sgn(b) < 0) {   /* Handle negative k */
+                 if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
+                 else                                      mpz_sub(b, a, b);
+               }
+               n = mpz_get_ui(a);
+               k = mpz_get_ui(b);
+               if (k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
+                 mpz_bin_ui(a, a, k);
+               } else {
+                 if (k > n/2) k = n-k;
+                 /* Note: mpz_bin_uiui is *much* faster than mpz_bin_ui.
+                  * It is a bit faster than our code for small values, and
+                  * a tiny bit slower for larger values. */
+                 if (n > 50000 && k > 1000)  binomial(a, n, k);
+                 else                        mpz_bin_uiui(a, n, k);
+               }
+             } break;
+      case 2:{ mpz_init(t);
+               if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
+                 mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
+               } else {
+                 gcdext(a, t, b, a, b);
+               }
+               XPUSH_MPZ(t);  XPUSH_MPZ(b);
+               mpz_clear(t);
+             } break;
+      case 3: jordan_totient(a, b, mpz_get_ui(a));
+              break;
+      case 4: znorder(a, a, b);
+              if (!mpz_sgn(a)) retundef = 1;
+              break;
+      case 5: retundef = !sqrtmod(a, a, b);
+              break;
+      case 6: mpz_set_si(a, is_primitive_root(a, b, 0) );
+              break;
+      case 7: if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
+              polygonal_nth(a, a, mpz_get_ui(b));
+              mpz_set_si(a, mpz_sgn(a));
+              break;
+      case 8: if (mpz_cmp_ui(b,3) < 0) croak("polygonal_nth: k must be >= 3");
+              polygonal_nth(a, a, mpz_get_ui(b));
+              break;
+      case 9: if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
+              if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
+              mpz_root(a, a, mpz_get_ui(b));
+              break;
+      case 10:if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
+              if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
+              mpz_set_ui(a, logint(a, mpz_get_ui(b)));
+              break;
+      case 11:if (mpz_sgn(b) < 0) croak("powint: exponent must be >= 0");
+              mpz_pow_ui(a, a, mpz_get_ui(b));
+              break;
+      case 12:mpz_mul(a, a, b);
+              break;
+      case 13:mpz_add(a, a, b);
+              break;
+      case 14:if (mpz_sgn(b) == 0) croak("divint: divide by zero");
+              mpz_fdiv_q(a, a, b);
+              break;
+      case 15:if (mpz_sgn(b) == 0) croak("remint: divide by zero");
+              mpz_fdiv_r(a, a, b);
+              break;
+      case 16:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
+              mpz_tdiv_qr(b, a, a, b);  /* t is t-quotient, a is t-remainder */
+              XPUSH_MPZ(b);
+              break;
+      case 17:mpz_init_set(t, b);
+              if (mpz_sgn(b) == 0) croak("divrem: divide by zero");
+              mpz_tdiv_qr(t, a, a, b);  /* t is t-quotient, a is t-remainder */
+              if (mpz_sgn(a) < 0) {  /* Change from trunc to Euclidean */
+                if (mpz_sgn(b) > 0) {
+                  mpz_sub_ui(t, t, 1);
+                  mpz_add(a, a, b);
+                } else {
+                  mpz_add_ui(t, t, 1);
+                  mpz_sub(a, a, b);
+                }
+              }
+              XPUSH_MPZ(t);
+              mpz_clear(t);
+              break;
+      case 18:if (mpz_sgn(b) < 0) retundef = 1;
+              else                factorialmod(a, mpz_get_ui(a), b);
+              break;
+      case 19:
+      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
+              else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
+              break;
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);

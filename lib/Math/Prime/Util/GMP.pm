@@ -80,7 +80,8 @@ our @EXPORT_OK = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     sqrtint rootint logint
+                     sqrtint rootint logint powint mulint addint
+                     divint remint divrem tdivrem
                      is_power is_prime_power is_semiprime is_square
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
@@ -192,7 +193,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint divint remint divrem tdivrem todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1726,6 +1727,58 @@ Given C<n> and C<b>, returns the integer base-C<b> logarithm of C<n>.
 This is the largest integer C<e> such that C<b^e E<lt>= n>.
 
 This corresponds to Pari/GP's C<logint> function.
+
+=head2 powint
+
+Given integers C<a> and C<b>, returns C<a^b>.  For <0^0> we return 1.
+
+The exponent C<b> is converted into an unsigned long.
+
+=head2 mulint
+
+Given integers C<a> and C<b>, returns C<a * b>.
+
+=head2 addint
+
+Given integers C<a> and C<b>, returns C<a + b>.
+
+=head2 divint
+
+Given integers C<a> and C<b>, returns the quotient C<a / b>.
+
+Floor division is used, so q is rounded towards -inf and r has
+the same sign as the divisor.
+This is the same as L<Math::BigInt/bdiv> and the GMP C<fdiv> functions,
+but not the same as Pari/GP's C<\\> operator.
+
+=head2 remint
+
+Given integers C<a> and C<b>, returns the remainder C<a % b>.
+
+Floor division is used, so q is rounded towards -inf and r has
+the same sign as the divisor.
+This is the same as L<Math::BigInt/bmod> and the GMP C<fdiv> functions,
+but not the same as Pari/GP's C<%> operator.
+
+=head2 divrem
+
+    my($quo, $rem) = divrem($a, $b);
+
+Given integers C<a> and C<b>, returns a list of two items:
+the Euclidean quotient and the Euclidean remainder.
+
+This corresponds to Pari/GP's C<divrem> function.
+There is no explicit function in L<Math::BigInt> that gives
+this division method for signed inputs.
+
+=head2 tdivrem
+
+Given integers C<a> and C<b>, returns a list of two items:
+the truncated quotient and the truncated remainder.
+
+The resulting pair will match
+L<Math::BigInt/btdiv> and L<Math::BigInt/btmod>.
+
 
 =head2 factor
 

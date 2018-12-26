@@ -2,6 +2,16 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.52 2018-?
 
+    [ADDED]
+
+    - powint(a,b)             integer a^b
+    - mulint(a,b)             integer a*b
+    - addint(a,b)             integer a+b
+    - divint(a,b)             integer a/b quotient  (floor)
+    - remint(a,b)             integer a/b remainder (floor)
+    - divrem(a,b)             integer a/b quo + rem (Euclidian)
+    - tdivrem(a,b)            integer a/b quo + rem (truncated)
+
     [PERFORMANCE]
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.

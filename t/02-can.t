@@ -13,8 +13,12 @@ my @functions = qw(
                      is_provable_prime_with_cert
                      is_aks_prime
                      is_nminus1_prime
+                     is_nplus1_prime
+                     is_bls75_prime
                      is_ecpp_prime
                      is_pseudoprime
+                     is_euler_pseudoprime
+                     is_euler_plumb_pseudoprime
                      is_strong_pseudoprime
                      is_lucas_pseudoprime
                      is_strong_lucas_pseudoprime
@@ -27,6 +31,7 @@ my @functions = qw(
                      is_mersenne_prime
                      is_llr_prime
                      is_proth_prime
+                     is_miller_prime
                      miller_rabin_random
                      lucas_sequence  lucasu  lucasv
                      primes
@@ -36,6 +41,7 @@ my @functions = qw(
                      sieve_range
                      next_prime
                      prev_prime
+                     surround_primes
                      trial_factor
                      prho_factor
                      pbrent_factor
@@ -46,17 +52,20 @@ my @functions = qw(
                      ecm_factor
                      qs_factor
                      factor
+                     divisors
                      sigma
                      chinese
                      moebius
                      prime_count prime_count_lower prime_count_upper
                      primorial
                      pn_primorial
-                     factorial factorialmod
+                     factorial subfactorial multifactorial factorial_sum
+                     factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      zeta li ei riemannr lambertw
-                     logreal expreal powreal agmreal
+                     addreal subreal mulreal divreal
+                     logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod mulmod divmod powmod
                      vecsum vecprod
@@ -65,7 +74,8 @@ my @functions = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     sqrtint rootint logint
+                     sqrtint rootint logint powint mulint addint
+                     divint remint divrem tdivrem
                      is_power is_prime_power is_semiprime is_square
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
