@@ -75,7 +75,7 @@ my @functions = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint logint powint mulint addint
-                     divint remint divrem tdivrem
+                     divint modint divrem tdivrem
                      is_power is_prime_power is_semiprime is_square
                      is_carmichael is_fundamental is_totient
                      is_primitive_root

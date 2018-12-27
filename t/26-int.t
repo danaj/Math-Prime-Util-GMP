@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint divint remint divrem tdivrem/;
+use Math::Prime::Util::GMP qw/powint mulint addint divint modint divrem tdivrem/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -32,7 +32,7 @@ plan tests => 0
             + 1 + scalar(@mulints)           # mulint
             + 1 + scalar(@addints)           # addint
             + 2 + 2                          # divint
-            + 2 + 2                          # remint
+            + 2 + 2                          # modint
             + 2                              # divrem
             + 2                              # tdivrem
             + 4 * scalar(@quotients)         # signed bigint division
@@ -86,21 +86,24 @@ foreach my $r (@addints) {
 ok(!eval { divint(0,0); }, "divint(1,0)");
 ok(!eval { divint(1,0); }, "divint(1,0)");
 
-is_deeply( [map { divint(1024,$_) } 1..1025], [map { int(1024/$_) } 1..1025], "divint(1024,x) for 1 .. 1025" );
-# Note this will be DIFFERENT than int(-1024/$_)
-{ my $num = Math::BigInt->new(-1024);
-  is_deeply( [map { divint(-1024,$_) } 1..1025], [map { scalar $num->copy->bdiv($_) } 1..1025], "divint(-1024,x) for 1 .. 1025" );
-}
+# For negative inputs, the div and mod operations might be different than Perl's builtins.
+# It matches Math::BigInt bdiv / bmod (post 1.997 Sep 2015).
 
-###### remint
-ok(!eval { remint(0,0); }, "remint(1,0)");
-ok(!eval { remint(1,0); }, "remint(1,0)");
+my @qpos1024 = map { int(1024/$_) } 1 .. 1025;
+my @qneg1024 = map { my $d=-1024/$_; my $i = int($d);  ($d==$i) ? $i : $i-1; } 1 .. 1025;
 
-is_deeply( [map { remint(1024,$_) } 1..1025], [map { int(1024 % $_) } 1..1025], "remint(1024,x) for 1 .. 1025" );
-# Note this will be DIFFERENT than int(-1024 % $_)
-{ my $num = Math::BigInt->new(-1024);
-  is_deeply( [map { remint(-1024,$_) } 1..1025], [map { scalar $num->copy->bmod($_) } 1..1025], "remint(-1024,x) for 1 .. 1025" );
-}
+my @rpos1024 = map {  1024 - $_ * $qpos1024[$_-1] } 1 .. 1025;
+my @rneg1024 = map { -1024 - $_ * $qneg1024[$_-1] } 1 .. 1025;
+
+is_deeply( [map { divint(1024,$_) } 1..1025], \@qpos1024, "divint(1024,x) for 1 .. 1025" );
+is_deeply( [map { divint(-1024,$_) } 1..1025], \@qneg1024, "divint(-1024,x) for 1 .. 1025" );
+
+###### modint
+ok(!eval { modint(0,0); }, "modint(1,0)");
+ok(!eval { modint(1,0); }, "modint(1,0)");
+
+is_deeply( [map { modint(1024,$_) } 1..1025], \@rpos1024, "modint(1024,x) for 1 .. 1025" );
+is_deeply( [map { modint(-1024,$_) } 1..1025], \@rneg1024, "modint(-1024,x) for 1 .. 1025" );
 
 ###### divrem
 ok(!eval { divrem(0,0); }, "divrem(1,0)");
@@ -111,13 +114,13 @@ ok(!eval { tdivrem(0,0); }, "tdivrem(1,0)");
 ok(!eval { tdivrem(1,0); }, "tdivrem(1,0)");
 
 
-###### large values through divint, remint, divrem, tdivrem
+###### large values through divint, modint, divrem, tdivrem
 for my $s (@quotients) {
   my($signs, $n, $m, $qt, $qf, $qe) = @$s;
   my($bn,$bm) = map { Math::BigInt->new($_) } ($n,$m);
   my($rt, $rf, $re) = map { $bn - $bm * $_ } ($qt, $qf, $qe);
   is( divint($n, $m), $qf, "large divint  $signs" );
-  is( remint($n, $m), $rf, "large remint  $signs" );
+  is( modint($n, $m), $rf, "large modint  $signs" );
   is_deeply( [divrem($n, $m)], [$qe, $re], "large divrem  $signs" );
   is_deeply( [tdivrem($n, $m)], [$qt, $rt], "large tdivrem $signs" );
 }

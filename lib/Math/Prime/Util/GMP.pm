@@ -81,7 +81,7 @@ our @EXPORT_OK = qw(
                      jordan_totient
                      carmichael_lambda
                      sqrtint rootint logint powint mulint addint
-                     divint remint divrem tdivrem
+                     divint modint divrem tdivrem
                      is_power is_prime_power is_semiprime is_square
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
@@ -193,7 +193,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint divint remint divrem tdivrem todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint divint modint divrem tdivrem todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1746,18 +1746,20 @@ Given integers C<a> and C<b>, returns C<a + b>.
 
 Given integers C<a> and C<b>, returns the quotient C<a / b>.
 
-Floor division is used, so q is rounded towards -inf and r has
-the same sign as the divisor.
-This is the same as L<Math::BigInt/bdiv> and the GMP C<fdiv> functions,
+Floor division is used, so q is rounded towards -inf and
+the remainder has the same sign as the divisor C<b>.
+This is the same as modern L<Math::BigInt/bdiv> and the GMP C<fdiv> functions,
 but not the same as Pari/GP's C<\\> operator.
 
-=head2 remint
+=head2 modint
 
-Given integers C<a> and C<b>, returns the remainder C<a % b>.
+Given integers C<a> and C<b>, returns the modulo C<a % b>.
+
+    C<r = a - b * floor(a / b)>
 
 Floor division is used, so q is rounded towards -inf and r has
-the same sign as the divisor.
-This is the same as L<Math::BigInt/bmod> and the GMP C<fdiv> functions,
+the same sign as the divisor C<b>..
+This is the same as modern L<Math::BigInt/bmod> and the GMP C<fdiv> functions,
 but not the same as Pari/GP's C<%> operator.
 
 =head2 divrem

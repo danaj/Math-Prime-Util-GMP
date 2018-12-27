@@ -8,7 +8,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - mulint(a,b)             integer a*b
     - addint(a,b)             integer a+b
     - divint(a,b)             integer a/b quotient  (floor)
-    - remint(a,b)             integer a/b remainder (floor)
+    - modint(a,b)             integer a/b modulo    (floor)
     - divrem(a,b)             integer a/b quo + rem (Euclidian)
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
 
