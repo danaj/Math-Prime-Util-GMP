@@ -650,6 +650,7 @@ int
 kronecker(IN char* stra, IN char* strb)
   ALIAS:
     valuation = 1
+    is_gaussian_prime = 2
   PREINIT:
     mpz_t a, b;
   CODE:
@@ -657,7 +658,7 @@ kronecker(IN char* stra, IN char* strb)
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     if (ix == 0) {
       RETVAL = mpz_kronecker(a, b);
-    } else {
+    } else if (ix == 1) {
       mpz_abs(a,a);
       mpz_abs(b,b);
       if (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0) {
@@ -666,6 +667,19 @@ kronecker(IN char* stra, IN char* strb)
         RETVAL = mpz_scan1(a, 0);
       } else {
         RETVAL = mpz_remove(a, a, b);
+      }
+    } else {
+      mpz_abs(a,a);
+      mpz_abs(b,b);
+      if (mpz_sgn(a) == 0) {
+        RETVAL = (mpz_fdiv_ui(b,4) == 3) ? _GMP_is_prime(b) : 0;
+      } else if (mpz_sgn(b) == 0) {
+        RETVAL = (mpz_fdiv_ui(a,4) == 3) ? _GMP_is_prime(a) : 0;
+      } else {
+        mpz_mul(a, a, a);
+        mpz_mul(b, b, b);
+        mpz_add(a, a, b);
+        RETVAL = (mpz_fdiv_ui(a,4) != 3) ? _GMP_is_prime(a) : 0;
       }
     }
     mpz_clear(b);

@@ -39,6 +39,7 @@ our @EXPORT_OK = qw(
                      is_proth_prime
                      is_miller_prime
                      miller_rabin_random
+                     is_gaussian_prime
                      lucas_sequence  lucasu  lucasv
                      primes
                      sieve_primes
@@ -698,6 +699,13 @@ indicates primality.
 While not as fast as the Lucas-Lehmer test for Mersenne
 numbers, it is almost as fast as a single strong pseudoprime test (i.e.
 Miller-Rabin test) while giving a certain answer.
+
+=head2 is_gaussian_prime
+
+Given two integers C<a> and C<b> as input, returns 0 (definitely composite),
+1 (probably prime), or 2 (definitely prime) to indicate whether the
+complex number C<a+bi> is a Guassian prime.  The L</is_prime> function is
+used internally to make the determination.
 
 =head2 is_miller_prime
 

@@ -11,6 +11,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - modint(a,b)             integer a/b modulo    (floor)
     - divrem(a,b)             integer a/b quo + rem (Euclidian)
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
+    - is_gaussian_prime(a,b)  is a+bi a Gaussian prime
 
     [PERFORMANCE]
 

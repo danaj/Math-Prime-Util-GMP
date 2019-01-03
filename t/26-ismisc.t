@@ -3,12 +3,13 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_carmichael is_fundamental is_totient is_polygonal
-                              polygonal_nth/;
+use Math::Prime::Util::GMP qw/is_carmichael is_fundamental is_totient is_gaussian_prime
+                              is_polygonal polygonal_nth/;
 
 plan tests => 0
             + 3 # is_carmichael
             + 4 # is_fundamental
+            + 8 # is_gaussian_prime
             + 8 # is_totient
             + 4 # is_polygonal
             + 0;
@@ -44,6 +45,16 @@ is( is_totient("9223372036854775832"), 0, "is_totient(2^63+24)" );
 is( is_totient("9671406556917033397649496"), 1, "is_totient(2^83+88)" );
 is( is_totient("9671406556917033397649458"), 0, "is_totient(2^83+50)" );
 is( is_totient("9671406556917033397649472"), 1, "is_totient(2^83+64)" );
+
+###### is_gaussian_prime
+ok( !is_gaussian_prime(29,0), "29 is not a Gaussian Prime" );
+ok(  is_gaussian_prime(31,0), "31 is a Gaussian Prime" );
+ok( !is_gaussian_prime(0,-29), "0-29i is not a Gaussian Prime" );
+ok(  is_gaussian_prime(0,-31), "0-31i is a Gaussian Prime" );
+ok(  is_gaussian_prime("113935449173347223991024360434046986411","627493285926801435052159379234172381650"), "large +,+ Gaussian prime" );
+ok(  is_gaussian_prime("-290396075282846913855817435503353843926","659140811346340744116053113232015528641"), "large -,+ Gaussian prime" );
+ok( !is_gaussian_prime("873384195388776562411637","22046886918736165736188"), "large +,+ Gaussian composite" );
+ok( !is_gaussian_prime("678713103733782152987023","-66834001678101266508984"), "large +,- Gaussian composite" );
 
 ###### is_polygonal
 is_deeply( [grep { is_polygonal($_,3) } 1..55], [1,3,6,10,15,21,28,36,45,55], "first 10 triangular numbers" );
