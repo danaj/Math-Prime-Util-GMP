@@ -679,7 +679,9 @@ kronecker(IN char* stra, IN char* strb)
         mpz_mul(a, a, a);
         mpz_mul(b, b, b);
         mpz_add(a, a, b);
-        RETVAL = (mpz_fdiv_ui(a,4) != 3) ? _GMP_is_prime(a) : 0;
+        RETVAL = (!mpz_cmp_ui(a,2))      ?  2
+               : (mpz_fdiv_ui(a,4) == 1) ?  _GMP_is_prime(a)
+                                         :  0;
       }
     }
     mpz_clear(b);
