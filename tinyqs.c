@@ -394,7 +394,7 @@ Perspective"
     b = mulm_16(alpha, mulm_16(a, (beta ? beta-1 : p-1), p), p);
     return b;
   }
-  else if ( (p & 16) == 9 ) {
+  else if ( (p & 15) == 9 ) {
     s32 a2, alpha, beta, b, d = 1;
     a2 = (a+a) % p;
     alpha = powm_16(a2, (p-9)>>4, p);
