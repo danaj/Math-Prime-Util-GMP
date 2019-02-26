@@ -5,7 +5,8 @@ use warnings;
 use Test::More;
 use Math::BigInt try=>"GMP,Pari";
 use Math::Prime::Util::GMP
-    qw/random_prime random_ndigit_prime random_nbit_prime random_strong_prime
+    qw/random_prime random_ndigit_prime random_nbit_prime
+       random_safe_prime random_strong_prime
        random_maurer_prime random_shawe_taylor_prime
        random_maurer_prime_with_cert
        random_shawe_taylor_prime_with_cert
@@ -23,6 +24,7 @@ push @random_nbit_tests, (256, 512, 1024, 2048) if $extra;
 
 my @random_ndigit_tests = (1 .. 25);
 
+my @random_safe_tests   = (16, 32, 33, 34, 64, 128, 255, 256, 512);
 my @random_strong_tests = (128, 255, 256, 512);
 
 my %ranges = (
@@ -67,6 +69,7 @@ plan tests => 0
               + (2 * scalar @random_to)
               + (1 * scalar @random_ndigit_tests)
               + (1 * scalar @random_nbit_tests)
+              + (2 * scalar @random_safe_tests)
               + (1 * scalar @random_strong_tests)
               + (2 * scalar @random_nbit_tests)   # proven primes
               + 6
@@ -121,6 +124,13 @@ foreach my $digits ( @random_ndigit_tests ) {
 
 foreach my $bits ( @random_nbit_tests ) {
   check_bits( random_nbit_prime($bits), $bits, "random $bits-bit" );
+}
+
+foreach my $bits ( @random_safe_tests ) {
+  my $p = random_safe_prime($bits);
+  my $q = (Math::BigInt->new("$p") - 1) >> 1;
+  check_bits( $p, $bits, "random $bits-bit safe (p)" );
+  check_bits( $q, $bits-1, "random $bits-bit safe (q)" );
 }
 
 foreach my $bits ( @random_strong_tests ) {

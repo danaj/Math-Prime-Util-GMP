@@ -93,7 +93,7 @@ our @EXPORT_OK = qw(
                      Pi Euler
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
-                     random_strong_prime
+                     random_safe_prime random_strong_prime
                      random_maurer_prime random_shawe_taylor_prime
                      random_maurer_prime_with_cert
                      random_shawe_taylor_prime_with_cert
@@ -958,6 +958,14 @@ undergone a full BPSW test; just sieving and a SPSP-2 test.
 Returns a randomly selected prime of exactly C<n> bits.
 C<undef> is returned if C<n> is less than C<2>.
 The returned prime has passed the C<is_prob_prime> (extra strong BPSW) test.
+
+=head2 random_safe_prime
+
+Returns a randomly selected safe prime of exactly C<n> bits.
+C<n> must be at least C<3>.
+The returned value C<p> will be of the form C<2q+1> where C<q>
+has passed the extra strong BPSW test.  C<p> is guaranteed to be
+a prime if C<q> is prime.
 
 =head2 random_strong_prime
 
@@ -2292,7 +2300,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2017 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2019 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

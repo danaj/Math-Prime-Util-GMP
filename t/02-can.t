@@ -86,7 +86,7 @@ my @functions = qw(
                      Pi Euler
                      todigits
                      random_prime random_nbit_prime random_ndigit_prime
-                     random_strong_prime
+                     random_safe_prime random_strong_prime
                      random_maurer_prime random_shawe_taylor_prime
                      random_maurer_prime_with_cert
                      random_shawe_taylor_prime_with_cert

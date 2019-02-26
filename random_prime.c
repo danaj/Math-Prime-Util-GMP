@@ -6,6 +6,7 @@
 #include <gmp.h>
 #include "ptypes.h"
 #include "random_prime.h"
+#define FUNC_gcd_ui 1
 #include "utility.h"
 #include "primality.h"
 #include "gmp_main.h"
@@ -190,6 +191,64 @@ static void _rand_in_bit_interval(mpz_t rop, UV nbits, mpz_t mult)
   mpz_add(rop, rop, lo);
 
   mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
+}
+
+void mpz_random_safe_prime(mpz_t p, UV nbits)
+{
+  static const unsigned char small_safe[] = {5,7,11,23,47,59,83,107};
+  uint32_t qmod, pmod;
+  UV qbits = nbits-1;
+  mpz_t q, base;
+
+  switch (nbits) {
+    case 0: case 1: case 2:   mpz_set_ui(p, 0);  return;
+    case 3:   mpz_set_ui(p, small_safe[ 0+isaac_rand(2)]);  return;
+    case 4:   mpz_set_ui(p, 11);  return;
+    case 5:   mpz_set_ui(p, 23);  return;
+    case 6:   mpz_set_ui(p, small_safe[ 4+isaac_rand(2)]);  return;
+    case 7:   mpz_set_ui(p, small_safe[ 6+isaac_rand(2)]);  return;
+    default:  break;
+  }
+
+  mpz_init(q); mpz_init(base);
+
+  if (qbits > 33) {
+    mpz_isaac_urandomb(base, qbits-33);
+    mpz_mul_2exp(base,base,1);
+    mpz_setbit(base, qbits-1);
+    mpz_setbit(base, 0);
+  }
+  while (1) {
+    /* 1. Generate random nbit q */
+    if (qbits > 33) {
+      mpz_set_ui(q, isaac_rand32());
+      mpz_mul_2exp(q, q, qbits-32);
+      mpz_ior(q, q, base);
+    } else {
+      mpz_isaac_urandomb(q, qbits);
+      mpz_setbit(q, qbits-1);
+      mpz_setbit(q, 0);
+    }
+    /* 2. Simple pretest that q and p aren't obviously composite */
+    qmod = mpz_fdiv_ui(q, 3234846615UL);
+    if ((qmod % 3) != 2 || gcd_ui(qmod, 3234846615UL) != 1) continue;
+    if ((qmod %  5) == 2 || (qmod %  7) == 3 || (qmod % 11) == 5) continue;
+    if ((qmod % 13) == 6 || (qmod % 17) == 8 || (qmod % 19) == 9) continue;
+    /* 3. p = 2q+1 */
+    mpz_mul_2exp(p,q,1);
+    mpz_add_ui(p,p,1);
+    /* 4. Pretest that p isn't easily composite */
+    if (!primality_pretest(p)) continue;
+#if 0 /* This is simple, but interleaving the tests is faster */
+    if (_GMP_is_prob_prime(q) && miller_rabin_ui(p, 2)) break;
+#endif
+    /* 5. Pretest that q isn't easily composite */
+    if (!primality_pretest(q)) continue;
+    /* 6. BPSW on q and M-R base 2 on p. */
+    if (miller_rabin_ui(q, 2) && miller_rabin_ui(p, 2) && _GMP_is_lucas_pseudoprime(q, 2)) break;
+  }
+
+  mpz_clear(base); mpz_clear(q);
 }
 
 /* Gordon's algorithm */

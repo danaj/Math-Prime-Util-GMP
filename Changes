@@ -12,6 +12,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - divrem(a,b)             integer a/b quo + rem (Euclidian)
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
     - is_gaussian_prime(a,b)  is a+bi a Gaussian prime
+    - random_safe_prime(b)    random b-bit safe prob prime
 
     [PERFORMANCE]
 

@@ -973,25 +973,26 @@ void Pi(IN UV n)
 
 void random_nbit_prime(IN UV n)
   ALIAS:
-    random_strong_prime = 1
-    random_maurer_prime = 2
-    random_maurer_prime_with_cert = 3
-    random_shawe_taylor_prime = 4
-    random_shawe_taylor_prime_with_cert = 5
-    random_ndigit_prime = 6
-    urandomb = 7
-    factorial = 8
-    factorial_sum = 9
-    subfactorial = 10
-    partitions = 11
-    primorial = 12
-    pn_primorial = 13
-    consecutive_integer_lcm = 14
+    random_safe_prime = 1
+    random_strong_prime = 2
+    random_maurer_prime = 3
+    random_maurer_prime_with_cert = 4
+    random_shawe_taylor_prime = 5
+    random_shawe_taylor_prime_with_cert = 6
+    random_ndigit_prime = 7
+    urandomb = 8
+    factorial = 9
+    factorial_sum = 10
+    subfactorial = 11
+    partitions = 12
+    primorial = 13
+    pn_primorial = 14
+    consecutive_integer_lcm = 15
   PREINIT:
     mpz_t p;
     char* proof;
   PPCODE:
-    if (ix == 7 && n <= BITS_PER_WORD) {
+    if (ix == 8 && n <= BITS_PER_WORD) {
       UV v = irand64(n);
       ST(0) = sv_2mortal(newSVuv(v));
       XSRETURN(1);
@@ -1000,24 +1001,25 @@ void random_nbit_prime(IN UV n)
     proof = 0;
     switch (ix) {
       case 0:  mpz_random_nbit_prime(p, n); break;
-      case 1:  mpz_random_strong_prime(p, n); break;
-      case 2:  mpz_random_maurer_prime(p, n, 0); break;
-      case 3:  mpz_random_maurer_prime(p, n, &proof);
+      case 1:  mpz_random_safe_prime(p, n); break;
+      case 2:  mpz_random_strong_prime(p, n); break;
+      case 3:  mpz_random_maurer_prime(p, n, 0); break;
+      case 4:  mpz_random_maurer_prime(p, n, &proof);
                proof = cert_with_header(proof, p);
                break;
-      case 4:  mpz_random_shawe_taylor_prime(p, n, 0); break;
-      case 5:  mpz_random_shawe_taylor_prime(p, n, &proof);
+      case 5:  mpz_random_shawe_taylor_prime(p, n, 0); break;
+      case 6:  mpz_random_shawe_taylor_prime(p, n, &proof);
                proof = cert_with_header(proof, p);
                break;
-      case 6:  mpz_random_ndigit_prime(p, n); break;
-      case 7:  mpz_isaac_urandomb(p, n); break;
-      case 8:  mpz_fac_ui(p, n); break;   /* swing impl in 5.1+, so fast */
-      case 9:  factorial_sum(p, n); break;
-      case 10: subfactorial(p, n); break;
-      case 11: partitions(p, n); break;
-      case 12: _GMP_primorial(p, n);  break;
-      case 13: _GMP_pn_primorial(p, n);  break;
-      case 14:
+      case 7:  mpz_random_ndigit_prime(p, n); break;
+      case 8:  mpz_isaac_urandomb(p, n); break;
+      case 9:  mpz_fac_ui(p, n); break;   /* swing impl in 5.1+, so fast */
+      case 10: factorial_sum(p, n); break;
+      case 11: subfactorial(p, n); break;
+      case 12: partitions(p, n); break;
+      case 13: _GMP_primorial(p, n);  break;
+      case 14: _GMP_pn_primorial(p, n);  break;
+      case 15:
       default: consecutive_integer_lcm(p, n);  break;
     }
     XPUSH_MPZ(p);
