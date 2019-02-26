@@ -6,7 +6,6 @@
 #include <gmp.h>
 #include "ptypes.h"
 #include "random_prime.h"
-#define FUNC_gcd_ui 1
 #include "utility.h"
 #include "primality.h"
 #include "gmp_main.h"
@@ -193,11 +192,19 @@ static void _rand_in_bit_interval(mpz_t rop, UV nbits, mpz_t mult)
   mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
 }
 
+#define _SAFE_REJECT(q, p1, p2, p3, p4, p5) \
+  { uint32_t qm = mpz_fdiv_ui(q, p1*p2*p3*p4*p5); \
+    if ((qm % p1) == 0 || (qm % p1) == (p1>>1)) continue; \
+    if ((qm % p2) == 0 || (qm % p2) == (p2>>1)) continue; \
+    if ((qm % p3) == 0 || (qm % p3) == (p3>>1)) continue; \
+    if ((qm % p4) == 0 || (qm % p4) == (p4>>1)) continue; \
+    if ((p5 > 1U) && ((qm % p5) == 0 || (qm % p5) == (p5>>1))) continue; \
+  }
+
 void mpz_random_safe_prime(mpz_t p, UV nbits)
 {
   static const unsigned char small_safe[] = {5,7,11,23,47,59,83,107};
-  uint32_t qmod, pmod;
-  UV qbits = nbits-1;
+  uint32_t qmod;
   mpz_t q, base;
 
   switch (nbits) {
@@ -212,36 +219,44 @@ void mpz_random_safe_prime(mpz_t p, UV nbits)
 
   mpz_init(q); mpz_init(base);
 
-  if (qbits > 33) {
-    mpz_isaac_urandomb(base, qbits-33);
-    mpz_mul_2exp(base,base,1);
-    mpz_setbit(base, qbits-1);
-    mpz_setbit(base, 0);
+  if (nbits > 35) {
+    mpz_isaac_urandomb(base, nbits-35);
+    mpz_mul_2exp(base,base,2);
   }
+  mpz_setbit(base, nbits-1);
+  mpz_setbit(base, 1);
+  mpz_setbit(base, 0);
   while (1) {
-    /* 1. Generate random nbit q */
-    if (qbits > 33) {
-      mpz_set_ui(q, isaac_rand32());
-      mpz_mul_2exp(q, q, qbits-32);
-      mpz_ior(q, q, base);
+    /* 1. Generate random nbit p */
+    if (nbits > 35) {
+      mpz_set_ui(p, isaac_rand32());
+      mpz_mul_2exp(p, p, nbits-33);
     } else {
-      mpz_isaac_urandomb(q, qbits);
-      mpz_setbit(q, qbits-1);
-      mpz_setbit(q, 0);
+      mpz_isaac_urandomb(p, nbits-3);
+      mpz_mul_2exp(p, p, 2);
     }
-    /* 2. Simple pretest that q and p aren't obviously composite */
-    qmod = mpz_fdiv_ui(q, 3234846615UL);
-    if ((qmod % 3) != 2 || gcd_ui(qmod, 3234846615UL) != 1) continue;
-    if ((qmod %  5) == 2 || (qmod %  7) == 3 || (qmod % 11) == 5) continue;
-    if ((qmod % 13) == 6 || (qmod % 17) == 8 || (qmod % 19) == 9) continue;
-    /* 3. p = 2q+1 */
-    mpz_mul_2exp(p,q,1);
-    mpz_add_ui(p,p,1);
+    mpz_ior(p, p, base);
+    /* 2. p = 2q+1  =>  q = p >> 1 */
+    mpz_div_2exp(q, p, 1);
+    /* 3. Fast compositeness pretests for both q and p at the same time. */
+    qmod = mpz_fdiv_ui(q, 1155UL);
+    if ( (qmod % 3) != 2 ||
+         (qmod % 5) == 0 || (qmod % 7) == 0 || (qmod % 11) == 0 ||
+         (qmod % 5) == 2 || (qmod % 7) == 3 || (qmod % 11) == 5) continue;
+    if (nbits >= 16) {
+      _SAFE_REJECT(q,  13U,  17U,  19U,  23U,  29U);
+      _SAFE_REJECT(q,  31U,  37U,  41U,  43U,  47U);
+      _SAFE_REJECT(q,  53U,  59U,  61U,  67U,  71U);
+      _SAFE_REJECT(q,  73U,  79U,  83U,  89U,  97U);
+      _SAFE_REJECT(q, 101U, 103U, 107U, 109U,   1U);
+      _SAFE_REJECT(q, 113U, 127U, 131U, 137U,   1U);
+      _SAFE_REJECT(q, 139U, 149U, 151U, 157U,   1U);
+      _SAFE_REJECT(q, 163U, 167U, 173U, 179U,   1U);
+    }
     /* 4. Pretest that p isn't easily composite */
     if (!primality_pretest(p)) continue;
-#if 0 /* This is simple, but interleaving the tests is faster */
-    if (_GMP_is_prob_prime(q) && miller_rabin_ui(p, 2)) break;
-#endif
+       /* This is simple, but interleaving the tests is faster */
+       /* if (_GMP_is_prob_prime(q) && miller_rabin_ui(p, 2)) break; */
     /* 5. Pretest that q isn't easily composite */
     if (!primality_pretest(q)) continue;
     /* 6. BPSW on q and M-R base 2 on p. */
