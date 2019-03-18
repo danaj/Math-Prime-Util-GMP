@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.52 2018-?
+0.52 2019-?
 
     [ADDED]
 
@@ -13,6 +13,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
     - is_gaussian_prime(a,b)  is a+bi a Gaussian prime
     - random_safe_prime(b)    random b-bit safe prob prime
+
+    [FIXES]
+
+    - Remove a mod in the AKS test that was in code since 2012.
 
     [PERFORMANCE]
 

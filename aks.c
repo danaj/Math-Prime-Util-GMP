@@ -61,15 +61,13 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
   for (i = 0; i < r; i++)
     mpz_set_ui(px[i], 0);
 
-  a %= r;
   mpz_set_ui(px[0], a);
   mpz_set_ui(px[1], 1);
 
   poly_mod_pow(py, px, n, r, n);
 
   mpz_init(t);
-  n_mod_r = mpz_mod_ui(t, n, r);
-  if (n_mod_r >= r)  croak("n mod r >= r ?!");
+  n_mod_r = mpz_fdiv_ui(n, r);
   mpz_sub_ui(t, py[n_mod_r], 1);
   mpz_mod(py[n_mod_r], t, n);
   mpz_sub_ui(t, py[0], a);
