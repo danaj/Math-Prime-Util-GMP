@@ -43,4 +43,6 @@ extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
 extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);
 extern UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn);
 
+extern void next_twin_prime(mpz_t res, mpz_t n);
+
 #endif

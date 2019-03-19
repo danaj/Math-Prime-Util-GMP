@@ -1041,6 +1041,15 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   mpz_sub_ui(start, start, 1);
   if (length & 1) length++;
 
+  if (mpz_cmp_ui(start, maxprime) <= 0) {
+    mpz_t t;
+    mpz_init(t);
+    mpz_add_ui(t, start, length+1);
+    mpz_sqrt(t, t);
+    maxprime = mpz_get_ui(t);
+    mpz_clear(t);
+  }
+
   /* Allocate odds-only array in uint32_t units */
   wlen = (length+63)/64;
   New(0, comp, wlen, uint32_t);
@@ -1528,6 +1537,57 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
   mpz_clear(t);
   *rn = retlist.nsize;
   return retlist.list;
+}
+
+void next_twin_prime(mpz_t res, mpz_t n) {
+  mpz_t low, t;
+
+  mpz_init(t);
+  if (mpz_cmp_ui(n, 1000000) < 0) {
+    UV p, ulow = mpz_get_ui(n);
+    PRIME_ITERATOR(iter);
+    prime_iterator_setprime(&iter, ulow);
+    while (1) {
+      p = prime_iterator_next(&iter);
+      if (mpz_set_ui(t, p+2), _GMP_BPSW(t)) {
+        mpz_set_ui(res, p);
+        break;
+      }
+    }
+    prime_iterator_destroy(&iter);
+  } else {
+    UV i, starti, l2, length, depth, found = 0;
+    uint32_t* comp;
+
+    mpz_init(low);
+    mpz_add_ui(low, n, 1);
+    if (mpz_even_p(low))  mpz_add_ui(low, low, 1);
+
+    l2 = mpz_sizeinbase(low,2);
+    depth = (l2/160.0) * l2 * l2;
+    length = 3 * 0.634 * l2 * l2;  /* we will resieve sometimes */
+    if (length % 2) length++;  /* low is odd, length is even */
+
+    while (!found) {
+      starti = (6 - mpz_fdiv_ui(low,6)) % 6;
+      comp = partial_sieve(low, length + 2, depth);
+      for (i = starti; i <= length && !found; i += 6) {
+        if (!TSTAVAL(comp, i) && !TSTAVAL(comp, i+2)) {
+          if ( (mpz_add_ui(t,low,i),  miller_rabin_ui(t,2)) &&
+               (mpz_add_ui(t,t,2),    miller_rabin_ui(t,2)) &&
+               (mpz_add_ui(t,low,i),  _GMP_is_lucas_pseudoprime(t,2)) &&
+               (mpz_add_ui(t,t,2),    _GMP_is_lucas_pseudoprime(t,2)) ) {
+            mpz_add_ui(res, low, i);
+            found = 1;
+          }
+        }
+      }
+      Safefree(comp);
+      mpz_add_ui(low, low, length+1);
+    }
+    mpz_clear(low);
+  }
+  mpz_clear(t);
 }
 
 UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {

@@ -393,13 +393,15 @@ void
 next_prime(IN char* strn)
   ALIAS:
     prev_prime = 1
+    next_twin_prime = 2
   PREINIT:
     mpz_t n;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
     if (ix == 1 && mpz_cmp_ui(n,3) < 0) { mpz_clear(n); XSRETURN_UNDEF; }
-    if (ix == 0) _GMP_next_prime(n);
-    else         _GMP_prev_prime(n);
+    if      (ix == 0) _GMP_next_prime(n);
+    else if (ix == 1) _GMP_prev_prime(n);
+    else              next_twin_prime(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);
 
