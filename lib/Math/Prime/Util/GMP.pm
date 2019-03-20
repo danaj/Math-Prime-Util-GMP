@@ -49,6 +49,7 @@ our @EXPORT_OK = qw(
                      next_prime
                      prev_prime
                      surround_primes
+                     next_twin_prime
                      trial_factor
                      prho_factor
                      pbrent_factor
@@ -951,6 +952,14 @@ Note that with a non-zero second argument, the values returned have not
 undergone a full BPSW test; just sieving and a SPSP-2 test.
 
 
+=head2 next_twin_prime
+
+Returns the start of the next twin prime after the input C<n>.  The
+returned value will always be greater than the input.  For a return
+value of C<t>, both C<t> and C<t+2> will be a
+probable prime (using BPSW).
+
+
 =head2 random_nbit_prime
 
   say "random 512-bit prime: ", random_nbit_prime(512);
@@ -966,6 +975,13 @@ C<n> must be at least C<3>.
 The returned value C<p> will be of the form C<2q+1> where C<q>
 has passed the extra strong BPSW test.  C<p> is guaranteed to be
 a prime if C<q> is prime.
+
+Setting verbose level to 3 or higher will produce progress output not
+unlike openssl.  A C<.> for each candidate that passes pretests, a
+C<+> for those where one is likely prime, and C<*> when both are likely
+prime with only confirmation tests remaining.
+
+This generates safe primes about 4-10x faster than openssl's dhparam.
 
 =head2 random_strong_prime
 

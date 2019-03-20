@@ -1544,15 +1544,16 @@ void next_twin_prime(mpz_t res, mpz_t n) {
 
   mpz_init(t);
   if (mpz_cmp_ui(n, 1000000) < 0) {
-    UV p, ulow = mpz_get_ui(n);
+    UV p, ulow = mpz_get_ui(n), last = 0;
     PRIME_ITERATOR(iter);
     prime_iterator_setprime(&iter, ulow);
     while (1) {
       p = prime_iterator_next(&iter);
-      if (mpz_set_ui(t, p+2), _GMP_BPSW(t)) {
-        mpz_set_ui(res, p);
+      if (p-last == 2 && last > 0) {
+        mpz_set_ui(res, last);
         break;
       }
+      last = p;
     }
     prime_iterator_destroy(&iter);
   } else {
@@ -1564,9 +1565,14 @@ void next_twin_prime(mpz_t res, mpz_t n) {
     if (mpz_even_p(low))  mpz_add_ui(low, low, 1);
 
     l2 = mpz_sizeinbase(low,2);
-    depth = (l2/160.0) * l2 * l2;
-    length = 3 * 0.634 * l2 * l2;  /* we will resieve sometimes */
-    if (length % 2) length++;  /* low is odd, length is even */
+    if (l2 <= 6000) {
+      depth = (l2/160.0) * l2 * l2;
+      length = 3 * 0.634 * l2 * l2;  /* we will resieve sometimes */
+      if (length % 2) length++;  /* low is odd, length must be even */
+    } else {
+      depth  = UVCONST(1350000000);
+      length = UVCONST(  91296000);
+    }
 
     while (!found) {
       starti = (6 - mpz_fdiv_ui(low,6)) % 6;

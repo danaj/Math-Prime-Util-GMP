@@ -13,6 +13,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
     - is_gaussian_prime(a,b)  is a+bi a Gaussian prime
     - random_safe_prime(b)    random b-bit safe prob prime
+    - next_twin_prime(n)      returns start of twin prime > n
 
     [FIXES]
 

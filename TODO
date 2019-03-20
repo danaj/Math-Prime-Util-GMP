@@ -151,5 +151,3 @@
 - tinyqs needs a destroy to clear all the init vars
 
 - maybe export rising_factorial and falling_factorial.
-
-- next_twin_prime, doc, test, changes
