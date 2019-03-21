@@ -10,6 +10,7 @@
 #include "primality.h"
 #include "gmp_main.h"
 #include "isaac.h"
+#include "prime_iterator.h"
 
 static char pr[31] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127};
 
@@ -198,14 +199,16 @@ static void _rand_in_bit_interval(mpz_t rop, UV nbits, mpz_t mult)
     if ((qm % p2) == 0 || (qm % p2) == (p2>>1)) continue; \
     if ((qm % p3) == 0 || (qm % p3) == (p3>>1)) continue; \
     if ((qm % p4) == 0 || (qm % p4) == (p4>>1)) continue; \
-    if ((p5 > 1U) && ((qm % p5) == 0 || (qm % p5) == (p5>>1))) continue; \
+    if ((qm % p5) == 0 || (qm % p5) == (p5>>1)) continue; \
   }
 
 void mpz_random_safe_prime(mpz_t p, UV nbits)
 {
   static const unsigned char small_safe[] = {5,7,11,23,47,59,83,107};
-  uint32_t qmod;
   mpz_t q, base;
+  uint32_t qmod, PR, tlimit;
+  int verbose;
+  PRIME_ITERATOR(iter);
 
   switch (nbits) {
     case 0: case 1: case 2:   mpz_set_ui(p, 0);  return;
@@ -226,6 +229,8 @@ void mpz_random_safe_prime(mpz_t p, UV nbits)
   mpz_setbit(base, nbits-1);
   mpz_setbit(base, 1);
   mpz_setbit(base, 0);
+  verbose = get_verbose_level();
+  tlimit = (nbits <= 512000) ?  (nbits*(nbits/64.0) + 0.5)  :  4000000000U;
   while (1) {
     /* 1. Generate random nbit p */
     if (nbits > 35) {
@@ -243,27 +248,39 @@ void mpz_random_safe_prime(mpz_t p, UV nbits)
     if ( (qmod % 3) != 2 ||
          (qmod % 5) == 0 || (qmod % 7) == 0 || (qmod % 11) == 0 ||
          (qmod % 5) == 2 || (qmod % 7) == 3 || (qmod % 11) == 5) continue;
-    if (nbits >= 16) {
+    if (nbits < 16) {
+      /* 4. Pretest that p isn't easily composite */
+      if (!primality_pretest(p)) continue;
+      /* 5. Pretest that q isn't easily composite */
+      if (!primality_pretest(q)) continue;
+    } else {
       _SAFE_REJECT(q,  13U,  17U,  19U,  23U,  29U);
       _SAFE_REJECT(q,  31U,  37U,  41U,  43U,  47U);
       _SAFE_REJECT(q,  53U,  59U,  61U,  67U,  71U);
       _SAFE_REJECT(q,  73U,  79U,  83U,  89U,  97U);
-      _SAFE_REJECT(q, 101U, 103U, 107U, 109U,   1U);
-      _SAFE_REJECT(q, 113U, 127U, 131U, 137U,   1U);
-      _SAFE_REJECT(q, 139U, 149U, 151U, 157U,   1U);
-      _SAFE_REJECT(q, 163U, 167U, 173U, 179U,   1U);
+      if (tlimit >= 101) {
+        prime_iterator_setprime(&iter, PR = 101);
+        while (PR <= tlimit) {
+          uint32_t qm = mpz_fdiv_ui(q, PR);
+          if (qm == 0 || qm == (PR>>1)) break;
+          PR = prime_iterator_next(&iter);
+        }
+        if (PR <= tlimit) continue;
+      }
     }
-    /* 4. Pretest that p isn't easily composite */
-    if (!primality_pretest(p)) continue;
-       /* This is simple, but interleaving the tests is faster */
-       /* if (_GMP_is_prob_prime(q) && miller_rabin_ui(p, 2)) break; */
-    /* 5. Pretest that q isn't easily composite */
-    if (!primality_pretest(q)) continue;
+    if (verbose > 2) { printf("."); fflush(stdout); }
     /* 6. BPSW on q and M-R base 2 on p. */
-    if (miller_rabin_ui(q, 2) && miller_rabin_ui(p, 2) && _GMP_is_lucas_pseudoprime(q, 2)) break;
+    if (!is_euler_plumb_pseudoprime(q)) continue;  /* Start faster */
+    if (verbose > 2) { printf("+"); fflush(stdout); }
+    if (!miller_rabin_ui(p, 2)) continue;
+    if (verbose > 2) { printf("*"); fflush(stdout); }
+    if (!_GMP_is_lucas_pseudoprime(q, 2)) continue;
+    if (nbits > 64 && !miller_rabin_ui(q, 2)) continue; /* Verify fast test */
+    break;
   }
 
   mpz_clear(base); mpz_clear(q);
+  prime_iterator_destroy(&iter);
 }
 
 /* Gordon's algorithm */
