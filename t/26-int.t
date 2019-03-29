@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint divint modint divrem tdivrem/;
+use Math::Prime::Util::GMP qw/powint mulint addint subint divint modint divrem tdivrem absint negint/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -20,6 +20,15 @@ my @addints = (
   ["1178630961471601951655862","827639478068904540012","1179458600949670856195874"],
   ["-2555488174170453670799","1726145541361106236340","-829342632809347434459"],
 );
+my @subints = (
+  ["68719214592","281474976448512","-281406257233920"],
+  ["38631281077","12191281349924010278","-12191281311292729201"],
+  ["-38631281077","12191281349924010278","-12191281388555291355"],
+  ["-38631281077","-12191281349924010278","12191281311292729201"],
+  ["9686117847286759","419039659798583","9267078187488176"],
+  ["14888606332669627740937300680965976203","14888605897080617527808122501731945103","435589010213129178179234031100"],
+);
+
 my @quotients = (  # trunc, floor, euclidian
   ["+ +",  "39458349850349850394853049583049",  "85889",  "459410982202026457344398579",  "459410982202026457344398579",  "459410982202026457344398579"],
   ["+ -",  "39458349850349850394853049583049", "-85889", "-459410982202026457344398579", "-459410982202026457344398580", "-459410982202026457344398579"],
@@ -31,11 +40,14 @@ plan tests => 0
             + 7*4 + scalar(@powints) + 2     # powint
             + 1 + scalar(@mulints)           # mulint
             + 1 + scalar(@addints)           # addint
+            + 1 + scalar(@subints)           # subint
             + 2 + 2                          # divint
             + 2 + 2                          # modint
             + 2                              # divrem
             + 2                              # tdivrem
             + 4 * scalar(@quotients)         # signed bigint division
+            + 1                              # absint
+            + 1                              # negint
             + 0;
 
 ###### powint
@@ -82,6 +94,21 @@ foreach my $r (@addints) {
   is( addint($a,$b), $exp, "addint($a,$b) = ".((defined $exp)?$exp:"<undef>") );
 }
 
+###### subint
+{ my(@got,@exp);
+  for my $a (-3 .. 3) {
+    for my $b (-3 .. 3) {
+      push @got, subint($a,$b);
+      push @exp, $a-$b;
+    }
+  }
+  is_deeply( \@got, \@exp, "subint( -3 .. 3, -3 .. 3)" );
+}
+foreach my $r (@subints) {
+  my($a, $b, $exp) = @$r;
+  is( subint($a,$b), $exp, "subint($a,$b) = ".((defined $exp)?$exp:"<undef>") );
+}
+
 ###### divint
 ok(!eval { divint(0,0); }, "divint(1,0)");
 ok(!eval { divint(1,0); }, "divint(1,0)");
@@ -124,3 +151,8 @@ for my $s (@quotients) {
   is_deeply( [divrem($n, $m)], [$qe, $re], "large divrem  $signs" );
   is_deeply( [tdivrem($n, $m)], [$qt, $rt], "large tdivrem $signs" );
 }
+
+###### absint
+is_deeply([map { absint($_) } -9..9], [map { abs($_) } -9..9], "absint(-9..9)");
+###### negint
+is_deeply([map { negint($_) } -9..9], [map { -$_ } -9..9], "negint(-9..9)");

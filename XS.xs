@@ -469,9 +469,22 @@ totient(IN char* strn)
     prime_count_lower = 9
     prime_count_upper = 10
     urandomm = 11
+    negint = 12
+    absint = 13
   PREINIT:
     mpz_t res, n;
   PPCODE:
+    if (ix == 12 || ix == 13) {
+      if (strn != 0 && strn[0] == '-') {
+        VALIDATE_AND_SET(res, strn+1);
+      } else {
+        VALIDATE_AND_SET(res, strn);
+        if (ix == 12) mpz_neg(res, res);
+      }
+      XPUSH_MPZ(res);
+      mpz_clear(res);
+      return;
+    }
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
       if (ix == 2)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
       if (ix == 5)  strn++;            /* znprimroot flip sign */
@@ -779,12 +792,13 @@ invmod(IN char* stra, IN char* strb)
     powint = 11
     mulint = 12
     addint = 13
-    divint = 14
-    modint = 15
-    tdivrem = 16
-    divrem = 17
-    factorialmod = 18
-    multifactorial = 19
+    subint = 14
+    divint = 15
+    modint = 16
+    tdivrem = 17
+    divrem = 18
+    factorialmod = 19
+    multifactorial = 20
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -856,17 +870,19 @@ invmod(IN char* stra, IN char* strb)
               break;
       case 13:mpz_add(a, a, b);
               break;
-      case 14:if (mpz_sgn(b) == 0) croak("divint: divide by zero");
+      case 14:mpz_sub(a, a, b);
+              break;
+      case 15:if (mpz_sgn(b) == 0) croak("divint: divide by zero");
               mpz_fdiv_q(a, a, b);
               break;
-      case 15:if (mpz_sgn(b) == 0) croak("modint: divide by zero");
+      case 16:if (mpz_sgn(b) == 0) croak("modint: divide by zero");
               mpz_fdiv_r(a, a, b);
               break;
-      case 16:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
+      case 17:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
               mpz_tdiv_qr(b, a, a, b);  /* t is t-quotient, a is t-remainder */
               XPUSH_MPZ(b);
               break;
-      case 17:mpz_init_set(t, b);
+      case 18:mpz_init_set(t, b);
               if (mpz_sgn(b) == 0) croak("divrem: divide by zero");
               mpz_tdiv_qr(t, a, a, b);  /* t is t-quotient, a is t-remainder */
               if (mpz_sgn(a) < 0) {  /* Change from trunc to Euclidean */
@@ -881,10 +897,10 @@ invmod(IN char* stra, IN char* strb)
               XPUSH_MPZ(t);
               mpz_clear(t);
               break;
-      case 18:if (mpz_sgn(b) < 0) retundef = 1;
+      case 19:if (mpz_sgn(b) < 0) retundef = 1;
               else                factorialmod(a, mpz_get_ui(a), b);
               break;
-      case 19:
+      case 20:
       default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
               else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
               break;

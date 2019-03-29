@@ -7,10 +7,13 @@ Revision history for Perl module Math::Prime::Util::GMP
     - powint(a,b)             integer a^b
     - mulint(a,b)             integer a*b
     - addint(a,b)             integer a+b
+    - subint(a,b)             integer a-b
     - divint(a,b)             integer a/b quotient  (floor)
     - modint(a,b)             integer a/b modulo    (floor)
     - divrem(a,b)             integer a/b quo + rem (Euclidian)
     - tdivrem(a,b)            integer a/b quo + rem (truncated)
+    - absint(n)               integer absolute value
+    - negint(n)               integer negate: returns -n
     - is_gaussian_prime(a,b)  is a+bi a Gaussian prime
     - random_safe_prime(b)    random b-bit safe prob prime
     - next_twin_prime(n)      returns start of twin prime > n

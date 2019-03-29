@@ -82,8 +82,8 @@ our @EXPORT_OK = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     sqrtint rootint logint powint mulint addint
-                     divint modint divrem tdivrem
+                     sqrtint rootint logint powint mulint addint subint
+                     divint modint divrem tdivrem negint absint
                      is_power is_prime_power is_semiprime is_square
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
@@ -195,7 +195,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint divint modint divrem tdivrem todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1774,6 +1774,10 @@ Given integers C<a> and C<b>, returns C<a * b>.
 
 Given integers C<a> and C<b>, returns C<a + b>.
 
+=head2 subint
+
+Given integers C<a> and C<b>, returns C<a - b>.
+
 =head2 divint
 
 Given integers C<a> and C<b>, returns the quotient C<a / b>.
@@ -1812,6 +1816,14 @@ the truncated quotient and the truncated remainder.
 
 The resulting pair will match
 L<Math::BigInt/btdiv> and L<Math::BigInt/btmod>.
+
+=head2 absint
+
+Given integer C<n>, return C<|n|>, i.e. the absolute value of C<n>.
+
+=head2 negint
+
+Given integer C<n>, return C<-n>.
 
 
 =head2 factor
