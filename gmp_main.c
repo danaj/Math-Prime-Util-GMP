@@ -917,6 +917,11 @@ int _totpred(mpz_t n, mpz_t maxd)
     if (mpz_cmp_ui(n,2) == 0) return 1;
 
     mpz_init(N);  mpz_init(p);
+    
+    mpz_sub_ui(N, n, 1);
+    mpz_and(N, N, n);
+    if (mpz_sgn(N) == 0) return 1;
+  
     mpz_tdiv_q_2exp(N, n, 1);
     res = 0;
     mpz_add_ui(p, n, 1);
