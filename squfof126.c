@@ -50,8 +50,9 @@ static INLINE void mpz_set64(mpz_t n, SQUFOF_TYPE v) {
     mpz_mul_2exp(n, n, 32);
     mpz_add_ui(n, n, (uint32_t)v);
   } else {
-    n->_mp_d[0] = v;
-    n->_mp_size = 1;
+    //n->_mp_d[0] = v;
+    //n->_mp_size = 1;
+    mpz_set_ui(n, (uint64_t)v);
   }
 }
 
