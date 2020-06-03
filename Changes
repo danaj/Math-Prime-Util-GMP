@@ -22,6 +22,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Remove a mod in the AKS test that was in code since 2012.
 
+    - GMP 6.2.0 changed internals causing an error in the squfof126
+      code.  Rewrote function to be more portable.
+
     [PERFORMANCE]
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.

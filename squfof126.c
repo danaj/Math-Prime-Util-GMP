@@ -43,15 +43,13 @@ static INLINE SQUFOF_TYPE mpz_get64(mpz_t n) {
   return v;
 }
 static INLINE void mpz_set64(mpz_t n, SQUFOF_TYPE v) {
-  if (v == 0) {
-    mpz_set_ui(n,0);
-  } else if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(SQUFOF_TYPE)) {
-    mpz_set_ui(n, (uint32_t)(v >> 32));
-    mpz_mul_2exp(n, n, 32);
-    mpz_add_ui(n, n, (uint32_t)v);
+  if (v <= 0xFFFFFFFFUL || sizeof(unsigned long int) >= sizeof(SQUFOF_TYPE)) {
+    mpz_set_ui(n, v);
   } else {
-    n->_mp_d[0] = v;
-    n->_mp_size = 1;
+    uint32_t upper = (v >> 32), lower = v & 0xFFFFFFFFUL;
+    mpz_set_ui(n, upper);
+    mpz_mul_2exp(n, n, 32);
+    mpz_add_ui(n, n, lower);
   }
 }
 
