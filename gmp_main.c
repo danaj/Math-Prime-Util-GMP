@@ -1922,3 +1922,74 @@ UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn) {
   *rn = retlist.nsize;
   return retlist.list;
 }
+
+static uint32_t* _todigits32(uint32_t *ndigits, uint32_t n, uint32_t base) {
+  uint32_t bits[32];
+  uint32_t *digits, i, d;
+
+  for (d = 0; n; n /= base)
+    bits[d++] = n % base;
+
+  New(0, digits, d, uint32_t);
+  for (i = 0; i < d; i++)
+    digits[i] = bits[d-i-1];
+  *ndigits = d;
+  return digits;
+}
+static uint32_t* _todigits_base2(uint32_t *ndigits, mpz_t n) {
+  uint32_t *digits, d, bits = mpz_sizeinbase(n, 2);
+  New(0, digits, bits, uint32_t);
+  for (d = 0; d < bits; d++)
+    digits[d] = mpz_tstbit(n,bits-d-1);
+  *ndigits = d;
+  return digits;
+}
+/* Algorithm 1.26 FastIntegerOutput from MCA v0.5.9 */
+uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base) {
+  uint32_t* digits, *rdigits, *qdigits;
+  uint32_t  k, nlen, rlen, qlen, zlen, i, j;
+  mpz_t Q, R;
+
+  if (base == 2)
+    return _todigits_base2(ndigits, n);
+
+  if (mpz_cmp_ui(n, 0xFFFFFFFFUL) <= 0)
+    return _todigits32(ndigits, mpz_get_ui(n), base);
+
+  mpz_init(Q); mpz_init(R);
+  nlen = logint(n, base) + 1;
+
+  /* Find k s.t.  B^(2k-2) <= n <= B^(2k) */
+  k = ((nlen-1) >> 1) + 1;
+
+  /* Compute Q,R = DivRem(n, base^k) */
+  mpz_ui_pow_ui(Q, base, k);
+  mpz_tdiv_qr(Q, R, n, Q);
+
+  /* In theory we could do this all in place, avoiding the allocations
+   * and copying. */
+
+  qdigits = todigits(&qlen, Q, base);
+  rdigits = todigits(&rlen, R, base);
+
+  zlen = k - rlen;
+  if (qlen + rlen + zlen != nlen) croak("todigits: internal sizes wrong!");
+  mpz_clear(Q);  mpz_clear(R);
+
+  /* Allocate exactly as much space as needed. */
+  New(0, digits, nlen, uint32_t);
+  j = 0;
+
+  for (i = 0; i < qlen; i++)
+    digits[j++] = qdigits[i];
+  for (i = 0; i < zlen; i++)
+    digits[j++] = 0;
+  for (i = 0; i < rlen; i++)
+    digits[j++] = rdigits[i];
+
+  Safefree(rdigits);
+  Safefree(qdigits);
+
+  *ndigits = nlen;
+  return digits;
+}

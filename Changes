@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.52 2019-?
+0.52 2020-?
 
     [ADDED]
 
@@ -22,14 +22,16 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Remove a mod in the AKS test that was in code since 2012.
 
-    - GMP 6.2.0 changed internals causing an error in the squfof126
-      code.  Rewrote function to be more portable.
+    - squfof126 was not portable. GMP 6.2.0 changed to lazy allocation
+      causing the code to fail.  Rewrote function to be more portable.
 
     [PERFORMANCE]
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.
 
     - Trizen improved speed of lucas sequence for large n and even modulus.
+
+    - todigits uses a subquadratic algorithm.  Thanks to Trizen for request.
 
 
 0.51 2018-08-27
