@@ -181,7 +181,7 @@ int primality_pretest(mpz_t n)
 /* Controls how many primes to use.  Big time impact. */
 #define NPS_DEPTH(log2n, log2log2n) \
   (log2n < 100) ? 1000 : \
-  (BITS_PER_WORD == 32 && log2n > 9000U) ? UVCONST(2500000000) : \
+  (BITS_PER_WORD == 32 && log2n > 80000U) ? UVCONST(2500000000) : \
   (BITS_PER_WORD == 64 && log2n > 4294967294U) ? UVCONST(9300000000000000000) :\
   ((log2n * (log2n >> 5) * (UV)((log2log2n)*1.5)) >> 1)
 
@@ -341,7 +341,7 @@ void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
   for (found = 0, search_merits = 20; !found; search_merits *= 2) {
     double logn = mpz_logn(n);
 
-    if (BITS_PER_WORD == 32 && log2n >   7000)
+    if (BITS_PER_WORD == 32 && log2n >   10000)
       depth = UVCONST(2500000000);
     else if (BITS_PER_WORD == 64 && log2n > 200000)
       depth = UVCONST(6000000000000);
