@@ -344,9 +344,9 @@ void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
   for (found = 0, search_merits = 20; !found; search_merits *= 2) {
     double logn = mpz_logn(n);
 
-    if (BITS_PER_WORD == 32 && log2n >   7000)
-      depth = UVCONST(2500000000);
-    else if (BITS_PER_WORD == 64 && log2n > 200000)
+    if (BITS_PER_WORD == 32 && log2n >  16600)
+      depth = UVCONST(   2500000000);
+    else if (BITS_PER_WORD == 64 && log2n > 203600)
       depth = UVCONST(6000000000000);
     else if (log2n > 900)
       depth = (UV) ((-.05L+(log2n/8000.0L)) * logn * logn * log(logn));
