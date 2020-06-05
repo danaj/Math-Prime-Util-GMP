@@ -10,7 +10,7 @@ plan tests => 0
             + 3 # is_carmichael
             + 4 # is_fundamental
             + 8 # is_gaussian_prime
-            + 8 # is_totient
+            + 9 # is_totient
             + 4 # is_polygonal
             + 0;
 
@@ -45,6 +45,7 @@ is( is_totient("9223372036854775832"), 0, "is_totient(2^63+24)" );
 is( is_totient("9671406556917033397649496"), 1, "is_totient(2^83+88)" );
 is( is_totient("9671406556917033397649458"), 0, "is_totient(2^83+50)" );
 is( is_totient("9671406556917033397649472"), 1, "is_totient(2^83+64)" );
+is( is_totient("1237940039285380274899124224"), 1, "is_totient(2^90)" );
 
 ###### is_gaussian_prime
 ok( !is_gaussian_prime(29,0), "29 is not a Gaussian Prime" );
