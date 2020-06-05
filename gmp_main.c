@@ -918,6 +918,7 @@ int _totpred(mpz_t n, mpz_t maxd)
 
     if (mpz_odd_p(n)) return 0;
     if (mpz_cmp_ui(n,2) == 0) return 1;
+    if (mpz_popcount(n) = 1) return 1;   /* n > 0 is a power of 2 */
 
     mpz_init(N);  mpz_init(p);
     mpz_tdiv_q_2exp(N, n, 1);

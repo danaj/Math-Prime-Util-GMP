@@ -25,6 +25,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - squfof126 was not portable. GMP 6.2.0 changed to lazy allocation
       causing the code to fail.  Rewrote function to be more portable.
 
+    - is_totient for powers of 2 was returning 0.  Thanks Trizen.
+
     [PERFORMANCE]
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.
