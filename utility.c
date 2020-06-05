@@ -800,6 +800,9 @@ UV logint(mpz_t n, UV base) {
   if (base <= 62 && (base & (base-1)) == 0)
     return mpz_sizeinbase(n, base)-1;
 
+  if (mpz_cmp_ui(n,base) < 0)
+    return 0;
+
 #if 0  /* example using mpf_log for high precision.  Slow. */
   {
     mpf_t fr, fn;
@@ -812,8 +815,19 @@ UV logint(mpz_t n, UV base) {
   }
 #endif
 
-  /* Step 1, get an approximation of log(n) */
+  /* The typical way this can be done is to start with base, then compare
+   * base^2, base^4, base^8, ... until larger than n.  Then work back down.
+   * It uses O(log2(log2(n)) integer squares+multiplies plus some space.
+   *
+   * However, libm gives us an essentially small-constant-time log()
+   * function.  We will use that for an estimate, then correct if it
+   * might be rounded wrong.  We definitely need to be careful of overflow.
+   * My benchmarks show it as about 2x faster than the all-integer method.
+   */
+
   nbits = mpz_sizeinbase(n,2);
+
+  /* Step 1, get an approximation of log(n) */
   if (nbits < 768) {
     logn = log(mpz_get_d(n));
     coreps = 1e-8;
