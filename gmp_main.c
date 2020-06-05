@@ -179,11 +179,14 @@ int primality_pretest(mpz_t n)
 /* Controls how many numbers to sieve.  Little time impact. */
 #define NPS_MERIT  30.0
 /* Controls how many primes to use.  Big time impact. */
-#define NPS_DEPTH(log2n, log2log2n) \
-  (log2n < 100) ? 1000 : \
-  (BITS_PER_WORD == 32 && log2n > 9000U) ? UVCONST(2500000000) : \
-  (BITS_PER_WORD == 64 && log2n > 4294967294U) ? UVCONST(9300000000000000000) :\
-  ((log2n * (log2n >> 5) * (UV)((log2log2n)*1.5)) >> 1)
+static UV _nps_depth(UV log2n, UV log2log2n) {
+  double d;
+  if (log2n < 100) return 1000;
+  d = 0.75 * (double)log2n * (double)(log2n >> 5) * (double)log2log2n;
+  /* Make sure we don't try to sieve too far. */
+  if (d >= (double)(UV_MAX>>1)) return (UV_MAX>>1);
+  return (UV) d;
+}
 
 static void next_prime_with_sieve(mpz_t n) {
   UV i, log2n, log2log2n, width, depth;
@@ -192,7 +195,7 @@ static void next_prime_with_sieve(mpz_t n) {
   log2n = mpz_sizeinbase(n, 2);
   for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
   width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
-  depth = NPS_DEPTH(log2n, log2log2n);
+  depth = _nps_depth(log2n, log2log2n);
 
   if (width & 1) width++;                     /* Make width even */
   mpz_add_ui(n, n, mpz_even_p(n) ? 1 : 2);    /* Set n to next odd */
@@ -223,7 +226,7 @@ static void prev_prime_with_sieve(mpz_t n) {
   log2n = mpz_sizeinbase(n, 2);
   for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
   width = (UV) (NPS_MERIT/1.4427 * (double)log2n + 0.5);
-  depth = NPS_DEPTH(log2n, log2log2n);
+  depth = _nps_depth(log2n, log2log2n);
 
   mpz_sub_ui(n, n, mpz_even_p(n) ? 1 : 2);       /* Set n to prev odd */
   width = 64 * ((width+63)/64);                /* Round up to next 64 */
@@ -348,7 +351,7 @@ void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
     else if (log2n > 900)
       depth = (UV) ((-.05L+(log2n/8000.0L)) * logn * logn * log(logn));
     else
-      depth = NPS_DEPTH(log2n, log2log2n);
+      depth = _nps_depth(log2n, log2log2n);
 
     width = (UV) (search_merits * logn + 0.5);
     width = 64 * ((width+63)/64);    /* Round up to next 64 */

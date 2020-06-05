@@ -33,6 +33,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - todigits uses a subquadratic algorithm.  Thanks to Trizen for request.
 
+    - sieving depth for large sizes wasn't optimal on 32-bit machines.
+      Thanks to Seth Troisi.
+
 
 0.51 2018-08-27
 
