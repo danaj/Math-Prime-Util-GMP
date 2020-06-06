@@ -790,6 +790,7 @@ void mpz_veclcm(mpz_t* A, UV a, UV b) {
 }
 
 UV logint(mpz_t n, UV base) {
+  mpz_t nt;
   double logn, logbn, coreps;
   UV res, nbits, logn_red;
 
@@ -815,55 +816,50 @@ UV logint(mpz_t n, UV base) {
   }
 #endif
 
-  /* The typical way this can be done is to start with base, then compare
-   * base^2, base^4, base^8, ... until larger than n.  Then work back down.
+  /* A typical way to do this is to start with base, then compare
+   * base^2, base^4, base^8, ... until larger than n.  Then either work
+   * back down or do a binary search
    * It uses O(log2(log2(n)) integer squares+multiplies plus some space.
    *
-   * However, libm gives us an essentially small-constant-time log()
-   * function.  We will use that for an estimate, then correct if it
-   * might be rounded wrong.  We definitely need to be careful of overflow.
-   * My benchmarks show it as about 2x faster than the all-integer method.
+   * However, libc gives us the very fast log() function for doubles.  While
+   * reducing the argument as needed to make sure we fit inside a double,
+   * we can use this to give us a result extremely close to the right
+   * answer, then adjust if we're not sure of the result.
+   *
+   * My benchmarks show it as about 2-10x faster than the all-integer method.
    */
 
   nbits = mpz_sizeinbase(n,2);
+  mpz_init(nt);
 
   /* Step 1, get an approximation of log(n) */
-  if (nbits < 768) {
+  if (nbits < 512) {
     logn = log(mpz_get_d(n));
     coreps = 1e-8;
   } else {
-    long double logn_adj = 45426.093625176575797967724311883L;/* log(2^65536) */
-    mpz_t nr;
-
-    for ( mpz_init_set(nr,n),  logn_red = 65536,  logn = 0;
-          logn_red >= 128;
-          logn_red /= 2,  logn_adj /= 2) {
-      while (nbits >= 512+logn_red) {
-        mpz_tdiv_q_2exp(nr, nr, logn_red);
-        nbits -= logn_red;
-        logn += logn_adj;
-      }
-    }
-    logn += log(mpz_get_d(nr));
-    mpz_clear(nr);
-    coreps = 1e-4;
+    /* Reduce bits using log(x * 2^k) = log(x) + k * log(2) */
+    uint32_t redbits = nbits - 256;
+    mpz_tdiv_q_2exp(nt, n, redbits);
+    logn = log(mpz_get_d(nt)) + redbits * 0.69314718055994530941723212145818L;
+    coreps = 1e-7;
   }
+
   /* Step 2, approximate log_base(n) */
   logbn = logn / log(base);
   res = (UV) logbn;
 
-  /* Step 3, ensure exact if logbn might be rounded wrong */
+  /* Step 3, correct if logbn might be rounded wrong */
   if (res != (UV)(logbn+coreps) || res != (UV)(logbn-coreps)) {
-    mpz_t be;
-    mpz_init(be);
-    /* Decrease until <= n */
-    while (mpz_ui_pow_ui(be, base, res),mpz_cmp(be,n) > 0)
+    mpz_ui_pow_ui(nt, base, res);
+    if (mpz_cmp(nt, n) > 0) {
       res--;
-    /* Increase until n+1 > n */
-    while (mpz_ui_pow_ui(be, base, res+1),mpz_cmp(be,n) <= 0)
-      res++;
-    mpz_clear(be);
+    } else if (mpz_cmp(nt, n) < 0) {
+      mpz_mul_ui(nt, nt, base);
+      if (mpz_cmp(nt, n) <= 0)
+        res++;
+    }
   }
+  mpz_clear(nt);
   /* res is largest res such that base^res <= n */
   return res;
 }
