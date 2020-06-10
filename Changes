@@ -27,6 +27,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_totient for powers of 2 was returning 0.  Thanks Trizen.
 
+    - LambertW could fault if given inputs very near the branch point.
+
     [PERFORMANCE]
 
     - Trizen suggested binary splitting LCM.  Much faster for big lists.
@@ -37,6 +39,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - sieving depth for large sizes wasn't optimal on 32-bit machines.
       Thanks to Seth Troisi.
+
+    - LambertW is about 2x faster due to a better and faster initial estimate.
 
 
 0.51 2018-08-27

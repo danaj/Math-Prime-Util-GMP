@@ -960,6 +960,62 @@ void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
 
 /***************************       Lambert W       ***************************/
 
+static double _lambertw_approx(double x) {
+  double w, k1, k2, k3;
+
+  if (x < -0.312) {
+    /* Near the branch point.  See Fukushima (2013) section 2.5. */
+    k2 = 2.0 * (1.0 + 2.71828182845904523536 * x);
+    if (k2 <= 0) return -1.0 + 1*DBL_EPSILON;
+    k1 = sqrt(k2);
+    /* Use Puiseux series, e.g. Verberic 2009, Boost, Johannson (2020). */
+    w = -1.0 + (1.0 + (-1.0/3.0 + (11.0/72.0 + (-43.0/540.0 + (769.0/17280.0 + (-221.0/8505.0 + (680863.0/43545600.0 + (-1963.0/204120.0 + 226287557.0/37623398400.0
+    * k1) * k1) * k1) * k1) * k1) * k1) * k1) * k1) * k1;
+
+  } else if (x > -0.14 && x < 0.085) {
+    /* Around zero.  See Fukushima (2013) section 2.6. */
+    w = (1.0 + (-1.0 + (3.0/2.0 + (-8.0/3.0 + (125.0/24.0 + (-54.0/5.0 + (16807.0/720.0 + (-16384.0/315.0 + 531441.0/4480.0
+        * x) * x) * x) * x) * x) * x) * x) * x) * x;
+
+  } else if (x < 1) {
+    /* This and the rest from Vazquez-Leal et al. (2019). */
+    k1 = sqrt(1.0 + 2.71828182845904523536 * x);
+    k2 = 0.33333333333333333333 + 0.7071067811865475244 / k1 - 0.058925565098880 * k1 +
+         (x + 0.36787944117144) * (0.050248489761611 + (0.11138904851051 + 0.040744556245195 * x) * x)
+         /
+         (1.0 + (2.7090878606183 + (1.5510922597820 + 0.095477712183841 * x) * x) * x);
+    w = -(k2-1)/k2;
+
+  } else if (x < 40) {
+    k1 = 1.0 + (5.950065500550155 + (13.96586471370701 + (10.52192021050505 + (3.065294254265870 + 0.1204576876518760 * x) * x) * x) * x) * x;
+    w = 0.1600049638651493 * log(k1);
+  } else if (x < 20000) {
+    k1 = 1.0 + (-3.16866642511229e11 + (3.420439800038598e10 +
+         (-1.501433652432257e9 + (3.44887729947585e7 + (-4.453783741137856e5 +
+         (3257.926478908996 + (-10.82545259305382 + (0.6898058947898353e-1 +
+         0.4703653406071575e-4 * x) * x) * x) * x) * x) * x) * x) * x) * x;
+    w = 0.9898045358731312e-1 * log(k1);
+
+  } else {
+    k1 = 1.0 / (1.0 + log(1.0 + x));
+    k2 = 1.0 / k1;
+    k3 = log(k2);
+    w = k2-1-k3+(1+k3+(-1/2+(1/2)*k3*k3 +(-1/6+(-1+(-1/2+
+        (1/3) * k3) * k3) * k3) * k1) * k1) * k1;
+  }
+
+  /* Improve the FP estimate using two simple Halley iterations. */
+  if (x >= -0.36728) {
+    if (w != 0) w = (w/(1.0+w)) * (1.0+log(x/w));
+    if (w != 0) w = (w/(1.0+w)) * (1.0+log(x/w));
+    if (isnan(w)) w = DBL_EPSILON;
+  }
+
+  /* Result is over 15 digits, 16 when x > 0 */
+  return w;
+}
+
+
 static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
 {
   int i;
@@ -980,86 +1036,8 @@ static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
   mpf_init2(qn,  bits);
   mpf_init2(en,  bits);
 
-  /* Initial estimate */
-  if (mpf_cmp_d(x, -0.06) < 0) {  /* Pade(3,2) */
-    mpf_set_d(t, 5.4365636569180904707205749);
-    mpf_mul(t, t, x);
-    mpf_add_ui(t, t, 2);
-    if (mpf_sgn(t) <= 0) { mpf_set_ui(t, 0); } else { mpf_sqrt(t, t); }
-    mpf_mul(zn, t, t);
-    mpf_mul(qn, zn, t);
-
-    mpf_set_d(w, -1);
-    mpf_set_d(w1, 1.0L/6.0L);      mpf_mul(w1, w1,  t);  mpf_add(w, w, w1);
-    mpf_set_d(w1, 257.0L/720.0L);  mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
-    mpf_set_d(w1, 13.0L/720.0L);   mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
-    mpf_set(en, w);  /* numerator */
-
-    mpf_set_d(w, 1);
-    mpf_set_d(w1, 5.0L/6.0L);      mpf_mul(w1, w1,  t);  mpf_add(w, w, w1);
-    mpf_set_d(w1, 103.0L/720.0L);  mpf_mul(w1, w1, zn);  mpf_add(w, w, w1);
-
-    mpf_div(w, en, w);
-  } else if (mpf_cmp_d(x, 1.363) < 0) {  /* Winitzki 2003 */
-    mpf_add_ui(t, x, 1);
-    mpf_log(w1, t);
-    mpf_add_ui(zn, w1, 1);
-    mpf_log(zn, zn);
-    mpf_add_ui(qn, w1, 2);
-    mpf_div(t, zn, qn);
-    mpf_ui_sub(t, 1, t);
-    mpf_mul(w, w1, t);
-  } else if (mpf_cmp_d(x, 3.7) < 0) {  /* Vargas 2013 modified */
-    mpf_log(w, x);
-    mpf_log(w1, w);
-    mpf_div(t, w1, w);
-    mpf_ui_sub(t, 1, t);
-    mpf_log(t, t);
-    mpf_div_ui(t, t, 2);
-    mpf_sub(w, w, w1);
-    mpf_sub(w, w, t);
-  } else {  /* Corless et al. 1993 */
-    mpf_t l1, l2, d1, d2, d3;
-    mpf_init2(l1,bits); mpf_init2(l2,bits);
-    mpf_init2(d1,bits); mpf_init2(d2,bits); mpf_init2(d3,bits);
-
-    mpf_log(l1, x);
-    mpf_log(l2, l1);
-    mpf_mul(d1, l1, l1);  mpf_mul_ui(d1, d1, 2);
-    mpf_mul(d2, l1, d1);  mpf_mul_ui(d2, d2, 3);
-    mpf_mul(d3, l1, d2);  mpf_mul_ui(d3, d3, 2);
-
-    mpf_sub(w, l1, l2);
-
-    mpf_div(t, l2, l1);
-    mpf_add(w, w, t);
-
-    mpf_sub_ui(t, l2, 2);
-    mpf_mul(t, t, l2);
-    mpf_div(t, t, d1);
-    mpf_add(w, w, t);
-
-    mpf_mul_ui(t, l2, 2);
-    mpf_sub_ui(t, t, 9);
-    mpf_mul(t, t, l2);
-    mpf_add_ui(t, t, 6);
-    mpf_mul(t, t, l2);
-    mpf_div(t, t, d2);
-    mpf_add(w, w, t);
-
-    mpf_mul_ui(t, l2, 3);
-    mpf_sub_ui(t, t, 22);
-    mpf_mul(t, t, l2);
-    mpf_add_ui(t, t, 36);
-    mpf_mul(t, t, l2);
-    mpf_sub_ui(t, t, 12);
-    mpf_mul(t, t, l2);
-    mpf_div(t, t, d3);
-    mpf_add(w, w, t);
-
-    mpf_clear(l1); mpf_clear(l2);
-    mpf_clear(d1); mpf_clear(d2); mpf_clear(d3);
-  }
+  /* Initial estimate done in FP instead of mpf. */
+  mpf_set_d(w, _lambertw_approx(mpf_get_d(x)));
 
   /* Divide prec by 2 since t should be have 4x number of zeros each round */
   mpf_set_ui(tol, 10);
