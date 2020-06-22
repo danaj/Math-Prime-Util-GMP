@@ -590,10 +590,11 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
   PREINIT:
     mpf_t n, x;
     char* res;
+    unsigned long bits, bits2, bits3;
   PPCODE:
-    unsigned long bits  = 64 + (unsigned long)(3.32193 * prec);
-    unsigned long bits2 = 64 + (unsigned long)(3.32193 * strlen(strn));
-    unsigned long bits3 = 64 + (unsigned long)(3.32193 * strlen(strx));
+    bits  = 64 + (unsigned long)(3.32193 * prec);
+    bits2 = 64 + (unsigned long)(3.32193 * strlen(strn));
+    bits3 = 64 + (unsigned long)(3.32193 * strlen(strx));
     if (bits2 > bits) bits = bits2;
     if (bits3 > bits) bits = bits3;
     mpf_init2(n, bits);
@@ -1463,7 +1464,7 @@ void
 todigits(IN char* strn, int base=10, int length=-1)
   PREINIT:
     mpz_t n;
-    uint32_t bits, d, *digits;
+    uint32_t d, *digits;
   PPCODE:
     if (base < 2) croak("invalid base: %d", base);
     if (strn[0] == '-' || strn[0] == '+')  strn++;

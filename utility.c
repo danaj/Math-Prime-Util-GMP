@@ -792,7 +792,7 @@ void mpz_veclcm(mpz_t* A, UV a, UV b) {
 UV logint(mpz_t n, UV base) {
   mpz_t nt;
   double logn, logbn, coreps;
-  UV res, nbits, logn_red;
+  UV res, nbits;
 
   if (mpz_cmp_ui(n,0) <= 0 || base <= 1)
     croak("mpz_logint: bad input\n");

@@ -94,8 +94,10 @@ static int is_tiny_prime(uint32_t n) {
   f = 59;
   limit = (uint32_t) (sqrt((double)n));
   while (f <= limit) {
-    if ( !(n%f) || !(n%(f+2)) || !(n%(f+8)) || !(n%(f+12)) ) return 0;  f += 14;
-    if ( !(n%f) || !(n%(f+4)) || !(n%(f+6)) || !(n%(f+10)) ) return 0;  f += 16;
+    if ( !(n%f) || !(n%(f+2)) || !(n%(f+8)) || !(n%(f+12)) ) return 0;
+    f += 14;
+    if ( !(n%f) || !(n%(f+4)) || !(n%(f+6)) || !(n%(f+10)) ) return 0;
+    f += 16;
   }
   return 2;
 }

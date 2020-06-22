@@ -391,7 +391,7 @@ Perspective"
     a2 = (a+a) % p;
     alpha = powm_16(a2, (p-5)>>3, p);
     beta = mulm_16(a2, mulm_16(alpha,alpha,p), p);
-    b = mulm_16(alpha, mulm_16(a, (beta ? beta-1 : p-1), p), p);
+    b = mulm_16(alpha, mulm_16(a, (beta ? beta-1 : (u32)p-1), p), p);
     return b;
   }
   else if ( (p & 15) == 9 ) {
