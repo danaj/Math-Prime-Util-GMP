@@ -151,3 +151,11 @@
 - tinyqs needs a destroy to clear all the init vars
 
 - maybe export rising_factorial and falling_factorial.
+
+- clean up dependencies links.  We now have to include *every* C file to
+  compile SIMPQS standalone.  Completely unnecessary, but some utility
+  functions are pulling in other things.
+
+- add sumliouville, prime_bigomega, prime_omega
+
+- smooth/rough number functions

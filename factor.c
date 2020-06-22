@@ -176,8 +176,9 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       }
       if (nbits >= 65 && nbits <= 126) {
         if (!success) success = _GMP_pminus1_factor(n, f, 5000, 5000);
+        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",5000,f);o=0;}
         if (!success) success = tinyqs(n, f);
-        if (success&&o) {gmp_printf("cof-siqs found factor %Zd\n", f);o=0;}
+        if (success&&o) {gmp_printf("tinyqs found factor %Zd\n", f);o=0;}
       }
 
       /* It's possible the previous calls failed or weren't available */
