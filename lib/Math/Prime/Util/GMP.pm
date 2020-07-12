@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.52';
+  $Math::Prime::Util::GMP::VERSION = '0.53';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -204,7 +204,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.52
+Version 0.53
 
 
 =head1 SYNOPSIS
@@ -2328,7 +2328,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2019 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2020 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

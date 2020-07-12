@@ -1,4 +1,4 @@
-Math::Prime::Util::GMP version 0.52
+Math::Prime::Util::GMP version 0.53
 
 A module for number theory in Perl using GMP.  This includes primality tests,
 getting primes in a range, factoring, and more.
@@ -58,7 +58,7 @@ Perl 5.6.2 or later.  No modules outside of Core have been used.
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2011-2017 by Dana Jacobsen <dana@acm.org>
+Copyright (C) 2011-2020 by Dana Jacobsen <dana@acm.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
