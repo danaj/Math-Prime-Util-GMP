@@ -636,9 +636,9 @@ CONST_FUNC(pi);
 CONST_FUNC(log2);
 
 void free_float_constants(void) {
-  _prec_euler = 0;  mpf_clear(_fconst_euler);
-  _prec_pi    = 0;  mpf_clear(_fconst_pi);
-  _prec_log2  = 0;  mpf_clear(_fconst_log2);
+  if (_prec_euler) { _prec_euler = 0;  mpf_clear(_fconst_euler); }
+  if (_prec_pi)    { _prec_pi    = 0;  mpf_clear(_fconst_pi);    }
+  if (_prec_log2)  { _prec_log2  = 0;  mpf_clear(_fconst_log2);  }
 }
 
 /*****************     Exponential / Logarithmic Integral     *****************/

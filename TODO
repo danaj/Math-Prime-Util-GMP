@@ -159,3 +159,5 @@
 - add sumliouville, prime_bigomega, prime_omega
 
 - smooth/rough number functions
+
+- make the Bernoulli number cache incremental
