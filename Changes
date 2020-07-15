@@ -2,6 +2,16 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.53 2020-?
 
+    [ADDED]
+
+    - bernvec(n)              compute/cache/return even Bernoulli numbers
+    - faulhaber_sum(n,p)      fast sum of k^p for k=1..n
+
+    [PERFORMANCE]
+
+    - The first 100 Bernoulli numbers are cached, and more will be cached
+      by bernvec or faulhaber_sum.
+
 0.52 2020-06-22
 
     [ADDED]

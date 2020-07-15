@@ -27,6 +27,8 @@ extern void subfactorial(mpz_t r, UV n);
 extern void rising_factorial(mpz_t r, UV x, UV n);
 extern void falling_factorial(mpz_t r, UV x, UV n);
 
+extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
+
 extern int  is_carmichael(mpz_t n);
 extern int  is_fundamental(mpz_t n);
 extern int  is_totient(mpz_t n);

@@ -71,6 +71,7 @@ our @EXPORT_OK = qw(
                      factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
+                     bernvec faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
@@ -195,7 +196,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits urandomb urandomr
 
 =head1 NAME
 
@@ -1318,6 +1319,26 @@ of significant digits to be used, with the result rounded.  The default
 is 40 digits.
 This corresponds to Pari's C<bernreal> function and.
 
+=head2 bernvec
+
+  say join ", ", map { join "/" ,@$_; } bernvec(8);
+  # 1/1, 1/6, -1/30, 1/42, -1/30, 5/66, -691/2730, 7/6, -3617/510
+
+Returns an array of Bernoulli numbers C<B_0, B_2, ..., B_2n> for an
+integer argument C<n>.  Each array element is an 2-element array
+reference containing the numerator and denominator.
+
+This will be faster than calling bernfrac for each value.  The computed
+values are stored in a cache (not incremental), so later calls to to
+L</bernfrac>, L</bernreal>, L</bernvec>, and L</faulhaber_sum> with
+an C<n> in the range will be substantially faster.
+
+When called in void context this just calculates and caches the values.
+
+The cache is not thread aware.
+
+This corresponds to Pari's C<bernvec(n)> function, albeit noticibly slower.
+
 =head2 harmfrac
 
 Returns the Harmonic number C<H_n> for an integer argument C<n>, as a
@@ -1466,6 +1487,23 @@ C<s> must be greater than 2.
 Given integers C<x> and C<s>, return N if C<x> is the C<N-th> s-gonal number,
 0 otherwise.
 
+=head2 faulhaber_sum
+
+  say faulhaber_sum(111,18);
+  # 41588295196841906092077874022002239896
+
+Given C<n> and C<p>, returns the sum of the C<p>-th powers of the first C<n>
+positive integers.  That is, the sum of C<k^p> for C<k = 1 .. n>.
+Bernoulli's formula using the Bernoulli numbers is used.
+
+This uses the Bernoulli number cache.  Hence if calling multiple times,
+the largest C<p> value should be used first, or C<bernvec(p E<gt>E<gt> 1)>
+should be called in void context first.
+
+Additionally, because the cache is used, this is not thread safe in general.
+L</bernvec> should be called once on a single thread, then future calls to
+C<faulhaber_sum> and the other functions can be safely done on multiple
+threads if and only if within that range.
 
 =head2 sigma
 

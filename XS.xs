@@ -79,6 +79,25 @@ static char* cert_with_header(char* proof, mpz_t n) {
   return str;
 }
 
+static SV* sv_return_for_mpz(const mpz_t n) {
+  SV* sv = 0;
+  UV v = mpz_get_ui(n);
+  if (!mpz_cmp_ui(n, v)) {  /* Try to use a scalar */
+    sv = newSVuv(v);
+  } else {
+    char* str;
+    int nsize = mpz_sizeinbase(n, 10) + 2;
+    New(0, str, nsize, char);
+    mpz_get_str(str, 10, n);
+    sv = newSVpv(str, 0);
+    Safefree(str);
+  }
+  return sv;
+}
+
+#define XPUSH_MPZ(n) \
+  XPUSHs(sv_2mortal( sv_return_for_mpz(n) ))
+
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
@@ -372,23 +391,6 @@ is_power(IN char* strn, IN UV a = 0)
   OUTPUT:
     RETVAL
 
-
-#define XPUSH_MPZ(n) \
-  do { \
-    /* Push as a scalar if <= min(ULONG_MAX,UV_MAX), string otherwise */ \
-    UV _v = mpz_get_ui(n); \
-    if (!mpz_cmp_ui(n, _v)) { \
-      XPUSHs(sv_2mortal(newSVuv( _v ))); \
-    } else { \
-      char* str; \
-      int nsize = mpz_sizeinbase(n, 10) + 2; \
-      New(0, str, nsize, char); \
-      mpz_get_str(str, 10, n); \
-      XPUSHs(sv_2mortal(newSVpv(str, 0))); \
-      Safefree(str); \
-    } \
-  } while (0)
-
 void
 next_prime(IN char* strn)
   ALIAS:
@@ -620,6 +622,22 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
     XPUSHs(sv_2mortal(newSVpv(res, 0)));
     Safefree(res);
 
+void bernvec(IN UV n)
+  PREINIT:
+    const mpz_t *N, *D;
+    UV i;
+  PPCODE:
+    bernvec(&N, &D, n);  /* Cached array, do not destroy */
+    if (GIMME_V != G_VOID) {
+      EXTEND(SP, n+1);
+      for (i = 0; i <= n; i++) {
+        AV* av = newAV();
+        av_push(av, sv_return_for_mpz(N[i]));
+        av_push(av, sv_return_for_mpz(D[i]));
+        PUSHs( sv_2mortal(newRV_noinc( (SV*) av )) );
+      }
+    }
+
 void
 gcd(...)
   PROTOTYPE: @
@@ -800,6 +818,7 @@ invmod(IN char* stra, IN char* strb)
     divrem = 18
     factorialmod = 19
     multifactorial = 20
+    faulhaber_sum = 21
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -901,10 +920,14 @@ invmod(IN char* stra, IN char* strb)
       case 19:if (mpz_sgn(b) < 0) retundef = 1;
               else                factorialmod(a, mpz_get_ui(a), b);
               break;
-      case 20:
-      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
+      case 20:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
               else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
               break;
+      case 21:
+      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("faulhaber_sum: negative argument");
+              faulhaber_sum(a, a, mpz_get_ui(b));
+              break;
+
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);

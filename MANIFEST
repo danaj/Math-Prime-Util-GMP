@@ -60,6 +60,7 @@ t/25-const-euler.t
 t/25-const-pi.t
 t/26-combinatorial.t
 t/26-digits.t
+t/26-faulhaber.t
 t/26-int.t
 t/26-ismisc.t
 t/26-lambertw.t

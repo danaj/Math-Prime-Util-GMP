@@ -63,6 +63,7 @@ void _GMP_memfree(void)
   free_float_constants();
   destroy_ecpp_gcds();
   free_borwein_zeta();
+  free_bernoulli();
 }
 
 static const unsigned char next_wheel[30] =
@@ -775,6 +776,96 @@ void partitions(mpz_t npart, UV n)
     mpz_clear(part[i]);
   Safefree(part);
   Safefree(pent);
+}
+
+void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
+{
+  const mpz_t *N, *D;
+  mpz_t t, nj, num, den;
+  unsigned long j;
+
+  if (mpz_cmp_ui(zn, 1) <= 0) {
+    mpz_set_ui(sum, (mpz_sgn(zn) > 0) ? 1 : 0);
+    return;
+  }
+
+  mpz_init(t);
+
+  /* Use the polynomials directly for tiny powers */
+  if (p <= 3) {
+    mpz_add_ui(t, zn, 1);
+    switch (p) {
+      case 0: mpz_set(sum, zn);
+              break;
+      case 1: mpz_mul(sum, zn, t);
+              mpz_divexact_ui(sum, sum, 2);
+              break;
+      case 2: mpz_mul(sum, zn, t);
+              mpz_mul_ui(t, t, 2); mpz_sub_ui(t, t, 1);
+              mpz_mul(sum, sum, t);
+              mpz_divexact_ui(sum, sum, 6);
+              break;
+      case 3: mpz_mul(sum, zn, t);
+              mpz_divexact_ui(sum, sum, 2);
+              mpz_mul(sum, sum, sum);
+              break;
+    }
+    mpz_clear(t);
+    return;
+  }
+  /* If n is small, doing directly can be much faster.  Cheating.... */
+  if (mpz_cmp_ui(zn, p) <= 0) {
+    unsigned long n = mpz_get_ui(zn);
+    mpz_set_ui(sum, 1);
+    for (j = 1; j < n; j++) {
+      mpz_ui_pow_ui(t, j+1, p);
+      mpz_add(sum, sum, t);
+    }
+    mpz_clear(t);
+    return;
+  }
+
+  bernvec(&N, &D, p >> 1);
+  mpz_init_set_ui(num,0);
+  mpz_init_set_ui(den,1);
+  mpz_init_set(nj, zn);
+
+  /* Loop backwards so we build up n^(p+1-j) as we go */
+  for (j = p; j >= 2; j--) {
+    if (!(j&1)) {  /* j is even so B_j is non-zero */
+      mpz_bin_uiui(t, p+1, j);
+      mpz_mul(t, t, nj);
+      mpz_mul(t, t, N[j>>1]);
+      mpz_mul(num, num, D[j>>1]);
+      mpz_addmul(num, t, den);
+      mpz_mul(den, den, D[j>>1]);
+      /* Reduce num/den */
+      mpz_gcd(t, num, den);
+      mpz_divexact(num, num, t);
+      mpz_divexact(den, den, t);
+    }
+    /* Update n^j */
+    mpz_mul(nj, nj, zn);
+  }
+  /* j = 1 */
+  if (p >= 1) {
+    mpz_mul_ui(t, nj, p+1);
+    mpz_mul_ui(num, num, 2);
+    mpz_addmul(num, t, den);
+    mpz_mul_ui(den, den, 2);
+    /* Skip reduction */
+    mpz_mul(nj, nj, zn);
+  }
+  /* j = 0 */
+  mpz_addmul(num, nj, den);
+  /* Finalize */
+  mpz_mul_ui(den, den, p+1);
+  mpz_divexact(sum, num, den);
+
+  mpz_clear(nj);
+  mpz_clear(den);
+  mpz_clear(num);
+  mpz_clear(t);
 }
 
 

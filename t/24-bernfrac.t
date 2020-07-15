@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/bernfrac bernreal stirling harmfrac harmreal/;
+use Math::Prime::Util::GMP qw/bernfrac bernreal bernvec stirling harmfrac harmreal/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @A000367 = (qw/1 1 -1 1 -1 5 -691 7 -3617 43867 -174611 854513 -236364091 8553103 -23749461029 8615841276005 -7709321041217 2577687858367 -26315271553053477373 2929993913841559 -261082718496449122051 1520097643918070802691 -27833269579301024235023 596451111593912163277961 -5609403368997817686249127547 495057205241079648212477525 -801165718135489957347924991853 29149963634884862421418123812691 -2479392929313226753685415739663229 84483613348880041862046775994036021 -1215233140483755572040304994079820246041491/);
@@ -80,13 +80,20 @@ my @stirling1 = (
 [qw/0 -121645100408832000 431565146817638400 -668609730341153280 610116075740491776 -371384787345228000 161429736530118960 -52260903362512720 12953636989943896 -2503858755467550 381922055502195 -46280647751910 4465226757381 -342252511900 20692933630 -973941900 34916946 -920550 16815 -190 1 0/],
 );
 
-plan tests => 2 + scalar(@stirling3) + scalar(@stirling2) + scalar(@stirling1) + 3 + 2+6 + 4;
+plan tests => 2 + 1 + scalar(@stirling3) + scalar(@stirling2) + scalar(@stirling1) + 3 + 2+6 + 4;
 
 {
   my @num = map { (bernfrac(2*$_))[0] }  0 .. $#A000367;
   my @den = map { (bernfrac(2*$_))[1] }  0 .. $#A002445;
   is_deeply( \@num, \@A000367, "B_2n numerators 0 .. $#A000367" );
   is_deeply( \@den, \@A002445, "B_2n denominators 0 .. $#A002445" );
+}
+
+{
+  my $n = $#A000367;
+  my @got = bernvec($n);
+  my @exp = map { [$A000367[$_], $A002445[$_]] } 0 .. $n;
+  is_deeply( \@got, \@exp, "bernvec for $n even Bernoulli numbers" );
 }
 
 {

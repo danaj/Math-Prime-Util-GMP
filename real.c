@@ -98,7 +98,7 @@ static char* _frac_real(mpz_t num, mpz_t den, unsigned long prec) {
 
 /*********************     Riemann Zeta and Riemann R     *********************/
 
-static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec);
+static void _bern_real_zeta(mpf_t bn, unsigned long s, unsigned long prec);
 static unsigned long zeta_n = 0;
 static mpz_t* zeta_d = 0;
 
@@ -177,12 +177,9 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     if (!(S & 1)) { /* negative even integers are zero */
       mpf_set_ui(z,0);
     } else {        /* negative odd integers are -B_(n+1)/(n+1) */
-      mpz_t n;
-      mpz_init_set_ui(n, S+1);
-      _bern_real_zeta(z, n, prec);
+      _bern_real_zeta(z, S+1, prec);
       mpf_div_ui(z, z, S+1);
       mpf_neg(z,z);
-      mpz_clear(n);
     }
     return;
   }
@@ -804,9 +801,8 @@ void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
 
 /**************************        Bernoulli        **************************/
 
-static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec)
+static void _bern_real_zeta(mpf_t bn, unsigned long s, unsigned long prec)
 {
-  unsigned long s = mpz_get_ui(zn);
   mpf_t tf;
 
   if (s & 1) {
@@ -842,10 +838,115 @@ static void _bern_real_zeta(mpf_t bn, mpz_t zn, unsigned long prec)
   mpf_clear(tf);
 }
 
+/* Compute a vector of n+1 even Bernoulli numbers:  B[0],B[2],...,B[2n] */
+static void _bernoulli_vector(mpz_t** pN, mpz_t **pD, unsigned long n) {
+  mpz_t *T, *N, *D, g, den, p, t;
+  unsigned long i, j, k, h;
 
-static void _bernfrac_comb(mpz_t num, mpz_t den, mpz_t zn, mpz_t t)
+  New(0, T, n+1, mpz_t);
+  New(0, N, n+1, mpz_t);
+  New(0, D, n+1, mpz_t);
+
+  for (i = 0; i <= n; i++) {
+    mpz_init(T[i]);
+    mpz_init(N[i]);
+    mpz_init(D[i]);
+  }
+  mpz_set_ui(N[0], 1);
+  mpz_set_ui(D[0], 1);
+  if (n >= 1)
+    mpz_set_ui(T[1],1);
+
+  /* Use Luschny's Seidel method */
+
+  mpz_init_set_ui(den, 1);
+  mpz_init_set_ui(p, 1);
+  mpz_init(g);
+
+  for (i = 1, j = 1, h = 0; i <= 2*n; i++) {
+    if (i & 1) {
+      mpz_mul_ui(p, p, 4);
+      mpz_sub_ui(den, p, 1);
+      mpz_mul_2exp(den, den, 1);
+      for (k = h++; k > 0; k--)
+        mpz_add(T[k], T[k], T[k+1]);
+    } else {
+      for (k = 1; k <= h; k++)
+        mpz_add(T[k], T[k], T[k-1]);
+      mpz_gcd(g, T[h], den);
+      mpz_divexact(N[j], T[h], g);
+      mpz_divexact(D[j], den, g);
+      if (!(j&1)) mpz_neg(N[j],N[j]);
+      j++;
+    }
+  }
+  mpz_clear(g); mpz_clear(p); mpz_clear(den);
+
+  for (i = 0; i <= n; i++)
+    mpz_clear(T[i]);
+  Safefree(T);
+  *pN = N;
+  *pD = D;
+}
+
+static int _bern_cache_init = 0;
+static unsigned long _bern_cache_n = 0;
+static mpz_t *_bern_cache_NUM = 0;
+static mpz_t *_bern_cache_DEN = 0;
+
+void free_bernoulli(void) {
+  if (_bern_cache_init) {
+    unsigned long i, n = _bern_cache_n;
+    mpz_t *N = _bern_cache_NUM, *D = _bern_cache_DEN;
+    _bern_cache_NUM = _bern_cache_DEN = 0;
+    _bern_cache_n = 0;
+    _bern_cache_init = 0;
+    for (i = 0; i <= n; i++) {
+      mpz_clear(N[i]);
+      mpz_clear(D[i]);
+    }
+    Safefree(N);
+    Safefree(D);
+  }
+}
+
+static void _fill_bern_cache(unsigned long n) {
+  unsigned long i;
+  if (n < 100)
+     n = 100; /* Make it at least this large. */
+  if (_bern_cache_init && _bern_cache_n >= n)
+    return;
+  free_bernoulli();
+  _bernoulli_vector( &_bern_cache_NUM, &_bern_cache_DEN, n);
+  _bern_cache_n = n;
+  _bern_cache_init = 1;
+}
+
+static int _get_bern_cache(mpz_t num, mpz_t den, unsigned long n) {
+  unsigned long k = n >> 1;
+  if (n <= 1 || (n & 1)) {
+    mpz_set_ui(num, (n<=1) ? 1 : 0);
+    mpz_set_ui(den, (n==1) ? 2 : 1);
+    return 1;
+  } else if (_bern_cache_init && k <= _bern_cache_n) {
+    mpz_set(num, _bern_cache_NUM[k]);
+    mpz_set(den, _bern_cache_DEN[k]);
+    return 1;
+  }
+  return 0;
+}
+
+/* Return first n even Bernoulli numbers: B[0], B[2], ... B[2n] as READ ONLY */
+void bernvec(const mpz_t **N, const mpz_t **D, unsigned long n) {
+  _fill_bern_cache(n);
+  *N = _bern_cache_NUM;
+  *D = _bern_cache_DEN;
+}
+
+
+static void _bernfrac_comb(mpz_t num, mpz_t den, unsigned long n, mpz_t t)
 {
-  unsigned long k, j, n = mpz_get_ui(zn);
+  unsigned long k, j;
   mpz_t* T;
 
   if (n <= 1 || (n & 1)) {
@@ -887,10 +988,9 @@ static void _bernfrac_comb(mpz_t num, mpz_t den, mpz_t zn, mpz_t t)
   Safefree(T);
 }
 
-
-static void _bernfrac_zeta(mpz_t num, mpz_t den, mpz_t zn, mpz_t t)
+static void _bernfrac_zeta(mpz_t num, mpz_t den, unsigned long n, mpz_t t)
 {
-  unsigned long prec, n = mpz_get_ui(zn);
+  unsigned long prec;
   double nbits;
   mpf_t bn, tf;
   /* Compute integer numerator by getting the real bn first. */
@@ -928,7 +1028,7 @@ static void _bernfrac_zeta(mpz_t num, mpz_t den, mpz_t zn, mpz_t t)
 
   mpf_init2(bn, nbits);
   mpf_init2(tf, nbits);
-  _bern_real_zeta(bn, zn, prec);
+  _bern_real_zeta(bn, n, prec);
   mpf_set_z(tf, den);
   mpf_mul(bn, bn, tf);
 
@@ -944,15 +1044,20 @@ static void _bernfrac_zeta(mpz_t num, mpz_t den, mpz_t zn, mpz_t t)
 
 void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
 {
+  unsigned long n = mpz_get_ui(zn);
   mpz_t t;
+
+  if (n < 100)
+    _fill_bern_cache(n);
+  if (_get_bern_cache(num, den, n))
+    return;
+
   mpz_init(t);
-
-  if (mpz_cmp_ui(zn,46) < 0) {
-    _bernfrac_comb(num, den, zn, t);
+  if (n < 46) {
+    _bernfrac_comb(num, den, n, t);
   } else {
-    _bernfrac_zeta(num, den, zn, t);
+    _bernfrac_zeta(num, den, n, t);
   }
-
   mpz_gcd(t, num, den);
   mpz_divexact(num, num, t);
   mpz_divexact(den, den, t);
@@ -1189,21 +1294,24 @@ char* harmreal(mpz_t zn, unsigned long prec) {
 }
 
 char* bernreal(mpz_t zn, unsigned long prec) {
+  mpz_t num, den;
+  unsigned long n = mpz_get_ui(zn);
   char* out;
 
-  if (mpz_cmp_ui(zn,40) < 0) {
-    mpz_t num, den, t;
-    mpz_init(num); mpz_init(den); mpz_init(t);
-    _bernfrac_comb(num, den, zn, t);
+  if (n < 100)
+    _fill_bern_cache(n);
+
+  mpz_init(num); mpz_init(den);
+  if (_get_bern_cache(num, den, n)) {
     out = _frac_real(num, den, prec);
-    mpz_clear(t); mpz_clear(den); mpz_clear(num);
   } else {
     mpf_t z;
     unsigned long bits = 32 + DIGS2BITS(prec);
     mpf_init2(z, bits);
-    _bern_real_zeta(z, zn, prec);
+    _bern_real_zeta(z, n, prec);
     out = _str_real(z, prec);
     mpf_clear(z);
   }
+  mpz_clear(den); mpz_clear(num);
   return out;
 }
