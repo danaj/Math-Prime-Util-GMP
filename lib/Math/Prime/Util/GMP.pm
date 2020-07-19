@@ -93,7 +93,7 @@ our @EXPORT_OK = qw(
                      znprimroot
                      ramanujan_tau
                      Pi Euler
-                     todigits
+                     todigits fromdigits
                      random_prime random_nbit_prime random_ndigit_prime
                      random_safe_prime random_strong_prime
                      random_maurer_prime random_shawe_taylor_prime
@@ -196,7 +196,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -2129,6 +2129,13 @@ C<todigits(0)> returns an empty array.
 The base must be at least 2, and is limited to an int.
 Length must be at least zero and is limited to an int.
 
+=head2 fromdigits
+
+Takes an array reference of base C<b> digits in C<MSB -> LSB> order,
+and an optional unsigned integer base C<b> (default 10).
+Returns the equivalent base-10 integer.
+
+Each input digit must be an unsigned int.
 
 =head2 seed_csprng
 

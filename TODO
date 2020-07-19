@@ -161,3 +161,5 @@
 - smooth/rough number functions
 
 - make the Bernoulli number cache incremental
+
+- fromdigits input digit array arguably should be signed bigints.

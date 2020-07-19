@@ -2090,3 +2090,37 @@ uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base) {
   *ndigits = nlen;
   return digits;
 }
+
+/* Algorithm 1.25 FastIntegerInput from MCA v0.5.9 */
+void fromdigits(mpz_t n, uint32_t *d, uint32_t len, uint32_t base)
+{
+  if (len == 0) {
+    mpz_set_ui(n, 0);
+  } else if (len == 1) {
+    mpz_set_ui(n, d[0]);
+  } else {
+    mpz_t *l, b;
+    uint32_t i, k = len;
+    mpz_init_set_ui(b, base);
+    New(0, l, len, mpz_t);
+    /* We expect input in lowest -> highest order, i.e. right to left */
+    for (i = 0; i < len; i++)
+      mpz_init_set_ui(l[i], d[i]);
+    while (k > 1) {
+      for (i = 0; i < k-1; i += 2) {
+        /* l[i>>1] = l[i] + b * l[i+1] */
+        mpz_mul(l[i+1], l[i+1], b);
+        mpz_add(l[i>>1], l[i], l[i+1]);
+      }
+      if (k&1)
+        mpz_set(l[k>>1], l[k-1]);
+      k = (k+1)>>1;
+      mpz_mul(b, b, b);
+    }
+    mpz_clear(b);
+    mpz_set(n, l[0]);
+    for (i = 0; i < len; i++)
+      mpz_clear(l[i]);
+    Safefree(l);
+  }
+}

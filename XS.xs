@@ -1484,12 +1484,12 @@ void sigma(IN char* strn, IN UV k = 1)
     mpz_clear(n);
 
 void
-todigits(IN char* strn, int base=10, int length=-1)
+todigits(IN char* strn, unsigned int base=10, int length=-1)
   PREINIT:
     mpz_t n;
     uint32_t d, *digits;
   PPCODE:
-    if (base < 2) croak("invalid base: %d", base);
+    if (base < 2 || base > 0xFFFFFFFFU) croak("invalid base: %u\n", base);
     if (strn[0] == '-' || strn[0] == '+')  strn++;
     validate_string_number(cv, "n", strn);
     if (base == 10) {
@@ -1499,7 +1499,7 @@ todigits(IN char* strn, int base=10, int length=-1)
         digits[d] = strn[d]-'0';
     } else {
       mpz_init_set_str(n, strn, 10);
-      digits = todigits(&d, n, (uint32_t)base);
+      digits = todigits(&d, n, base);
       mpz_clear(n);
     }
     if (length > 0 || d > 1 || digits[0] != 0) {
@@ -1510,4 +1510,31 @@ todigits(IN char* strn, int base=10, int length=-1)
       for (; length > 0; length--)
         PUSHs(sv_2mortal(newSVuv( digits[d-length] )));
     }
+    Safefree(digits);
+
+void
+fromdigits(IN SV* svp, unsigned int base=10)
+  PREINIT:
+    AV *av;
+    int i, plen;
+    uint32_t *digits;
+    mpz_t n;
+  PPCODE:
+    if (base < 2 || base > 0xFFFFFFFFU) croak("invalid base: %u\n", base);
+    if ((!SvROK(svp)) || (SvTYPE(SvRV(svp)) != SVt_PVAV))
+      croak("fromdigits argument must be an array reference");
+    av = (AV*) SvRV(svp);
+    plen = av_len(av);
+    if (plen < 0) XSRETURN_IV(0);
+    New(0, digits, plen+1, uint32_t);
+    mpz_init(n);
+    for (i = 0; i <= plen; i++) {
+      SV **iv = av_fetch(av, i, 0);
+      if (iv == 0) break;
+      digits[plen-i] = SvUV(*iv); /* TODO: anything other than 32-bit */
+    }
+    if (i >= plen)
+      fromdigits(n, digits, plen+1, base);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
     Safefree(digits);

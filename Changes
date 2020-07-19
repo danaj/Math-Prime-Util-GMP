@@ -6,6 +6,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - bernvec(n)              compute/cache/return even Bernoulli numbers
     - faulhaber_sum(n,p)      fast sum of k^p for k=1..n
+    - fromdigits(\@dig,b)     convert base b digit array ref to base 10 number
 
     [PERFORMANCE]
 
