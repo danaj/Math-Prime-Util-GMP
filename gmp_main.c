@@ -1,4 +1,5 @@
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 #include <math.h>
 #include <gmp.h>
@@ -2123,4 +2124,23 @@ void fromdigits(mpz_t n, uint32_t *d, uint32_t len, uint32_t base)
       mpz_clear(l[i]);
     Safefree(l);
   }
+}
+
+void fromdigits_str(mpz_t n, const char* s, uint32_t base)
+{
+  uint32_t i, len, *dig;
+
+  if (s[0] == '-' || s[0] == '+') s++;
+  while (s[0] == '0') s++;
+
+  len = strlen(s);
+  New(0, dig, len, uint32_t);
+  for (i = 0; i < len; i++) {
+    const unsigned char c = s[i];
+    uint32_t d = !isalnum(c) ? 255 : (c <= '9') ? c-'0' : (c <= 'Z') ? c-'A'+10 : c-'a'+10;
+    if (d >= base) croak("Invalid digit for base %u", base);
+    dig[len-1-i] = d;
+  }
+  fromdigits(n, dig, len, base);
+  Safefree(dig);
 }

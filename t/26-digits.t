@@ -7,9 +7,9 @@ use Math::Prime::Util::GMP qw/todigits fromdigits/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 plan tests =>  0
-            + 12
-            +  1
-            +  6 # fromdigits
+            + 12 + 1      # todigits
+            +  6 + 4      # fromdigits
+            +  1          # combined
             +  0;
 
 ###### todigits
@@ -35,3 +35,11 @@ is(fromdigits([1,0,1],2), 5, "101 base 2 = 5");
 is(fromdigits([1,1,2,1,2,0,2,0,1,0,1,1,1,2,0],3), 7749393, "fromdigits of 7749393 in base 3");
 is(fromdigits([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,1,0,0],2), 900, "handle leading zeros");
 is(fromdigits([14,3,0,15],16), 58127, "fromdigits of 58127 base 16");
+
+is(fromdigits(""), 0, "fromdigits empty string returns 0");
+is(fromdigits("1f",16), 31, "fromdigits hex string");
+is(fromdigits("24"), 24, "fromdigits decimal");
+is(fromdigits("zzzyzzzyzzzyzzzy",36), "7958656371562241451187966", "fromdigits with Large base 36 number");
+
+###### more from/to
+is(fromdigits([todigits(56,2,8)],2), 56, "fromdigits of previous");

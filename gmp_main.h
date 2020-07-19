@@ -49,5 +49,6 @@ extern void next_twin_prime(mpz_t res, mpz_t n);
 
 extern uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base);
 extern void fromdigits(mpz_t n, uint32_t *d, uint32_t len, uint32_t base);
+extern void fromdigits_str(mpz_t n, const char* s, uint32_t base);
 
 #endif

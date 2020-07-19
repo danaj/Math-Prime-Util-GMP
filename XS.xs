@@ -1521,20 +1521,24 @@ fromdigits(IN SV* svp, unsigned int base=10)
     mpz_t n;
   PPCODE:
     if (base < 2 || base > 0xFFFFFFFFU) croak("invalid base: %u\n", base);
-    if ((!SvROK(svp)) || (SvTYPE(SvRV(svp)) != SVt_PVAV))
-      croak("fromdigits argument must be an array reference");
-    av = (AV*) SvRV(svp);
-    plen = av_len(av);
-    if (plen < 0) XSRETURN_IV(0);
-    New(0, digits, plen+1, uint32_t);
     mpz_init(n);
-    for (i = 0; i <= plen; i++) {
-      SV **iv = av_fetch(av, i, 0);
-      if (iv == 0) break;
-      digits[plen-i] = SvUV(*iv); /* TODO: anything other than 32-bit */
+    if (!SvROK(svp)) { /* string */
+      fromdigits_str(n, SvPV_nolen(svp), base);
+    } else {
+      if (SvTYPE(SvRV(svp)) != SVt_PVAV)
+        croak("fromdigits argument must be a string or array reference");
+      av = (AV*) SvRV(svp);
+      plen = av_len(av);
+      if (plen < 0) XSRETURN_IV(0);
+      New(0, digits, plen+1, uint32_t);
+      for (i = 0; i <= plen; i++) {
+        SV **iv = av_fetch(av, i, 0);
+        if (iv == 0) break;
+        digits[plen-i] = SvUV(*iv); /* TODO: anything other than 32-bit */
+      }
+      if (i >= plen)
+        fromdigits(n, digits, plen+1, base);
+      Safefree(digits);
     }
-    if (i >= plen)
-      fromdigits(n, digits, plen+1, base);
     XPUSH_MPZ(n);
     mpz_clear(n);
-    Safefree(digits);
