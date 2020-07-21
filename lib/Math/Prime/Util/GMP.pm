@@ -86,6 +86,7 @@ our @EXPORT_OK = qw(
                      sqrtint rootint logint powint mulint addint subint
                      divint modint divrem tdivrem negint absint
                      is_power is_prime_power is_semiprime is_square
+                     is_smooth is_rough
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
@@ -1454,6 +1455,20 @@ A semiprime is the product of exactly two primes.
 
 The boolean result is the same as C<scalar(factor(n)) == 2>, but this
 function performs shortcuts that can greatly speed up the operation.
+
+=head2 is_smooth
+
+Given two non-negative integer inputs C<n> and C<k>,
+returns C<1> if C<n> is C<k>-smooth, and C<0> otherwise.
+This uses the OEIS definition: Returns true if no prime factors
+of C<n> are larger than C<k>.
+
+=head2 is_rough
+
+Given two non-negative integer inputs C<n> and C<k>,
+returns C<1> if C<n> is C<k>-rough, and C<0> otherwise.
+This uses the OEIS definition: Returns true if no prime factors
+of C<n> are smaller than C<k>.
 
 =head2 is_carmichael
 

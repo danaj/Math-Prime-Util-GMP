@@ -70,6 +70,7 @@ t/26-mod.t
 t/26-real.t
 t/26-riemann.t
 t/26-roots.t
+t/26-smooth.t
 t/27-clusters.t
 t/28-randomprime.t
 t/28-rand.t

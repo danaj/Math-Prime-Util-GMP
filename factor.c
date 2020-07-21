@@ -1522,3 +1522,114 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
   *num_divisors = ndivisors;
   return divs;
 }
+
+int is_smooth(mpz_t n, mpz_t k) {
+  mpz_t *factors;
+  mpz_t N;
+  int i, nfactors, *exponents;
+  uint32_t klo, khi, div;
+
+  if (mpz_cmp_ui(n,1) <= 0) return 1;
+  if (mpz_cmp_ui(k,1) <= 0) return 0;
+  if (mpz_cmp(n, k) <= 0) return 1;
+
+  mpz_init_set(N, n);
+  klo = 2;
+  khi = (mpz_cmp_ui(k, 10000000) >= 0) ? 10000000 : mpz_get_ui(k);
+
+  while ( klo <= khi && (div = _GMP_trial_factor(N, klo, khi)) > 0) {
+    do {
+      mpz_divexact_ui(N, N, div);
+    } while (mpz_divisible_ui_p(N, div));
+    if (mpz_cmp(N, k) <= 0) {
+      mpz_clear(N);
+      return 1;
+    }
+    klo = div+1;
+  }
+  /* N still has at least one factor, and no factors in N <= khi */
+  if (mpz_cmp_ui(k, khi) <= 0) {
+    mpz_clear(N);
+    return 0;
+  }
+
+  nfactors = factor(N, &factors, &exponents);
+  for (i = 0; i < nfactors; i++) {
+    if (mpz_cmp(factors[i], k) > 0)
+      break;
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(N);
+  return i >= nfactors;
+}
+
+int is_rough(mpz_t n, mpz_t k) {
+  mpz_t *factors;
+  mpz_t N, f;
+  int i, nfactors, *exponents;
+  uint32_t khi, stage;
+
+  if (mpz_sgn(n) == 0) return 0 + (mpz_sgn(k) == 0);
+  if (mpz_cmp_ui(n,1) == 0 || mpz_cmp_ui(k,1) <= 0) return 1;
+  if (mpz_cmp_ui(k,2) == 0) return 0 + (mpz_cmp_ui(n,1) >= 0);
+  if (mpz_cmp_ui(k,3) == 0) return (mpz_sgn(n) > 0 && mpz_odd_p(n));
+  if (mpz_cmp(n, k) < 0) return 0;  /* 1 < n < k all are zero */
+  /* k > 3;  n >= k;  n >= 2 */
+
+  if (mpz_even_p(n) || mpz_divisible_ui_p(n,3)) return 0;
+  if (mpz_cmp_ui(k,5) <= 0) return 1;
+  if (mpz_divisible_ui_p(n,5)) return 0;
+  /* k > 5;  n >= k;  n not divisible by 2, 3, or 5 */
+
+  /* 1. Trial division up to a limit */
+  khi = (mpz_cmp_ui(k, 1000000) >= 0) ? 1000000 : mpz_get_ui(k);
+
+  if (_GMP_trial_factor(n, 2, khi-1) > 0)
+    return 0;
+  if (mpz_cmp_ui(k, khi) <= 0)
+    return 1;
+
+  /* 2. Try to efficiently pull out small factors */
+  mpz_init_set(N, n);
+  mpz_init(f);
+  for (stage = 1; stage <= 7; stage++) {
+    int success = 0;
+    if (stage == 5 && _GMP_BPSW(N)) { mpz_clear(f); mpz_clear(N); return 1; }
+    switch (stage) {
+      case 1: success = _GMP_pminus1_factor(N, f,   13,   130); break;
+      case 2: success = _GMP_pminus1_factor(N, f,  150,  1500); break;
+      case 3: success = _GMP_pminus1_factor(N, f, 1500, 15000); break;
+      case 4: success = _GMP_ECM_FACTOR(N, f,  100, 1); break;
+      case 5: success = _GMP_ECM_FACTOR(N, f,  400, 1); break;
+      case 6: success = _GMP_ECM_FACTOR(N, f,  800, 1); break;
+      case 7: success = _GMP_ECM_FACTOR(N, f, 1600, 1); break;
+      default: break;
+    }
+    if (!success) continue;
+    nfactors = factor(f, &factors, &exponents);
+    for (i = 0; i < nfactors; i++) {
+      if (mpz_cmp(factors[i], k) < 0)
+        break;
+    }
+    clear_factors(nfactors, &factors, &exponents);
+    if (i < nfactors) break;       /* Return 0: Found a small factor. */
+    mpz_divexact(N, N, f);         /* Divide out the factors all checked */
+    if (mpz_cmp(N, k) < 0) break;  /* Return 0: Reduced N to lower than k */
+    if (stage >= 5 && _GMP_BPSW(N)) { mpz_clear(f); mpz_clear(N); return 1; }
+  }
+  mpz_clear(f);
+  if (stage <= 7) {
+    mpz_clear(N);
+    return 0;
+  }
+
+  /* 3. Fully factor */
+  nfactors = factor(N, &factors, &exponents);
+  for (i = 0; i < nfactors; i++) {
+    if (mpz_cmp(factors[i], k) < 0)
+      break;
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(N);
+  return i >= nfactors;
+}

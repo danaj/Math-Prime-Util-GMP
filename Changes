@@ -8,6 +8,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - faulhaber_sum(n,p)      fast sum of k^p for k=1..n
     - fromdigits(\@d[,base])  convert digit array ref to base 10 number
     - fromdigits(str[,base])  convert string to base 10 number
+    - is_smooth(n,k)          is n a k-smooth number
+    - is_rough(n,k)           is n a k-rough number
 
     [PERFORMANCE]
 

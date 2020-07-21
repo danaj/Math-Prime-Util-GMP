@@ -685,38 +685,43 @@ kronecker(IN char* stra, IN char* strb)
   ALIAS:
     valuation = 1
     is_gaussian_prime = 2
+    is_smooth = 3
+    is_rough = 4
   PREINIT:
     mpz_t a, b;
   CODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    if (ix == 0) {
-      RETVAL = mpz_kronecker(a, b);
-    } else if (ix == 1) {
+    if (ix != 0) {
       mpz_abs(a,a);
       mpz_abs(b,b);
-      if (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0) {
-        RETVAL = 0;
-      } else if (mpz_cmp_ui(b,2) == 0) {
-        RETVAL = mpz_scan1(a, 0);
-      } else {
-        RETVAL = mpz_remove(a, a, b);
-      }
-    } else {
-      mpz_abs(a,a);
-      mpz_abs(b,b);
-      if (mpz_sgn(a) == 0) {
-        RETVAL = (mpz_fdiv_ui(b,4) == 3) ? _GMP_is_prime(b) : 0;
-      } else if (mpz_sgn(b) == 0) {
-        RETVAL = (mpz_fdiv_ui(a,4) == 3) ? _GMP_is_prime(a) : 0;
-      } else {
-        mpz_mul(a, a, a);
-        mpz_mul(b, b, b);
-        mpz_add(a, a, b);
-        RETVAL = (!mpz_cmp_ui(a,2))      ?  2
-               : (mpz_fdiv_ui(a,4) == 1) ?  _GMP_is_prime(a)
-                                         :  0;
-      }
+    }
+    RETVAL = 0;
+    switch (ix) {
+      case 0: RETVAL = mpz_kronecker(a, b);
+              break;
+      case 1: RETVAL = (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0)  ?  0
+                     : (mpz_cmp_ui(b,2) == 0)  ?  mpz_scan1(a, 0)
+                                               :  mpz_remove(a, a, b);
+              break;
+      case 2: if (mpz_sgn(a) == 0) {
+                RETVAL = (mpz_fdiv_ui(b,4) == 3) ? _GMP_is_prime(b) : 0;
+              } else if (mpz_sgn(b) == 0) {
+                RETVAL = (mpz_fdiv_ui(a,4) == 3) ? _GMP_is_prime(a) : 0;
+              } else {
+                mpz_mul(a, a, a);
+                mpz_mul(b, b, b);
+                mpz_add(a, a, b);
+                RETVAL = (!mpz_cmp_ui(a,2))      ?  2
+                       : (mpz_fdiv_ui(a,4) == 1) ?  _GMP_is_prime(a)
+                                                 :  0;
+              }
+              break;
+      case 3: RETVAL = is_smooth(a, b);
+              break;
+      case 4: RETVAL = is_rough(a, b);
+              break;
+      default:break;
     }
     mpz_clear(b);
     mpz_clear(a);
