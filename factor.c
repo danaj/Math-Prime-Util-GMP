@@ -1537,7 +1537,7 @@ int is_smooth(mpz_t n, mpz_t k) {
   klo = 2;
   khi = (mpz_cmp_ui(k, 10000000) >= 0) ? 10000000 : mpz_get_ui(k);
 
-  while ( klo <= khi && (div = _GMP_trial_factor(N, klo, khi)) > 0) {
+  while (klo <= khi && (div = _GMP_trial_factor(N, klo, khi)) > 0) {
     do {
       mpz_divexact_ui(N, N, div);
     } while (mpz_divisible_ui_p(N, div));
@@ -1627,6 +1627,66 @@ int is_rough(mpz_t n, mpz_t k) {
   nfactors = factor(N, &factors, &exponents);
   for (i = 0; i < nfactors; i++) {
     if (mpz_cmp(factors[i], k) < 0)
+      break;
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(N);
+  return i >= nfactors;
+}
+
+int is_powerful(mpz_t n, uint32_t k) {
+  mpz_t *factors;
+  mpz_t N, f;
+  int i, nfactors, *exponents;
+  uint32_t e, klo, khi, div;
+
+  if (k == 0) k = 2;   /* API */
+
+  if (k <= 1 || mpz_cmp_ui(n,1) <= 0) return 1;
+
+  mpz_init_set(N, n);
+  e = mpz_scan1(N, 0);
+  if (e > 0) {
+    if (e < k) { mpz_clear(N); return 0; }
+    mpz_tdiv_q_2exp(N, N, e);
+    if (mpz_cmp_ui(N,1) == 0) { mpz_clear(N); return 1; }
+  }
+
+  for (i = 2; i <= 8; i++) {
+    static const unsigned char pr[9] = {0,2,3,5,7,11,13,17,19};
+    uint32_t p = pr[i];
+    uint32_t pk = (k == 2) ? p*p : (k == 3) ? p*p*p : p*p*p*p;
+    if (mpz_divisible_ui_p(N, p) && !mpz_divisible_ui_p(N, pk))
+      { mpz_clear(N); return 0; }
+  }
+
+  mpz_init(f);
+  mpz_root(f, N, k);
+  klo = 3;
+  khi = (mpz_cmp_ui(f, 1000000) >= 0) ? 1000000 : mpz_get_ui(f);
+
+  while (klo <= khi && (div = _GMP_trial_factor(N, klo, khi)) > 0) {
+    mpz_set_ui(f, div);
+    if (mpz_remove(N, N, f) < k)
+      { mpz_clear(N); mpz_clear(f); return 0; }
+    if (mpz_cmp_ui(N,1) == 0 || power_factor(N, f) >= k)
+      { mpz_clear(N); mpz_clear(f); return 1; }
+    mpz_ui_pow_ui(f, div, 2*k);
+    if (mpz_cmp(N,f) < 0)
+      { mpz_clear(N); mpz_clear(f); return 0; }
+    klo = div+1;
+  }
+  if (mpz_cmp_ui(N,1) == 0 || power_factor(N, f) >= k)
+    { mpz_clear(N); mpz_clear(f); return 1; }
+  mpz_ui_pow_ui(f, khi, 2*k);
+  if (mpz_cmp(N,f) < 0)
+    { mpz_clear(N); mpz_clear(f); return 0; }
+  mpz_clear(f);
+
+  /* 3. Fully factor */
+  nfactors = factor(N, &factors, &exponents);
+  for (i = 0; i < nfactors; i++) {
+    if (exponents[i] < k)
       break;
   }
   clear_factors(nfactors, &factors, &exponents);

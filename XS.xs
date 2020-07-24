@@ -800,6 +800,17 @@ liouville(IN char* strn)
   OUTPUT:
     RETVAL
 
+int
+is_powerful(IN char* strn, IN UV k = 0)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET(n, strn);
+    RETVAL = is_powerful(n, (k == 0) ? 2 : k);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 void
 invmod(IN char* stra, IN char* strb)
   ALIAS:
@@ -1479,7 +1490,8 @@ factor(IN char* strn)
     }
     mpz_clear(n);
 
-void sigma(IN char* strn, IN UV k = 1)
+void
+sigma(IN char* strn, IN UV k = 1)
   PREINIT:
     mpz_t n;
   PPCODE:

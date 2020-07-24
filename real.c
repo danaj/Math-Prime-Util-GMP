@@ -840,7 +840,7 @@ static void _bern_real_zeta(mpf_t bn, unsigned long s, unsigned long prec)
 
 /* Compute a vector of n+1 even Bernoulli numbers:  B[0],B[2],...,B[2n] */
 static void _bernoulli_vector(mpz_t** pN, mpz_t **pD, unsigned long n) {
-  mpz_t *T, *N, *D, g, den, p, t;
+  mpz_t *T, *N, *D, g, den, p;
   unsigned long i, j, k, h;
 
   New(0, T, n+1, mpz_t);
@@ -911,7 +911,6 @@ void free_bernoulli(void) {
 }
 
 static void _fill_bern_cache(unsigned long n) {
-  unsigned long i;
   if (n < 100)
      n = 100; /* Make it at least this large. */
   if (_bern_cache_init && _bern_cache_n >= n)
