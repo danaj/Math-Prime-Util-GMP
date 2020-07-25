@@ -13,6 +13,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_powerful(n[,k])      is n a k-powerful number (default k=2)
     - is_trial_prime(n)       primality using trial division
 
+    [FIXES]
+
+    - sieve_range with tiny start and depth values could sieve one deeper
+      than precisely requested.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

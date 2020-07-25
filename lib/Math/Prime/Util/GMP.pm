@@ -849,7 +849,7 @@ With three arguments C<low>, C<high>, and C<limit>, this does a partial
 sieve over the inclusive range and returns the list that pass the sieve.
 If C<limit> is less than C<2> then it is identical to the two-argument
 version, in that a primality test will be performed after sieving.
-Otherwise, sieving is performed up to C<limit>.
+Otherwise, sieving is performed up to and including C<limit>.
 
 The two-argument version is typically only used internally and adds little
 functionality.  The three-argument version is quite useful for applications
@@ -869,7 +869,7 @@ a sieve of maximum depth C<depth> is done for the C<width> consecutive
 numbers beginning with C<n>.  An array of offsets from the start is returned.
 
 The returned list contains those offsets in the range C<n> to C<n+width-1>
-where C<n + offset> has no prime factors less than C<depth>.
+where C<n + offset> has no prime factors less than or equal to C<depth>.
 
 This function is very similar to the three argument form of L</sieve_primes>.
 The differences are using C<(n,width)> instead of C<(low,high)>, and most

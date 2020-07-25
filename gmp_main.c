@@ -1208,12 +1208,14 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
   mpz_sub_ui(start, start, 1);
   if (length & 1) length++;
 
+  /* Possibly reduce maxprime */
   if (mpz_cmp_ui(start, maxprime) <= 0) {
     mpz_t t;
     mpz_init(t);
     mpz_add_ui(t, start, length+1);
     mpz_sqrt(t, t);
-    maxprime = mpz_get_ui(t);
+    if (maxprime > mpz_get_ui(t))
+      maxprime = mpz_get_ui(t);
     mpz_clear(t);
   }
 
