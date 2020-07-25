@@ -177,6 +177,75 @@ int primality_pretest(mpz_t n)
   return 1;
 }
 
+/* Primality using purely trial division.
+ * We basically never want to use this for anything practical,
+ * but it is good for testing and comparison.
+ */
+int is_trial_prime(mpz_t n)
+{
+  mpz_t sqrtn;
+  uint32_t res, p, lim;
+  int _verbose = get_verbose_level();
+
+  if (_GMP_trial_factor(n, 2, 256))
+    return 0;
+  if (mpz_cmp_ui(n, 257*257) < 0)
+    return 1;
+
+  mpz_init(sqrtn);
+  mpz_sqrt(sqrtn, n);
+  if (_verbose >= 2) gmp_printf("    trial division to %Zd\n", sqrtn);
+  /* Next prime is 257 */
+  {
+    PRIME_ITERATOR(iter);
+
+    prime_iterator_setprime(&iter, 256);
+    p = prime_iterator_next(&iter);
+    lim = (mpz_cmp_ui(sqrtn, 4294967279) >= 0) ? 4294967279 : mpz_get_ui(sqrtn);
+    if (_verbose >= 3) gmp_printf("    ... using mpz_ui and prime iterator to %lu\n", lim);
+    while (p <= lim) {
+      if (mpz_divisible_ui_p(n, p))
+        break;
+      p = prime_iterator_next(&iter);
+    }
+    res = (p > lim);
+    prime_iterator_destroy(&iter);
+
+    /* After benchmarking, sieve_primes is faster than using a 29-rough
+     * iterator (basically next_prime without the final primality test).
+     * A remainder tree would be faster, or even vecmul + gcd. */
+
+    if (res == 1 && mpz_cmp_ui(sqrtn, p) >= 0) {   /* We need to keep going */
+      mpz_t zp, nlo, nhi;
+      UV i, nprimes, *list;
+      mpz_init_set_ui(nlo, p);
+      mpz_init(nhi);
+      mpz_init(zp);
+      if (_verbose >= 3) gmp_printf("    ... using mpz    and sieve_primes from %Zd to %Zd\n", nlo, sqrtn);
+      while (res == 1 && mpz_cmp(nlo, sqrtn) <= 0) {
+        mpz_add_ui(nhi, nlo, 10000000);
+        if (mpz_cmp(nhi, sqrtn) > 0) mpz_set(nhi, sqrtn);
+        list = sieve_primes(nlo, nhi, 0, &nprimes);
+        if (list != 0) {
+          for (i = 0; i < nprimes; i++) {
+            mpz_add_ui(zp, nlo, list[i]);
+            if (mpz_divisible_p(n, zp))
+              break;
+          }
+          res = (i >= nprimes);
+          Safefree(list);
+        }
+        mpz_add_ui(nlo, nhi, mpz_odd_p(nhi) ? 2 : 1);
+      }
+      mpz_clear(zp);
+      mpz_clear(nhi);
+      mpz_clear(nlo);
+    }
+  }
+  mpz_clear(sqrtn);
+  return res;
+}
+
 
 /*****************************************************************************/
 

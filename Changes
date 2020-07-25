@@ -11,6 +11,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_smooth(n,k)          is n a k-smooth number
     - is_rough(n,k)           is n a k-rough number
     - is_powerful(n[,k])      is n a k-powerful number (default k=2)
+    - is_trial_prime(n)       primality using trial division
 
     [PERFORMANCE]
 

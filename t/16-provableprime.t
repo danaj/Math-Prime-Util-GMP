@@ -4,6 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/is_provable_prime is_provable_prime_with_cert
+                              is_trial_prime
                               is_aks_prime is_miller_prime is_ecpp_prime
                               is_nminus1_prime is_nplus1_prime is_bls75_prime/;
 
@@ -13,7 +14,7 @@ plan tests => 0 + 6
                 + 34
                 + 2
                 + 7   # _with_cert
-                + 8   # AKS, Miller, N-1, ECPP
+                + 9   # Trial, AKS, Miller, N-1, ECPP
                 + 0;
 
 is(is_provable_prime(2) , 2,  '2 is prime');
@@ -178,6 +179,9 @@ if ($cert =~ /\bType BLS5\b/) {
 
 #####################
 # Individual routines
+
+# Trial
+ok( is_trial_prime(4539892831), "is_trial_prime(4539892831)" );
 
 # AKS
 ok( is_aks_prime(74903), "is_aks_prime(74903)" );

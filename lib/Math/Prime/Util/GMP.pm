@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
                      is_bpsw_prime
                      is_provable_prime
                      is_provable_prime_with_cert
+                     is_trial_prime
                      is_aks_prime
                      is_nminus1_prime
                      is_nplus1_prime
@@ -636,6 +637,14 @@ it will skip all pretests and any extra work that the L</is_prob_prime>
 test may add.  This saves some time if the input has no small factors, such
 as testing results that have been sieved.
 
+
+=head2 is_trial_prime
+
+Takes a positive number as input, and returns 1 if the input has not
+divisible by any prime less than or equal to the square root of the input.
+This is simple trial division by primes.
+There is little practical use as we have much more efficient primality
+and compositeness tests, but it can be a useful comparison.
 
 =head2 is_aks_prime
 

@@ -9,6 +9,7 @@ extern void _GMP_destroy(void);
 extern void _GMP_memfree(void);
 
 extern int  primality_pretest(mpz_t n);
+extern int  is_trial_prime(mpz_t n);
 
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);

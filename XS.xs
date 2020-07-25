@@ -289,7 +289,8 @@ is_prime(IN char* strn)
     is_nplus1_prime = 6
     is_bls75_prime = 7
     is_ecpp_prime = 8
-    is_bpsw_prime = 9
+    is_trial_prime = 9
+    is_bpsw_prime = 10
   PREINIT:
     mpz_t n;
     int ret;
@@ -306,7 +307,8 @@ is_prime(IN char* strn)
       case 6: ret = (_GMP_primality_bls_np1(n, 100, 0) == 2) ? 1 : 0; break;
       case 7: ret = (bls75_hybrid(n, 100, 0) == 2) ? 1 : 0; break;
       case 8: ret = _GMP_ecpp(n, 0); break;
-      case 9:
+      case 9: ret = is_trial_prime(n); break;
+      case 10:
       default:ret = _GMP_BPSW(n); break;
     }
     RETVAL = ret;
