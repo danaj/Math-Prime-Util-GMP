@@ -156,10 +156,23 @@
   compile SIMPQS standalone.  Completely unnecessary, but some utility
   functions are pulling in other things.
 
-- add sumliouville, prime_bigomega, prime_omega
-
-- smooth/rough number functions
+- add sumliouville
+  prime_bigomega
+  prime_omega
+  is_almost_prime(k,n)
+  almost_prime_count(k,n)
+  powerful_count
+  perfect_power_count
+  prime_power_count
+  smooth_count
+  rough_count
+  qnr
+  rootmodp
+  rootmod
 
 - make the Bernoulli number cache incremental
 
 - fromdigits input digit array arguably should be signed bigints.
+
+- Add LucasV(mpz_t V, mpz_t k, mpz_t n, mpz_t P, mpz_t Q);
+  ensure optimized for Q=1 case

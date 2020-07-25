@@ -86,7 +86,7 @@ our @EXPORT_OK = qw(
                      sqrtint rootint logint powint mulint addint subint
                      divint modint divrem tdivrem negint absint
                      is_power is_prime_power is_semiprime is_square
-                     is_smooth is_rough
+                     is_smooth is_rough is_powerful
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
@@ -1469,6 +1469,17 @@ Given two non-negative integer inputs C<n> and C<k>,
 returns C<1> if C<n> is C<k>-rough, and C<0> otherwise.
 This uses the OEIS definition: Returns true if no prime factors
 of C<n> are smaller than C<k>.
+
+=head2 is_powerful
+
+Given two non-negative integer inputs C<n> and C<k>,
+returns C<1> if C<n> is C<k>-powerful, and C<0> otherwise.
+If C<k> is omitted or zero, C<k=2> is used.
+
+A k-powerful number is one that where all prime factors appear at least
+C<k> times.  All numbers are therefore 1-powerful, and C<1> is powerful
+for all C<k>.
+
 
 =head2 is_carmichael
 

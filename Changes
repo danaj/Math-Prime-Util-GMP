@@ -10,11 +10,13 @@ Revision history for Perl module Math::Prime::Util::GMP
     - fromdigits(str[,base])  convert string to base 10 number
     - is_smooth(n,k)          is n a k-smooth number
     - is_rough(n,k)           is n a k-rough number
+    - is_powerful(n[,k])      is n a k-powerful number (default k=2)
 
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached
       by bernvec or faulhaber_sum.
+
 
 0.52 2020-06-22
 
