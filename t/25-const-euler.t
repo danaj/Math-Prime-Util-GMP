@@ -16,6 +16,10 @@ is_deeply( [map { Euler(100*$_) } 1..10],
            [map { constround($Euler,100*$_) } 1..10],
            "Euler(100,200,300,...,1000)" );
 
+# Call in void context
+Euler(24);
+Euler(1100);
+
 sub constround {
   my($fullc,$dig) = @_;
   $fullc =~ /^(\d+)\.(\d+)$/ or die "const fail";

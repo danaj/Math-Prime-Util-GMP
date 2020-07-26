@@ -101,6 +101,7 @@ my %lucas_sequences = (
   "323 5 -1 81" => [153,195,322],
   "49001 25 117 24501" => [20933,18744,19141],
   "18971 10001 -1 4743" => [5866,14421,18970],
+  "18970 47 -17 18969" => [17108,10950,17543],
 );
 
 my @primes128 = (qw/
@@ -128,6 +129,13 @@ my @comp128 = (qw/
   276174467950103435998583356206846142651
 /);
 
+my @perrint = (
+  [271441, 0],
+  ["167385219121", 1],
+  ["24708862470601", 2],
+  ["102690901", 3],
+);
+
 
 plan tests => 0 + 9
                 + 3
@@ -146,6 +154,7 @@ plan tests => 0 + 9
                 + 5 * scalar(@comp128)    # strong probable prime tests
                 + 15  # Check Frobenius for small primes
                 + 2   # mrr with seed and neg bases
+                + 4  *scalar(@perrint);   # Perrin pseudoprime types
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -369,3 +378,16 @@ for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
 is(miller_rabin_random("5948714251747610466954817160823054375857",30,"0x6c7b06f2333c8390"), 1, "miller_rabin_random with a seed");
 # Test mrr with a negative number of bases
 ok(!eval { miller_rabin_random(10007,-4); },   "MRR(10007,-4)");
+
+###### Perrin pseudoprimes
+for my $pdata (@perrint) {
+  my($n, $is) = @$pdata;
+  my @name = ('unresticted', 'minimal restricted', 'Adams/Shanks', 'Grantham');
+  for my $type (0 .. 3) {
+    if ($is >= $type) {
+      is( is_perrin_pseudoprime($n, $type), 1, "$n is a $name[$type] Perrin pseudoprime" );
+    } else {
+      is( is_perrin_pseudoprime($n, $type), 0, "$n is not a $name[$type] Perrin pseudoprime" );
+    }
+  }
+}

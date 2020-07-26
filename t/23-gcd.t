@@ -158,11 +158,11 @@ plan tests => scalar(@gcds)
             + scalar(@kroneckers)
             + scalar(@valuations)
             + 5
-            + 2 + scalar(@binomials)
+            + 3 + scalar(@binomials)
             + scalar(@gcdexts)
             + scalar(@vecsums)
             + scalar(@vecprods)
-            + 3 + 3 + 1 + 5 + 3 + 3;
+            + 3 + 3 + 1 + 5 + 4 + 3 + 3;
 
 foreach my $garg (@gcds) {
   my($aref, $exp) = @$garg;
@@ -203,6 +203,10 @@ is_deeply( [map { binomial(10, $_) } -15 .. 15],
 is_deeply( [map { binomial(-10, $_) } -15 .. 15],
            [qw/-2002 715 -220 55 -10 1 0 0 0 0 0 0 0 0 0 1 -10 55 -220 715 -2002 5005 -11440 24310 -48620 92378 -167960 293930 -497420 817190 -1307504/],
            "binomial(-10,n) for n in -15 .. 15" );
+{
+  my $binlarge = binomial(50001, 1001);
+  like($binlarge, qr/^496707638141717196412227681583240\d{2063}777168293276436675967388577715200$/, "binomial(50001,1001) = 2129 digits, looks correct");
+}
 
 foreach my $garg (@gcdexts) {
   my($aref, $eref) = @$garg;
@@ -235,6 +239,11 @@ is( is_power("141584201252435576611385848128741754359444747593833758786464145304
 is( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761"), "16", "is_power(903111^16) == 16" );
 ok( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761",4), "is_power(903111^16,4) is true" );
 is( is_power("894311843364148115560351871258324837202590615410044436950984649"), "2", "is_power(29905047121918201644964877983907^2) == 2" );
+
+is( is_power(-27), 3, "-27 is found to be a third power" );
+is( is_power(-8, 3), 1, "-8 is a third power" );
+is( is_power(-8, 4), 0, "-8 is not a fourth power" );
+is( is_power(-16,4), 0, "-16 is not a fourth power" );
 
 is( is_prime_power("18475335773296164196"), "0", "is_prime_power(18475335773296164196) == 0" );
 is( is_prime_power("894311843364148115560351871258324837202590615410044436950984649"), 0, "is_prime_power(29905047121918201644964877983907^2) == 0" );

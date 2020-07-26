@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/seed_csprng irand irand64 drand/;
+use Math::Prime::Util::GMP qw/seed_csprng is_csprng_well_seeded
+                              irand irand64 drand/;
 
 my $use64 = (~0 > 4294967295);
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -21,6 +22,8 @@ plan tests => 0
 # seed_csprng(55,"BLAKEGrostlJHKeccakSkein--RijndaelSerpentTwofishRC6MARS");
 
 ########
+
+diag "The library thinks the CSPRNG is" . (is_csprng_well_seeded() ? " " : " not ") . "well seeded.";
 
 {
   my @s = map { irand } 1 .. $samples;

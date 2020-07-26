@@ -24,7 +24,7 @@ my %sigmas = (
 plan tests => 0 + 57
                 + 24
                 + 2
-                + 6    # individual tets for factoring methods
+                + 9    # individual tets for factoring methods
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
                 + scalar(keys %sigmas)
@@ -147,6 +147,11 @@ is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('22095311209999409
 
 #diag "factor 736-bit number with HOLF";
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::holf_factor('185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863') ], ['192606732705880508138303165129171270891951231683030125996296974238495711578947569589234612013165893468683239489', '963033663529402540691515825645856354459756158415150629981484871192478557894737847946173060065829467343416197967'], "HOLF factors poorly formed 222-digit semiprime" );
+
+is_deeply( [Math::Prime::Util::GMP::trial_factor('2114957314229414940')], [2,2,3,3,3,5,'3916587618943361'], "Trial factor finds small factors" );
+is_deeply( [Math::Prime::Util::GMP::trial_factor('205195554871714694891298619')], [28631,'7166901431026324434749'], "Trial factor finds small factor" );
+
+is_deeply( [Math::Prime::Util::GMP::pbrent_factor('2114957314229414940')], [2,2,3,3,3,5,'3916587618943361'], "Pollard-Brent factor finds small factors" );
 
 # Test stage 2 of pminus1
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('23113042053749572861737011', 100, 100000) ], ['694059980329', '33301217054459'], "p-1 factors 23113042053749572861737011 in stage 2");

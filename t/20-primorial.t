@@ -7,6 +7,8 @@ use Math::Prime::Util::GMP qw/primorial pn_primorial factorial factorialmod
                               multifactorial subfactorial factorial_sum
                               addmod/;
 
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
+
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71
 73 79 83 89 97 101 103 107 109 113 127 131 137 139 149 151 157 163 167 173
@@ -92,8 +94,24 @@ my @factorials = (qw/
 265252859812191058636308480000000
 /);
 
+my @facmods = (
+  [37,0,0],
+  [37,1,0],
+  [37,31,0],
+  [17,503,73],
+  [498,503,482],
+  [502,503,502],
+  [503,503,0],
+);
+
+if ($extra) {
+  push @facmods, [1000000, "5000000002", "1657069652"];
+  push @facmods, [6000001, "779783490222", "136326683526"];
+}
+
 plan tests =>   1    # factorial
               + 1    # factorialmod
+              + scalar(@facmods)
               + 2    # primorial and pn_primorial
               + 2    # extra primorial tests
               + 1    # subfactorial
@@ -108,6 +126,11 @@ plan tests =>   1    # factorial
 is_deeply( [map { factorialmod($_>>2,$_) }        10000 .. 10100],
            [map { addmod(factorial($_>>2),0,$_) } 10000 .. 10100],
            "factorialmod" );
+
+for my $d (@facmods) {
+  my($n, $m, $expect) = @$d;
+  is( factorialmod($n, $m), $expect, "factorialmod($n,$m) = $expect" );
+}
 
 {
   my @prim   = map { primorial(nth_prime($_)) }  0 .. $#pn_primorials;

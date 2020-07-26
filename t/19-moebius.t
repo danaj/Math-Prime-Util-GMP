@@ -181,7 +181,7 @@ my @crts = (
 
 
 plan tests => 1
-            + 1 # moeb_vals
+            + 2 # moeb_vals
             + 1 + scalar(keys %totients)
             + scalar(keys %jordan_totients)
             + 1 # Small Carmichael Lambda
@@ -201,6 +201,8 @@ ok(!eval { moebius(0); }, "moebius(0)");
   my @moebius = map { moebius($_) } (1 .. scalar @moeb_vals);
   is_deeply( \@moebius, \@moeb_vals, "moebius 1 .. " . scalar @moeb_vals );
 }
+
+is_deeply( [moebius("1000000000000","1000000000010")], [0,-1,-1,-1,0,-1,1,1,0,-1,0], "moebius(10^12,10^12+10)" );
 
 ###### totient
 {
