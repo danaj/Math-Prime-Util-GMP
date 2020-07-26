@@ -1344,6 +1344,7 @@ end_bls15:
   return rval;
 }
 
+#if 0   /* These are not currently used */
 /* Given an n, try using BLS75 theorem 15, N+1 = mq.
  * Note: this does _not_ prove n is prime!  If it returns 1, then we have
  * found a q/D that satisfy theorem 15, but we leave proving q for the caller.
@@ -1444,3 +1445,4 @@ int _GMP_primality_bls_nm1_split(mpz_t n, int effort, mpz_t p, UV *reta)
   mpz_clear(t);
   return success;
 }
+#endif
