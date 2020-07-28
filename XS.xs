@@ -203,7 +203,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
     if (strn[1] == 0) { \
       int q_is_prime = 0; \
       switch (strn[0]) { \
-        case '2': case '3': case '5': case '7': q_is_prime = small_retval; \
+        case '2': case '3': case '5': case '7': q_is_prime = (small_retval); \
                                                 break; \
       } \
       XSRETURN_IV(q_is_prime); \
@@ -282,34 +282,34 @@ int
 is_prime(IN char* strn)
   ALIAS:
     is_prob_prime = 1
-    is_aks_prime = 2
+    is_bpsw_prime = 2
     is_llr_prime = 3
     is_proth_prime = 4
-    is_nminus1_prime = 5
-    is_nplus1_prime = 6
-    is_bls75_prime = 7
-    is_ecpp_prime = 8
-    is_trial_prime = 9
-    is_bpsw_prime = 10
+    is_trial_prime = 5
+    is_aks_prime = 6
+    is_nminus1_prime = 7
+    is_nplus1_prime = 8
+    is_bls75_prime = 9
+    is_ecpp_prime = 10
   PREINIT:
     mpz_t n;
     int ret;
   CODE:
     /* Returns arg for single-dig primes, 0 for multiples of 2, 3, 5, or neg */
-    PRIMALITY_START("is_prime", 2, 1);
+    PRIMALITY_START("is_prime", (ix < 5) ? 2 : 1, 1);
     switch (ix) {
       case 0: ret = _GMP_is_prime(n); break;
       case 1: ret = _GMP_is_prob_prime(n); break;
-      case 2: ret = is_aks_prime(n); break;
+      case 2: ret = _GMP_BPSW(n); break;
       case 3: ret = llr(n); break;
       case 4: ret = proth(n); break;
-      case 5: ret = (_GMP_primality_bls_nm1(n, 100, 0) == 2) ? 1 : 0; break;
-      case 6: ret = (_GMP_primality_bls_np1(n, 100, 0) == 2) ? 1 : 0; break;
-      case 7: ret = (bls75_hybrid(n, 100, 0) == 2) ? 1 : 0; break;
-      case 8: ret = _GMP_ecpp(n, 0); break;
-      case 9: ret = is_trial_prime(n); break;
+      case 5: ret = is_trial_prime(n); break;
+      case 6: ret = is_aks_prime(n); break;
+      case 7: ret = (_GMP_primality_bls_nm1(n, 100, 0) == 2) ? 1 : 0; break;
+      case 8: ret = (_GMP_primality_bls_np1(n, 100, 0) == 2) ? 1 : 0; break;
+      case 9: ret = (bls75_hybrid(n, 100, 0) == 2) ? 1 : 0; break;
       case 10:
-      default:ret = _GMP_BPSW(n); break;
+      default:ret = (_GMP_ecpp(n, 0) == 2) ? 1 : 0; break;
     }
     RETVAL = ret;
     mpz_clear(n);
