@@ -179,23 +179,6 @@ static int tfe(mpz_t f, mpz_t n, int effort)
   return success;
 }
 
-/* F*R = n, F is factored part, R is remainder */
-static void small_factor(mpz_t F, mpz_t R, UV B1)
-{
-  PRIME_ITERATOR(iter);
-  UV tf;
-  for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
-    if (mpz_cmp_ui(R, tf*tf) < 0) break;
-    if (mpz_divisible_ui_p(R, tf)) {
-      do {
-        mpz_mul_ui(F, F, tf);
-        mpz_divexact_ui(R, R, tf);
-      } while (mpz_divisible_ui_p(R, tf));
-    }
-  }
-  prime_iterator_destroy(&iter);
-}
-
 
 typedef struct {
   int    cur;
@@ -1345,6 +1328,24 @@ end_bls15:
 }
 
 #if 0   /* These are not currently used */
+
+/* F*R = n, F is factored part, R is remainder */
+static void small_factor(mpz_t F, mpz_t R, UV B1)
+{
+  PRIME_ITERATOR(iter);
+  UV tf;
+  for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
+    if (mpz_cmp_ui(R, tf*tf) < 0) break;
+    if (mpz_divisible_ui_p(R, tf)) {
+      do {
+        mpz_mul_ui(F, F, tf);
+        mpz_divexact_ui(R, R, tf);
+      } while (mpz_divisible_ui_p(R, tf));
+    }
+  }
+  prime_iterator_destroy(&iter);
+}
+
 /* Given an n, try using BLS75 theorem 15, N+1 = mq.
  * Note: this does _not_ prove n is prime!  If it returns 1, then we have
  * found a q/D that satisfy theorem 15, but we leave proving q for the caller.
