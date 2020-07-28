@@ -637,36 +637,23 @@ int proth(mpz_t N)
   /* N = k * 2^n + 1 */
   if (mpz_sizeinbase(k,2) <= n) {
     mpz_init(a);
-#if 1
-    for (i = 0; i < 25 && res == -1; i++) {
-      mpz_set_ui(a, sprimes[i]);
-      if (mpz_jacobi(a, N) == -1)
-        res = 0;
-    }
-    /* if res = 0, (a,N) = -1.  Do Proth primality test to see if res = 2. */
-    if (res == 0) {
-      mpz_tdiv_q_2exp(k, v, 1);
-      mpz_powm(a, a, k, N);
-      if (mpz_cmp(a, v) == 0)
-        res = 2;
-    }
-#else
-    /* Sze (2018) form */
+    /* Sze (2018) form without Jacobi tests */
     mpz_tdiv_q_2exp(k, v, 1);
-    for (i = 0; i < 25 && res == -1; i++) {
+    for (i = 0; i < 30 && res == -1; i++) {
       mpz_set_ui(a, sprimes[i]);
       mpz_powm(a, a, k, N);
       if (mpz_cmp_ui(a,1) != 0)
         res = (mpz_cmp(a, v) == 0)  ?  2  :  0;
     }
-#endif
     mpz_clear(a);
   }
   /* TODO: look into Rao (2018): k*2^n+1 for n>1, k prime */
   /* if (n > 1 && res == -1 && _GMP_BPSW(k)) { ... } */
   mpz_clear(k); mpz_clear(v);
-  if (res != -1 && get_verbose_level() > 1) printf("N shown %s with Proth\n", res ? "prime" : "composite");
-  fflush(stdout);
+  if (res != -1 && get_verbose_level() > 1) {
+    printf("N shown %s with Proth\n", res ? "prime" : "composite");
+    fflush(stdout);
+  }
   return res;
 }
 int is_proth_form(mpz_t N)
