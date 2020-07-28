@@ -18,6 +18,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - sieve_range with tiny start and depth values could sieve one deeper
       than precisely requested.
 
+    - is_ecpp_prime() returns 1 or 0, rather than 2 or 0.  This matches the
+      documentation and other functions (e.g. bls75, miller, aks).
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

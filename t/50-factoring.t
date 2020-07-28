@@ -4,6 +4,8 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/factor is_prime sigma divisors is_semiprime/;
+my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
+
 
 my %sigmas = (
   0 => [2,1,1,1],
@@ -24,7 +26,9 @@ my %sigmas = (
 plan tests => 0 + 57
                 + 24
                 + 2
-                + 9    # individual tets for factoring methods
+                + 2
+                + 9   # individual tets for factoring methods
+                + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
                 + scalar(keys %sigmas)
@@ -127,6 +131,9 @@ is_deeply( [ factor('3369738766071892021') ], [204518747,'16476429743'], "factor
 is_deeply( [ factor('10023859281455311421') ], ['1308520867','7660450463'], "factor(10023859281455311421)" );
 is_deeply( [ factor('18446744073709551611') ], [11,59,'98818999','287630261'], "factor(18446744073709551611)" );
 
+is_deeply( [ factor('22436743170696946255920') ], [2,2,2,2,3,5,7,208067,'64187037196057'], "factor(22436743170696946255920)" );
+is_deeply( [ factor('43455102778396761657787') ], ['175595514959','247472737493'], "factor(43455102778396761657787)" );
+
 # Check perfect squares that make it past early testing
 is_deeply( [ factor('1524157875323973084894790521049') ], ['1234567890123493','1234567890123493'], "factor(1234567890123493^2)" );
 is_deeply( [ factor('823543') ], [qw/7 7 7 7 7 7 7/], "factor 7^7" );
@@ -155,6 +162,11 @@ is_deeply( [Math::Prime::Util::GMP::pbrent_factor('2114957314229414940')], [2,2,
 
 # Test stage 2 of pminus1
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('23113042053749572861737011', 100, 100000) ], ['694059980329', '33301217054459'], "p-1 factors 23113042053749572861737011 in stage 2");
+
+# A SQUFOF side case, trying to cover code
+if ($extra) {
+  is_deeply( [Math::Prime::Util::GMP::squfof_factor('805442358011025089239226417069959')], ['805442358011025089239226417069959'], "SQUFOF factor can fail with standard parameters" );
+}
 
 #diag "extra tests for each method";
 extra_factor_test("prho_factor",   sub {Math::Prime::Util::GMP::prho_factor(shift)});
@@ -201,13 +213,18 @@ is( scalar(divisors(9283540924)), 12, "scalar divisors(9283540924) = 12" );
 
 {
   my @non = map { is_semiprime($_) }
-            (qw/ 1477624760980458764344489
+            (qw/ 8612893
+                 3332168225341
+                 62986951449451
+                 1477624760980458764344489
                  31065569722765023059646508128204165
                  345642381828009706799087047071899024928076219 /);
-  is_deeply( \@non, [0,0,0], "is_semiprime for non-semiprimes" );
+  is_deeply( \@non, [0,0,0,0,0,0], "is_semiprime for non-semiprimes" );
   my @oui = map { is_semiprime($_) }
-            (qw/ 5205293630375513276567563
+            (qw/ 55214581
+                 361411559141
+                 5205293630375513276567563
                  76608197698048867638852299050055161
                  659828949060872109888044299185869580687593499 /);
-  is_deeply( \@oui, [1,1,1], "is_semiprime for semiprimes" );
+  is_deeply( \@oui, [1,1,1,1,1], "is_semiprime for semiprimes" );
 }
