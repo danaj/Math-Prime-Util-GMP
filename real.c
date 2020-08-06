@@ -693,7 +693,7 @@ void li(mpf_t r, mpf_t n, unsigned long prec)
 
   /* Find out roughly how many digits of C we need, then get it and add */
   mpf_set(q, r);
-  for (k = prec; mpf_cmp_ui(q, 1024*1024) >= 0; k -= 6)
+  for (k = prec; k > 100 && mpf_cmp_ui(q, 1024*1024) >= 0; k -= 6)
     mpf_div_2exp(q, q, 20);
   const_euler(q, k);
   mpf_add(r, r, q);
@@ -768,9 +768,9 @@ void ei(mpf_t r, mpf_t x, unsigned long prec)
 
 static void _harmonic(mpz_t a, mpz_t b, mpz_t t) {
   mpz_sub(t, b, a);
-  if (mpz_cmp_ui(t, 1) == 0) {
+  if (mpz_cmp_ui(t, 1) <= 0) {
     mpz_set(b, a);
-    mpz_set_ui(a, 1);
+    mpz_set(a, t);
   } else {
     mpz_t q, r;
     mpz_add(t, a, b);
