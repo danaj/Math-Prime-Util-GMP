@@ -1623,28 +1623,28 @@ composites, many roots may exist, but only one will be returned.
 
 =head2 addmod
 
-Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a+b) mod n>.  This is particularly useful when dealing with
 numbers that are larger than a half-word but still native size.  No
 bigint package is needed and this can be 10-200x faster than using one.
 
 =head2 mulmod
 
-Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a*b) mod n>.  This is particularly useful when C<n> fits in a
 native integer.  No bigint package is needed and this can be 10-200x
 faster than using one.
 
 =head2 powmod
 
-Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a ** b) mod n>.  Typically binary exponentiation is used, so
 the process is very efficient.  With native size inputs, no bigint
 library is needed.
 
 =head2 divmod
 
-Given three integers C<a>, C<b>, and C<n> where C<a> and C<n> are unsigned,
+Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a/b) mod n>.  This is done as C<(a * (1/b mod n)) mod n>.  If
 no inverse of C<b> mod C<n> exists then undef if returned.
 

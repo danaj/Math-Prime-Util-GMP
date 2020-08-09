@@ -966,9 +966,11 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 3) {
-      if (!mpz_sgn(n) || !mpz_sgn(b))  retundef = 1;
-      else if (!mpz_cmp_ui(b,1))       mpz_set_ui(b,0);
-      else                             retundef = !mpz_invert(b,b,n);
+      if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
+        mpz_mod(b, b, n);         /* Get b between 0 and n-1. */
+        if (mpz_sgn(b) == 0)           retundef = 1;
+        else if (mpz_cmp_ui(b,1) > 0)  retundef = !mpz_invert(b,b,n);
+      }
     }
     if (!retundef && ix == 2 && mpz_sgn(b) < 0) {
       if (!mpz_cmp_ui(n,1))       mpz_set_ui(b,0);

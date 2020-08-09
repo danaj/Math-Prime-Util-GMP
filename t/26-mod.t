@@ -43,6 +43,7 @@ plan tests => 0
             + 2                      # mulmod
             + 2                      # divmod
             + 2                      # powmod
+            + 6                      # extra testing for divmod
             + 0;
 
 ###### invmod
@@ -150,7 +151,15 @@ for (0 .. $pnum) {
 @exp = map { $_->is_nan() ? undef : $_ } @exp;
 is_deeply( \@res, \@exp, "powmod with negative exponent on ".($pnum+1)." random inputs" );
 
-
+###### extra testing
+  # We expect divmod(a,0,1) = 0
+is(divmod(-7,0,1), 0, "divmod(-7,0,1) = 0");
+is(divmod( 0,0,1), 0, "divmod(0,0,1) = 0");
+is(divmod( 7,0,1), 0, "divmod(7,0,1) = 0");
+  # We expect divmod(a,1,n) = a mod n
+is(divmod(-7,1,2), 1, "divmod(-7,1,2) = 1");
+is(divmod(11,1,2), 1, "divmod(11,1,2) = 1");
+is(divmod( 7,1,10), 7, "divmod(7,1,10) = 7");
 
 sub nrand {
   return Math::Prime::Util::GMP::urandomb($use64 ? 64 : 32);
