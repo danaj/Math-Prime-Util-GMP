@@ -33,6 +33,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - The first 100 Bernoulli numbers are cached, and more will be cached
       by bernvec or faulhaber_sum.
 
+    - Add faster factorialmod code.  5-10x faster for large inputs.
+
 
 0.52 2020-06-22
 

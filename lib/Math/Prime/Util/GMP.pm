@@ -1160,6 +1160,11 @@ Given two positive integer arguments C<n> and C<m>, returns C<n! mod m>.
 This is much faster than computing the large C<factorial(n)> followed
 by a mod operation.
 
+The implementation is a modular product of prime powers, including grouping
+of like powers to reduce the number of exponentiations.  While this is quite
+efficient, the fast multipoint evaluation method (see Johannson (2012), used
+in FLINT) is significantly better.
+
 =head2 factorial_sum
 
 Given positive integer argument C<n>, returns the factorial sum of C<n>.

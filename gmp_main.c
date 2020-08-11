@@ -14,6 +14,7 @@
 
 #define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
+#define FUNC_isqrt 1
 #include "utility.h"
 
 static mpz_t _bgcd;
@@ -758,17 +759,19 @@ void rising_factorial(mpz_t r, UV x, UV n) {
 
 void factorialmod(mpz_t r, UV N, mpz_t m)
 {
-  mpz_t t;
-  UV i, D = N;
+  int m_is_prime;
+  mpz_t t, t2;
+  UV D = N, i, p;
 
   if (mpz_cmp_ui(m,N) <= 0 || mpz_cmp_ui(m,1) <= 0) {
     mpz_set_ui(r,0);
     return;
   }
 
+  m_is_prime = _GMP_is_prime(m);
   mpz_init(t);
   mpz_tdiv_q_2exp(t, m, 1);
-  if (mpz_cmp_ui(t, N) < 0 && _GMP_is_prime(m))
+  if (mpz_cmp_ui(t, N) < 0 && m_is_prime)
     D = mpz_get_ui(m) - N - 1;
 
   if (D < 2 && N > D) {
@@ -778,7 +781,7 @@ void factorialmod(mpz_t r, UV N, mpz_t m)
     return;
   }
 
-  if (D == N && D > 5000000) {   /* TODO: tune this threshold */
+  if (D > 500 && !m_is_prime) {
     mpz_t *factors;
     int j, nfactors, *exponents, reszero;
     nfactors = factor(m, &factors, &exponents);
@@ -795,19 +798,56 @@ void factorialmod(mpz_t r, UV N, mpz_t m)
     if (reszero) { mpz_clear(t); mpz_set_ui(r,0); return; }
   }
 
+  /* Accumulate into t, then mod into r at the end. */
   mpz_set_ui(t,1);
-  for (i = 2; i <= D && mpz_sgn(t); i++) {
-    mpz_mul_ui(t, t, i);
-    if ((i & 15) == 0) mpz_mod(t, t, m);
+
+  /* For small D, naive method. */
+  if (D <= 1000) {
+    for (i = 2; i <= D && mpz_sgn(t); i++) {
+      mpz_mul_ui(t, t, i);
+      if ((i & 15) == 0) mpz_mod(t, t, m);
+    }
+  } else {
+    UV j, sd = isqrt(D);
+    PRIME_ITERATOR(iter);
+
+    mpz_init(t2);
+    mpz_set_ui(t,1);
+    /* Group into powers of primes */
+    for (p = 2, i = 0; p <= D/sd; p = prime_iterator_next(&iter)) {
+      UV td = D/p,  e = td;
+      do { td /= p; e += td; } while (td > 0);
+      mpz_set_ui(t2, p);
+      mpz_powm_ui(t2, t2, e, m);
+      mpz_mul(t, t, t2);
+      if ((i++ & 15) == 0) {
+        mpz_mod(t, t, m);
+        if (!mpz_sgn(t)) break;
+      }
+    }
+    /* Further group by primes with the same power. */
+    for (j = sd-1; j >= 1 && mpz_sgn(t); j--) {
+      UV lo = D / (j+1)+1,  hi = D / j;
+      /* while (p < lo) p = prime_iterator_next(&iter); */
+      for (mpz_set_ui(t2,1), i=0;  p <= hi;  p = prime_iterator_next(&iter)) {
+        mpz_mul_ui(t2, t2, p);
+        if ((i++ & 15) == 0) mpz_mod(t2, t2, m);
+      }
+      mpz_powm_ui(t2, t2, j, m);
+      mpz_mul(t, t, t2);
+      if ((j & 15) == 0) mpz_mod(t, t, m);
+    }
+    mpz_clear(t2);
+    prime_iterator_destroy(&iter);
   }
   mpz_mod(r, t, m);
+  mpz_clear(t);
 
+  /* If we used Wilson's theorem, turn the result for D! into N! */
   if (D != N && mpz_sgn(r)) {
     if (!(D&1)) mpz_sub(r, m, r);
     mpz_invert(r, r, m);
   }
-
-  mpz_clear(t);
 }
 
 void partitions(mpz_t npart, UV n)
