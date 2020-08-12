@@ -28,6 +28,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - divmod (a,0,1) = 0, to match MPU, Pari, and Math::BigInt.
       divmod (a,1,n) = a mod n.  It was returning 0 in some cases.
 
+    - zeta could round the last digit wrong in rare cases.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

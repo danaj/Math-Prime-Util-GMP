@@ -155,16 +155,20 @@ static void _borwein_d(unsigned long D) {
 static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
 {
   unsigned long k, S, p;
+  double df = mpf_get_d(f);
   mpf_t s, tf, term;
   mpz_t t1;
 
   if (mpf_cmp_ui(f,1) == 0) {
-   mpf_set_ui(z, 0);
-   return;
- }
+    mpf_set_ui(z, 0);
+    return;
+  }
 
-  /* Shortcut if we know all prec terms are zeros. */
-  if (mpf_cmp_ui(f, 1+3.3219281*prec) >= 0 || mpf_cmp_ui(f, mpf_get_prec(z)) > 0) {
+  /* prec 0 doesn't really make any sense, give them ~ two digits. */
+  if (prec == 0) prec = 7;
+
+  /* Shortcut if we know all prec terms are zeros */
+  if (df >= 1+3.3219281L*prec || mpf_cmp_ui(f, mpf_get_prec(z)) > 0) {
     mpf_set_ui(z,1);
     return;
   }
@@ -196,7 +200,7 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     if (S == 12) mpf_mul_ui(z, z, 691);
     if (S == 14) mpf_mul_ui(z, z, 2);
     mpf_div_ui(z, z, div[S/2]);
-  } else if (mpf_cmp_ui(f, 3+prec*2.15) > 0) {  /* Only one term (3^s < prec) */
+  } else if (df > 3+prec*2.15) {  /* Only one term (3^s < prec) */
     if (S) {
       mpf_set_ui(term, 1);
       mpf_mul_2exp(term, term, S);
@@ -206,7 +210,7 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     }
     mpf_sub_ui(tf, term, 1);
     mpf_div(z, term, tf);
-  } else if ( (mpf_cmp_ui(f,20) > 0 && mpf_cmp_ui(f, prec/3.5) > 0) ||
+  } else if ( (df > 20 && df > prec/3.5) ||
               (prec > 500 && (mpz_ui_pow_ui(t1, 8*prec, S), mpz_sizeinbase(t1,2) > (20+3.3219281*prec))) ) {
     /* Basic formula, for speed (also note only valid for > 1) */
     PRIME_ITERATOR(iter);
@@ -228,7 +232,7 @@ static void _zeta(mpf_t z, mpf_t f, unsigned long prec)
     prime_iterator_destroy(&iter);
   } else {
     /* TODO: negative non-integer inputs past -20 or so are very wrong. */
-    _borwein_d( (mpf_cmp_d(f,-3.0) >= 0)  ?  prec  :  80+2*prec );
+    _borwein_d( (df >= -3.0)  ?  prec  :  80+2*prec );
 
     mpf_set_ui(z, 0);
     for (k = 0; k <= zeta_n-1; k++) {
@@ -544,11 +548,11 @@ static void _agm_pi(mpf_t pi, unsigned long prec)
   mpf_t t, an, bn, tn, prev_an;
   unsigned long k, bits = ceil(prec * 3.322);
 
-  mpf_init2(t,       10+bits);
-  mpf_init2(an,      10+bits);
-  mpf_init2(bn,      10+bits);
-  mpf_init2(tn,      10+bits);
-  mpf_init2(prev_an, 10+bits);
+  mpf_init2(t,       12+bits);
+  mpf_init2(an,      12+bits);
+  mpf_init2(bn,      12+bits);
+  mpf_init2(tn,      12+bits);
+  mpf_init2(prev_an, 12+bits);
 
   mpf_set_ui(an, 1);
   mpf_div_2exp(bn, an, 1);
