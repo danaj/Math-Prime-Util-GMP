@@ -988,11 +988,11 @@ has passed the extra strong BPSW test.  C<p> is guaranteed to be
 a prime if C<q> is prime.
 
 Setting verbose level to 3 or higher will produce progress output not
-unlike openssl.  A C<.> for each candidate that passes pretests, a
+unlike C<openssl>.  A C<.> for each candidate that passes pretests, a
 C<+> for those where one is likely prime, and C<*> when both are likely
 prime with only confirmation tests remaining.
 
-This generates safe primes about 4-10x faster than openssl's dhparam.
+This generates safe primes about 4-10x faster than C<openssl>'s C<dhparam>.
 
 =head2 random_strong_prime
 
@@ -1352,7 +1352,7 @@ When called in void context this just calculates and caches the values.
 
 The cache is not thread aware.
 
-This corresponds to Pari's C<bernvec(n)> function, albeit noticibly slower.
+This corresponds to Pari's C<bernvec(n)> function, albeit noticeably slower.
 
 =head2 harmfrac
 
