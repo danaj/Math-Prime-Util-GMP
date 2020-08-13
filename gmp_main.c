@@ -789,10 +789,15 @@ void factorialmod(mpz_t r, UV N, mpz_t m)
     mpz_set_ui(t, 0);
     for (j = 0; j < nfactors; j++) {
       if (exponents[j] > 1)
-        mpz_pow_ui(factors[j], factors[j], exponents[j]);
+        mpz_mul_ui(factors[j], factors[j], exponents[j]);
       if (mpz_cmp(factors[j], t) > 0)
         mpz_set(t, factors[j]);
     }
+    /* for m=p^k * p^k ..., t is max(p*k,p*k,...).  This is >= S(m), where
+     * S(m) is the smallest value where m divides S(m)!.  Hence, every
+     * n! mod m will be zero at that value or higher.  We could calculate
+     * the exact value of S(m), then we would know there are no zero results
+     * for the larger case. */
     reszero = (mpz_cmp_ui(t, N) <= 0);
     clear_factors(nfactors, &factors, &exponents);
     if (reszero) { mpz_clear(t); mpz_set_ui(r,0); return; }
