@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/invmod sqrtmod addmod mulmod divmod powmod/;
+use Math::Prime::Util::GMP qw/invmod sqrtmod addmod submod mulmod divmod powmod/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -37,7 +37,7 @@ my @sqrtmods = (
 plan tests => 0
             + scalar(@invmods)
             + scalar(@sqrtmods)
-            + 4 + 3
+            + 5 + 4
             + 1                      # addmod
             + 1                      # submod
             + 2                      # mulmod
@@ -71,12 +71,14 @@ my(@exp,@res);
 ###### add/mul/div/pow with small arguments
 @exp = map { undef } 0..27;
 is_deeply([map { addmod($_ & 3, ($_>>2)-3, 0) } 0..27], \@exp, "addmod(..,0)");
+is_deeply([map { submod($_ & 3, ($_>>2)-3, 0) } 0..27], \@exp, "submod(..,0)");
 is_deeply([map { mulmod($_ & 3, ($_>>2)-3, 0) } 0..27], \@exp, "mulmod(..,0)");
 is_deeply([map { divmod($_ & 3, ($_>>2)-3, 0) } 0..27], \@exp, "divmod(..,0)");
 is_deeply([map { powmod($_ & 3, ($_>>2)-3, 0) } 0..27], \@exp, "powmod(..,0)");
 
 @exp = map { 0 } 0..27;
 is_deeply([map { addmod($_ & 3, ($_>>2)-3, 1) } 0..27], \@exp, "addmod(..,1)");
+is_deeply([map { submod($_ & 3, ($_>>2)-3, 1) } 0..27], \@exp, "submod(..,1)");
 is_deeply([map { mulmod($_ & 3, ($_>>2)-3, 1) } 0..27], \@exp, "mulmod(..,1)");
 is_deeply([map { powmod($_ & 3, ($_>>2)-3, 1) } 0..27], \@exp, "powmod(..,1)");
 # TODO divmod
@@ -93,10 +95,10 @@ is_deeply( \@res, \@exp, "addmod on ".($num+1)." random inputs" );
 ###### submod
 @exp = (); @res = ();
 for (0 .. $num) {
-  push @exp, Math::BigInt->new($i1[$_])->bsub($i2t[$_])->bmod($i3[$_]);
-  push @res, addmod($i1[$_], -$i2t[$_], $i3[$_]);
+  push @exp, Math::BigInt->new($i1[$_])->bsub($i2[$_])->bmod($i3[$_]);
+  push @res, submod($i1[$_], $i2[$_], $i3[$_]);
 }
-is_deeply( \@res, \@exp, "addmod with negative second input on ".($num+1)." random inputs" );
+is_deeply( \@res, \@exp, "submod on ".($num+1)." random inputs" );
 
 ###### mulmod
 @exp = (); @res = ();

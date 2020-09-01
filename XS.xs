@@ -954,9 +954,10 @@ invmod(IN char* stra, IN char* strb)
 void
 addmod(IN char* stra, IN char* strb, IN char* strn)
   ALIAS:
-    mulmod = 1
-    powmod = 2
-    divmod = 3
+    submod = 1
+    mulmod = 2
+    powmod = 3
+    divmod = 4
   PREINIT:
     mpz_t a, b, n;
     int retundef;
@@ -965,14 +966,14 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
     retundef = (mpz_sgn(n) <= 0);
-    if (!retundef && ix == 3) {
+    if (!retundef && ix == 4) {
       if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
         mpz_mod(b, b, n);         /* Get b between 0 and n-1. */
         if (mpz_sgn(b) == 0)           retundef = 1;
         else if (mpz_cmp_ui(b,1) > 0)  retundef = !mpz_invert(b,b,n);
       }
     }
-    if (!retundef && ix == 2 && mpz_sgn(b) < 0) {
+    if (!retundef && ix == 3 && mpz_sgn(b) < 0) {
       if (!mpz_cmp_ui(n,1))       mpz_set_ui(b,0);
       else                        retundef = !mpz_invert(a,a,n);
       mpz_abs(b,b);
@@ -984,10 +985,13 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     if (ix == 0) {
       mpz_add(a,a,b);
       mpz_mod(a,a,n);
-    } else if (ix == 1 || ix == 3) {
+    } else if (ix == 1) {
+      mpz_sub(a,a,b);
+      mpz_mod(a,a,n);
+    } else if (ix == 2 || ix == 4) {
       mpz_mul(a,a,b);
       mpz_mod(a,a,n);
-    } else if (ix == 2) {
+    } else if (ix == 3) {
       mpz_powm(a, a, b, n);
     }
     XPUSH_MPZ(a);

@@ -77,7 +77,7 @@ our @EXPORT_OK = qw(
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
-                     invmod sqrtmod addmod mulmod divmod powmod
+                     invmod sqrtmod addmod submod mulmod divmod powmod
                      vecsum vecprod
                      exp_mangoldt
                      liouville
@@ -198,7 +198,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1630,6 +1630,13 @@ composites, many roots may exist, but only one will be returned.
 
 Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a+b) mod n>.  This is particularly useful when dealing with
+numbers that are larger than a half-word but still native size.  No
+bigint package is needed and this can be 10-200x faster than using one.
+
+=head2 submod
+
+Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
+return C<(a-b) mod n>.  This is particularly useful when dealing with
 numbers that are larger than a half-word but still native size.  No
 bigint package is needed and this can be 10-200x faster than using one.
 
