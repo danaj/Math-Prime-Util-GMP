@@ -87,7 +87,7 @@ our @EXPORT_OK = qw(
                      sqrtint rootint logint powint mulint addint subint
                      divint modint divrem tdivrem negint absint
                      is_power is_prime_power is_semiprime is_square
-                     is_smooth is_rough is_powerful
+                     is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
@@ -1493,6 +1493,14 @@ If C<k> is omitted or zero, C<k=2> is used.
 A k-powerful number is one that where all prime factors appear at least
 C<k> times.  All numbers are therefore 1-powerful, and C<1> is powerful
 for all C<k>.
+
+=head2 is_practical
+
+Given a non-negative integer C<n>, returns 1 if C<n> is a practical number,
+and 0 otherwise.
+A practical number is a positive integer C<n> such that all smaller
+positive integers can be represented as sums of distinct divisors of C<n>.
+This is L<OEIS series A005153|http://oeis.org/A005153>.
 
 
 =head2 is_carmichael

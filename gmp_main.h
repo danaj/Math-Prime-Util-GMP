@@ -32,6 +32,7 @@ extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
 
 extern int  is_carmichael(mpz_t n);
 extern int  is_fundamental(mpz_t n);
+extern int  is_practical(mpz_t n);
 extern int  is_totient(mpz_t n);
 extern void polygonal_nth(mpz_t r, mpz_t n, UV k);
 

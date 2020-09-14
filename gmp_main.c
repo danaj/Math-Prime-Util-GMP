@@ -1119,6 +1119,47 @@ int is_fundamental(mpz_t n)
   return ret;
 }
 
+int is_practical(mpz_t n)
+{
+  mpz_t pke, fmult, prod, *factors;
+  int i, j, nfactors, *exponents;
+
+  if (mpz_cmp_ui(n,1) == 0) return 1;
+  if (mpz_sgn(n) <= 0 || mpz_odd_p(n))  return 0;
+  if (mpz_popcount(n) == 1) return 1;   /* n > 0 is a power of 2 */
+  if (    !mpz_divisible_ui_p(n, 6)
+       && !mpz_divisible_ui_p(n, 20)
+       && !mpz_divisible_ui_p(n, 28)
+       && !mpz_divisible_ui_p(n, 88)
+       && !mpz_divisible_ui_p(n, 104)
+       && !mpz_divisible_ui_p(n, 16) )
+    return 0;
+
+  nfactors = factor(n, &factors, &exponents);
+  mpz_init(pke);
+  mpz_init(fmult);
+  mpz_init_set_ui(prod, 1);
+
+  for (i = 1; i < nfactors; i++) {
+    /* prod *= ipow(fac[i-1],exp[i-1]);  sum = 1 + divisor_sum(prod,1); */
+    mpz_set(pke, factors[i-1]);
+    mpz_add_ui(fmult, factors[i-1], 1);
+    for (j = 1; j < exponents[i-1]; j++) {
+      mpz_mul(pke, pke, factors[i-1]);
+      mpz_add(fmult, fmult, pke);
+    }
+    mpz_mul(prod, prod, fmult);
+    mpz_add_ui(fmult, prod, 1);
+    if (mpz_cmp(factors[i], fmult) > 0)
+      break;
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(prod);
+  mpz_clear(fmult);
+  mpz_clear(pke);
+  return (i >= nfactors);
+}
+
 int _totpred(mpz_t n, mpz_t maxd)
 {
     int i, res, ndivisors;

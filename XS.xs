@@ -774,17 +774,18 @@ liouville(IN char* strn)
     is_semiprime = 2
     is_totient = 3
     is_carmichael = 4
-    is_fundamental = 5
-    hammingweight = 6
+    is_practical = 5
+    is_fundamental = 6
+    hammingweight = 7
   PREINIT:
     mpz_t n;
     int isneg;
   CODE:
     isneg = validate_and_set_signed( cv, n, "n", strn,
                                      (ix == 0) ? VSETNEG_ERR
-                                   : (ix == 6) ? VSETNEG_POS
+                                   : (ix == 7) ? VSETNEG_POS
                                    :             VSETNEG_OK );
-    if (isneg && (ix == 1 || ix == 2 || ix == 3 || ix == 4)) {
+    if (isneg && (ix >= 1 && ix <= 5)) {
       RETVAL = 0;
     } else {
       switch (ix) {
@@ -793,8 +794,9 @@ liouville(IN char* strn)
         case 2:  RETVAL = is_semiprime(n);   break;
         case 3:  RETVAL = is_totient(n);     break;
         case 4:  RETVAL = is_carmichael(n);  break;
-        case 5:  RETVAL = is_fundamental(n); break;
-        case 6:
+        case 5:  RETVAL = is_practical(n);   break;
+        case 6:  RETVAL = is_fundamental(n); break;
+        case 7:
         default: RETVAL = mpz_popcount(n);   break;
       }
     }
