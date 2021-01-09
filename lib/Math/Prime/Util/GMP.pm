@@ -84,6 +84,7 @@ our @EXPORT_OK = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
+                     prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
                      divint modint divrem tdivrem negint absint
                      is_power is_prime_power is_semiprime is_square
@@ -1802,6 +1803,29 @@ Returns λ(n), the Liouville function for a non-negative integer input.
 This is -1 raised to Ω(n) (the total number of prime factors).
 
 
+=head2 prime_bigomega
+
+  say "$n has ", prime_bigomega($n), " total factors";
+
+Returns Ω(n), the prime omega function returning the total number of
+prime factors of n including multiplicities.
+The result is identical to C<scalar(factor($n))>.
+
+This corresponds to Pari's C<bigomega> function
+and Mathematica's C<PrimeOmega[n]> function.
+
+=head2 prime_omega
+
+  say "$n has ", prime_omega($n), " distinct factors";
+
+Returns ω(n), the prime omega function returning the number of
+distinct prime factors of n.
+The result is identical to C<scalar(factor_exp($n))>.
+
+This corresponds to Pari's C<omega> function
+and Mathematica's C<PrimeNu[n]> function.
+
+
 =head2 is_power
 
   say "$n is a perfect square" if is_power($n, 2);
@@ -2433,7 +2457,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2020 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2021 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

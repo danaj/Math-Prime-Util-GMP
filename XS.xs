@@ -777,14 +777,16 @@ liouville(IN char* strn)
     is_practical = 5
     is_fundamental = 6
     hammingweight = 7
+    prime_omega = 8
+    prime_bigomega = 9
   PREINIT:
     mpz_t n;
     int isneg;
   CODE:
     isneg = validate_and_set_signed( cv, n, "n", strn,
                                      (ix == 0) ? VSETNEG_ERR
-                                   : (ix == 7) ? VSETNEG_POS
-                                   :             VSETNEG_OK );
+                                   : (ix  < 7) ? VSETNEG_OK
+                                   :             VSETNEG_POS );
     if (isneg && (ix >= 1 && ix <= 5)) {
       RETVAL = 0;
     } else {
@@ -796,8 +798,10 @@ liouville(IN char* strn)
         case 4:  RETVAL = is_carmichael(n);  break;
         case 5:  RETVAL = is_practical(n);   break;
         case 6:  RETVAL = is_fundamental(n); break;
-        case 7:
-        default: RETVAL = mpz_popcount(n);   break;
+        case 7:  RETVAL = mpz_popcount(n);   break;
+        case 8:  RETVAL = omega(n);          break;
+        case 9:
+        default: RETVAL = bigomega(n);       break;
       }
     }
     mpz_clear(n);

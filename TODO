@@ -157,8 +157,6 @@
   functions are pulling in other things.
 
 - add sumliouville
-  prime_bigomega
-  prime_omega
   is_almost_prime(k,n)
   almost_prime_count(k,n)
   powerful_count
@@ -176,3 +174,5 @@
 
 - Add LucasV(mpz_t V, mpz_t k, mpz_t n, mpz_t P, mpz_t Q);
   ensure optimized for Q=1 case
+
+- optimize prime_omega, prime_bigomega

@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/factor is_prime sigma divisors is_semiprime/;
+use Math::Prime::Util::GMP qw/factor is_prime sigma divisors is_semiprime
+                              prime_bigomega prime_omega/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 
@@ -23,6 +24,8 @@ my %sigmas = (
   2394823486 => [8,"3918802104","7228222133779519700","15463194466651766947470799224"],
 );
 
+my @omega = ([0,1,1], [1,0,0], [2,1,1], [36,4,2], [102,3,3], [8593952,7,3]);
+
 plan tests => 0 + 57
                 + 24
                 + 2
@@ -34,6 +37,7 @@ plan tests => 0 + 57
                 + scalar(keys %sigmas)
                 + 3    # divisors
                 + 2    # is_semiprime
+                + 2*scalar(@omega)
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -227,4 +231,11 @@ is( scalar(divisors(9283540924)), 12, "scalar divisors(9283540924) = 12" );
                  76608197698048867638852299050055161
                  659828949060872109888044299185869580687593499 /);
   is_deeply( \@oui, [1,1,1,1,1], "is_semiprime for semiprimes" );
+}
+
+######
+for my $ov (@omega) {
+  my($n,$bo,$o) = @$ov;
+  is( prime_bigomega($n), $bo, "prime_bigomega($n) = $bo" );
+  is( prime_omega($n), $o, "prime_omega($n) = $o" );
 }

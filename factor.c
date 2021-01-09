@@ -381,6 +381,37 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
 /*****************************************************************************/
 
 
+/* TODO: Optimize to factor down to the last semiprime. */
+static void _omega(mpz_t n, int* omega, int* bigomega)
+{
+  mpz_t* factors;
+  int i, nfactors, result, *exponents;
+
+  mpz_abs(n,n);
+  nfactors = factor(n, &factors, &exponents);
+  if (bigomega != 0) {
+    for (i = 0, result = 0; i < nfactors; i++)
+      result += exponents[i];
+    *bigomega = result;
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  if (omega != 0)
+    *omega = nfactors;
+}
+
+int omega(mpz_t n)
+{
+  int o, bo;
+  _omega(n, &o, &bo);
+  return o;
+}
+int bigomega(mpz_t n)
+{
+  int o, bo;
+  _omega(n, &o, &bo);
+  return bo;
+}
+
 void sigma(mpz_t res, mpz_t n, UV k)
 {
   mpz_t* factors;
@@ -445,15 +476,13 @@ void sigma(mpz_t res, mpz_t n, UV k)
 static const unsigned long smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
 int moebius(mpz_t n)
 {
-  mpz_t* factors;
-  int* exponents;
-  int i, nfactors, result;
+  int i, o, bo;
 
   if (mpz_sgn(n) < 0) {
     mpz_neg(n,n);
-    result = moebius(n);
+    o = moebius(n);
     mpz_neg(n,n);
-    return result;
+    return o;
   }
   if (mpz_sgn(n) == 0) return 0;
   if (mpz_cmp_ui(n, 1) == 0) return 1;
@@ -462,27 +491,16 @@ int moebius(mpz_t n)
     if (mpz_divisible_ui_p(n, smalldiv[i]))
       return 0;
 
-  nfactors = factor(n, &factors, &exponents);
-  result = (nfactors % 2) ? -1 : 1;
-  for (i = 0; i < nfactors; i++)
-    if (exponents[i] > 1)
-      { result = 0; break; }
-  clear_factors(nfactors, &factors, &exponents);
-  return result;
+  _omega(n, &o, &bo);
+  return (o != bo) ?   0
+      :  (o % 2)   ?  -1
+                   :   1;
 }
 
 int liouville(mpz_t n)
 {
-  mpz_t* factors;
-  int* exponents;
-  int i, nfactors, result;
-
-  nfactors = factor(n, &factors, &exponents);
-  for (i = 0, result = 0; i < nfactors; i++)
-    result += exponents[i];
-  result = (result & 1) ? -1 : 1;
-  clear_factors(nfactors, &factors, &exponents);
-  return result;
+  int result = bigomega(n);
+  return (result & 1)  ?  -1  : 1;
 }
 
 void totient(mpz_t tot, mpz_t n_input)
