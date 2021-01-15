@@ -92,6 +92,7 @@ our @EXPORT_OK = qw(
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
+                     powerful_count
                      znorder
                      znprimroot
                      ramanujan_tau
@@ -1535,6 +1536,14 @@ C<s> must be greater than 2.
 
 Given integers C<x> and C<s>, return N if C<x> is the C<N-th> s-gonal number,
 0 otherwise.
+
+=head2 powerful_count
+
+  my $npowerful3 = powerful_count(2**32, 3);
+
+Given two non-negative integer inputs C<n> and C<k>, returns the total
+number of C<k>-powerful numbers from C<1> to C<n> inclusive.
+If C<k> is omitted or zero, C<k=2> is used.
 
 =head2 faulhaber_sum
 

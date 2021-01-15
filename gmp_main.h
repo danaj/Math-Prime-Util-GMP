@@ -30,6 +30,8 @@ extern void falling_factorial(mpz_t r, UV x, UV n);
 
 extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
 
+extern void powerful_count(mpz_t r, mpz_t n, unsigned long k);
+
 extern int  is_carmichael(mpz_t n);
 extern int  is_fundamental(mpz_t n);
 extern int  is_practical(mpz_t n);

@@ -16,6 +16,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - submod                  (a - b) % n
     - prime_bigomega(n)       number of factors (with multiplicity)
     - prime_omega(n)          number of factors (distinct)
+    - powerful_count(n[,k])   count of k-powerful numbers <= n
 
     [FIXES]
 

@@ -984,6 +984,59 @@ void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
 }
 
 
+static void _powerful_count_recurse(mpz_t sum, mpz_t n, unsigned long k,
+                                   mpz_t m, unsigned long r, mpz_t t)
+{
+  mpz_t i, lim, newm;
+
+  mpz_fdiv_q(t, n, m);
+  mpz_root(t, t, r);
+  if (r <= k) {
+    mpz_add(sum, sum, t);
+    return;
+  }
+  mpz_init_set(lim, t);
+  mpz_init(newm);
+  mpz_init(i);
+
+  for (mpz_set_ui(i,1);  mpz_cmp(i,lim) <= 0;  mpz_add_ui(i,i,1)) {
+    mpz_gcd(t, m, i);
+    if (mpz_cmp_ui(t,1) == 0 && moebius(i) != 0) {
+      mpz_pow_ui(t, i, r);
+      mpz_mul(newm, m, t);
+      if (r-1 == k) {
+        mpz_fdiv_q(t, n, newm);
+        mpz_root(t, t, k);
+        mpz_add(sum, sum, t);
+      } else {
+        _powerful_count_recurse(sum, n, k, newm, r-1, t);
+      }
+    }
+  }
+  mpz_clear(i);
+  mpz_clear(lim);
+  mpz_clear(newm);
+}
+
+void powerful_count(mpz_t r, mpz_t n, unsigned long k)
+{
+  mpz_t m, t;
+
+  mpz_set_ui(r, 0);
+  if (k == 0)
+    return;
+  if (k == 1 || mpz_cmp_ui(n,1) <= 0) {
+    mpz_set(r, n);
+    return;
+  }
+  mpz_init_set_ui(m, 1);
+  mpz_init(t);
+  _powerful_count_recurse(r, n, k, m, 2*k-1, t);
+  mpz_clear(t);
+  mpz_clear(m);
+}
+
+
 void consecutive_integer_lcm(mpz_t m, UV B)
 {
   UV i, p, p_power, pmin;

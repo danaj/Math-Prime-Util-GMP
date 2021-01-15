@@ -958,6 +958,18 @@ invmod(IN char* stra, IN char* strb)
     if (retundef) XSRETURN_UNDEF;
 
 void
+powerful_count(IN char* strn, IN int k = 2)
+  PREINIT:
+    mpz_t n, r;
+  PPCODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    mpz_init(r);
+    powerful_count(r, n, (unsigned long) k);
+    XPUSH_MPZ(r);
+    mpz_clear(r);
+    mpz_clear(n);
+
+void
 addmod(IN char* stra, IN char* strb, IN char* strn)
   ALIAS:
     submod = 1

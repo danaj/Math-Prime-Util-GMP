@@ -3,10 +3,11 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/is_powerful
+use Math::Prime::Util::GMP qw/is_powerful powerful_count
                               factor/;
 
-plan tests => 3+1+10+4+2+1;
+plan tests => 3+1+10+4+2+1
+            + 5 + 2;
 
 {
   my @exp = map { fac_is_powerful($_, 2) } 0 .. 258;
@@ -41,6 +42,41 @@ is( is_powerful("2346889178458529643625998598305409091755415961600000"), 1, "lar
 
 is( is_powerful("56648008573112538662596929676588737208124071038924666321487873929306609840197", 30), 0, "256-bit semiprime is not 30-powerful, without factoring" );
 
+
+###### powerful_count
+is_deeply( [map { powerful_count($_,1) } 1..20], [1..20], "powerful_count(n,1)=n" );
+
+is_deeply( [map { powerful_count($_) } 1..20],
+           [1,1,1,2,2,2,2,3,4,4,4,4,4,4,4,5,5,5,5,5],
+           "powerful_count(1..20)" );
+is_deeply( [map { powerful_count($_,3) } 1..20],
+           [1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,3,3,3,3,3],
+           "powerful_count(1..20,3)" );
+{
+  #my $maxk = ($extra) ? 30 : 15;
+  my $maxk = 30;
+  my @pow14=(0,14,100,432, 2048, 6561, 16384, 59049, 131072, 262144, 531441, 1594323, 4194304, 8388608, 16777216, 43046721, 129140163, 268435456, 536870912, 1162261467, 3486784401, 8589934592, 17179869184, 34359738368, 68719476736, 137438953472, 274877906944, 549755813888, 1099511627776, 2199023255552, 4398046511104);
+  is_deeply( [map { powerful_count($pow14[$_],$_) } 1..$maxk],
+             [map { 14 } 1..$maxk],
+             "powerful_count(x,1..$maxk) = 14" );
+  is_deeply( [map { powerful_count($pow14[$_]-1,$_) } 1..$maxk],
+             [map { 13 } 1..$maxk],
+             "powerful_count(x-1,1..$maxk) = 13" );
+}
+
+if (1) {
+  my @exp = (4,14,54,185,619,2027,6553,21044,67231,214122,680330,2158391,6840384,21663503);
+  my @got = map { powerful_count(10**$_) } 1..14;
+  is_deeply(\@got, \@exp, "2-powerful_count 10^1, 10^2, ..., 10^14");
+}
+if (1) {
+  my @exp = (1, 1, 4, 10, 16, 26, 46, 77, 129, 204, 318, 495, 761, 1172, 1799, 2740, 4128, 6200, 9224, 13671, 20205, 29764);
+  my @got = map { powerful_count("1".("0"x$_),7) } 1..22;
+  is_deeply(\@got, \@exp, "7-powerful_count 10^1, 10^2, ..., 10^22");
+}
+
+
+############################################
 
 sub fac_is_powerful {
   my($n, $k) = @_;
