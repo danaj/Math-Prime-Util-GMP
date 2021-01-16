@@ -13,6 +13,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_powerful(n[,k])      is n a k-powerful number (default k=2)
     - is_practical(n)         is n a practical number
     - is_trial_prime(n)       primality using trial division
+    - is_almost_prime(k,n)    does n have exactly k prime factors
     - submod                  (a - b) % n
     - prime_bigomega(n)       number of factors (with multiplicity)
     - prime_omega(n)          number of factors (distinct)

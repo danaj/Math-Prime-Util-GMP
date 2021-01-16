@@ -1711,3 +1711,25 @@ int is_powerful(mpz_t n, uint32_t k) {
   mpz_clear(N);
   return i >= nfactors;
 }
+
+int is_almost_prime(uint32_t k, mpz_t n)
+{
+#if 0
+  if (k == 0)  return (mpz_cmp_ui(n,1) == 0) ? 1 : 0;
+  if (k == 1)  return _GMP_is_prime(n) ? 1 : 0;
+  if (k == 2)  return is_semiprime(n);
+#endif
+  while (k > 0 && mpz_even_p(n))           { k--; mpz_divexact_ui(n,n,2); }
+  while (k > 0 && mpz_divisible_ui_p(n,3)) { k--; mpz_divexact_ui(n,n,3); }
+  while (k > 0 && mpz_divisible_ui_p(n,5)) { k--; mpz_divexact_ui(n,n,5); }
+  while (k > 0 && mpz_divisible_ui_p(n,7)) { k--; mpz_divexact_ui(n,n,7); }
+  if (k == 0)  return (mpz_cmp_ui(n,1) == 0) ? 1 : 0;
+  if (k == 1)  return _GMP_is_prime(n) ? 1 : 0;
+  if (k == 2)  return is_semiprime(n);
+
+  /* Optimally, we should be factoring one at a time.  This will let us
+   * exit early if we find too many factors, and stop when we get a final
+   * semiprime.  This is all rather tedious. */
+
+  return bigomega(n) == k;
+}

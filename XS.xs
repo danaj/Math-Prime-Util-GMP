@@ -373,6 +373,17 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
   OUTPUT:
     RETVAL
 
+int
+is_almost_prime(IN unsigned int k, IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET(n, strn);
+    RETVAL = is_almost_prime(k, n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 UV
 is_power(IN char* strn, IN UV a = 0)
   PREINIT:

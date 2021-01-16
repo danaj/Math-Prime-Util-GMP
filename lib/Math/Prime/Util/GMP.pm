@@ -87,8 +87,8 @@ our @EXPORT_OK = qw(
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
                      divint modint divrem tdivrem negint absint
-                     is_power is_prime_power is_semiprime is_square
-                     is_smooth is_rough is_powerful is_practical
+                     is_power is_prime_power is_semiprime is_almost_prime
+                     is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
@@ -1471,6 +1471,15 @@ A semiprime is the product of exactly two primes.
 
 The boolean result is the same as C<scalar(factor(n)) == 2>, but this
 function performs shortcuts that can greatly speed up the operation.
+
+=head2 is_almost_prime
+
+  say is_almost_prime(6,2169229601);  # True if n has exactly 6 factors
+
+Given positive integers C<k> and C<n>, returns 1 if C<n> has exactly C<k>
+prime factors, and 0 otherwise.
+With C<k=1>, this is a standard primality test.
+With C<k=2>, this is the same as L</is_semiprime>.
 
 =head2 is_smooth
 

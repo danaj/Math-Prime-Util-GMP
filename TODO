@@ -157,9 +157,7 @@
   functions are pulling in other things.
 
 - add sumliouville
-  is_almost_prime(k,n)
   almost_prime_count(k,n)
-  powerful_count
   perfect_power_count
   prime_power_count
   smooth_count
@@ -176,3 +174,5 @@
   ensure optimized for Q=1 case
 
 - optimize prime_omega, prime_bigomega
+
+- tests for is_almost_prime
