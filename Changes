@@ -18,6 +18,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - prime_bigomega(n)       number of factors (with multiplicity)
     - prime_omega(n)          number of factors (distinct)
     - powerful_count(n[,k])   count of k-powerful numbers <= n
+    - perfect_power_count(n)  count of perfect powers <= n
+    - prime_power_count(n)    count of prime powers <= n
 
     [FIXES]
 

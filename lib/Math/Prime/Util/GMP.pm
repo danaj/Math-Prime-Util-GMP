@@ -93,6 +93,7 @@ our @EXPORT_OK = qw(
                      is_primitive_root
                      is_polygonal polygonal_nth
                      powerful_count
+                     perfect_power_count prime_power_count
                      znorder
                      znprimroot
                      ramanujan_tau
@@ -1553,6 +1554,20 @@ Given integers C<x> and C<s>, return N if C<x> is the C<N-th> s-gonal number,
 Given two non-negative integer inputs C<n> and C<k>, returns the total
 number of C<k>-powerful numbers from C<1> to C<n> inclusive.
 If C<k> is omitted or zero, C<k=2> is used.
+
+=head2 perfect_power_count
+
+Given a non-negative integer input C<n>, returns the number of integers,
+not exceeding n, which are perfect powers.  By convention, 1 is included
+here even though L</is_power(1) = 0>.
+This is L<OEIS series A069623|http://oeis.org/A069623>.
+
+=head2 prime_power_count
+
+Given a non-negative integer input C<n>, returns the number of integers,
+not exceeding n, which are prime powers.  By convention, 1 is included
+here even though L</is_prime_power(1) = 0>.
+This is L<OEIS series A025528|http://oeis.org/A025528>.
 
 =head2 faulhaber_sum
 

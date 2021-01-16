@@ -62,12 +62,14 @@ t/26-combinatorial.t
 t/26-digits.t
 t/26-faulhaber.t
 t/26-int.t
+t/26-isalmostprime.t
 t/26-ismisc.t
 t/26-lambertw.t
 t/26-logs.t
 t/26-mersenne.t
 t/26-mod.t
 t/26-powerful.t
+t/26-powercount.t
 t/26-practical.t
 t/26-real.t
 t/26-riemann.t

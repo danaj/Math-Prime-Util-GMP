@@ -1036,6 +1036,56 @@ void powerful_count(mpz_t r, mpz_t n, unsigned long k)
   mpz_clear(m);
 }
 
+void perfect_power_count(mpz_t r, mpz_t n)
+{
+  unsigned long k, log2n;
+  mpz_t t;
+
+  if (mpz_cmp_ui(n,1) <= 0) {
+    mpz_set(r, n);
+    return;
+  }
+
+  log2n = mpz_sizeinbase(n,2);
+  mpz_init(t);
+  mpz_set_ui(r, 1);
+  for (k = 2; k <= log2n; k++) {
+    int m;
+    mpz_set_ui(t,k);
+    m = moebius(t);
+    if (m != 0) {
+      mpz_root(t, n, k);
+      mpz_sub_ui(t, t, 1);
+      if (m < 0) mpz_add(r, r, t);
+      else       mpz_sub(r, r, t);
+    }
+  }
+  mpz_clear(t);
+}
+void prime_power_count(mpz_t r, mpz_t n)
+{
+  unsigned long k, log2n;
+  mpz_t t1, t2;
+
+  if (mpz_cmp_ui(n,5) <= 0) {
+    if (mpz_cmp_ui(n,1) <= 0) mpz_set_ui(r, 0);
+    else                      mpz_sub_ui(r, n, 1);
+    return;
+  }
+
+  log2n = mpz_sizeinbase(n,2);
+  mpz_init(t1);
+  mpz_init(t2);
+  prime_count0(r, n);
+
+  for (k = 2; k <= log2n; k++) {
+    mpz_root(t1, n, k);
+    prime_count0(t2, t1);
+    mpz_add(r, r, t2);
+  }
+  mpz_clear(t2);  mpz_clear(t1);
+}
+
 
 void consecutive_integer_lcm(mpz_t m, UV B)
 {
@@ -1653,6 +1703,25 @@ void prime_count_upper(mpz_t pc, mpz_t n)
   mpf_clear(logx2); mpf_clear(logx); mpf_clear(x); mpf_clear(t); mpf_clear(s);
 }
 /*****************************************************************************/
+
+void prime_count0(mpz_t count, mpz_t hi)
+{
+  mpz_t a, b;
+  mpz_init_set_ui(a, 0);
+  mpz_init_set(b, hi);
+  count_primes(count, a, b);
+  mpz_clear(a);
+  mpz_clear(b);
+}
+void prime_count(mpz_t count, mpz_t lo, mpz_t hi)
+{
+  mpz_t a, b;
+  mpz_init_set(a, lo);
+  mpz_init_set(b, hi);
+  count_primes(count, a, b);
+  mpz_clear(a);
+  mpz_clear(b);
+}
 
 void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
 {

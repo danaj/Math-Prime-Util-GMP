@@ -483,18 +483,20 @@ totient(IN char* strn)
     is_prime_power = 8
     prime_count_lower = 9
     prime_count_upper = 10
-    urandomm = 11
-    negint = 12
-    absint = 13
+    perfect_power_count = 11
+    prime_power_count = 12
+    urandomm = 13
+    negint = 14
+    absint = 15
   PREINIT:
     mpz_t res, n;
   PPCODE:
-    if (ix == 12 || ix == 13) {
+    if (ix == 14 || ix == 15) {
       if (strn != 0 && strn[0] == '-') {
         VALIDATE_AND_SET(res, strn+1);
       } else {
         VALIDATE_AND_SET(res, strn);
-        if (ix == 12) mpz_neg(res, res);
+        if (ix == 14) mpz_neg(res, res);
       }
       XPUSH_MPZ(res);
       mpz_clear(res);
@@ -528,7 +530,9 @@ totient(IN char* strn)
       case 8:  mpz_set_ui(res, prime_power(res, n)); break;
       case 9:  prime_count_lower(res, n); break;
       case 10: prime_count_upper(res, n); break;
-      case 11:
+      case 11: perfect_power_count(res, n); break;
+      case 12: prime_power_count(res, n); break;
+      case 13:
       default: mpz_isaac_urandomm(res, n); break;
     }
     XPUSH_MPZ(res);

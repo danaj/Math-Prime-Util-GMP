@@ -158,8 +158,7 @@
 
 - add sumliouville
   almost_prime_count(k,n)
-  perfect_power_count
-  prime_power_count
+  nth_almost_prime(k,n)
   smooth_count
   rough_count
   qnr
@@ -174,5 +173,3 @@
   ensure optimized for Q=1 case
 
 - optimize prime_omega, prime_bigomega
-
-- tests for is_almost_prime
