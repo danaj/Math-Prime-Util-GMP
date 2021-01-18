@@ -20,6 +20,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - powerful_count(n[,k])   count of k-powerful numbers <= n
     - perfect_power_count(n)  count of perfect powers <= n
     - prime_power_count(n)    count of prime powers <= n
+    - lshiftint(n,[k])        left shift n by k bits (default 1)
+    - rshiftint(n,[k])        right shift n by k bits (default 1)
+    - rashiftint(n,[k])       arithmetic right shift n by k bits
 
     [FIXES]
 

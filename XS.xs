@@ -973,6 +973,24 @@ invmod(IN char* stra, IN char* strb)
     if (retundef) XSRETURN_UNDEF;
 
 void
+lshiftint(IN char* strn, IN unsigned long k = 1)
+  ALIAS:
+    rshiftint = 1
+    rashiftint = 2
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    switch (ix) {
+      case 0:  mpz_mul_2exp(n, n, k);      break;
+      case 1:  mpz_tdiv_q_2exp(n, n, k);   break;
+      case 2:
+      default: mpz_fdiv_q_2exp(n, n, k);   break;
+    }
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void
 powerful_count(IN char* strn, IN int k = 2)
   PREINIT:
     mpz_t n, r;
