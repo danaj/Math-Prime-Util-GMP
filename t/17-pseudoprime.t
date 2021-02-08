@@ -144,6 +144,7 @@ plan tests => 0 + 9
                 + 1  # mr base 2    2-4k
                 + 9  # mr with large bases
                 + 3  # multiple bases
+                + 1  # small extra_strong
                 + scalar @small_lucas_trials
                 + scalar(keys %lucas_sequences)
                 + 7  # lucasu lucasv
@@ -251,6 +252,9 @@ is( is_strong_pseudoprime(49117, 921211727), 1, "spsp(49117, 921211727)");
 is(is_pseudoprime(162401, 2, 3, 5, 7, 11, 13), 1, "162401 is a Fermat pseudoprime to bases 2,3,5,7,11,13");
 is(is_euler_pseudoprime(1857241, 2, 3, 5, 7, 11, 13), 1, "1857241 is an Euler pseudoprime to bases 2,3,5,7,11,13");
 is(is_strong_pseudoprime("3474749660383", 2, 3, 5, 7, 11, 13), 1, "3474749660383 is a strong pseudoprime to bases 2,3,5,7,11,13");
+
+# Verify extra strong for a few small primes
+is_deeply( [grep { is_extra_strong_lucas_pseudoprime($_) } 1..100], [@{primes(2,100)}], "The first 100 primes are selected by is_extra_strong_lucas_pseudoprime" );
 
 # Verify Lucas for some small numbers
 for my $n (@small_lucas_trials) {
