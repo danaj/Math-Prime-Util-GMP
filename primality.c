@@ -294,6 +294,9 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   MPUassert( mpz_cmp_si(n,(Q>=0) ? Q : -Q) > 0, "lucas_seq: Q is out of range");
   MPUassert( D != 0, "lucas_seq: D is zero" );
 
+  mpz_set_si(Qk, Q);
+  mpz_mod(Qk, Qk, n);
+
   if (mpz_cmp_ui(k, 0) <= 0) {
     mpz_set_ui(U, 0);
     mpz_set_ui(V, 2);
@@ -307,7 +310,6 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 
   mpz_set_ui(U, 1);
   mpz_set_si(V, P);
-  mpz_set_si(Qk, Q);
 
   if (Q == 1) {
     /* Use the fast V method if possible.  Much faster with small n. */

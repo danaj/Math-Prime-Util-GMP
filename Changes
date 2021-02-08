@@ -41,6 +41,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - zeta could round the last digit wrong in rare cases.
 
+    - return properly modded Qk in lucas_seq with k=0.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached
