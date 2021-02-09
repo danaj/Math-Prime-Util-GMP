@@ -169,7 +169,9 @@
 
 - fromdigits input digit array arguably should be signed bigints.
 
+- optimize prime_omega, prime_bigomega
+
 - Add LucasV(mpz_t V, mpz_t k, mpz_t n, mpz_t P, mpz_t Q);
   ensure optimized for Q=1 case
 
-- optimize prime_omega, prime_bigomega
+- Refactor the lucas sequence code.

@@ -286,22 +286,52 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
                mpz_t Qk, mpz_t t)
 {
   UV b = mpz_sizeinbase(k, 2);
-  IV D = P*P - 4*Q;
+  IV S, D = P*P - 4*Q;
 
-  if (mpz_cmp_ui(n, 2) < 0) croak("Lucas sequence modulus n must be > 1");
+  if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
   MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucas_seq: k is negative" );
-  MPUassert( mpz_cmp_si(n,(P>=0) ? P : -P) > 0, "lucas_seq: P is out of range");
-  MPUassert( mpz_cmp_si(n,(Q>=0) ? Q : -Q) > 0, "lucas_seq: Q is out of range");
-  MPUassert( D != 0, "lucas_seq: D is zero" );
 
-  mpz_set_si(Qk, Q);
-  mpz_mod(Qk, Qk, n);
+  mpz_set_ui(Qk, 1);
 
   if (mpz_cmp_ui(k, 0) <= 0) {
     mpz_set_ui(U, 0);
     mpz_set_ui(V, 2);
     return;
   }
+
+  /* Treat P and Q as mod n if out of range. */
+  if (mpz_cmp_si(n, (P>=0) ? P : -P) <= 0) {
+    mpz_set_si(t, P);
+    mpz_mod(t, t, n);
+    P = mpz_get_si(t);
+  }
+  if (mpz_cmp_si(n, (Q>=0) ? Q : -Q) <= 0) {
+    mpz_set_si(t, Q);
+    mpz_mod(t, t, n);
+    Q = mpz_get_si(t);
+  }
+
+  mpz_set_ui(t, 2);
+  if (D == 0 && mpz_invert(t, t, n)) {
+    mpz_mul_si(t, t, P);
+    mpz_mod(t, t, n);
+    S = mpz_get_ui(t);
+    mpz_sub_ui(t, k, 1);
+    mpz_set_si(U, S);
+    mpz_powm(U, U, t, n);
+    mpz_mul(U, U, k);
+    mpz_mod(U, U, n);     /* U = (k * S^(k-1)) % n */
+
+    mpz_set_si(V, S);
+    mpz_powm(V, V, k, n);
+    mpz_mul_ui(V, V, 2);
+    mpz_mod(V, V, n);     /* V = (2 * S^k) % n */
+
+    mpz_set_si(Qk, Q);
+    mpz_powm(Qk, Qk, k, n);
+    return;
+  }
+
   if (mpz_even_p(n)) {
     /* If n is even, then we can't divide by 2.  Do it differently. */
     alt_lucas_seq(U, V, n, P, Q, k, Qk, t);
@@ -355,6 +385,8 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
       }
     }
   } else {
+    mpz_set_si(Qk, Q);
+    mpz_mod(Qk, Qk, n);
     while (b > 1) {
       mpz_mulmod(U, U, V, n, t);     /* U2k = Uk * Vk */
       mpz_mul(V, V, V);
@@ -390,15 +422,15 @@ void alt_lucas_seq(mpz_t Uh, mpz_t Vl, mpz_t n, IV P, IV Q, mpz_t k,
   mpz_t Vh, Qh;
   int j, s = mpz_scan1(k,0), b = mpz_sizeinbase(k,2);
 
-  if (mpz_sgn(k) <= 0) {
-    mpz_set_ui(Uh, 0);
-    mpz_set_ui(Vl, 2);
-    return;
-  }
-
   mpz_set_ui(Uh, 1);
   mpz_set_ui(Vl, 2);
   mpz_set_ui(Ql, 1);
+
+  if (mpz_sgn(k) <= 0) {
+    mpz_set_ui(Uh, 0);
+    return;
+  }
+
   mpz_init_set_si(Vh,P);
   mpz_init_set_ui(Qh,1);
 

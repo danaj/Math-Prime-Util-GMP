@@ -41,7 +41,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - zeta could round the last digit wrong in rare cases.
 
-    - return properly modded Qk in lucas_seq with k=0.
+    - lucas_sequence did not always match modded lucasu and lucasv.
+      Removed some unnecessary restrictions on P and Q.
+      Qk=powmod(Q,k,n) wasn't true for k=0.  Fixed.
 
     [PERFORMANCE]
 
