@@ -288,8 +288,10 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   UV b = mpz_sizeinbase(k, 2);
   IV S, D = P*P - 4*Q;
 
-  if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
   MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucas_seq: k is negative" );
+  if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
+
+  if (mpz_cmp_ui(n, 1) == 0) { mpz_set_ui(U,0); mpz_set_ui(V,0); mpz_set_ui(Qk,0); return; }
 
   mpz_set_ui(Qk, 1);
 
@@ -298,7 +300,6 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
     mpz_set_ui(V, 2);
     return;
   }
-
   /* Treat P and Q as mod n if out of range. */
   if (mpz_cmp_si(n, (P>=0) ? P : -P) <= 0) {
     mpz_set_si(t, P);

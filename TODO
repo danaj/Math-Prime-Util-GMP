@@ -175,3 +175,4 @@
   ensure optimized for Q=1 case
 
 - Refactor the lucas sequence code.
+  Compare performance, as well as with the generic V+inversion method.
