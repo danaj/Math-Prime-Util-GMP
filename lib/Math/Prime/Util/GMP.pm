@@ -1612,10 +1612,13 @@ and Pari's C<ramanujantau> function.
   say "$n is divisible by 2 ", valuation($n,2), " times.";
 
 Given integers C<n> and C<k>, returns the numbers of times C<n> is divisible
-by C<k>.  This is a very limited version of the algebraic valuation meaning,
-just applied to integers.
-This corresponds to Pari's C<valuation> function.
-C<0> is returned if C<n> or C<k> is one of the values C<-1>, C<0>, or C<1>.
+by C<k>.  This is a very limited version of the algebraic valuation -- here
+it is just applied to integers.
+
+C<k> must be greater than 1.
+C<|n| is used, C<|n| = 0> returns undef, and C<|n| = 1> returns zero.
+
+This corresponds to Pari and SAGE's C<valuation> function.
 
 =head2 hammingweight
 

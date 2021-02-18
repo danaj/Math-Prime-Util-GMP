@@ -663,16 +663,17 @@ gcd(...)
     vecsum = 2
     vecprod = 3
   PREINIT:
-    int i;
+    int i, negflag;
     mpz_t ret, n;
   PPCODE:
     if (items == 0) XSRETURN_IV( (ix == 3) ? 1 : 0);
+    negflag = (ix <= 1) ? VSETNEG_POS : VSETNEG_OK;
     if (ix == 1 || ix == 3) {
       mpz_t* list;
       New(0, list, items, mpz_t);
       for (i = 0; i < items; i++) {
         char* strn = SvPV_nolen(ST(i));
-        validate_and_set_signed(cv, list[i], "arg", strn, VSETNEG_OK);
+        validate_and_set_signed(cv, list[i], "arg", strn, negflag);
       }
       if (ix == 1) mpz_veclcm(list, 0, items-1);
       else         mpz_product(list, 0, items-1);
@@ -684,7 +685,7 @@ gcd(...)
     mpz_init_set_ui(ret, (ix == 1 || ix == 3) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
-      validate_and_set_signed(cv, n, "arg", strn, (ix <= 1) ? VSETNEG_POS : VSETNEG_OK);
+      validate_and_set_signed(cv, n, "arg", strn, negflag);
       switch (ix) {
         case 0:  mpz_gcd(ret, ret, n); break;
         case 1:  mpz_lcm(ret, ret, n); break;
@@ -717,8 +718,9 @@ kronecker(IN char* stra, IN char* strb)
     switch (ix) {
       case 0: RETVAL = mpz_kronecker(a, b);
               break;
-      case 1: RETVAL = (mpz_cmp_ui(a,1) <= 0 || mpz_cmp_ui(b,1) <= 0)  ?  0
-                     : (mpz_cmp_ui(b,2) == 0)  ?  mpz_scan1(a, 0)
+      case 1: if (mpz_cmp_ui(b,2) < 0)  croak("valuation: k must be > 1");
+              if (mpz_cmp_ui(a,0) == 0) XSRETURN_UNDEF;
+              RETVAL = (mpz_cmp_ui(b,2) == 0)  ?  mpz_scan1(a, 0)
                                                :  mpz_remove(a, a, b);
               break;
       case 2: if (mpz_sgn(a) == 0) {

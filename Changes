@@ -45,6 +45,8 @@ Revision history for Perl module Math::Prime::Util::GMP
       Removed some unnecessary restrictions on P and Q.
       Qk=powmod(Q,k,n) wasn't true for k=0.  Fixed.
 
+    - lcm(-n) now returns n instead of -n.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached
@@ -52,6 +54,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - Add faster factorialmod code.  5-10x faster for large inputs.
 
+    [OTHER]
+
+    - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.
 
 0.52 2020-06-22
 

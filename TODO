@@ -176,3 +176,7 @@
 
 - Refactor the lucas sequence code.
   Compare performance, as well as with the generic V+inversion method.
+
+- add fdivrem
+
+- Check for lucas_seq with P*P overflow 64-bit, so D might be wrong.

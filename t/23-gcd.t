@@ -79,8 +79,10 @@ my @kroneckers = (
 
 my @valuations = (
   [-4,2, 2],
-  [0,0, 0],
-  [1,0, 0],
+  #[0,0, 0],  error
+  #[1,0, 0],  error
+  [0,2, undef],
+  [1,2, 0],
   [96552,6, 3],
   [1879048192,2, 28],
 );
@@ -184,7 +186,7 @@ foreach my $karg (@kroneckers) {
 
 foreach my $r (@valuations) {
   my($n, $k, $exp) = @$r;
-  is( valuation($n, $k), $exp, "valuation($n,$k) = $exp" );
+  is(valuation($n, $k), $exp, "valuation($n,$k) = ".(defined($exp)?$exp:"<undef>"));
 }
 
 is(hammingweight(0), 0, "hammingweight(0) = 0");

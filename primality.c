@@ -297,7 +297,7 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 
   if (mpz_cmp_ui(k, 0) <= 0) {
     mpz_set_ui(U, 0);
-    mpz_set_ui(V, 2);
+    mpz_set_ui(V, 2);  mpz_mod(V, V, n);
     return;
   }
   /* Treat P and Q as mod n if out of range. */
