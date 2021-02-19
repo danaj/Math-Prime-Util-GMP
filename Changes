@@ -46,6 +46,7 @@ Revision history for Perl module Math::Prime::Util::GMP
       Qk=powmod(Q,k,n) wasn't true for k=0.  Fixed.
 
     - lcm(-n) now returns n instead of -n.
+      znorder(a,-n) now returns znorder(a,n) instead of -n.
 
     [PERFORMANCE]
 

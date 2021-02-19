@@ -597,14 +597,15 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
 {
   mpz_t t;
 
+  mpz_abs(n,n);
+  if (mpz_cmp_ui(n, 1) <= 0) { mpz_set(res, n); return; }
+  mpz_mod(a, a, n);
+  if (mpz_cmp_ui(a, 1) <= 0) { mpz_set(res, a); return; }
+
   mpz_init(t);
   mpz_gcd(t, a, n);
 
-  if (mpz_cmp_ui(n, 1) <= 0) {
-    mpz_set(res, n);
-  } else if (mpz_cmp_ui(a, 1) <= 0) {
-    mpz_set(res, a);
-  } else if (mpz_cmp_ui(t, 1) != 0) {
+  if (mpz_cmp_ui(t, 1) != 0) {
     mpz_set_ui(res, 0);
   } else {
     mpz_t order, phi;
