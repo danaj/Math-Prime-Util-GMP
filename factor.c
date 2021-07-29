@@ -793,7 +793,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
 int is_semiprime(mpz_t n)
 {
   int ret;
-  UV div, lim = 6000;
+  UV k, div, lim = 6000;
   mpz_t t;
 
   if (mpz_cmp_ui(n,6) < 0)
@@ -813,6 +813,15 @@ int is_semiprime(mpz_t n)
     { mpz_clear(t); return 0; }
   if (mpz_ui_pow_ui(t,lim,3), mpz_cmp(n,t) < 0)
     { mpz_clear(t); return 1; }
+
+  /* Quick check for power */
+  k = power_factor(n, t);
+  if (k >= 2) {
+    ret = (k == 2 && _GMP_is_prime(t));
+    mpz_clear(t);
+    return ret;
+  }
+
   /* Number is composite, isn't tiny, and has no small divisors */
   if (    0
        || _GMP_pbrent_factor(n, t, 1, 15000)
