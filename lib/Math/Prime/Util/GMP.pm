@@ -826,8 +826,8 @@ Values above 64-bit are extra-strong BPSW probable primes.
 
 =head2 prime_count
 
-Returns the number of primes between 2 and C<n> (single argument)
-or C<lo> and C<hi> given two arguments.  The values are inclusive.
+Returns the number of primes up to C<n> (single argument)
+or between C<lo> and C<hi> (two arguments).  The values are inclusive.
 
 The method is simple sieving followed by primality testing.  This is
 appropriate for small ranges and is useful for very large arguments.
@@ -1556,16 +1556,18 @@ If C<k> is omitted or zero, C<k=2> is used.
 
 =head2 perfect_power_count
 
-Given a non-negative integer input C<n>, returns the number of integers,
-not exceeding n, which are perfect powers.  By convention, 1 is included
-here even though L</is_power(1) = 0>.
+Returns the number of perfect powers up to C<n> (single argument)
+or between C<lo> and C<hi> (two arguments).  The values are inclusive.
+
+By convention, 1 is included here even though L</is_power(1) = 0>.
 This is L<OEIS series A069623|http://oeis.org/A069623>.
 
 =head2 prime_power_count
 
-Given a non-negative integer input C<n>, returns the number of integers,
-not exceeding n, which are prime powers.  By convention, 1 is included
-here even though L</is_prime_power(1) = 0>.
+Returns the number of positive prime powers up to C<n> (single argument)
+or between C<lo> and C<hi> (two arguments).  The values are inclusive.
+
+By convention, 1 is included even though L</is_prime_power(1) = 0>.
 This is L<OEIS series A025528|http://oeis.org/A025528>.
 
 =head2 faulhaber_sum

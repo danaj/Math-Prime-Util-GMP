@@ -1062,6 +1062,26 @@ void perfect_power_count(mpz_t r, mpz_t n)
   }
   mpz_clear(t);
 }
+void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
+  if (mpz_cmp(lo, hi) > 0 || mpz_cmp_ui(hi,1) < 0) {
+    mpz_set_ui(r, 0);
+    return;
+  }
+
+  perfect_power_count(r, hi);
+
+  if (mpz_cmp_ui(lo, 1) > 0) {
+    mpz_t locount, lom1;
+    mpz_init(locount);
+    mpz_init(lom1);
+    mpz_sub_ui(lom1, lo, 1);
+    perfect_power_count(locount, lom1);
+    mpz_sub(r, r, locount);
+    mpz_clear(lom1);
+    mpz_clear(locount);
+  }
+}
+
 void prime_power_count(mpz_t r, mpz_t n)
 {
   unsigned long k, log2n;
@@ -1076,16 +1096,34 @@ void prime_power_count(mpz_t r, mpz_t n)
   log2n = mpz_sizeinbase(n,2);
   mpz_init(t1);
   mpz_init(t2);
-  prime_count0(r, n);
+  prime_count(r, n);
 
   for (k = 2; k <= log2n; k++) {
     mpz_root(t1, n, k);
-    prime_count0(t2, t1);
+    prime_count(t2, t1);
     mpz_add(r, r, t2);
   }
   mpz_clear(t2);  mpz_clear(t1);
 }
+void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
+  if (mpz_cmp(lo, hi) > 0 || mpz_cmp_ui(hi,2) < 0) {
+    mpz_set_ui(r, 0);
+    return;
+  }
 
+  prime_power_count(r, hi);
+
+  if (mpz_cmp_ui(lo, 2) > 0) {
+    mpz_t locount, lom1;
+    mpz_init(locount);
+    mpz_init(lom1);
+    mpz_sub_ui(lom1, lo, 1);
+    prime_power_count(locount, lom1);
+    mpz_sub(r, r, locount);
+    mpz_clear(lom1);
+    mpz_clear(locount);
+  }
+}
 
 void consecutive_integer_lcm(mpz_t m, UV B)
 {
@@ -1704,37 +1742,32 @@ void prime_count_upper(mpz_t pc, mpz_t n)
 }
 /*****************************************************************************/
 
-void prime_count0(mpz_t count, mpz_t hi)
-{
-  mpz_t a, b;
-  mpz_init_set_ui(a, 0);
-  mpz_init_set(b, hi);
-  count_primes(count, a, b);
-  mpz_clear(a);
-  mpz_clear(b);
-}
-void prime_count(mpz_t count, mpz_t lo, mpz_t hi)
-{
-  mpz_t a, b;
-  mpz_init_set(a, lo);
-  mpz_init_set(b, hi);
-  count_primes(count, a, b);
-  mpz_clear(a);
-  mpz_clear(b);
-}
-
-void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
+void prime_count_range(mpz_t count, mpz_t ilo, mpz_t ihi)
 {
   uint32_t* comp;
   UV i, cnt, hbits, depth, width;
-  mpz_t shi, t;
+  mpz_t lo, hi, shi, t;
 
   mpz_set_ui(count, 0);
+
+  if (mpz_cmp(ilo, ihi) > 0 || mpz_cmp_ui(ihi,2) < 0) return;
+
+  if (mpz_cmp_ui(ihi, 1000) < 0) {
+     UV ulo = mpz_get_ui(ilo), uhi = mpz_get_ui(ihi);
+     UV cnt = small_prime_count(uhi)
+            - ((ulo <= 2) ? 0 : small_prime_count(ulo));
+     mpz_set_ui(count, cnt);
+     return;
+  }
+
+  mpz_init_set(lo, ilo);
+  mpz_init_set(hi, ihi);
+
   if (mpz_cmp_ui(lo,2) <= 0) {
     if (mpz_cmp_ui(hi,2) >= 0) mpz_add_ui(count,count,1);
     mpz_set_ui(lo,3);
   }
-  if (mpz_cmp(lo,hi) > 0) return;
+  if (mpz_cmp(lo,hi) > 0) { mpz_clear(lo); mpz_clear(hi); return; }
 
   mpz_init(t);
   if (mpz_add_ui(t, lo, 100000), mpz_cmp(t,hi) > 0) {
@@ -1742,7 +1775,7 @@ void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
     for (cnt = 0; mpz_cmp(lo, hi) <= 0; _GMP_next_prime(lo))
       cnt++;
     mpz_add_ui(count,count,cnt-1);
-    mpz_clear(t);
+    mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
     return;
   }
 
@@ -1767,7 +1800,7 @@ void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
   if (mpz_even_p(lo)) mpz_add_ui(lo,lo,1);
   if (mpz_even_p(hi)) mpz_sub_ui(hi,hi,1);
 
-  mpz_init(shi);
+  mpz_init(shi);  /* segment hi */
   while (mpz_cmp(lo,hi) <= 0) {
     mpz_add_ui(shi, lo, 1000000000UL);
     if (mpz_cmp(shi, hi) > 0)
@@ -1786,7 +1819,15 @@ void count_primes(mpz_t count, mpz_t lo, mpz_t hi)
     mpz_add_ui(count, count, cnt);
   }
   mpz_clear(shi);
-  mpz_clear(t);
+  mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
+}
+
+void prime_count(mpz_t count, mpz_t hi)
+{
+  mpz_t lo;
+  mpz_init_set_ui(lo, 0);
+  prime_count_range(count, lo, hi);
+  mpz_clear(lo);
 }
 
 

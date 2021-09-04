@@ -31,8 +31,6 @@ extern void falling_factorial(mpz_t r, UV x, UV n);
 extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
 
 extern void powerful_count(mpz_t r, mpz_t n, unsigned long k);
-extern void perfect_power_count(mpz_t r, mpz_t n);
-extern void prime_power_count(mpz_t r, mpz_t n);
 
 extern int  is_carmichael(mpz_t n);
 extern int  is_fundamental(mpz_t n);
@@ -46,13 +44,18 @@ extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
 
 extern void prime_count_lower(mpz_t pc, mpz_t n);
 extern void prime_count_upper(mpz_t pc, mpz_t n);
-extern void count_primes(mpz_t count, mpz_t lo, mpz_t hi);
 extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
 extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);
 extern UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn);
-/* Helper function for count_primes */
-extern void prime_count0(mpz_t count, mpz_t hi);
-extern void prime_count(mpz_t count, mpz_t lo, mpz_t hi);
+
+extern void prime_count(mpz_t count, mpz_t hi);
+extern void prime_count_range(mpz_t count, mpz_t lo, mpz_t hi);
+
+extern void prime_power_count(mpz_t r, mpz_t n);
+extern void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi);
+
+extern void perfect_power_count(mpz_t r, mpz_t n);
+extern void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi);
 
 extern void next_twin_prime(mpz_t res, mpz_t n);
 

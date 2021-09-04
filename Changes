@@ -1,41 +1,43 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.53 2020-?
+0.53 2021-?
 
     [ADDED]
 
-    - bernvec(n)              compute/cache/return even Bernoulli numbers
-    - faulhaber_sum(n,p)      fast sum of k^p for k=1..n
-    - fromdigits(\@d[,base])  convert digit array ref to base 10 number
-    - fromdigits(str[,base])  convert string to base 10 number
-    - is_smooth(n,k)          is n a k-smooth number
-    - is_rough(n,k)           is n a k-rough number
-    - is_powerful(n[,k])      is n a k-powerful number (default k=2)
-    - is_practical(n)         is n a practical number
-    - is_trial_prime(n)       primality using trial division
-    - is_almost_prime(k,n)    does n have exactly k prime factors
-    - submod                  (a - b) % n
-    - prime_bigomega(n)       number of factors (with multiplicity)
-    - prime_omega(n)          number of factors (distinct)
-    - powerful_count(n[,k])   count of k-powerful numbers <= n
-    - perfect_power_count(n)  count of perfect powers <= n
-    - prime_power_count(n)    count of prime powers <= n
-    - lshiftint(n,[k])        left shift n by k bits (default 1)
-    - rshiftint(n,[k])        right shift n by k bits (default 1)
-    - rashiftint(n,[k])       arithmetic right shift n by k bits
-    - add1int(n)              increment n
-    - sub1int(n)              decrement n
-    - signint(n)              sign of n (-1, 0, 1)
-    - cmpint(a,b)             compare (-1,0,1 for a<b, a=b, a>b)
-    - cmpabsint(a,b)          compare absolute values
-    - setbit(n,k)             set bit k of n
-    - clrbit(n,k)             clear bit k of n
-    - notbit(n,k)             complement bit k of n
-    - tstbit(n,k)             return bit k of n (0 or 1)
-    - bitand(a,b)             bitwise and
-    - bitor(a,b)              bitwise or
-    - bitxor(a,b)             bitwise xor
-    - bitnot(n)               bitwise not (complement)
+    - bernvec(n)               compute/cache/return even Bernoulli numbers
+    - faulhaber_sum(n,p)       fast sum of k^p for k=1..n
+    - fromdigits(\@d[,base])   convert digit array ref to base 10 number
+    - fromdigits(str[,base])   convert string to base 10 number
+    - is_smooth(n,k)           is n a k-smooth number
+    - is_rough(n,k)            is n a k-rough number
+    - is_powerful(n[,k])       is n a k-powerful number (default k=2)
+    - is_practical(n)          is n a practical number
+    - is_trial_prime(n)        primality using trial division
+    - is_almost_prime(k,n)     does n have exactly k prime factors
+    - submod                   (a - b) % n
+    - prime_bigomega(n)        number of factors (with multiplicity)
+    - prime_omega(n)           number of factors (distinct)
+    - powerful_count(n[,k])    count of k-powerful numbers <= n
+    - perfect_power_count(n)   count of perfect powers <= n
+    - perfect_power_count(lo,hi) count of perfect powers <= lo <= n <= hi
+    - prime_power_count(n)     count of prime powers <= n
+    - prime_power_count(lo,hi) count of prime powers <= lo <= n <= hi
+    - lshiftint(n,[k])         left shift n by k bits (default 1)
+    - rshiftint(n,[k])         right shift n by k bits (default 1)
+    - rashiftint(n,[k])        arithmetic right shift n by k bits
+    - add1int(n)               increment n
+    - sub1int(n)               decrement n
+    - signint(n)               sign of n (-1, 0, 1)
+    - cmpint(a,b)              compare (-1,0,1 for a<b, a=b, a>b)
+    - cmpabsint(a,b)           compare absolute values
+    - setbit(n,k)              set bit k of n
+    - clrbit(n,k)              clear bit k of n
+    - notbit(n,k)              complement bit k of n
+    - tstbit(n,k)              return bit k of n (0 or 1)
+    - bitand(a,b)              bitwise and
+    - bitor(a,b)               bitwise or
+    - bitxor(a,b)              bitwise xor
+    - bitnot(n)                bitwise not (complement)
 
     [FIXES]
 

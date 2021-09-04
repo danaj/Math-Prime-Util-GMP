@@ -422,10 +422,9 @@ next_prime(IN char* strn)
 
 
 void
-prime_count(IN char* strlo, IN char* strhi = 0)
+random_prime(IN char* strlo, IN char* strhi = 0)
   ALIAS:
-    random_prime = 1
-    urandomr = 2
+    urandomr = 1
   PREINIT:
     mpz_t lo, hi, res;
     int retundef;
@@ -441,7 +440,7 @@ prime_count(IN char* strlo, IN char* strhi = 0)
       mpz_init_set_str(lo, strlo, 10);
       mpz_init_set_str(hi, strhi, 10);
     }
-    if (ix == 2 && mpz_sizeinbase(hi,2) <= 32) {
+    if (ix == 1 && mpz_sizeinbase(hi,2) <= 32) {
       uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
       if (ulo <= uhi) {
         mpz_clear(lo); mpz_clear(hi);
@@ -450,9 +449,7 @@ prime_count(IN char* strlo, IN char* strhi = 0)
     }
     retundef = 0;
     mpz_init(res);
-    if        (ix == 0) {
-      count_primes(res, lo, hi);
-    } else if (ix == 1) {
+    if (ix == 0) {
       retundef = !mpz_random_prime(res, lo, hi);
     } else {
       if (mpz_cmp(lo,hi) > 0) {
@@ -470,20 +467,36 @@ prime_count(IN char* strlo, IN char* strhi = 0)
     mpz_clear(lo);
     if (retundef) XSRETURN_UNDEF;
 
-void absint(IN char* strn)
+void prime_count(IN char* strlo, IN char* strhi = 0)
   ALIAS:
-    negint = 1
+    prime_power_count = 1
+    perfect_power_count = 2
   PREINIT:
-    mpz_t res;
+    mpz_t n, lo, hi, res;
   PPCODE:
-    if (strn != 0 && strn[0] == '-') {
-      VALIDATE_AND_SET(res, strn+1);
+    mpz_init(res);
+    if (strhi == 0) {
+      VALIDATE_AND_SET(n, strlo);
+      switch (ix) {
+        case  0: prime_count(res, n); break;
+        case  1: prime_power_count(res, n); break;
+        case  2: perfect_power_count(res, n); break;
+        default: break;
+      }
+      mpz_clear(n);
     } else {
-      VALIDATE_AND_SET(res, strn);
-      if (ix == 1) mpz_neg(res, res);
+      VALIDATE_AND_SET(lo, strlo);
+      VALIDATE_AND_SET(hi, strhi);
+      switch (ix) {
+        case  0: prime_count_range(res, lo, hi); break;
+        case  1: prime_power_count_range(res, lo, hi); break;
+        case  2: perfect_power_count_range(res, lo, hi); break;
+        default: break;
+      }
+      mpz_clear(lo);
+      mpz_clear(hi);
     }
     XPUSH_MPZ(res);
-    mpz_clear(res);
 
 void
 totient(IN char* strn)
@@ -498,8 +511,6 @@ totient(IN char* strn)
     is_prime_power = 8
     prime_count_lower = 9
     prime_count_upper = 10
-    perfect_power_count = 11
-    prime_power_count = 12
     urandomm = 13
     add1int = 14
     sub1int = 15
@@ -535,8 +546,6 @@ totient(IN char* strn)
       case 8:  mpz_set_ui(res, prime_power(res, n)); break;
       case 9:  prime_count_lower(res, n); break;
       case 10: prime_count_upper(res, n); break;
-      case 11: perfect_power_count(res, n); break;
-      case 12: prime_power_count(res, n); break;
       case 13: mpz_isaac_urandomm(res, n); break;
       case 14: mpz_add_ui(res, n, 1); break;
       case 15: mpz_sub_ui(res, n, 1); break;
@@ -544,6 +553,21 @@ totient(IN char* strn)
     }
     XPUSH_MPZ(res);
     mpz_clear(n);
+    mpz_clear(res);
+
+void absint(IN char* strn)
+  ALIAS:
+    negint = 1
+  PREINIT:
+    mpz_t res;
+  PPCODE:
+    if (strn != 0 && strn[0] == '-') {
+      VALIDATE_AND_SET(res, strn+1);
+    } else {
+      VALIDATE_AND_SET(res, strn);
+      if (ix == 1) mpz_neg(res, res);
+    }
+    XPUSH_MPZ(res);
     mpz_clear(res);
 
 void signint(IN char* strn)
