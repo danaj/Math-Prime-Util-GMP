@@ -200,6 +200,3 @@
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - add fdivrem  (ensure match with latest base package)
-
-- perfect_power_count and prime_power_count take ranges
-  test

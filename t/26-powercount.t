@@ -18,9 +18,10 @@ $#A025528 = 40;
 $#A267712 = ($extra) ? 7 : 5;
 
 plan tests => 0
-            + 4
-            + 4
-            + 2
+            + 4  # perfect_power_count simple
+            + 4  # prime_power_count  simple
+            + 2  # large values
+            + 2  # perfect_power_count ranges
             + 0;
 
 is(perfect_power_count(0), 0, "perfect_power_count(0) = 0");
@@ -38,3 +39,9 @@ is(perfect_power_count(12345678), 3762, "perfect_power_count(12345678) = 3762");
 # mpu 'say vecsum(map{!!is_prime_power($_)}1..12345678)'
 #is(prime_power_count(12345678), 809830, "prime_power_count(12345678) = 809830");
 is(prime_power_count(1234567), 95618, "prime_power_count(1234567) = 95618");
+
+is( perfect_power_count(123456, 133332), 17, "perfect_power_count(123456,133332) = 17" );
+is_deeply( [map { perfect_power_count($_,16) } 8,9,10],
+           [3,2,1],
+           "perfect_power_count(8..10,16) = 3,2,1" );
+
