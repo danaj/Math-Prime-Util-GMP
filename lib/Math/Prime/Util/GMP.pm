@@ -86,8 +86,12 @@ our @EXPORT_OK = qw(
                      carmichael_lambda
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
-                     divint modint divrem tdivrem negint absint
+                     divint modint divrem tdivrem
+                     add1int sub1int
+                     negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
+                     setbit clrbit compbit tstbit
+                     bitand bitor bitxor bitcom
                      is_power is_prime_power is_semiprime is_almost_prime
                      is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
@@ -2007,6 +2011,59 @@ Given integer C<n>, return C<|n|>, i.e. the absolute value of C<n>.
 
 Given integer C<n>, return C<-n>.
 
+=head2 signint
+
+Given integer C<n>, return a positive value if C<a> is greater than C<0>,
+zero if C<a> is equal to C<0>, and a negative value if C<a> is less than C<0>.
+
+=head2 cmpint
+
+Given integer C<n>, return a positive value if C<a> is greater than C<b>,
+zero if C<a> is equal to C<b>, and a negative value if C<a> is less than C<b>.
+
+=head2 cmpabsint
+
+As C<cmpint> but using the absolute values of C<a> and C<b>.
+
+=head2 add1int
+
+Given integer C<n>, return C<n+1>.
+
+=head2 sub1int
+
+Given integer C<n>, return C<n-1>.
+
+=head2 setbit
+
+Given integer C<n> and a positive integer bit position C<k>,
+return C<n> with bit C<k> set.
+
+=head2 clrbit
+
+Given integer C<n> and a positive integer bit position C<k>,
+return C<n> with bit C<k> cleared.
+
+=head2 notbit
+
+Given integer C<n> and a positive integer bit position C<k>,
+return C<n> with bit C<k> complemented.
+
+=head2 tstbit
+
+Given integer C<n> and a positive integer bit position C<k>,
+return the value of bit C<k>.
+
+=head2 bitand
+
+Given integers C<a> and C<b>, return bitwise C<a AND b>.
+
+=head2 bitor
+
+Given integers C<a> and C<b>, return bitwise C<a OR b>.
+
+=head2 bitnot
+
+Given integer C<n>, return bitwise C<NOT n>.
 
 =head2 factor
 

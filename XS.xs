@@ -470,6 +470,21 @@ prime_count(IN char* strlo, IN char* strhi = 0)
     mpz_clear(lo);
     if (retundef) XSRETURN_UNDEF;
 
+void absint(IN char* strn)
+  ALIAS:
+    negint = 1
+  PREINIT:
+    mpz_t res;
+  PPCODE:
+    if (strn != 0 && strn[0] == '-') {
+      VALIDATE_AND_SET(res, strn+1);
+    } else {
+      VALIDATE_AND_SET(res, strn);
+      if (ix == 1) mpz_neg(res, res);
+    }
+    XPUSH_MPZ(res);
+    mpz_clear(res);
+
 void
 totient(IN char* strn)
   ALIAS:
@@ -486,28 +501,18 @@ totient(IN char* strn)
     perfect_power_count = 11
     prime_power_count = 12
     urandomm = 13
-    negint = 14
-    absint = 15
+    add1int = 14
+    sub1int = 15
   PREINIT:
     mpz_t res, n;
   PPCODE:
-    if (ix == 14 || ix == 15) {
-      if (strn != 0 && strn[0] == '-') {
-        VALIDATE_AND_SET(res, strn+1);
-      } else {
-        VALIDATE_AND_SET(res, strn);
-        if (ix == 14) mpz_neg(res, res);
-      }
-      XPUSH_MPZ(res);
-      mpz_clear(res);
-      return;
-    }
     if (strn != 0 && strn[0] == '-') { /* If input is negative... */
       if (ix == 2)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
       if (ix == 5)  strn++;            /* znprimroot flip sign */
       if (ix == 8)  XSRETURN_IV(0);    /* is_prime_power return 0 */
     }
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn,
+                            (ix==14 || ix==15) ? VSETNEG_OK : VSETNEG_ERR);
     mpz_init(res);
     switch (ix) {
       case 0:  totient(res, n);  break;
@@ -532,12 +537,87 @@ totient(IN char* strn)
       case 10: prime_count_upper(res, n); break;
       case 11: perfect_power_count(res, n); break;
       case 12: prime_power_count(res, n); break;
-      case 13:
-      default: mpz_isaac_urandomm(res, n); break;
+      case 13: mpz_isaac_urandomm(res, n); break;
+      case 14: mpz_add_ui(res, n, 1); break;
+      case 15: mpz_sub_ui(res, n, 1); break;
+      default: break;
     }
     XPUSH_MPZ(res);
     mpz_clear(n);
     mpz_clear(res);
+
+void signint(IN char* strn)
+  PREINIT:
+    mpz_t n;
+    int res;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    res = mpz_sgn(n);
+    mpz_clear(n);
+    XSRETURN_IV(res);
+
+void cmpint(IN char* stra, IN char* strb)
+  ALIAS:
+    cmpabsint = 1
+  PREINIT:
+    mpz_t a, b;
+    int res;
+  PPCODE:
+    VALIDATE_AND_SET(a, stra);
+    VALIDATE_AND_SET(b, strb);
+    res = (ix == 0) ? mpz_cmp(a, b) : mpz_cmpabs(a, b);
+    mpz_clear(a);
+    mpz_clear(b);
+    XSRETURN_IV(res);
+
+void setbit(IN char* strn, IN UV k)
+  ALIAS:
+    clrbit = 1
+    notbit = 2
+    tstbit = 3
+  PREINIT:
+    mpz_t n;
+    int res;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    switch (ix) {
+      case 0:  mpz_setbit(n, k); break;
+      case 1:  mpz_clrbit(n, k); break;
+      case 2:  mpz_combit(n, k); break;
+      case 3:  res = mpz_tstbit(n, k); break;
+      default: break;
+    }
+    if (ix != 3) XPUSH_MPZ(n);
+    mpz_clear(n);
+    if (ix == 3) XSRETURN_UV(res);
+
+void bitand(IN char* stra, IN char* strb)
+  ALIAS:
+    bitor = 1
+    bitxor = 2
+  PREINIT:
+    mpz_t a, b;
+  PPCODE:
+    VALIDATE_AND_SET(a, stra);
+    VALIDATE_AND_SET(b, strb);
+    switch (ix) {
+      case 0:  mpz_and(a, a, b); break;
+      case 1:  mpz_ior(a, a, b); break;
+      case 2:  mpz_xor(a, a, b); break;
+      default: break;
+    }
+    XPUSH_MPZ(a);
+    mpz_clear(a);
+    mpz_clear(b);
+
+void bitnot(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    mpz_com(n, n);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
 
 void harmreal(IN char* strn, IN UV prec = 40)
   ALIAS:

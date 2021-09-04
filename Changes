@@ -23,6 +23,19 @@ Revision history for Perl module Math::Prime::Util::GMP
     - lshiftint(n,[k])        left shift n by k bits (default 1)
     - rshiftint(n,[k])        right shift n by k bits (default 1)
     - rashiftint(n,[k])       arithmetic right shift n by k bits
+    - add1int(n)              increment n
+    - sub1int(n)              decrement n
+    - signint(n)              sign of n (-1, 0, 1)
+    - cmpint(a,b)             compare (-1,0,1 for a<b, a=b, a>b)
+    - cmpabsint(a,b)          compare absolute values
+    - setbit(n,k)             set bit k of n
+    - clrbit(n,k)             clear bit k of n
+    - notbit(n,k)             complement bit k of n
+    - tstbit(n,k)             return bit k of n (0 or 1)
+    - bitand(a,b)             bitwise and
+    - bitor(a,b)              bitwise or
+    - bitxor(a,b)             bitwise xor
+    - bitnot(n)               bitwise not (complement)
 
     [FIXES]
 
