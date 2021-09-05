@@ -1262,16 +1262,21 @@ stirling(IN UV n, IN UV m, IN UV type = 1)
     XPUSH_MPZ( r );
     mpz_clear(r);
 
-void
-chinese(...)
+void chinese(...)
+  ALIAS:
+    chinese2 = 1
   PROTOTYPE: @
   PREINIT:
     int i, doretval;
     mpz_t* an;
     mpz_t ret, lcm;
   PPCODE:
-    if (items == 0)
-      XSRETURN_IV(0);
+    if (items == 0) {
+      if (ix == 0)  XSRETURN_UV(0);
+      PUSHs(sv_2mortal(newSVuv( 0 )));
+      PUSHs(sv_2mortal(newSVuv( 0 )));
+      XSRETURN(2);
+    }
     mpz_init_set_ui(ret, 0);
     New(0, an, 2*items, mpz_t);
     for (i = 0; i < items; i++) {
@@ -1293,7 +1298,10 @@ chinese(...)
     }
     mpz_init(lcm);
     doretval = chinese(ret, lcm, an, an+items, items);
-    if (doretval) XPUSH_MPZ(ret);
+    if (doretval) {
+      XPUSH_MPZ(ret);
+      if (ix == 1) XPUSH_MPZ(lcm);
+    }
     for (i = 0; i < items; i++) {
       mpz_clear(an[i+0]);
       mpz_clear(an[i+items]);
@@ -1301,7 +1309,15 @@ chinese(...)
     Safefree(an);
     mpz_clear(lcm);
     mpz_clear(ret);
-    if (!doretval) XSRETURN_UNDEF;
+    if (!doretval) {
+      if (ix == 0) {
+        XSRETURN_UNDEF;
+      } else {
+        XPUSHs(&PL_sv_undef);
+        XPUSHs(&PL_sv_undef);
+        XSRETURN(2);
+      }
+    }
 
 void
 permtonum(SV* svp)

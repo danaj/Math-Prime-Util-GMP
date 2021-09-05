@@ -38,6 +38,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - bitor(a,b)               bitwise or
     - bitxor(a,b)              bitwise xor
     - bitnot(n)                bitwise not (complement)
+    - chinese2([a,m],...)      like chinese, but also returns modulo
 
     [FIXES]
 
@@ -62,6 +63,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - lcm(-n) now returns n instead of -n.
       znorder(a,-n) now returns znorder(a,n) instead of -n.
+
+    - chinese uses absolute values of modulus.
 
     [PERFORMANCE]
 

@@ -193,8 +193,6 @@
 
 - sqrtmod(4,8) -> undef
 
-- chinese needs to do abs on the modulo
-
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - add fdivrem  (ensure match with latest base package)
