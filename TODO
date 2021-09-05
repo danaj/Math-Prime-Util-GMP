@@ -195,8 +195,6 @@
 
 - chinese needs to do abs on the modulo
 
-- test gcd and lcm with single negative inputs
-
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - add fdivrem  (ensure match with latest base package)
