@@ -87,6 +87,7 @@ t/93-release-spelling.t
 xt/arithmod.pl
 xt/bench-random-bytes.pl
 xt/create-standalone.sh
+xt/class_poly_data_big.h
 xt/calculate-mr-probs.pl
 xt/proof-text-format.txt
 xt/expr-impl.h
