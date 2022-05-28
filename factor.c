@@ -908,16 +908,21 @@ int is_semiprime(mpz_t n)
   }
   /* No luck finding a small factor.  Do it the hard way. */
   {
-    mpz_t* factors;
-    int* exponents;
-    int nfactors, i, j;
+    factor_state fs;
 
-    nfactors = factor(n, &factors, &exponents);
-    for (i = 0, j = 0; i < nfactors; i++)
-      j += exponents[i];
-    clear_factors(nfactors, &factors, &exponents);
-    mpz_clear(t);
-    return (j == 2);
+    fs_init(&fs);
+    mpz_set(fs.n, n);
+    fs.state = FS_LARGE; /* trial division and power check already done */
+    fs.tlim = lim * lim;
+
+    if (!factor_one(&fs))
+      croak("no factor found\n");
+
+    ret = fs.e == 1 ? _GMP_is_prime(fs.n)
+        : fs.e == 2 ? mpz_cmp_ui(fs.n, 1) == 0
+        : 0;
+    fs_clear(&fs);
+    return ret;
   }
 }
 
@@ -1620,8 +1625,9 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
 int is_smooth(mpz_t n, mpz_t k) {
   mpz_t *factors;
   mpz_t N;
-  int i, nfactors, *exponents;
+  int result;
   uint32_t klo, khi, div;
+  factor_state fs;
 
   if (mpz_cmp_ui(n,1) <= 0) return 1;
   if (mpz_cmp_ui(k,1) <= 0) return 0;
@@ -1647,21 +1653,28 @@ int is_smooth(mpz_t n, mpz_t k) {
     return 0;
   }
 
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (mpz_cmp(factors[i], k) > 0)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER; /* trial division already done to khi */
+  fs.tlim = (UV)khi * khi; /* FIXME: can overflow on 32-bit */
+  result = 1;
+  while (factor_one(&fs)) {
+    if (mpz_cmp(fs.f, k) > 0) {
+      result = 0;
+      break;
+    }
+  }
+  fs_clear(&fs);
+  return result;
 }
 
 int is_rough(mpz_t n, mpz_t k) {
   mpz_t *factors;
   mpz_t N, f;
-  int i, nfactors, *exponents;
+  int result;
   uint32_t khi, stage;
+  factor_state fs;
 
   if (mpz_sgn(n) == 0) return 0 + (mpz_sgn(k) == 0);
   if (mpz_cmp_ui(n,1) == 0 || mpz_cmp_ui(k,1) <= 0) return 1;
@@ -1700,13 +1713,20 @@ int is_rough(mpz_t n, mpz_t k) {
       default: break;
     }
     if (!success) continue;
-    nfactors = factor(f, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      if (mpz_cmp(factors[i], k) < 0)
+
+    fs_init(&fs);
+    mpz_set(fs.n, f);
+    fs.state = FS_POWER;
+    fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+    result = 1;
+    while (factor_one(&fs)) {
+      if (mpz_cmp(fs.f, k) < 0) {
+        result = 0;
         break;
+      }
     }
-    clear_factors(nfactors, &factors, &exponents);
-    if (i < nfactors) break;       /* Return 0: Found a small factor. */
+    fs_clear(&fs);
+    if (result == 0) break;        /* Return 0: Found a small factor. */
     mpz_divexact(N, N, f);         /* Divide out the factors all checked */
     if (mpz_cmp(N, k) < 0) break;  /* Return 0: Reduced N to lower than k */
     if (stage >= 5 && _GMP_BPSW(N)) { mpz_clear(f); mpz_clear(N); return 1; }
@@ -1718,21 +1738,28 @@ int is_rough(mpz_t n, mpz_t k) {
   }
 
   /* 3. Fully factor */
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (mpz_cmp(factors[i], k) < 0)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER;
+  fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+  result = 1;
+  while (factor_one(&fs)) {
+    if (mpz_cmp(fs.f, k) < 0) {
+      result = 0;
+      break;
+    }
+  }   
+  fs_clear(&fs);
+  return result;
 }
 
 int is_powerful(mpz_t n, uint32_t k) {
   mpz_t *factors;
   mpz_t N, f;
-  int i, nfactors, *exponents;
+  int i, result;
   uint32_t e, klo, khi, div;
+  factor_state fs;
 
   if (k == 0) k = 2;   /* API */
 
@@ -1778,14 +1805,21 @@ int is_powerful(mpz_t n, uint32_t k) {
   mpz_clear(f);
 
   /* 3. Fully factor */
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (exponents[i] < k)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER;
+  fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+  result = 1;
+  while (factor_one(&fs)) {
+    if (fs.e < k) {
+      result = 0;
+      break;
+    }
+    /* TODO: check fs.n and tofac_stack for any factor < khi^k */
+  }
+  fs_clear(&fs);
+  return result;
 }
 
 int is_almost_prime(uint32_t k, mpz_t n)
