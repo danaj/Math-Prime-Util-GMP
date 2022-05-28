@@ -72,5 +72,6 @@ extern int is_smooth(mpz_t n, mpz_t k);
 extern int is_rough(mpz_t n, mpz_t k);
 extern int is_powerful(mpz_t n, uint32_t k);
 extern int is_almost_prime(uint32_t k, mpz_t n);
+extern int is_tau(mpz_t n, uint32_t k);
 
 #endif

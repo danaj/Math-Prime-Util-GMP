@@ -1847,3 +1847,86 @@ int is_almost_prime(uint32_t k, mpz_t n)
 
   return bigomega(n) == k;
 }
+
+/* Return true if what's left to factor is a prime */
+static int _scanp(factor_state* fs)
+{
+  int result = 0;
+  if (mpz_cmp_ui(fs->n, 1) != 0) {
+    if (_GMP_is_prime(fs->n))
+      result = 1;
+    else
+      return 0;
+  }
+  for (int i = 0; i < fs->ntofac; ++i) {
+    if (mpz_cmp_ui(fs->tofac_stack[i], 1) == 0)
+      continue;
+    if (result) return 0;
+    if (_GMP_is_prime(fs->tofac_stack[i])) {
+      result = 1;
+    } else
+      return 0;
+  }
+  return result;
+}
+
+/* Return true if tau(n) == k */
+int is_tau(mpz_t n, uint32_t k)
+{
+  int cmp = mpz_cmp_ui(n, 1);
+  int result = 0;
+  factor_state fs;
+
+  if (cmp < 0) return 0;
+  if (cmp == 0) return k == 1;
+  if (k == 1) return 0;
+  if (k == 2) return _GMP_is_prime(n) ? 1 : 0;
+
+  fs_init(&fs);
+  mpz_set(fs.n, n);
+  while (1) {
+    if (k & 1) {
+      int e = power_factor(fs.n, fs.f);
+      if (e == 0 || e & 1 || e > k)
+        break;
+      mpz_set(fs.n, fs.f);
+      /* we actually need e divisible by gcd(map $_ - 1, divisors(k)) */
+      while (1) {
+        if (k == e + 1) {
+          result = _scanp(&fs);
+          break;
+        }
+        factor_one(&fs);
+        if (k % (fs.e * e + 1))
+          break;
+        k /= fs.e * e + 1;
+        if (k == 1) {
+          result = (mpz_cmp_ui(fs.n, 1) == 0);
+          for (int i = 0; i < fs.ntofac; ++i)
+            result &= (mpz_cmp_ui(fs.tofac_stack[i], 1) == 0);
+          break;
+        }
+      }
+      break;
+    }
+    if (k == 2) {
+      result = _scanp(&fs);
+      break;
+    }
+    factor_one(&fs);
+    if (k % (fs.e + 1))
+      break;
+    k /= fs.e + 1;
+    if (k == 1) {
+      result = (mpz_cmp_ui(fs.n, 1) == 0);
+      for (int i = 0; i < fs.ntofac; ++i)
+        result &= (mpz_cmp_ui(fs.tofac_stack[i], 1) == 0);
+      break;
+    }
+    /* if fs.state == FS_LARGE, we need n >= max_trial_p ^ min_exp, where
+     * max_trial_p = sqrt(fs.tlim), min_exp = sum(map $_ - 1, factor(k))
+     */
+  }
+  fs_clear(&fs);
+  return result;
+}
