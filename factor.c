@@ -1657,7 +1657,8 @@ int is_smooth(mpz_t n, mpz_t k) {
   mpz_set(fs.n, N);
   mpz_clear(N);
   fs.state = FS_POWER; /* trial division already done to khi */
-  fs.tlim = (UV)khi * khi; /* FIXME: can overflow on 32-bit */
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
   result = 1;
   while (factor_one(&fs)) {
     if (mpz_cmp(fs.f, k) > 0) {
@@ -1717,7 +1718,8 @@ int is_rough(mpz_t n, mpz_t k) {
     fs_init(&fs);
     mpz_set(fs.n, f);
     fs.state = FS_POWER;
-    fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+    /* careful for 32-bit overflow */
+    fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
     result = 1;
     while (factor_one(&fs)) {
       if (mpz_cmp(fs.f, k) < 0) {
@@ -1742,7 +1744,8 @@ int is_rough(mpz_t n, mpz_t k) {
   mpz_set(fs.n, N);
   mpz_clear(N);
   fs.state = FS_POWER;
-  fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
   result = 1;
   while (factor_one(&fs)) {
     if (mpz_cmp(fs.f, k) < 0) {
@@ -1809,7 +1812,8 @@ int is_powerful(mpz_t n, uint32_t k) {
   mpz_set(fs.n, N);
   mpz_clear(N);
   fs.state = FS_POWER;
-  fs.tlim = (UV)khi * khi;  /* FIXME 32-bit */
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
   result = 1;
   while (factor_one(&fs)) {
     if (fs.e < k) {
