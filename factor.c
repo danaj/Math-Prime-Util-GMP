@@ -426,6 +426,7 @@ fs_retry:
   }
 found_factor:
   if (!_GMP_is_prob_prime(fs->f)) {
+    mpz_init(fs->tofac_stack[fs->ntofac]);
     mpz_divexact(fs->tofac_stack[fs->ntofac], fs->n, fs->f);
     ++fs->ntofac;
     mpz_set(fs->n, fs->f);
