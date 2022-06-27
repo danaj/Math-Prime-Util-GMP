@@ -1897,7 +1897,8 @@ int is_tau(mpz_t n, uint32_t k)
           result = _scanp(&fs);
           break;
         }
-        factor_one(&fs);
+        if (!factor_one(&fs))
+          break;
         if (k % (fs.e * e + 1))
           break;
         k /= fs.e * e + 1;
@@ -1914,7 +1915,8 @@ int is_tau(mpz_t n, uint32_t k)
       result = _scanp(&fs);
       break;
     }
-    factor_one(&fs);
+    if (!factor_one(&fs))
+      break;
     if (k % (fs.e + 1))
       break;
     k /= fs.e + 1;
