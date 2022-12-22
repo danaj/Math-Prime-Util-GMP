@@ -1596,6 +1596,7 @@ void parse_top(void)
       if (strcmp(_line, "[Candidate]") == 0)  items_found++;
       if (_format == CERT_PRIMO42) {
         if (sscanf(_line, "N=$%s", _vstr) == 1) items_found++;
+        else if (sscanf(_line, "N=0x%s", _vstr) == 1) items_found++;
       } else {
         if (sscanf(_line, "N$=%s", _vstr) == 1) items_found++;
       }
