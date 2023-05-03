@@ -770,7 +770,7 @@ gcd(...)
     int i, negflag;
     mpz_t ret, n;
   PPCODE:
-    if (items == 0) XSRETURN_IV( (ix == 3) ? 1 : 0);
+    if (items == 0) XSRETURN_IV( (ix == 1 || ix == 3) ? 1 : 0);
     negflag = (ix <= 1) ? VSETNEG_POS : VSETNEG_OK;
     if (ix == 1 || ix == 3) {
       mpz_t* list;
@@ -1273,8 +1273,8 @@ void chinese(...)
   PPCODE:
     if (items == 0) {
       if (ix == 0)  XSRETURN_UV(0);
-      PUSHs(sv_2mortal(newSVuv( 0 )));
-      PUSHs(sv_2mortal(newSVuv( 0 )));
+      XPUSHs(sv_2mortal(newSVuv( 0 )));
+      XPUSHs(sv_2mortal(newSVuv( 0 )));
       XSRETURN(2);
     }
     mpz_init_set_ui(ret, 0);

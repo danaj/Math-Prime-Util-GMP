@@ -132,6 +132,7 @@
 - gamma, lngamma
   See http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.527.8519
   https://www.researchgate.net/publication/272039164_A_new_fast_asymptotic_series_for_the_gamma_function
+  https://arxiv.org/pdf/2301.09699.pdf
 
 - lambertw should use increasing precision.
 
@@ -180,6 +181,9 @@
 - Check for lucas_seq with P*P overflow 64-bit, so D might be wrong.
 
 - Rademacher partitions
+
+- overpartitions
+  https://arxiv.org/pdf/2303.15895
 
 =============== MUST DO BEFORE RELEASE
 

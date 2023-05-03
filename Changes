@@ -66,6 +66,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - chinese uses absolute values of modulus.
 
+    - lcm with no arguments returns 1 rather than 0.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

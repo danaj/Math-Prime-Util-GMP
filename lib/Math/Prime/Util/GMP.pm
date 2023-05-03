@@ -1191,10 +1191,12 @@ This corresponds to Mathematica's C<Subfactorial[n]> function.
 
 Given a list of integers, returns the greatest common divisor.  This is
 often used to test for L<coprimality|https://oeis.org/wiki/Coprimality>.
+An empty list will return 0.
 
 =head2 lcm
 
 Given a list of integers, returns the least common multiple.
+An empty list will return 1.
 
 =head2 gcdext
 
@@ -1213,7 +1215,7 @@ Solves a system of simultaneous congruences using the Chinese Remainder
 Theorem (with extension to non-coprime moduli).  A list of C<[a,n]> pairs
 are taken as input, each representing an equation C<x ≡ a mod |n|>.  If no
 solution exists, C<undef> is returned.  If a solution is returned, the
-modulus is equal to the lcm of all the given moduli (see L</lcm>.  In
+modulus is equal to the lcm of all the given moduli (see L</lcm>).  In
 the standard case where all values of C<n> are coprime, this is just the
 product.  The C<n> values must be non-zero integers, while the C<a> values
 are integers.
@@ -1223,7 +1225,7 @@ are integers.
 Functions like L</chinese> but returns two items: the remainder and the
 modulus.
 If a solution exists, the second value (the final modulus) is equal to
-the lcm of all the absolute values of all the given moduli.
+the lcm of the absolute values of all the given moduli.
 
 If no solution exists, both return values will be C<undef>.
 
