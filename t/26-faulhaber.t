@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+# Note: we are now using the name powersum for this function.
+
 use Test::More;
 use Math::Prime::Util::GMP qw/faulhaber_sum/;
 

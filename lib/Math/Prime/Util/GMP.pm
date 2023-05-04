@@ -72,7 +72,7 @@ our @EXPORT_OK = qw(
                      factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
-                     bernvec faulhaber_sum
+                     bernvec powersum faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
@@ -86,7 +86,7 @@ our @EXPORT_OK = qw(
                      carmichael_lambda
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
-                     divint modint divrem tdivrem
+                     divint modint divceilint divrem tdivrem fdivrem cdivrem
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
@@ -206,7 +206,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint modint divrem tdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint divceilint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1358,7 +1358,7 @@ reference containing the numerator and denominator.
 
 This will be faster than calling bernfrac for each value.  The computed
 values are stored in a cache (not incremental), so later calls to to
-L</bernfrac>, L</bernreal>, L</bernvec>, and L</faulhaber_sum> with
+L</bernfrac>, L</bernreal>, L</bernvec>, and L</powersum> with
 an C<n> in the range will be substantially faster.
 
 When called in void context this just calculates and caches the values.
@@ -1581,9 +1581,9 @@ or between C<lo> and C<hi> (two arguments).  The values are inclusive.
 By convention, 1 is included even though L</is_prime_power(1) = 0>.
 This is L<OEIS series A025528|http://oeis.org/A025528>.
 
-=head2 faulhaber_sum
+=head2 powersum
 
-  say faulhaber_sum(111,18);
+  say powersum(111,18);
   # 41588295196841906092077874022002239896
 
 Given C<n> and C<p>, returns the sum of the C<p>-th powers of the first C<n>
@@ -1596,8 +1596,10 @@ should be called in void context first.
 
 Additionally, because the cache is used, this is not thread safe in general.
 L</bernvec> should be called once on a single thread, then future calls to
-C<faulhaber_sum> and the other functions can be safely done on multiple
+C<powersum> and the other functions can be safely done on multiple
 threads if and only if within that range.
+
+This is aliased to C<faulhaber_sum>.
 
 =head2 sigma
 
@@ -1952,6 +1954,12 @@ the remainder has the same sign as the divisor C<b>.
 This is the same as modern L<Math::BigInt/bdiv> and the GMP C<fdiv> functions,
 but not the same as Pari/GP's C<\\> operator.
 
+=head2 divceilint
+
+Given integers C<a> and C<b>, returns the quotient C<a / b> when using
+ceiling division.  The quotient is rounded up towards +infinity and the
+remainder will have the opposite sign as the divisor C<b>.
+
 =head2 modint
 
 Given integers C<a> and C<b>, returns the modulo C<a % b>.
@@ -1981,6 +1989,16 @@ the truncated quotient and the truncated remainder.
 
 The resulting pair will match
 L<Math::BigInt/btdiv> and L<Math::BigInt/btmod>.
+
+=head2 fdivrem
+
+Given integers C<a> and C<b>, returns a list of two items:
+the floor quotient and the floor remainder.
+
+=head2 cdivrem
+
+Given integers C<a> and C<b>, returns a list of two items:
+the ceiling quotient and the ceiling remainder.
 
 =head2 lshiftint
 
@@ -2592,7 +2610,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2021 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2023 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

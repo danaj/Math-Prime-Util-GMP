@@ -198,5 +198,3 @@
 - sqrtmod(4,8) -> undef
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
-
-- add fdivrem  (ensure match with latest base package)

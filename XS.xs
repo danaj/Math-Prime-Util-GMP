@@ -959,11 +959,13 @@ invmod(IN char* stra, IN char* strb)
     subint = 14
     divint = 15
     modint = 16
-    tdivrem = 17
-    divrem = 18
-    factorialmod = 19
-    multifactorial = 20
-    faulhaber_sum = 21
+    divceilint = 17
+    tdivrem = 18
+    fdivrem = 19
+    cdivrem = 20
+    divrem = 21
+    factorialmod = 22
+    multifactorial = 23
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -1043,11 +1045,22 @@ invmod(IN char* stra, IN char* strb)
       case 16:if (mpz_sgn(b) == 0) croak("modint: divide by zero");
               mpz_fdiv_r(a, a, b);
               break;
-      case 17:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
+      case 17:if (mpz_sgn(b) == 0) croak("divceilint: divide by zero");
+              mpz_cdiv_q(a, a, b);
+              break;
+      case 18:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
               mpz_tdiv_qr(b, a, a, b);  /* t is t-quotient, a is t-remainder */
               XPUSH_MPZ(b);
               break;
-      case 18:mpz_init_set(t, b);
+      case 19:if (mpz_sgn(b) == 0) croak("fdivrem: divide by zero");
+              mpz_fdiv_qr(b, a, a, b);  /* t is f-quotient, a is f-remainder */
+              XPUSH_MPZ(b);
+              break;
+      case 20:if (mpz_sgn(b) == 0) croak("cdivrem: divide by zero");
+              mpz_cdiv_qr(b, a, a, b);  /* t is c-quotient, a is c-remainder */
+              XPUSH_MPZ(b);
+              break;
+      case 21:mpz_init_set(t, b);
               if (mpz_sgn(b) == 0) croak("divrem: divide by zero");
               mpz_tdiv_qr(t, a, a, b);  /* t is t-quotient, a is t-remainder */
               if (mpz_sgn(a) < 0) {  /* Change from trunc to Euclidean */
@@ -1062,21 +1075,32 @@ invmod(IN char* stra, IN char* strb)
               XPUSH_MPZ(t);
               mpz_clear(t);
               break;
-      case 19:if (mpz_sgn(b) < 0) retundef = 1;
+      case 22:if (mpz_sgn(b) < 0) retundef = 1;
               else                factorialmod(a, mpz_get_ui(a), b);
               break;
-      case 20:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
+      case 23:
+      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
               else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
-              break;
-      case 21:
-      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("faulhaber_sum: negative argument");
-              faulhaber_sum(a, a, mpz_get_ui(b));
               break;
 
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
+
+void powersum(IN char* stra, IN char* strb)
+  ALIAS:
+    faulhaber_sum = 1
+  PREINIT:
+    mpz_t a, b, t;
+    int retundef;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("powersum: negative argument");
+    faulhaber_sum(a, a, mpz_get_ui(b));
+    XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
 
 void
 lshiftint(IN char* strn, IN unsigned long k = 1)
