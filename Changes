@@ -39,7 +39,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - bitxor(a,b)              bitwise xor
     - bitnot(n)                bitwise not (complement)
     - chinese2([a,m],...)      like chinese, but also returns modulo
-    - divceilint(a,b)          integer a/b quotient  (ceiling)
+    - cdivint(a,b)             integer a/b quotient  (ceiling)
     - fdivrem(a,b)             integer a/b quo + rem (floor)
     - cdivrem(a,b)             integer a/b quo + rem (ceiling)
 

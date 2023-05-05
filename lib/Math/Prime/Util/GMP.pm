@@ -86,7 +86,7 @@ our @EXPORT_OK = qw(
                      carmichael_lambda
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
-                     divint modint divceilint divrem tdivrem fdivrem cdivrem
+                     divint modint cdivint divrem tdivrem fdivrem cdivrem
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
@@ -206,7 +206,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint divceilint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1954,7 +1954,7 @@ the remainder has the same sign as the divisor C<b>.
 This is the same as modern L<Math::BigInt/bdiv> and the GMP C<fdiv> functions,
 but not the same as Pari/GP's C<\\> operator.
 
-=head2 divceilint
+=head2 cdivint
 
 Given integers C<a> and C<b>, returns the quotient C<a / b> when using
 ceiling division.  The quotient is rounded up towards +infinity and the

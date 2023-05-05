@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint subint divint modint divceilint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint/;
+use Math::Prime::Util::GMP qw/powint mulint addint subint divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -65,7 +65,7 @@ plan tests => 0
             + 1 + scalar(@subints)           # subint
             + 2 + 2                          # divint
             + 2 + 2                          # modint
-            + 2 + 1                          # divceilint
+            + 2 + 1                          # cdivint
             + 2                              # divrem
             + 2                              # tdivrem
             + 2                              # fdivrem
@@ -158,13 +158,13 @@ ok(!eval { modint(1,0); }, "modint(1,0)");
 is_deeply( [map { modint(1024,$_) } 1..1025], \@rpos1024, "modint(1024,x) for 1 .. 1025" );
 is_deeply( [map { modint(-1024,$_) } 1..1025], \@rneg1024, "modint(-1024,x) for 1 .. 1025" );
 
-###### divceilint
-ok(!eval { divceilint(0,0); }, "divceilint(0,0)");
-ok(!eval { divceilint(1,0); }, "divceilint(1,0)");
+###### cdivint
+ok(!eval { cdivint(0,0); }, "cdivint(0,0)");
+ok(!eval { cdivint(1,0); }, "cdivint(1,0)");
 
-is_deeply([divceilint(7,3),divceilint(7,-3),divceilint(-7,3),divceilint(-7,-3)],
+is_deeply([cdivint(7,3),cdivint(7,-3),cdivint(-7,3),cdivint(-7,-3)],
           [3,-2,-2,3],
-          "divceilint with all signs of 7,3");
+          "cdivint with all signs of 7,3");
 
 ###### divrem
 ok(!eval { divrem(0,0); }, "divrem(0,0)");
@@ -182,7 +182,7 @@ ok(!eval { fdivrem(1,0); }, "fdivrem(1,0)");
 ok(!eval { cdivrem(0,0); }, "cdivrem(0,0)");
 ok(!eval { cdivrem(1,0); }, "cdivrem(1,0)");
 
-###### large values through divint, divceilint, modint,
+###### large values through divint, cdivint, modint,
 ######                      divrem, tdivrem, fdivrem, cdivrem
 for my $s (@quotients) {
   my($signs, $n, $m, $qt, $qf, $qc, $qe) = @$s;
@@ -190,7 +190,7 @@ for my $s (@quotients) {
   my($rt, $rf, $rc, $re) = map { $bn - $bm * $_ } ($qt, $qf, $qc, $qe);
   is( divint($n, $m), $qf, "large divint  $signs" );
   is( modint($n, $m), $rf, "large modint  $signs" );
-  is( divceilint($n, $m), $qc, "large divint  $signs" );
+  is( cdivint($n, $m), $qc, "large divint  $signs" );
   is_deeply( [divrem($n, $m)], [$qe, $re], "large divrem  $signs" );
   is_deeply( [tdivrem($n, $m)], [$qt, $rt], "large tdivrem $signs" );
   is_deeply( [fdivrem($n, $m)], [$qf, $rf], "large fdivrem $signs" );

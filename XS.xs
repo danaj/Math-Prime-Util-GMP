@@ -959,7 +959,7 @@ invmod(IN char* stra, IN char* strb)
     subint = 14
     divint = 15
     modint = 16
-    divceilint = 17
+    cdivint = 17
     tdivrem = 18
     fdivrem = 19
     cdivrem = 20
@@ -1045,7 +1045,7 @@ invmod(IN char* stra, IN char* strb)
       case 16:if (mpz_sgn(b) == 0) croak("modint: divide by zero");
               mpz_fdiv_r(a, a, b);
               break;
-      case 17:if (mpz_sgn(b) == 0) croak("divceilint: divide by zero");
+      case 17:if (mpz_sgn(b) == 0) croak("cdivint: divide by zero");
               mpz_cdiv_q(a, a, b);
               break;
       case 18:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
