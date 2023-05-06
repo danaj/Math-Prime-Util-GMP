@@ -178,12 +178,12 @@
 - Refactor the lucas sequence code.
   Compare performance, as well as with the generic V+inversion method.
 
-- Check for lucas_seq with P*P overflow 64-bit, so D might be wrong.
-
 - Rademacher partitions
 
 - overpartitions
   https://arxiv.org/pdf/2303.15895
+
+- Should P and Q in Lucas parameters be unrestricted size?
 
 =============== MUST DO BEFORE RELEASE
 
