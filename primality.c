@@ -485,7 +485,7 @@ void alt_lucas_seq(mpz_t Uh, mpz_t Vl, mpz_t n, IV P, IV Q, mpz_t k,
   }
 }
 
-void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
+void lucasuv(mpz_t Uh, mpz_t Vl, mpz_t P, mpz_t Q, mpz_t k)
 {
   mpz_t Vh, Ql, Qh, t;
   int j, s, n;
@@ -498,7 +498,7 @@ void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
 
   mpz_set_ui(Uh, 1);
   mpz_set_ui(Vl, 2);
-  mpz_init_set_si(Vh,P);
+  mpz_init_set(Vh, P);
   mpz_init(t);
 
   s = mpz_scan1(k, 0);     /* number of zero bits at the end */
@@ -513,21 +513,21 @@ void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
   for (j = n; j > s; j--) {
     mpz_mul(Ql, Ql, Qh);
     if (mpz_tstbit(k, j)) {
-      mpz_mul_si(Qh, Ql, Q);
+      mpz_mul(Qh, Ql, Q);
       mpz_mul(Uh, Uh, Vh);
-      mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh); mpz_sub(Vl, Vl, t);
+      mpz_mul(t, Ql, P);  mpz_mul(Vl, Vl, Vh); mpz_sub(Vl, Vl, t);
       mpz_mul(Vh, Vh, Vh); mpz_sub(Vh, Vh, Qh); mpz_sub(Vh, Vh, Qh);
     } else {
       mpz_set(Qh, Ql);
       mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
-      mpz_mul_si(t, Ql, P);  mpz_mul(Vh, Vh, Vl); mpz_sub(Vh, Vh, t);
+      mpz_mul(t, Ql, P);  mpz_mul(Vh, Vh, Vl); mpz_sub(Vh, Vh, t);
       mpz_mul(Vl, Vl, Vl);  mpz_sub(Vl, Vl, Ql);  mpz_sub(Vl, Vl, Ql);
     }
   }
   mpz_mul(Ql, Ql, Qh);
-  mpz_mul_si(Qh, Ql, Q);
+  mpz_mul(Qh, Ql, Q);
   mpz_mul(Uh, Uh, Vl);  mpz_sub(Uh, Uh, Ql);
-  mpz_mul_si(t, Ql, P);  mpz_mul(Vl, Vl, Vh);  mpz_sub(Vl, Vl, t);
+  mpz_mul(t, Ql, P);  mpz_mul(Vl, Vl, Vh);  mpz_sub(Vl, Vl, t);
   mpz_mul(Ql, Ql, Qh);
   mpz_clear(Qh);  mpz_clear(t);  mpz_clear(Vh);
   for (j = 0; j < s; j++) {
@@ -537,6 +537,59 @@ void lucasuv(mpz_t Uh, mpz_t Vl, IV P, IV Q, mpz_t k)
   }
   mpz_clear(Ql);
 }
+
+#if 0
+void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+{
+  mpz_t D;
+
+  MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucasvmod: k is negative" );
+  if (mpz_cmp_ui(n, 1) < 0) croak("lucasvmod: modulus n must be > 0");
+
+  if (mpz_sgn(k) <= 0) {
+    mpz_set_ui(V, 2);
+    mpz_mod(V, V n);
+    return;
+  }
+  if (mpz_sgn(n) <= 0) {
+    mpz_set_ui(V, 0);
+    return;
+  }
+
+  mpz_init(D);
+
+  mpz_mul(D, P, P);
+  mpz_submul_ui(D, Q, 4);
+  mpz_mod(D, D, n);    /* D = (P*P - 4*Q) mod n */
+
+  if (mpz_sgn(D) == 0) {
+    mpz_div_ui(t, P, 2);
+    mpz_mod(t, t, n);
+    if (mpz_sgn(t) != 0) {
+      mpz_powm(t, t, k, n);
+      mpz_mul_ui(V, t, 2);
+      mpz_mod(V, V, n);
+      mpz_clear(D);
+      return;
+    }
+    // TODO: return here?
+  }
+  // TODO: n % 2 == 0
+
+  // TODO: complete implementation
+}
+#else
+void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+{
+  lucasuv(t, V, P, Q, k);
+  mpz_mod(V, V, n);
+}
+void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+{
+  lucasuv(U, t, P, Q, k);
+  mpz_mod(U, U, n);
+}
+#endif
 
 int lucas_lehmer(UV p)
 {

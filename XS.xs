@@ -872,21 +872,39 @@ moebius(IN char* strn, IN char* stro = 0)
       mpz_clear(nhi);
     }
 
-void
-lucasu(IN IV P, IN IV Q, IN char* strk)
+void lucasu(IN char* strp, IN char* strq, IN char* strk)
   ALIAS:
     lucasv = 1
   PREINIT:
-    mpz_t u, v, k;
+    mpz_t u, v, p, q, k;
   PPCODE:
+    validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
+    validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
     VALIDATE_AND_SET(k, strk);
     /* We could call mpz_fib_ui / mpz_lucnum_ui when P=1,Q=-1,
      * but it is only 10-15% faster so let's not special case. */
     mpz_init(u);  mpz_init(v);
-    lucasuv(u, v, P, Q, k);
+    lucasuv(u, v, p, q, k);
     XPUSH_MPZ( ((ix == 0) ? u : v) );
     mpz_clear(v); mpz_clear(u);
-    mpz_clear(k);
+    mpz_clear(k); mpz_clear(q); mpz_clear(p);
+
+void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
+  ALIAS:
+    lucasvmod = 1
+  PREINIT:
+    mpz_t uv, t, p, q, k, n;
+  PPCODE:
+    validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
+    validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
+    VALIDATE_AND_SET(k, strk);
+    VALIDATE_AND_SET(n, strn);
+    mpz_init(uv);  mpz_init(t);
+    if (ix == 0)  lucasumod(uv, p, q, k, n, t);
+    else          lucasvmod(uv, p, q, k, n, t);
+    XPUSH_MPZ(uv);
+    mpz_clear(t); mpz_clear(uv);
+    mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
 
 int
 liouville(IN char* strn)

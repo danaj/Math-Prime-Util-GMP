@@ -33,7 +33,7 @@ my @functions = qw(
                      is_proth_prime
                      is_miller_prime
                      miller_rabin_random
-                     lucas_sequence  lucasu  lucasv
+                     lucas_sequence  lucasu  lucasv  lucasumod  lucasvmod
                      primes
                      sieve_primes
                      sieve_twin_primes

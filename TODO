@@ -198,3 +198,9 @@
 - sqrtmod(4,8) -> undef
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
+
+- docs for lucas sequences need to be clear about P/Q limitations
+
+- make lucasvmod efficient, especially with Q=1
+
+- find places in code where we can use lucasvmod

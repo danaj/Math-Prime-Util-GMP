@@ -41,7 +41,7 @@ our @EXPORT_OK = qw(
                      is_miller_prime
                      miller_rabin_random
                      is_gaussian_prime
-                     lucas_sequence  lucasu  lucasv
+                     lucas_sequence  lucasu  lucasv  lucasumod  lucasvmod
                      primes
                      sieve_primes
                      sieve_twin_primes
@@ -1096,6 +1096,20 @@ the Lucas numbers (C<1,-1>).
 
 This corresponds to OpenPFGW's C<lucasV> function and gmpy2's C<lucasv>
 function.
+
+=head2 lucasumod
+
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
+integer C<n>, computes C<U_k> modulo C<n> for the Lucas sequence defined
+by C<P>,C<Q>.
+
+=head2 lucasvmod
+
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
+integer C<n>, computes C<V_k> modulo C<n> for the Lucas sequence defined
+by C<P>,C<Q>.
+
+This can be particularly efficient, especially if C<Q=1>.
 
 =head2 lucas_sequence
 

@@ -18,7 +18,7 @@ use Math::Prime::Util::GMP qw/
    is_perrin_pseudoprime
    is_prime
    is_bpsw_prime
-   lucas_sequence lucasu lucasv
+   lucas_sequence lucasu lucasv lucasumod lucasvmod
    miller_rabin_random
    primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -173,6 +173,8 @@ plan tests => 0 + 9
                 + scalar @small_lucas_trials
                 + scalar(keys %lucas_sequences)
                 + 7  # lucasu lucasv
+                + 6  # lucasumod lucasvmod
+              # skipping these:
               # + $num_large_pseudoprime_tests
                 + 18*$extra  # Large Carmichael numbers
                 + 2 # M-R-random
@@ -322,6 +324,26 @@ while (my($params, $expect) = each (%lucas_sequences)) {
   $str = $n;
   substr($str, 15, -15, "...");
   is( $str, "580334188745259...957502147624960", "lucasv(10,8,88321)" );
+}
+
+{
+  is(lucasumod('12191546079288003221', 1, 343, '13581893559735945553'), '7312819742654600913', 'lucasumod(12191546079288003221,1,343,13581893559735945553)');
+  is(lucasvmod('12191546079288003221', 1, 343, '13581893559735945553'), '5377771953708190494', 'lucasvmod(12191546079288003221,1,343,13581893559735945553)');
+
+  # Arbitrary large numbers
+  my $P = '2934820398402938092384095959923845';
+  my $Q = '982340928309238409293484384234';
+  my $k = 7;
+  my $n = '93284902384902384902389999977';
+  my $expU = '25334869115319721344893191735';
+  my $expV = '69387036616346396045108433732';
+
+  is(lucasumod($P, $Q, $k, $n), $expU, 'lucasumod with large P and Q');
+  is(lucasvmod($P, $Q, $k, $n), $expV, 'lucasvmod with large P and Q');
+
+  # If we use modint(value,$n) on these, we get $expU and $expV.
+  is(lucasu($P, $Q, $k), '638982808433522085545526796419139574565194569084879688961370201789461273036864463739989850080992114905246599468477822532880603380773729456663882472537224263398682230515459999540010010351118370161596871', "lucasu for large P and Q");
+  is(lucasv($P, $Q, $k), '1875299780419497557538948612956167552951772186106753300376504920556962412200502591917907602290572119239861996582993221578397134916418952408512789835017751871121324009103483441761790314370208020327461156252066033716180814973870096415215', "lucasv for large P and Q");
 }
 
 if ($extra) {

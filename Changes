@@ -42,6 +42,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - cdivint(a,b)             integer a/b quotient  (ceiling)
     - fdivrem(a,b)             integer a/b quo + rem (floor)
     - cdivrem(a,b)             integer a/b quo + rem (ceiling)
+    - lucasumod(P,Q,k,n)       modular Lucas U value
+    - lucasvmod(P,Q,k,n)       modular Lucas V value
 
     [FIXES]
 
@@ -63,6 +65,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - lucas_sequence did not always match modded lucasu and lucasv.
       Removed some unnecessary restrictions on P and Q.
       Qk=powmod(Q,k,n) wasn't true for k=0.  Fixed.
+      Large IV P and P could overflow internally.  Fixed.
 
     - lcm(-n) now returns n instead of -n.
       znorder(a,-n) now returns znorder(a,n) instead of -n.
@@ -81,6 +84,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     [OTHER]
 
     - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.
+
+    - lucasu and lucasv accept bigint P and Q values
 
 0.52 2020-06-22
 
