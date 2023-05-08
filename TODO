@@ -199,8 +199,13 @@
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
-- docs for lucas sequences need to be clear about P/Q limitations
-
 - make lucasvmod efficient, especially with Q=1
+  lucasuvmod should be done properly also
 
 - find places in code where we can use lucasvmod
+
+= move lucas code into lucas_seq.{h,c}
+
+- add lucasuv tests
+
+- what's going on with compbit and bitcom?

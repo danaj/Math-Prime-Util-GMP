@@ -352,10 +352,14 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 
   if (Q == 1) {
     /* Use the fast V method if possible.  Much faster with small n. */
+#if 1  /* TODO: I think just the invert below will work */
     mpz_set_si(t, P);
     mpz_mul(t, t, t);
     mpz_sub_ui(t, t, 4);    /* t = P*P-4 */
     if (P > 2 && mpz_invert(t, t, n)) {
+#else
+    if (mpz_invert(t, Dmod, n)) {
+#endif
       /* Compute V_k and V_{k+1}, then computer U_k from them. */
       mpz_set_si(V, P);
       mpz_mul(U, V, V);
@@ -538,6 +542,14 @@ void lucasuv(mpz_t Uh, mpz_t Vl, mpz_t P, mpz_t Q, mpz_t k)
   mpz_clear(Ql);
 }
 
+void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+{
+  // TODO: write this properly
+  lucasuv(U, V, P, Q, k);
+  mpz_mod(U, U, n);
+  mpz_mod(V, V, n);
+}
+
 #if 0
 void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
@@ -581,13 +593,17 @@ void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 #else
 void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
-  lucasuv(t, V, P, Q, k);
-  mpz_mod(V, V, n);
+  mpz_t U;
+  mpz_init(U);
+  lucasuvmod(U, V, P, Q, k, n, t);
+  mpz_clear(U);
 }
 void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
-  lucasuv(U, t, P, Q, k);
-  mpz_mod(U, U, n);
+  mpz_t V;
+  mpz_init(V);
+  lucasuvmod(U, V, P, Q, k, n, t);
+  mpz_clear(V);
 }
 #endif
 

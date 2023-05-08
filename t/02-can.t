@@ -33,7 +33,9 @@ my @functions = qw(
                      is_proth_prime
                      is_miller_prime
                      miller_rabin_random
-                     lucas_sequence  lucasu  lucasv  lucasumod  lucasvmod
+                     is_gaussian_prime
+                     lucas_sequence  lucasuv  lucasu  lucasv
+                     lucasuvmod  lucasumod  lucasvmod
                      primes
                      sieve_primes
                      sieve_twin_primes
@@ -74,17 +76,26 @@ my @functions = qw(
                      totient
                      jordan_totient
                      carmichael_lambda
-                     sqrtint rootint logint powint mulint addint
-                     divint modint divrem tdivrem
-                     is_power is_prime_power is_semiprime is_square
+                     prime_omega prime_bigomega
+                     sqrtint rootint logint powint mulint addint subint
+                     divint modint cdivint divrem tdivrem fdivrem cdivrem
+                     add1int sub1int
+                     negint absint signint cmpint cmpabsint
+                     lshiftint rshiftint rashiftint
+                     setbit clrbit tstbit
+                     bitand bitor bitxor
+                     is_power is_prime_power is_semiprime is_almost_prime
+                     is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
+                     powerful_count
+                     perfect_power_count prime_power_count
                      znorder
                      znprimroot
                      ramanujan_tau
                      Pi Euler
-                     todigits
+                     todigits fromdigits
                      random_prime random_nbit_prime random_ndigit_prime
                      random_safe_prime random_strong_prime
                      random_maurer_prime random_shawe_taylor_prime

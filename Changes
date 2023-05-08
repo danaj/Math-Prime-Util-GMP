@@ -44,6 +44,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - cdivrem(a,b)             integer a/b quo + rem (ceiling)
     - lucasumod(P,Q,k,n)       modular Lucas U value
     - lucasvmod(P,Q,k,n)       modular Lucas V value
+    - lucasuvmod(P,Q,k,n)      (U(P,Q)_k mod n, V(P,Q)_k mod n)
+    - lucasuv(P,Q,k)           Lucas sequence  (U(P,Q)_k, V(P,Q)_k)
 
     [FIXES]
 

@@ -41,7 +41,8 @@ our @EXPORT_OK = qw(
                      is_miller_prime
                      miller_rabin_random
                      is_gaussian_prime
-                     lucas_sequence  lucasu  lucasv  lucasumod  lucasvmod
+                     lucas_sequence  lucasuv  lucasu  lucasv
+                     lucasuvmod  lucasumod  lucasvmod
                      primes
                      sieve_primes
                      sieve_twin_primes
@@ -90,8 +91,8 @@ our @EXPORT_OK = qw(
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
-                     setbit clrbit compbit tstbit
-                     bitand bitor bitxor bitcom
+                     setbit clrbit tstbit
+                     bitand bitor bitxor
                      is_power is_prime_power is_semiprime is_almost_prime
                      is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
@@ -206,7 +207,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasu lucasv OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1097,6 +1098,13 @@ the Lucas numbers (C<1,-1>).
 This corresponds to OpenPFGW's C<lucasV> function and gmpy2's C<lucasv>
 function.
 
+=head2 lucasuv
+
+Given integers C<P>, C<Q>, and the non-negative integer C<k>,
+return (C<U_k> modulo C<n>, C<V_k> modulo C<n>) for the
+Lucas sequence defined by C<P>,C<Q>.
+
+
 =head2 lucasumod
 
 Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
@@ -1111,6 +1119,13 @@ by C<P>,C<Q>.
 
 This can be particularly efficient, especially if C<Q=1>.
 
+=head2 lucasuvmod
+
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
+integer C<n>, returns (C<U_k> modulo C<n>, C<V_k> modulo C<n>) for the
+Lucas sequence defined by C<P>,C<Q>.
+
+
 =head2 lucas_sequence
 
   my($U, $V, $Qk) = lucas_sequence($n, $P, $Q, $k)
@@ -1120,6 +1135,8 @@ C<P>,C<Q>, modulo C<n>.  The modular Lucas sequence is used in a
 number of primality tests and proofs.
 
 C<k> must be non-negative, and C<n> must be greater than zero.
+C<P> and C<Q> are restricted to native signed integers.
+The newer function L</lucasuvmod> accepts bigint values.
 
 
 =head2 primorial
