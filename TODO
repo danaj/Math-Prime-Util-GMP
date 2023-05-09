@@ -207,5 +207,6 @@
 = move lucas code into lucas_seq.{h,c}
 
 - add lucasuv tests
+- add lucasuvmod tests
 
 - what's going on with compbit and bitcom?
