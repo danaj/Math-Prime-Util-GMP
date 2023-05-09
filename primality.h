@@ -20,15 +20,6 @@ extern int  is_euler_plumb_pseudoprime(mpz_t n);
 extern int  is_frobenius_pseudoprime(mpz_t n, IV P, IV Q);
 extern int  is_frobenius_cp_pseudoprime(mpz_t n, UV ntests);
 
-extern void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
-                      mpz_t Qk, mpz_t t);
-extern void alt_lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
-                          mpz_t Qk, mpz_t t);
-extern void lucasuv(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k);
-extern void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t);
-extern void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t);
-extern void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t);
-
 extern int lucas_lehmer(UV p);
 extern int llr(mpz_t N);
 extern int proth(mpz_t N);

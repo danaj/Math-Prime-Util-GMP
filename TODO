@@ -204,8 +204,6 @@
 
 - find places in code where we can use lucasvmod
 
-= move lucas code into lucas_seq.{h,c}
-
 - add lucasuv tests
 - add lucasuvmod tests
 

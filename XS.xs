@@ -10,6 +10,7 @@
 #include "ptypes.h"
 #include "gmp_main.h"
 #include "primality.h"
+#include "lucas_seq.h"
 #include "squfof126.h"
 #include "ecm.h"
 #include "simpqs.h"
