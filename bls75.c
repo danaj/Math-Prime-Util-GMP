@@ -4,6 +4,7 @@
 
 #include "bls75.h"
 #include "primality.h"
+#include "lucas_seq.h"
 #include "prime_iterator.h"
 #include "pbrent63.h"
 #include "squfof126.h"

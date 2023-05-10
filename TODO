@@ -199,12 +199,4 @@
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
-- make lucasvmod efficient, especially with Q=1
-  lucasuvmod should be done properly also
-
-- find places in code where we can use lucasvmod
-
-- add lucasuv tests
-- add lucasuvmod tests
-
 - what's going on with compbit and bitcom?

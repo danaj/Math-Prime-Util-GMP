@@ -18,7 +18,7 @@ use Math::Prime::Util::GMP qw/
    is_perrin_pseudoprime
    is_prime
    is_bpsw_prime
-   lucas_sequence lucasu lucasv lucasumod lucasvmod
+   lucas_sequence lucasu lucasv lucasumod lucasvmod lucasuv lucasuvmod
    miller_rabin_random
    primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -171,9 +171,10 @@ plan tests => 0 + 9
                 + 3  # multiple bases
                 + 1  # small extra_strong
                 + scalar @small_lucas_trials
-                + scalar(keys %lucas_sequences)
+                + 2*scalar(keys %lucas_sequences)
+                + 7  # lucasuv
                 + 7  # lucasu lucasv
-                + 6  # lucasumod lucasvmod
+                + 8  # lucasumod lucasvmod lucasuvmod
               # skipping these:
               # + $num_large_pseudoprime_tests
                 + 18*$extra  # Large Carmichael numbers
@@ -297,7 +298,17 @@ for my $n (@small_lucas_trials) {
 while (my($params, $expect) = each (%lucas_sequences)) {
   my ($n, $p, $q, $k) = split(' ', $params);
   is_deeply( [lucas_sequence($n,$p,$q,$k)], $expect, "Lucas sequence $params" );
+  is_deeply( [lucasuvmod($p,$q,$k,$n)], [(@$expect)[0,1]], "Lucas sequence $params" );
 }
+
+is_deeply([lucasuv(-2,1,77)], [qw/77 -2/], "lucasuv(-2,1,77)");
+is_deeply([lucasuv(-2,1,78)], [qw/-78 2/], "lucasuv(-2,1,78)");
+is_deeply([lucasuv(1976,5,16)], [qw/27339861985064795494009991734166003120303617064256 54023428922685428704171689548869287975320852979063746/], "lucasuv(7,1,26)");
+is_deeply([lucasuv(7,1,26)], [qw/809297742799991694151 5428934300813767249007/], "lucasuv(7,1,26)");
+is_deeply([lucasuv(7,-1,26)], [qw/2158253550553860723607 15712323016961952435651/], "lucasuv(7,-1,26)");
+is_deeply([lucasuv(11,9,26)], [qw/14406755521422156274321643 132823723015101341506439623/], "lucasuv(11,9,26)");
+is_deeply([lucasuv(1,-1,27)], [qw/196418 439204/], "lucasuv(1,-1,27)");
+
 {
   is( lucasu(1,-1,1001), "70330367711422815821835254877183549770181269836358732742604905087154537118196933579742249494562611733487750449241765991088186363265450223647106012053374121273867339111198139373125598767690091902245245323403501", "Fibonacci(1001)" );
   is( lucasv(1,-1,1001), "157263483085297728693212310227264801375310590871102293547568363266227647954095037360550009174721122072079595635402411260638605742511929970292048335339367003086933714987796078672982630775099044177835579021861251", "Lucas(1001)" );
@@ -340,10 +351,12 @@ while (my($params, $expect) = each (%lucas_sequences)) {
 
   is(lucasumod($P, $Q, $k, $n), $expU, 'lucasumod with large P and Q');
   is(lucasvmod($P, $Q, $k, $n), $expV, 'lucasvmod with large P and Q');
+  is_deeply([lucasuvmod($P, $Q, $k, $n)], [$expU,$expV], 'lucasuvmod with large P and Q');
 
   # If we use modint(value,$n) on these, we get $expU and $expV.
   is(lucasu($P, $Q, $k), '638982808433522085545526796419139574565194569084879688961370201789461273036864463739989850080992114905246599468477822532880603380773729456663882472537224263398682230515459999540010010351118370161596871', "lucasu for large P and Q");
   is(lucasv($P, $Q, $k), '1875299780419497557538948612956167552951772186106753300376504920556962412200502591917907602290572119239861996582993221578397134916418952408512789835017751871121324009103483441761790314370208020327461156252066033716180814973870096415215', "lucasv for large P and Q");
+  is_deeply([lucasuv($P, $Q, $k)], [qw/638982808433522085545526796419139574565194569084879688961370201789461273036864463739989850080992114905246599468477822532880603380773729456663882472537224263398682230515459999540010010351118370161596871 1875299780419497557538948612956167552951772186106753300376504920556962412200502591917907602290572119239861996582993221578397134916418952408512789835017751871121324009103483441761790314370208020327461156252066033716180814973870096415215/], "lucasuv for large P and Q");
 }
 
 if ($extra) {

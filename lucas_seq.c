@@ -58,6 +58,30 @@ void lucasuv(mpz_t Uh, mpz_t Vl, mpz_t P, mpz_t Q, mpz_t k)
   mpz_clear(Ql);
 }
 
+/* No argument checking is done in this internal function. */
+void internal_lucas_vmod_q1(mpz_t V, mpz_t W, mpz_t P, mpz_t k, mpz_t n)
+{
+  int b = mpz_sizeinbase(k, 2);
+
+  mpz_mod(P, P, n);
+  mpz_set(V, P);
+  mpz_mul(W, P, P);
+  mpz_sub_ui(W, W, 2);  /*   V_{k} = V = P,  V_{k+1} = W = P*P-2   */
+  mpz_mod(W, W, n);
+  while (b-- > 1) {
+    if (mpz_tstbit(k, b-1)) {
+      mpz_mul(V, V, W);  mpz_sub(V, V, P);
+      mpz_mul(W, W, W);  mpz_sub_ui(W, W, 2);
+    } else {
+      mpz_mul(W, V, W);  mpz_sub(W, W, P);
+      mpz_mul(V, V, V);  mpz_sub_ui(V, V, 2);
+    }
+    mpz_mod(V, V, n);  mpz_mod(W, W, n);
+  }
+  /* V = V_{k} and W = V_{k+1} */
+  /* Therefore U = D^-1 * (2W - V*P) where D = P*P-4Q */
+}
+
 
 void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
@@ -73,22 +97,14 @@ void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   int qsignorig, qsign;
 
   if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
-  if (mpz_cmp_ui(n, 1) == 0) { mpz_set_ui(U,0); mpz_set_ui(V,0); return; }
-
-  if (mpz_cmp_ui(k, 0) <= 0) {
-    mpz_set_ui(U, 0);
-    mpz_set_ui(V, 2);  mpz_mod(V, V, n);
-    return;
-  }
+  if (mpz_cmp_ui(n, 1) == 0) { mpz_set_ui(V,0); return; }
+  if (mpz_cmp_ui(k, 0) <= 0) { mpz_set_ui(U,0); mpz_set_ui(V,2); mpz_mod(V,V,n); return; }
 
   mpz_init(Pmod);
   mpz_init(Qmod);
   mpz_init(Dmod);
   mpz_mod(Pmod, P, n);
   mpz_mod(Qmod, Q, n);
-
-  mpz_sub_ui(t, n, 1);
-  qsignorig = qsign = !mpz_cmp_si(Qmod,1) ? 1 : !mpz_cmp(Qmod,t) ? -1 : 0;
 
 #if 0
   /* A proof of concept of the idea from C&P page 147.
@@ -117,13 +133,16 @@ void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   }
 #endif
 
+  mpz_sub_ui(t, n, 1);
+  qsignorig = qsign = !mpz_cmp_si(Qmod,1) ? 1 : !mpz_cmp(Qmod,t) ? -1 : 0;
+
   mpz_mul(Dmod, Pmod, Pmod);
   mpz_submul_ui(Dmod, Qmod, 4);
   mpz_mod(Dmod, Dmod, n);    /* D = (P*P - 4*Q) mod n */
 
   mpz_set_ui(t, 2);
   if (mpz_sgn(Dmod) == 0 && mpz_invert(t, t, n)) {
-    mpz_mul(t, t, P);
+    mpz_mul(t, t, Pmod);
     mpz_mod(U, t, n);     /* S is P/2 mod n */
     mpz_set(V, U);
     mpz_sub_ui(t, k, 1);
@@ -298,56 +317,48 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
   mpz_clear(mQ); mpz_clear(mP);
 }
 
-
-#if 0
+#if 1
 void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
-  mpz_t D;
+  mpz_t U, Pmod, Qmod, Dmod;
 
-  /*
-   * XS:
-   *   D=0 return V
-   *   Q=1 2/bit
-   *   n odd:  3 even 7 odd
-   *   general:  call lucasuvmod
-   *
-   *   worth bothering with a Q=-1 case?
-   */
+  /* This doesn't save much vs. calling lucasuvmod, but it's a tiny help
+   * with the Q=1 case. */
 
-  MPUassert( mpz_cmp_ui(k, 0) >= 0, "lucasvmod: k is negative" );
-  if (mpz_cmp_ui(n, 1) < 0) croak("lucasvmod: modulus n must be > 0");
+  if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
+  if (mpz_cmp_ui(n, 1) == 0) { mpz_set_ui(V,0); return; }
+  if (mpz_cmp_ui(k, 0) <= 0) { mpz_set_ui(V, 2); mpz_mod(V, V, n); return; }
 
-  if (mpz_sgn(k) <= 0) {
-    mpz_set_ui(V, 2);
-    mpz_mod(V, V n);
+  mpz_init(Pmod);
+  mpz_init(Qmod);
+  mpz_init(Dmod);
+  mpz_mod(Pmod, P, n);
+  mpz_mod(Qmod, Q, n);
+
+  mpz_mul(Dmod, Pmod, Pmod);
+  mpz_submul_ui(Dmod, Qmod, 4);
+  mpz_mod(Dmod, Dmod, n);    /* D = (P*P - 4*Q) mod n */
+
+  mpz_set_ui(t, 2);
+  if (mpz_sgn(Dmod) == 0 && mpz_invert(t, t, n)) {
+    mpz_mul(t, t, Pmod);
+    mpz_mod(t, t, n);     /* S is P/2 mod n */
+
+    mpz_powm(V, t, k, n);
+    mpz_mul_ui(V, V, 2);
+    mpz_mod(V, V, n);     /* V = (2 * S^k) mod n */
+
+    mpz_clear(Dmod); mpz_clear(Qmod); mpz_clear(Pmod);
     return;
   }
-  if (mpz_sgn(n) <= 0) {
-    mpz_set_ui(V, 0);
-    return;
+
+  if (!mpz_cmp_ui(Q,1)) {
+    internal_lucas_vmod_q1(V, t, Pmod, k, n);
+  } else {
+    mpz_init(U);
+    lucasuvmod(U, V, P, Q, k, n, t);
+    mpz_clear(U);
   }
-
-  mpz_init(D);
-
-  mpz_mul(D, P, P);
-  mpz_submul_ui(D, Q, 4);
-  mpz_mod(D, D, n);    /* D = (P*P - 4*Q) mod n */
-
-  if (mpz_sgn(D) == 0) {
-    mpz_div_ui(t, P, 2);
-    mpz_mod(t, t, n);
-    if (mpz_sgn(t) != 0) {
-      mpz_powm(t, t, k, n);
-      mpz_mul_ui(V, t, 2);
-      mpz_mod(V, V, n);
-      mpz_clear(D);
-      return;
-    }
-    // TODO: return here?
-  }
-  // TODO: n % 2 == 0
-
-  // TODO: complete implementation
 }
 #else
 void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
@@ -357,6 +368,7 @@ void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   lucasuvmod(U, V, P, Q, k, n, t);
   mpz_clear(U);
 }
+#endif
 void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 {
   mpz_t V;
@@ -364,4 +376,3 @@ void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   lucasuvmod(U, V, P, Q, k, n, t);
   mpz_clear(V);
 }
-#endif

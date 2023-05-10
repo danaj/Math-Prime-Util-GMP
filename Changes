@@ -87,7 +87,7 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.
 
-    - lucasu and lucasv accept bigint P and Q values
+    - lucasu and lucasv accept bigint P and Q values.
 
 0.52 2020-06-22
 
