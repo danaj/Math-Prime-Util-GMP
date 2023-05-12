@@ -79,6 +79,7 @@ our @EXPORT_OK = qw(
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod submod mulmod divmod powmod
+                     muladdmod mulsubmod
                      vecsum vecprod
                      exp_mangoldt
                      liouville
@@ -207,7 +208,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1750,6 +1751,15 @@ Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
 return C<(a/b) mod n>.  This is done as C<(a * (1/b mod n)) mod n>.  If
 no inverse of C<b> mod C<n> exists then undef if returned.
 
+=head2 muladdmod
+
+Given four integers C<a>, C<b>, C<c>, and C<n> where C<n> is positive,
+return C<(a*b+c) mod n>.
+
+=head2 mulsubmod
+
+Given four integers C<a>, C<b>, C<c>, and C<n> where C<n> is positive,
+return C<(a*b-c) mod n>.
 
 =head2 consecutive_integer_lcm
 

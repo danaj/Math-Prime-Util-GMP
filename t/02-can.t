@@ -69,7 +69,8 @@ my @functions = qw(
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
-                     invmod sqrtmod addmod mulmod divmod powmod
+                     invmod sqrtmod addmod submod mulmod divmod powmod
+                     muladdmod mulsubmod
                      vecsum vecprod
                      exp_mangoldt
                      liouville

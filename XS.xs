@@ -1211,6 +1211,28 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     XPUSH_MPZ(a);
     mpz_clear(n); mpz_clear(b); mpz_clear(a);
 
+void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
+  ALIAS:
+    mulsubmod = 1
+  PREINIT:
+    mpz_t a, b, c, n;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    if (mpz_sgn(n) <= 0) {
+      mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    mpz_mul(a,a,b);
+    if (ix == 0)  mpz_add(a, a, c);
+    else          mpz_sub(a, a, c);
+    mpz_mod(a,a,n);
+    XPUSH_MPZ(a);
+    mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
+
+
 int is_mersenne_prime(IN UV n)
   CODE:
     RETVAL = lucas_lehmer(n);

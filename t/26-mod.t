@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/invmod sqrtmod addmod submod mulmod divmod powmod/;
+use Math::Prime::Util::GMP qw/invmod sqrtmod addmod submod mulmod divmod powmod muladdmod mulsubmod/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -44,6 +44,8 @@ plan tests => 0
             + 2                      # divmod
             + 2                      # powmod
             + 6                      # extra testing for divmod
+            + 1                      # muladdmod
+            + 1                      # mulsubmod
             + 0;
 
 ###### invmod
@@ -162,6 +164,30 @@ is(divmod( 7,0,1), 0, "divmod(7,0,1) = 0");
 is(divmod(-7,1,2), 1, "divmod(-7,1,2) = 1");
 is(divmod(11,1,2), 1, "divmod(11,1,2) = 1");
 is(divmod( 7,1,10), 7, "divmod(7,1,10) = 7");
+
+
+
+
+my @ic = map { nrand() } 0 .. $num;
+
+###### muladdmod
+@exp = (); @res = ();
+for (0 .. $num) {
+  push @exp, Math::BigInt->new($i1[$_])->bmul(-$i2t[$_])->badd($ic[$_])->bmod($i3[$_]);
+  push @res, muladdmod($i1[$_], -$i2t[$_], $ic[$_], $i3[$_]);
+}
+is_deeply( \@res, \@exp, "muladdmod on ".($num+1)." random inputs" );
+
+###### mulsubmod
+@exp = (); @res = ();
+for (0 .. $num) {
+  push @exp, Math::BigInt->new($i1[$_])->bmul(-$i2t[$_])->bsub($ic[$_])->bmod($i3[$_]);
+  push @res, mulsubmod($i1[$_], -$i2t[$_], $ic[$_], $i3[$_]);
+}
+is_deeply( \@res, \@exp, "mulsubmod on ".($num+1)." random inputs" );
+
+
+
 
 sub nrand {
   return Math::Prime::Util::GMP::urandomb($use64 ? 64 : 32);
