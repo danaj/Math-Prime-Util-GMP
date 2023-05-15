@@ -82,6 +82,7 @@
 #endif
 
 #include "utility.h"
+#include "rootmod.h"
 
 /* DANAJ: Modify matrix code to do 64-bit-padded character arrays */
 typedef unsigned char* row_t;  /* row of an F2 matrix */
@@ -517,7 +518,7 @@ static void tonelliShanks(unsigned long numPrimes, mpz_t n, mpz_t * sqrts)
   mpz_set_ui(sqrts[0], 0);
   for (i = 1; i < numPrimes; i++) {
     mpz_set_ui(fbprime, factorBase[i]);
-    sqrtmod_t(sqrts[i], n, fbprime, t1, t2, t3, t4);
+    sqrtmodp_t(sqrts[i], n, fbprime, t1, t2, t3, t4);
   }
   mpz_clear(t1); mpz_clear(t2); mpz_clear(t3); mpz_clear(t4);
   mpz_clear(fbprime);

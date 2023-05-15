@@ -27,11 +27,6 @@ extern int  is_primitive_root(mpz_t a, mpz_t b, int nprime);
 #undef mpz_divmod
 extern int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t);
 
-/* s = sqrt(a) mod p */
-extern int sqrtmod(mpz_t s, mpz_t a, mpz_t p);
-extern int sqrtmod_t(mpz_t s, mpz_t a, mpz_t p,
-                     mpz_t t, mpz_t t2, mpz_t b, mpz_t g); /* 4 tmp variables */
-
 extern unsigned long modinverse(unsigned long a, unsigned long p);
 
 #if __GNU_MP_VERSION < 5

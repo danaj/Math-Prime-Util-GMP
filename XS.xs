@@ -17,6 +17,7 @@
 #include "bls75.h"
 #include "ecpp.h"
 #include "aks.h"
+#include "rootmod.h"
 #include "utility.h"
 #include "factor.h"
 #include "isaac.h"
@@ -1044,7 +1045,8 @@ invmod(IN char* stra, IN char* strb)
       case 4: znorder(a, a, b);
               if (!mpz_sgn(a)) retundef = 1;
               break;
-      case 5: retundef = !sqrtmod(a, a, b);
+      case 5: mpz_abs(b, b);
+              retundef = !sqrtmod(a, a, b);
               break;
       case 6: mpz_set_si(a, is_primitive_root(a, b, 0) );
               break;

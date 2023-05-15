@@ -78,6 +78,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - lcm with no arguments returns 1 rather than 0.
 
+    - sqrtmod now works with composites and uses absolute value of modulus.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

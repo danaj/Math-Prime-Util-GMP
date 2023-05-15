@@ -163,17 +163,12 @@
   smooth_count
   rough_count
   qnr
-  rootmodp
-  rootmod
 
 - make the Bernoulli number cache incremental
 
 - fromdigits input digit array arguably should be signed bigints.
 
 - optimize prime_omega, prime_bigomega
-
-- Add LucasV(mpz_t V, mpz_t k, mpz_t n, mpz_t P, mpz_t Q);
-  ensure optimized for Q=1 case
 
 - Refactor the lucas sequence code.
   Compare performance, as well as with the generic V+inversion method.
@@ -185,6 +180,10 @@
 
 - Should P and Q in Lucas parameters be unrestricted size?
 
+- rootmod, rootmodp
+- allsqrtmod
+- allrootmod
+
 =============== MUST DO BEFORE RELEASE
 
 - tests for:
@@ -195,8 +194,8 @@
 
 - change is_{,euler,strong)_pseudoprime to use default base 2
 
-- sqrtmod(4,8) -> undef
-
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - what's going on with compbit and bitcom?
+
+- add is_divisible, is_congruent

@@ -41,6 +41,8 @@ random_prime.h
 random_prime.c
 real.h
 real.c
+rootmod.h
+rootmod.c
 utility.h
 utility.c
 t/01-load.t

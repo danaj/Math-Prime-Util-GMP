@@ -1705,17 +1705,14 @@ multiplied by C<a> equals C<1> modulo C<n>.
 
 =head2 sqrtmod
 
-Given two integers C<a> and C<p>, return the square root of C<a> mod C<p>.
+Given two integers C<a> and C<n>, return the square root of C<a> mod C<|n|>.
 If no square root exists, undef is returned.  If defined, the return value
-C<s> will always satisfy C<mulmod(s,s,p) = a>.
+C<r> will always satisfy C<r^2 = a mod |n|>.
 
-If C<p> is not a prime, it is possible no result will be returned even
-though a modular root exists.
-
-Only one root is returned, even though there are at least two.  In the
-case of C<p> a prime and a return value C<s>, then both C<+s mod n> and
-C<-s mod n> are roots.  The least C<s> will be returned.  In the case of
-composites, many roots may exist, but only one will be returned.
+If the modulus is prime, the function will always return C<r>, the smaller
+of the two square roots (the other being C<-r mod |n|>.  If the modulus is
+composite, one of possibly many square roots will be returned, and it will
+not necessarily be the smallest.
 
 =head2 addmod
 

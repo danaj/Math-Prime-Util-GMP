@@ -15,6 +15,7 @@ WriteMakefile1(
                     'utility.o '        .
                     'primality.o '      .
                     'lucas_seq.o '      .
+                    'rootmod.o '        .
                     'factor.o '         .
                     'pbrent63.o '       .
                     'squfof126.o '      .
