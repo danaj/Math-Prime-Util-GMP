@@ -406,6 +406,29 @@ is_power(IN char* strn, IN UV a = 0)
   OUTPUT:
     RETVAL
 
+int is_divisible(IN char* strn, IN char* strd)
+  PREINIT:
+    mpz_t n, d;
+  CODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set_signed(cv, d, "d", strd, VSETNEG_OK);
+    RETVAL = !!mpz_divisible_p(n, d);
+    mpz_clear(d);  mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int is_congruent(IN char* strn, IN char* strc, IN char* strd)
+  PREINIT:
+    mpz_t n, c, d;
+  CODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
+    validate_and_set_signed(cv, d, "d", strd, VSETNEG_OK);
+    RETVAL = !!mpz_congruent_p(n, c, d);
+    mpz_clear(d);  mpz_clear(c);  mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 void
 next_prime(IN char* strn)
   ALIAS:

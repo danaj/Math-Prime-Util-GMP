@@ -67,6 +67,7 @@ t/26-digits.t
 t/26-faulhaber.t
 t/26-int.t
 t/26-isalmostprime.t
+t/26-isdivisible.t
 t/26-ismisc.t
 t/26-lambertw.t
 t/26-logs.t

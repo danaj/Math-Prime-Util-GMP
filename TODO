@@ -170,19 +170,18 @@
 
 - optimize prime_omega, prime_bigomega
 
-- Refactor the lucas sequence code.
-  Compare performance, as well as with the generic V+inversion method.
-
 - Rademacher partitions
 
 - overpartitions
   https://arxiv.org/pdf/2303.15895
 
-- Should P and Q in Lucas parameters be unrestricted size?
-
 - rootmod, rootmodp
 - allsqrtmod
 - allrootmod
+
+- znlog is needed by rootmod
+  simple rho
+  distinguished point rho
 
 =============== MUST DO BEFORE RELEASE
 
@@ -197,5 +196,3 @@
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - what's going on with compbit and bitcom?
-
-- add is_divisible, is_congruent
