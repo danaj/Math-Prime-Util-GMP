@@ -33,7 +33,7 @@ void _init_factor(void) {
  * with thousands of non-trivial factors. */
 #define MAX_FACTORS 128
 
-static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
+static int add_factor(int nfactors, mpz_t f, int count, mpz_t** pfactors, int** pexponents)
 {
   int i, j, cmp = 0;
   if (nfactors == 0) {                      /* First factor */
@@ -42,7 +42,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     New(0, factors, 10, mpz_t);
     New(0, exponents, 10, int);
     mpz_init_set(factors[0], f);
-    exponents[0] = 1;
+    exponents[0] = count;
     *pfactors = factors;
     *pexponents = exponents;
     return 1;
@@ -52,7 +52,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
       Renew(*pexponents, nfactors+10, int);
     }
     mpz_init_set((*pfactors)[nfactors], f);
-    (*pexponents)[nfactors] = 1;
+    (*pexponents)[nfactors] = count;
     return nfactors+1;
   }
   /* Insert in sorted order.  Find out where we will put it. */
@@ -60,7 +60,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     if ((cmp = mpz_cmp((*pfactors)[i], f)) >= 0)
       break;
   if (cmp == 0) {                           /* Duplicate factor */
-    (*pexponents)[i]++;
+    (*pexponents)[i] += count;
     return nfactors;
   }
   /* factor[i] > f.  Move everything from i to nfactors up. */
@@ -74,18 +74,18 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     (*pexponents)[j] = (*pexponents)[j-1];
   }
   mpz_set((*pfactors)[i], f);
-  (*pexponents)[i] = 1;
+  (*pexponents)[i] = count;
   return nfactors+1;
 }
 
-#define ADD_FACTOR_UI(f, t) \
+#define ADD_FACTOR_UI(f, t, c) \
   do { \
     mpz_set_ui(f, t); \
-    nfactors = add_factor(nfactors, f, &factors, &exponents); \
+    nfactors = add_factor(nfactors, f, c, &factors, &exponents); \
   } while (0)
 
-#define ADD_FACTOR(f) \
-  do { nfactors = add_factor(nfactors, f, &factors, &exponents); } while (0)
+#define ADD_FACTOR(f, c) \
+  do { nfactors = add_factor(nfactors, f, c, &factors, &exponents); } while (0)
 
 int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
@@ -94,6 +94,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   mpz_t* factors = 0;
   int* exponents = 0;
   int nfactors = 0;
+  int ndiv = 0;
   mpz_t f, n;
   UV tf, tlim;
 
@@ -101,15 +102,16 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   mpz_init(f);
   if (mpz_cmp_ui(n, 4) < 0) {
     if (mpz_cmp_ui(n, 1) != 0)    /* 1 should return no results */
-      ADD_FACTOR(n);
+      ADD_FACTOR(n, 1);
     goto DONE;
   }
 
   /* Trial factor to small limit */
   while (mpz_even_p(n)) {
-    ADD_FACTOR_UI(f, 2);
+    ++ndiv;
     mpz_divexact_ui(n, n, 2);
   }
+  if (ndiv) { ADD_FACTOR_UI(f, 2, ndiv); ndiv = 0; }
   tlim = (mpz_sizeinbase(n,2) > 80)  ?  4001  :  16001;
   {
     UV sp, p, un;
@@ -119,15 +121,16 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
          p < tlim && p*p <= un;
          p = primes_small[++sp]) {
       while (mpz_divisible_ui_p(n, p)) {
-        ADD_FACTOR_UI(f, p);
+        ++ndiv;
         mpz_divexact_ui(n, n, p);
         un = (mpz_cmp_ui(n,2*tlim*tlim) > 0) ? 2*tlim*tlim : mpz_get_ui(n);
       }
+      if (ndiv) { ADD_FACTOR_UI(f, p, ndiv); ndiv = 0; }
     }
 
     if (un < p*p) {
       if (un > 1)
-        ADD_FACTOR(n);
+        ADD_FACTOR(n, 1);
       goto DONE;
     }
   }
@@ -141,10 +144,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 
     pow_nfactors = factor(f, &pow_factors, &pow_exponents);
     for (i = 0; i < pow_nfactors; i++)
-      pow_exponents[i] *= tf;
-    for (i = 0; i < pow_nfactors; i++)
-      for (j = 0; j < pow_exponents[i]; j++)
-        ADD_FACTOR(pow_factors[i]);
+      ADD_FACTOR(pow_factors[i], pow_exponents[i] * tf);
     clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
     goto DONE;
   }
@@ -320,23 +320,19 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
          *       For now, just push them as if we factored.
          */
         if (get_verbose_level()) gmp_printf("gave up on %Zd\n", n);
-        ADD_FACTOR(n);
+        ADD_FACTOR(n, 1);
         mpz_set_ui(n, 1);
       } else {
-        int ndiv = mpz_remove(n, n, f);
+        ndiv = mpz_remove(n, n, f);
         if (_GMP_is_prob_prime(f)) { /* prime factor */
-          while (ndiv-- > 0)
-            ADD_FACTOR(f);
+          ADD_FACTOR(f, ndiv);
         } else if (ndiv > 1) {       /* Repeated non-trivial composite factor */
           mpz_t* pow_factors;
           int* pow_exponents;
           int pow_nfactors, i, j;
           pow_nfactors = factor(f, &pow_factors, &pow_exponents);
           for (i = 0; i < pow_nfactors; i++)
-            pow_exponents[i] *= ndiv;
-          for (i = 0; i < pow_nfactors; i++)
-            for (j = 0; j < pow_exponents[i]; j++)
-              ADD_FACTOR(pow_factors[i]);
+            ADD_FACTOR(pow_factors[i], pow_exponents[i] * ndiv);
           clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
         } else {                     /* One non-trivial composite factor */
           if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
@@ -352,7 +348,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
     }
     /* n is now prime or 1 */
     if (mpz_cmp_ui(n, 1) > 0) {
-      ADD_FACTOR(n);
+      ADD_FACTOR(n, 1);
       mpz_set_ui(n, 1);
     }
     if (ntofac-- > 0) {
