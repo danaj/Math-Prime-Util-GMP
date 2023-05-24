@@ -1,3 +1,4 @@
+/* vim: set et ts=2 sw=2 sts=2: */
 #include <gmp.h>
 #include "ptypes.h"
 
@@ -27,13 +28,7 @@ void _init_factor(void) {
   prime_iterator_destroy(&iter);
 }
 
-/* Max number of factors on the unfactored stack, not the max total factors.
- * This is used when we split n into two or more composites.  Since we work
- * on the smaller of the composites first, this rarely goes above 10 even
- * with thousands of non-trivial factors. */
-#define MAX_FACTORS 128
-
-static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
+static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexponents)
 {
   int i, j, cmp = 0;
   if (nfactors == 0) {                      /* First factor */
@@ -42,7 +37,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     New(0, factors, 10, mpz_t);
     New(0, exponents, 10, int);
     mpz_init_set(factors[0], f);
-    exponents[0] = 1;
+    exponents[0] = e;
     *pfactors = factors;
     *pexponents = exponents;
     return 1;
@@ -52,7 +47,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
       Renew(*pexponents, nfactors+10, int);
     }
     mpz_init_set((*pfactors)[nfactors], f);
-    (*pexponents)[nfactors] = 1;
+    (*pexponents)[nfactors] = e;
     return nfactors+1;
   }
   /* Insert in sorted order.  Find out where we will put it. */
@@ -60,7 +55,8 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     if ((cmp = mpz_cmp((*pfactors)[i], f)) >= 0)
       break;
   if (cmp == 0) {                           /* Duplicate factor */
-    (*pexponents)[i]++;
+    /* should not be possible, but cope with it anyway */
+    (*pexponents)[i] += e;
     return nfactors;
   }
   /* factor[i] > f.  Move everything from i to nfactors up. */
@@ -74,299 +70,370 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     (*pexponents)[j] = (*pexponents)[j-1];
   }
   mpz_set((*pfactors)[i], f);
-  (*pexponents)[i] = 1;
+  (*pexponents)[i] = e;
   return nfactors+1;
 }
 
-#define ADD_FACTOR_UI(f, t) \
-  do { \
-    mpz_set_ui(f, t); \
-    nfactors = add_factor(nfactors, f, &factors, &exponents); \
-  } while (0)
+void fs_init(factor_state* fs)
+{
+  fs->state = FS_INIT;
+  mpz_init(fs->n);
+  mpz_init(fs->f);
+  fs->ef = 1;
+  fs->sp = 0;
+  fs->log = get_verbose_level();
+  fs->ntofac = 0;
+  return;
+}
 
-#define ADD_FACTOR(f) \
-  do { nfactors = add_factor(nfactors, f, &factors, &exponents); } while (0)
+void fs_clear(factor_state* fs)
+{
+  mpz_clear(fs->n);
+  mpz_clear(fs->f);
+  for (int i = 0; i < fs->ntofac; ++i)
+    mpz_clear(fs->tofac_stack[i]);
+  return;
+}
 
 int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
-  mpz_t tofac_stack[MAX_FACTORS];
-  int ntofac = 0;
   mpz_t* factors = 0;
   int* exponents = 0;
   int nfactors = 0;
-  mpz_t f, n;
-  UV tf, tlim;
+  factor_state fs;
 
-  mpz_init_set(n, input_n);
-  mpz_init(f);
-  if (mpz_cmp_ui(n, 4) < 0) {
-    if (mpz_cmp_ui(n, 1) != 0)    /* 1 should return no results */
-      ADD_FACTOR(n);
-    goto DONE;
-  }
+  fs_init(&fs);
+  mpz_set(fs.n, input_n);
+  while (factor_one(&fs))
+    nfactors = add_factor(nfactors, fs.f, fs.e, &factors, &exponents);
+  fs_clear(&fs);
 
-  /* Trial factor to small limit */
-  while (mpz_even_p(n)) {
-    ADD_FACTOR_UI(f, 2);
-    mpz_divexact_ui(n, n, 2);
-  }
-  tlim = (mpz_sizeinbase(n,2) > 80)  ?  4001  :  16001;
-  {
-    UV sp, p, un;
-    un = (mpz_cmp_ui(n,2*tlim*tlim) >= 0) ? 2*tlim*tlim : mpz_get_ui(n);
-
-    for (sp = 2, p = primes_small[sp];
-         p < tlim && p*p <= un;
-         p = primes_small[++sp]) {
-      while (mpz_divisible_ui_p(n, p)) {
-        ADD_FACTOR_UI(f, p);
-        mpz_divexact_ui(n, n, p);
-        un = (mpz_cmp_ui(n,2*tlim*tlim) > 0) ? 2*tlim*tlim : mpz_get_ui(n);
-      }
-    }
-
-    if (un < p*p) {
-      if (un > 1)
-        ADD_FACTOR(n);
-      goto DONE;
-    }
-  }
-
-  /* Power factor */
-  tf = power_factor(n, f);
-  if (tf) {
-    mpz_t* pow_factors;
-    int* pow_exponents;
-    int pow_nfactors, i, j;
-
-    pow_nfactors = factor(f, &pow_factors, &pow_exponents);
-    for (i = 0; i < pow_nfactors; i++)
-      pow_exponents[i] *= tf;
-    for (i = 0; i < pow_nfactors; i++)
-      for (j = 0; j < pow_exponents[i]; j++)
-        ADD_FACTOR(pow_factors[i]);
-    clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
-    goto DONE;
-  }
-
-  do { /* loop over each remaining factor */
-    while ( mpz_cmp_ui(n, tlim*tlim) > 0 && !_GMP_is_prob_prime(n) ) {
-      int success = 0;
-      int o = get_verbose_level();
-      UV B1 = 5000;
-      UV nbits = mpz_sizeinbase(n, 2);
-
-      /*
-       * This set of operations is meant to provide good performance for
-       * "random" numbers as input.  Hence we stack lots of effort up front
-       * looking for small factors: prho and pbrent are ~ O(f^1/2) where
-       * f is the smallest factor.  SQUFOF is O(N^1/4), so arguable not
-       * any better.  p-1 and ECM are quite useful for pulling out small
-       * factors (6-20 digits).
-       *
-       * Factoring a 778-digit number consisting of 101 8-digit factors
-       * should complete in under 3 seconds.  Factoring numbers consisting
-       * of many 12-digit or 14-digit primes should take under 10 seconds.
-       */
-
-      /* Handle small inputs here */
-      if (nbits <= 63) {
-        if (!success) success = pbrent63(n, f, 400000);
-        if (success&&o) {gmp_printf("UV Rho-Brent found factor %Zd\n", f);o=0;}
-      }
-      if (nbits >= 65 && nbits <= 126) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 5000, 5000);
-        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",5000,f);o=0;}
-        if (!success) success = tinyqs(n, f);
-        if (success&&o) {gmp_printf("tinyqs found factor %Zd\n", f);o=0;}
-      }
-
-      /* It's possible the previous calls failed or weren't available */
-      if (nbits <= 53) {
-        if (!success)  success = squfof126(n, f, 400000);
-        if (success&&o) {gmp_printf("UV SQUFOF126 found factor %Zd\n", f);o=0;}
-      } else if (nbits <= 77) {
-        int sb1 = (nbits < 58) ?  1
-                : (nbits < 63) ?  2
-                : (nbits < 72) ?  4
-                               : 10;
-        if (!success)  success = _GMP_pminus1_factor(n, f, sb1*1000, sb1*10000);
-        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",sb1,f);o=0;}
-
-        if (!success)  success = squfof126(n, f, 1000000);
-        if (success&&o) {gmp_printf("SQUFOF126 found factor %Zd\n", f);o=0;}
-      }
-
-      /* Make sure it isn't a perfect power */
-      if (!success)  success = (int)power_factor(n, f);
-      if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
-
-      if (!success)  success = _GMP_pminus1_factor(n, f, 20000, 200000);
-      if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
-
-      /* Small ECM to find small factors */
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
-      if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 600, 20);
-      if (success&&o) {gmp_printf("tiny ecm (600) found factor %Zd\n", f);o=0;}
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 10);
-      if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
-
-      /* Small p-1 */
-      if (!success) {
-        if (nbits < 100 || nbits >= 160) {
-          success = _GMP_pminus1_factor(n, f, 200000, 3000000);
-          if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
-        }
-      }
-
-      /* Set ECM parameters that have a good chance of success */
-      if (!success) {
-        UV curves;
-        if      (nbits < 100){ B1 =   5000; curves =  20; }
-        else if (nbits < 128){ B1 =  10000; curves =   2; } /* go to QS */
-        else if (nbits < 160){ B1 =  20000; curves =   2; } /* go to QS */
-        else if (nbits < 192){ B1 =  30000; curves =  20; }
-        else if (nbits < 224){ B1 =  40000; curves =  40; }
-        else if (nbits < 256){ B1 =  80000; curves =  40; }
-        else if (nbits < 512){ B1 = 160000; curves =  80; }
-        else                 { B1 = 320000; curves = 160; }
-        if (curves > 0) {
-          success = _GMP_ECM_FACTOR(n, f, B1, curves);
-          if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
-        }
-      }
-
-      /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
-       * slow and a memory hog if not (compared to ECM).  Restrict to
-       * reasonable size numbers (< 91 digits).  Because of the way it
-       * works, it will generate (possibly) multiple factors for the same
-       * amount of work.  Go to some trouble to use them. */
-      if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
-        mpz_t farray[66];
-        int i, qs_nfactors;
-        for (i = 0; i < 66; i++)
-          mpz_init(farray[i]);
-        qs_nfactors = _GMP_simpqs(n, farray);
-        mpz_set(f, farray[0]);
-        if (qs_nfactors > 2) {
-          /* We found multiple factors */
-          for (i = 2; i < qs_nfactors; i++) {
-            if (o){gmp_printf("SIMPQS found extra factor %Zd\n",farray[i]);}
-            if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
-            mpz_init_set(tofac_stack[ntofac], farray[i]);
-            ntofac++;
-            mpz_divexact(n, n, farray[i]);
-          }
-          /* f = farray[0], n = farray[1], farray[2..] pushed */
-        }
-        for (i = 0; i < 66; i++)
-          mpz_clear(farray[i]);
-        success = qs_nfactors > 1;
-        if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
-      }
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 2*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) found factor %Zd\n",2*B1/1000,f);o=0;}
-
-      if (!success)  success = _GMP_pbrent_factor(n, f, 1, 1*1024*1024);
-      if (success&&o) {gmp_printf("pbrent (1,1M) found factor %Zd\n", f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 4*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 4*B1,f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 8*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 8*B1,f);o=0;}
-
-      /* HOLF in case it's a near-ratio-of-perfect-square */
-      if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
-      if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
-
-      /* Large p-1 with stage 2: B2 = 20*B1 */
-      if (!success)  success = _GMP_pminus1_factor(n,f,5000000,5000000*20);
-      if (success&&o) {gmp_printf("p-1 (5M) found factor %Zd\n", f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 32*B1, 40);
-      if (success&&o) {gmp_printf("ecm (%luk,40) ecm found factor %Zd\n", 32*B1,f);o=0;}
-
-      /*
-      if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
-      if (success&&o) {gmp_printf("pbrent (2,512M) found factor %Zd\n", f);o=0;}
-      */
-
-      /* Our method of last resort: ECM with high bmax and many curves*/
-      if (!success) {
-        UV i;
-        if (get_verbose_level()) gmp_printf("starting large ECM on %Zd\n",n);
-        B1 *= 8;
-        for (i = 0; i < 10; i++) {
-          success = _GMP_ECM_FACTOR(n, f, B1, 100);
-          if (success) break;
-          B1 *= 2;
-        }
-        if (success&&o) {gmp_printf("ecm (%luk,100) ecm found factor %Zd\n", B1,f);o=0;}
-      }
-
-      if (success) {
-        if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
-          gmp_printf("n = %Zd  f = %Zd\n", n, f);
-          croak("Incorrect factoring");
-        }
-      }
-
-      if (!success) {
-        /* TODO: What to do with composites we can't factor?
-         *       Push them as "C#####" ?
-         *       For now, just push them as if we factored.
-         */
-        if (get_verbose_level()) gmp_printf("gave up on %Zd\n", n);
-        ADD_FACTOR(n);
-        mpz_set_ui(n, 1);
-      } else {
-        int ndiv = mpz_remove(n, n, f);
-        if (_GMP_is_prob_prime(f)) { /* prime factor */
-          while (ndiv-- > 0)
-            ADD_FACTOR(f);
-        } else if (ndiv > 1) {       /* Repeated non-trivial composite factor */
-          mpz_t* pow_factors;
-          int* pow_exponents;
-          int pow_nfactors, i, j;
-          pow_nfactors = factor(f, &pow_factors, &pow_exponents);
-          for (i = 0; i < pow_nfactors; i++)
-            pow_exponents[i] *= ndiv;
-          for (i = 0; i < pow_nfactors; i++)
-            for (j = 0; j < pow_exponents[i]; j++)
-              ADD_FACTOR(pow_factors[i]);
-          clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
-        } else {                     /* One non-trivial composite factor */
-          if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
-          /* If f < n and both are composites, put n on stack and work on f */
-          if (mpz_cmp(f, n) < 0 && !_GMP_is_prob_prime(n)) {
-            mpz_init_set(tofac_stack[ntofac++], n);
-            mpz_set(n, f);
-          } else {
-            mpz_init_set(tofac_stack[ntofac++], f);
-          }
-        }
-      }
-    }
-    /* n is now prime or 1 */
-    if (mpz_cmp_ui(n, 1) > 0) {
-      ADD_FACTOR(n);
-      mpz_set_ui(n, 1);
-    }
-    if (ntofac-- > 0) {
-      mpz_set(n, tofac_stack[ntofac]);
-      mpz_clear(tofac_stack[ntofac]);
-    }
-  } while (mpz_cmp_ui(n, 1) > 0);
-
-DONE:
-  mpz_clear(f);
-  mpz_clear(n);
   *pfactors = factors;
   *pexponents = exponents;
   return nfactors;
+}
+
+int fs_trial(factor_state* fs)
+{
+  UV tlim = fs->tlim;
+  UV sp = fs->sp;
+  UV un = fs->un;
+  UV lim, p;
+
+  if (sp == 0) {
+    int e2 = 0;
+    while (mpz_even_p(fs->n)) {
+      mpz_divexact_ui(fs->n, fs->n, 2);
+      ++e2;
+    }
+    sp = 2;
+    un = (mpz_cmp_ui(fs->n, 2 * tlim) >= 0) ? 2 * tlim : mpz_get_ui(fs->n);
+    if (e2) {
+      mpz_set_ui(fs->f, 2);
+      fs->e = e2;
+      goto found_trial;
+    }
+  }
+
+  lim = (tlim < un) ? tlim : un;
+  for (p = primes_small[sp]; p * p < lim; p = primes_small[++sp]) {
+    int ep = 0;
+    while (mpz_divisible_ui_p(fs->n, p)) {
+      mpz_divexact_ui(fs->n, fs->n, p);
+      ++ep;
+    }
+    if (ep) {
+      mpz_set_ui(fs->f, p);
+      fs->e = ep;
+      un = (mpz_cmp_ui(fs->n, 2 * tlim) > 0) ? 2 * tlim : mpz_get_ui(fs->n);
+      goto found_trial;
+    }
+  }
+
+  if (un < p * p) {
+    mpz_set(fs->f, fs->n);
+    fs->e = 1;
+    mpz_set_ui(fs->n, 1);
+    goto found_trial;
+  }
+  return 0;
+
+found_trial:
+  fs->sp = sp;
+  fs->un = un;
+  return 1;
+}
+
+static int _fs_remove(factor_state* fs)
+{
+  int e = 0;
+  e += mpz_remove(fs->n, fs->n, fs->f);
+  for (int i = 0; i < fs->ntofac; ++i)
+    e += mpz_remove(fs->tofac_stack[i], fs->tofac_stack[i], fs->f);
+  return e;
+}
+
+/* Try to find one more prime factor and its exponent. Returns true if
+ * it found one, else factorization is complete.
+ */
+int factor_one(factor_state* fs)
+{
+  UV nbits = mpz_sizeinbase(fs->n, 2);
+  UV B1;
+
+fs_retry:
+  if (mpz_cmp_ui(fs->n, 1) == 0) {
+    if (fs->ntofac == 0) {
+      fs->state = FS_TERM;
+      return 0; /* no more factors to find */
+    }
+    --fs->ntofac;
+    mpz_set(fs->n, fs->tofac_stack[fs->ntofac]);
+    mpz_clear(fs->tofac_stack[fs->ntofac]);
+    fs->state = FS_LARGE;
+    goto fs_retry;
+  }
+
+  switch (fs->state) {
+  default:
+    croak("Unknown state\n");
+  case FS_TERM:
+    return 0;
+  case FS_INIT:
+    if (mpz_cmp_ui(fs->n, 0) == 0) {
+      fs->state = FS_TERM;
+      mpz_set_ui(fs->f, 0);
+      fs->e = 1;
+      return 1;
+    }
+    fs->sp = 0;
+    fs->tlim = (nbits > 80) ? 4001 * 4001 : 16001 * 16001;
+    fs->state = FS_TRIAL;
+  case FS_TRIAL:
+    if (fs_trial(fs))
+      return 1;
+    fs->state = FS_POWER;
+  case FS_POWER:
+    fs->ef = power_factor(fs->n, fs->f);
+    if (fs->ef) {
+      mpz_set(fs->n, fs->f);
+    } else {
+      fs->ef = 1;
+    }
+    fs->state = FS_LARGE;
+/*
+ * This set of operations is meant to provide good performance for
+ * "random" numbers as input.  Hence we stack lots of effort up front
+ * looking for small factors: prho and pbrent are ~ O(f^1/2) where
+ * f is the smallest factor.  SQUFOF is O(N^1/4), so arguably not
+ * any better.  p-1 and ECM are quite useful for pulling out small
+ * factors (6-20 digits).
+ *
+ * Factoring a 778-digit number consisting of 101 8-digit factors
+ * should complete in under 3 seconds.  Factoring numbers consisting
+ * of many 12-digit or 14-digit primes should take under 10 seconds.
+ *
+ * For state > 2, all returned exponents should be multiplied by fs->ef,
+ * and tofac_stack must be checked (see label fs_retry above).
+ */
+  case FS_LARGE:
+    if (mpz_cmp_ui(fs->n, fs->tlim) <= 0 || _GMP_is_prob_prime(fs->n)) {
+      mpz_set(fs->f, fs->n);
+      fs->e = fs->ef * _fs_remove(fs);
+      return 1;
+    }
+
+    if (nbits <= 63) {
+      if (pbrent63(fs->n, fs->f, 400000)) {
+        if (fs->log) gmp_printf("UV Rho-Brent found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+    if (nbits >= 65 && nbits <= 126) {
+      if (_GMP_pminus1_factor(fs->n, fs->f, 5000, 5000)) {
+        if (fs->log) gmp_printf("p-1 (%dk) found factor %Zd\n", 5000, fs->f);
+        goto found_factor;
+      }
+      if (tinyqs(fs->n, fs->f)) {
+        if (fs->log) gmp_printf("tinyqs found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+    /* It's possible the previous calls failed or weren't available */
+    if (nbits <= 53) {
+      if (squfof126(fs->n, fs->f, 400000)) {
+        if (fs->log) gmp_printf("UV SQUFOF126 found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+    if (nbits <= 77) {
+      int sb1 = (nbits < 58) ?  1
+              : (nbits < 63) ?  2
+              : (nbits < 72) ?  4
+                                : 10;
+      if (_GMP_pminus1_factor(fs->n, fs->f, sb1*1000, sb1*10000)) {
+        if (fs->log) gmp_printf("p-1 (%dk) found factor %Zd\n", sb1, fs->f);
+        goto found_factor;
+      }
+      if (squfof126(fs->n, fs->f, 1000000)) {
+        if (fs->log) gmp_printf("SQUFOF126 found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+    /* recheck power? */
+    if (_GMP_pminus1_factor(fs->n, fs->f, 20000, 200000)) {
+      if (fs->log) gmp_printf("p-1 (20k) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+
+    /* Small ECM to find small factors */
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 200, 4)) {
+      if (fs->log) gmp_printf("tiny ecm (200) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 600, 20)) {
+      if (fs->log) gmp_printf("tiny ecm (600) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 2000, 10)) {
+      if (fs->log) gmp_printf("tiny ecm (2000) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+
+    /* Small p-1 */
+    if (nbits < 100 || nbits >= 160) {
+      if (_GMP_pminus1_factor(fs->n, fs->f, 200000, 3000000)) {
+        if (fs->log) gmp_printf("p-1 (200k) found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+
+    /* Set ECM parameters that have a good chance of success */
+    {
+      UV curves;
+      if      (nbits < 100){ B1 =   5000; curves =  20; }
+      else if (nbits < 128){ B1 =  10000; curves =   2; } /* go to QS */
+      else if (nbits < 160){ B1 =  20000; curves =   2; } /* go to QS */
+      else if (nbits < 192){ B1 =  30000; curves =  20; }
+      else if (nbits < 224){ B1 =  40000; curves =  40; }
+      else if (nbits < 256){ B1 =  80000; curves =  40; }
+      else if (nbits < 512){ B1 = 160000; curves =  80; }
+      else                 { B1 = 320000; curves = 160; }
+      if (curves > 0 && _GMP_ECM_FACTOR(fs->n, fs->f, B1, curves)) {
+        if (fs->log) gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, fs->f);
+        goto found_factor;
+      }
+    }
+
+    /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
+     * slow and a memory hog if not (compared to ECM).  Restrict to
+     * reasonable size numbers (< 91 digits).  Because of the way it
+     * works, it will generate (possibly) multiple factors for the same
+     * amount of work.  Go to some trouble to use them. */
+    if (nbits >= 90 && nbits < 300) {
+      mpz_t farray[66];
+      int i, qs_nfactors;
+      for (i = 0; i < 66; i++)
+        mpz_init(farray[i]);
+      qs_nfactors = _GMP_simpqs(fs->n, farray);
+      mpz_set(fs->f, farray[0]);
+      if (qs_nfactors > 2) {
+        /* We found multiple factors */
+        for (i = 2; i < qs_nfactors; i++) {
+          if (fs->log) gmp_printf("SIMPQS found extra factor %Zd\n", farray[i]);
+          if (fs->ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
+          mpz_init_set(fs->tofac_stack[fs->ntofac], farray[i]);
+          ++fs->ntofac;
+          mpz_divexact(fs->n, fs->n, farray[i]);
+        }
+        /* f = farray[0], n = farray[1], farray[2..] pushed */
+      }
+      for (i = 0; i < 66; i++)
+        mpz_clear(farray[i]);
+      if (qs_nfactors > 1) {
+        if (fs->log) gmp_printf("SIMPQS found factor %Zd\n", fs->f);
+        goto found_factor;
+      }
+    }
+
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 2*B1, 20)) {
+      if (fs->log) gmp_printf("ecm (%luk,20) found factor %Zd\n", 2*B1/1000, fs->f);
+      goto found_factor;
+    }
+
+    if (_GMP_pbrent_factor(fs->n, fs->f, 1, 1*1024*1024)) {
+      if (fs->log) gmp_printf("pbrent (1,1M) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 4*B1, 20)) {
+      if (fs->log) gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 4*B1, fs->f);
+      goto found_factor;
+    }
+
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 8*B1, 20)) {
+      if (fs->log) gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 8*B1, fs->f);
+      goto found_factor;
+    }
+
+    /* HOLF in case it's a near-ratio-of-perfect-square */
+    if (_GMP_holf_factor(fs->n, fs->f, 1*1024*1024)) {
+      if (fs->log) gmp_printf("holf found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+
+    /* Large p-1 with stage 2: B2 = 20*B1 */
+    if (_GMP_pminus1_factor(fs->n, fs->f, 5000000, 5000000*20)) {
+      if (fs->log) gmp_printf("p-1 (5M) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+
+    if (_GMP_ECM_FACTOR(fs->n, fs->f, 32*B1, 40)) {
+      if (fs->log) gmp_printf("ecm (%luk,40) ecm found factor %Zd\n", 32*B1, fs->f);
+      goto found_factor;
+    }
+
+    /*
+    if (_GMP_pbrent_factor(fs->n, fs->f, 2, 512*1024*1024)) {
+      if (fs->log) gmp_printf("pbrent (2,512M) found factor %Zd\n", fs->f);
+      goto found_factor;
+    }
+    */
+
+    /* Our method of last resort: ECM with high bmax and many curves*/
+    if (fs->log) gmp_printf("starting large ECM on %Zd\n", fs->n);
+    B1 *= 8;
+    for (UV i = 0; i < 10; B1 *= 2, i++) {
+      if (_GMP_ECM_FACTOR(fs->n, fs->f, B1, 100)) {
+        if (!mpz_divisible_p(fs->n, fs->f)
+            || mpz_cmp_ui(fs->f, 1) == 0
+            || mpz_cmp(fs->f, fs->n) == 0
+        ) {
+          gmp_printf("n = %Zd  f = %Zd\n", fs->n, fs->f);
+          croak("Incorrect factoring");
+        }
+        if (fs->log) gmp_printf("ecm (%luk,100) ecm found factor %Zd\n", B1, fs->f);
+        goto found_factor;
+      }
+    }
+
+    /* TODO: What to do with composites we can't factor?
+     *       Push them as "C#####" ?
+     *       For now, just push them as if we factored.
+     */
+    if (fs->log) gmp_printf("gave up on %Zd\n", fs->n);
+    goto found_factor;
+  }
+found_factor:
+  if (!_GMP_is_prob_prime(fs->f)) {
+    mpz_init(fs->tofac_stack[fs->ntofac]);
+    mpz_divexact(fs->tofac_stack[fs->ntofac], fs->n, fs->f);
+    ++fs->ntofac;
+    mpz_set(fs->n, fs->f);
+    goto fs_retry;
+  }
+  fs->e = fs->ef * _fs_remove(fs);
+  return 1;
 }
 
 void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
@@ -842,16 +909,21 @@ int is_semiprime(mpz_t n)
   }
   /* No luck finding a small factor.  Do it the hard way. */
   {
-    mpz_t* factors;
-    int* exponents;
-    int nfactors, i, j;
+    factor_state fs;
 
-    nfactors = factor(n, &factors, &exponents);
-    for (i = 0, j = 0; i < nfactors; i++)
-      j += exponents[i];
-    clear_factors(nfactors, &factors, &exponents);
-    mpz_clear(t);
-    return (j == 2);
+    fs_init(&fs);
+    mpz_set(fs.n, n);
+    fs.state = FS_LARGE; /* trial division and power check already done */
+    fs.tlim = lim * lim;
+
+    if (!factor_one(&fs))
+      croak("no factor found\n");
+
+    ret = fs.e == 1 ? _GMP_is_prime(fs.n)
+        : fs.e == 2 ? mpz_cmp_ui(fs.n, 1) == 0
+        : 0;
+    fs_clear(&fs);
+    return ret;
   }
 }
 
@@ -1554,8 +1626,9 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
 int is_smooth(mpz_t n, mpz_t k) {
   mpz_t *factors;
   mpz_t N;
-  int i, nfactors, *exponents;
+  int result;
   uint32_t klo, khi, div;
+  factor_state fs;
 
   if (mpz_cmp_ui(n,1) <= 0) return 1;
   if (mpz_cmp_ui(k,1) <= 0) return 0;
@@ -1581,21 +1654,29 @@ int is_smooth(mpz_t n, mpz_t k) {
     return 0;
   }
 
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (mpz_cmp(factors[i], k) > 0)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER; /* trial division already done to khi */
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
+  result = 1;
+  while (factor_one(&fs)) {
+    if (mpz_cmp(fs.f, k) > 0) {
+      result = 0;
+      break;
+    }
+  }
+  fs_clear(&fs);
+  return result;
 }
 
 int is_rough(mpz_t n, mpz_t k) {
   mpz_t *factors;
   mpz_t N, f;
-  int i, nfactors, *exponents;
+  int result;
   uint32_t khi, stage;
+  factor_state fs;
 
   if (mpz_sgn(n) == 0) return 0 + (mpz_sgn(k) == 0);
   if (mpz_cmp_ui(n,1) == 0 || mpz_cmp_ui(k,1) <= 0) return 1;
@@ -1634,13 +1715,21 @@ int is_rough(mpz_t n, mpz_t k) {
       default: break;
     }
     if (!success) continue;
-    nfactors = factor(f, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      if (mpz_cmp(factors[i], k) < 0)
+
+    fs_init(&fs);
+    mpz_set(fs.n, f);
+    fs.state = FS_POWER;
+    /* careful for 32-bit overflow */
+    fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
+    result = 1;
+    while (factor_one(&fs)) {
+      if (mpz_cmp(fs.f, k) < 0) {
+        result = 0;
         break;
+      }
     }
-    clear_factors(nfactors, &factors, &exponents);
-    if (i < nfactors) break;       /* Return 0: Found a small factor. */
+    fs_clear(&fs);
+    if (result == 0) break;        /* Return 0: Found a small factor. */
     mpz_divexact(N, N, f);         /* Divide out the factors all checked */
     if (mpz_cmp(N, k) < 0) break;  /* Return 0: Reduced N to lower than k */
     if (stage >= 5 && _GMP_BPSW(N)) { mpz_clear(f); mpz_clear(N); return 1; }
@@ -1652,21 +1741,29 @@ int is_rough(mpz_t n, mpz_t k) {
   }
 
   /* 3. Fully factor */
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (mpz_cmp(factors[i], k) < 0)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER;
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
+  result = 1;
+  while (factor_one(&fs)) {
+    if (mpz_cmp(fs.f, k) < 0) {
+      result = 0;
+      break;
+    }
+  }   
+  fs_clear(&fs);
+  return result;
 }
 
 int is_powerful(mpz_t n, uint32_t k) {
   mpz_t *factors;
   mpz_t N, f;
-  int i, nfactors, *exponents;
+  int i, result;
   uint32_t e, klo, khi, div;
+  factor_state fs;
 
   if (k == 0) k = 2;   /* API */
 
@@ -1712,14 +1809,22 @@ int is_powerful(mpz_t n, uint32_t k) {
   mpz_clear(f);
 
   /* 3. Fully factor */
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (exponents[i] < k)
-      break;
-  }
-  clear_factors(nfactors, &factors, &exponents);
+  fs_init(&fs);
+  mpz_set(fs.n, N);
   mpz_clear(N);
-  return i >= nfactors;
+  fs.state = FS_POWER;
+  /* careful for 32-bit overflow */
+  fs.tlim = (khi > ~(UV)1 / khi) ? ~(UV)1 : (UV)khi * khi;
+  result = 1;
+  while (factor_one(&fs)) {
+    if (fs.e < k) {
+      result = 0;
+      break;
+    }
+    /* TODO: check fs.n and tofac_stack for any factor < khi^k */
+  }
+  fs_clear(&fs);
+  return result;
 }
 
 int is_almost_prime(uint32_t k, mpz_t n)
@@ -1742,4 +1847,89 @@ int is_almost_prime(uint32_t k, mpz_t n)
    * semiprime.  This is all rather tedious. */
 
   return bigomega(n) == k;
+}
+
+/* Return true if what's left to factor is a prime */
+static int _scanp(factor_state* fs)
+{
+  int result = 0;
+  if (mpz_cmp_ui(fs->n, 1) != 0) {
+    if (_GMP_is_prime(fs->n))
+      result = 1;
+    else
+      return 0;
+  }
+  for (int i = 0; i < fs->ntofac; ++i) {
+    if (mpz_cmp_ui(fs->tofac_stack[i], 1) == 0)
+      continue;
+    if (result) return 0;
+    if (_GMP_is_prime(fs->tofac_stack[i])) {
+      result = 1;
+    } else
+      return 0;
+  }
+  return result;
+}
+
+/* Return true if tau(n) == k */
+int is_tau(mpz_t n, uint32_t k)
+{
+  int cmp = mpz_cmp_ui(n, 1);
+  int result = 0;
+  factor_state fs;
+
+  if (cmp < 0) return 0;
+  if (cmp == 0) return k == 1;
+  if (k == 1) return 0;
+  if (k == 2) return _GMP_is_prime(n) ? 1 : 0;
+
+  fs_init(&fs);
+  mpz_set(fs.n, n);
+  while (1) {
+    if (k & 1) {
+      int e = power_factor(fs.n, fs.f);
+      if (e == 0 || e & 1 || e > k)
+        break;
+      mpz_set(fs.n, fs.f);
+      /* we actually need e divisible by gcd(map $_ - 1, divisors(k)) */
+      while (1) {
+        if (k == e + 1) {
+          result = _scanp(&fs);
+          break;
+        }
+        if (!factor_one(&fs))
+          break;
+        if (k % (fs.e * e + 1))
+          break;
+        k /= fs.e * e + 1;
+        if (k == 1) {
+          result = (mpz_cmp_ui(fs.n, 1) == 0);
+          for (int i = 0; i < fs.ntofac; ++i)
+            result &= (mpz_cmp_ui(fs.tofac_stack[i], 1) == 0);
+          break;
+        }
+      }
+      break;
+    }
+    if (k == 2) {
+      result = _scanp(&fs);
+      break;
+    }
+    if (!factor_one(&fs))
+      break;
+    if (k % (fs.e + 1))
+      break;
+    k /= fs.e + 1;
+    if (k == 1) {
+      result = (mpz_cmp_ui(fs.n, 1) == 0);
+      for (int i = 0; i < fs.ntofac; ++i)
+        result &= (mpz_cmp_ui(fs.tofac_stack[i], 1) == 0);
+      break;
+    }
+    /* if fs.state == FS_LARGE, we need n >= max_trial_p ^ min_exp, where
+     * max_trial_p = sqrt(fs.tlim), min_exp = sum(map $_ - 1, factor(k))
+     */
+  }
+  fs_clear(&fs);
+  return result;
 }

@@ -1,12 +1,46 @@
+/* vim: set et ts=2 sw=2 sts=2: */
 #ifndef MPU_FACTOR_H
 #define MPU_FACTOR_H
 
 #include <gmp.h>
 #include "ptypes.h"
 
+typedef enum {
+  FS_INIT = 0,
+  FS_TRIAL,
+  FS_POWER,
+  FS_LARGE,
+  FS_TERM,
+} fs_state_t;
+
+/* Max number of factors on the unfactored stack, not the max total factors.
+ * This is used when we split n into two or more composites.  Since we work
+ * on the smaller of the composites first, this rarely goes above 10 even
+ * with thousands of non-trivial factors. */
+#define MAX_FACTORS 128
+
+typedef struct factor_state_s {
+  fs_state_t state;
+  mpz_t n;  /* remaining number to be factored */
+  mpz_t f;  /* new factor found */
+  int e;    /* new exponent found */
+  int ef;   /* exponent multiplier */
+  UV tlim;  /* p^2 limit checked by trial division */
+
+  /* used only for trial division phase */
+  UV sp;  /* smallprime index */
+  UV un;
+
+  /* used only after trial division phase */
+  int log;    /* verbose_level */
+  int ntofac; /* number of additional factors in tofac_stack[] */
+  mpz_t tofac_stack[MAX_FACTORS];
+} factor_state;
+
 extern void _init_factor(void);
 
 extern int factor(mpz_t n, mpz_t* factors[], int* exponents[]);
+extern int factor_one(factor_state* fs);
 extern void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[]);
 
 extern int omega(mpz_t n);
@@ -38,5 +72,6 @@ extern int is_smooth(mpz_t n, mpz_t k);
 extern int is_rough(mpz_t n, mpz_t k);
 extern int is_powerful(mpz_t n, uint32_t k);
 extern int is_almost_prime(uint32_t k, mpz_t n);
+extern int is_tau(mpz_t n, uint32_t k);
 
 #endif

@@ -97,7 +97,7 @@ our @EXPORT_OK = qw(
                      is_divisible is_congruent
                      is_power is_prime_power is_semiprime is_almost_prime
                      is_square is_smooth is_rough is_powerful is_practical
-                     is_carmichael is_fundamental is_totient
+                     is_carmichael is_fundamental is_totient is_tau
                      is_primitive_root
                      is_polygonal polygonal_nth
                      powerful_count
@@ -1556,6 +1556,12 @@ and 0 otherwise.
 A practical number is a positive integer C<n> such that all smaller
 positive integers can be represented as sums of distinct divisors of C<n>.
 This is L<OEIS series A005153|http://oeis.org/A005153>.
+
+=head2 is_tau
+
+Given two non-negative integer inputs C<n> and C<k>, returns C<1> if
+C<tau(n) == k> and C<0> otherwise, where C<tau(n)> is the number of
+divisors of C<n>.
 
 
 =head2 is_carmichael

@@ -997,6 +997,17 @@ is_powerful(IN char* strn, IN UV k = 0)
   OUTPUT:
     RETVAL
 
+int
+is_tau(IN char* strn, IN UV k)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET(n, strn);
+    RETVAL = is_tau(n, k);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 void
 invmod(IN char* stra, IN char* strb)
   ALIAS:
