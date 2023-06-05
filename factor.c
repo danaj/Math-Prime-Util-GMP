@@ -14,15 +14,28 @@
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
-#define NPRIMES_SMALL 2000
+#define NPRIMES_SMALL 3450
 static unsigned short primes_small[NPRIMES_SMALL];
+static mpz_t _gcd_1k;
+static mpz_t _gcd_4k;
+static mpz_t _gcd_16k;
+static mpz_t _gcd_32k;
 void _init_factor(void) {
   UV pn;
   PRIME_ITERATOR(iter);
   primes_small[0] = 0;
   primes_small[1] = 2;
+  mpz_init_set_ui(_gcd_1k, 1);
+  mpz_init_set_ui(_gcd_4k, 1);
+  mpz_init_set_ui(_gcd_16k, 1);
+  mpz_init_set_ui(_gcd_32k, 1);
   for (pn = 2; pn < NPRIMES_SMALL; pn++) {
-    primes_small[pn] = prime_iterator_next(&iter);
+    UV p = prime_iterator_next(&iter);
+    primes_small[pn] = p;
+    if (p >     2 && p <=  1000)  mpz_mul_ui(_gcd_1k, _gcd_1k, p);
+    if (p >  1000 && p <=  4000)  mpz_mul_ui(_gcd_4k, _gcd_4k, p);
+    if (p >  4000 && p <= 16000)  mpz_mul_ui(_gcd_16k, _gcd_16k, p);
+    if (p > 16000 && p <= 32000)  mpz_mul_ui(_gcd_32k, _gcd_32k, p);
   }
   prime_iterator_destroy(&iter);
 }
@@ -33,16 +46,17 @@ void _init_factor(void) {
  * with thousands of non-trivial factors. */
 #define MAX_FACTORS 128
 
-static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
+static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexponents)
 {
   int i, j, cmp = 0;
+  MPUassert(e >= 1, "Adding factor with 0 exponent");
   if (nfactors == 0) {                      /* First factor */
     mpz_t *factors;
     int* exponents;
     New(0, factors, 10, mpz_t);
     New(0, exponents, 10, int);
     mpz_init_set(factors[0], f);
-    exponents[0] = 1;
+    exponents[0] = e;
     *pfactors = factors;
     *pexponents = exponents;
     return 1;
@@ -52,7 +66,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
       Renew(*pexponents, nfactors+10, int);
     }
     mpz_init_set((*pfactors)[nfactors], f);
-    (*pexponents)[nfactors] = 1;
+    (*pexponents)[nfactors] = e;
     return nfactors+1;
   }
   /* Insert in sorted order.  Find out where we will put it. */
@@ -60,7 +74,7 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     if ((cmp = mpz_cmp((*pfactors)[i], f)) >= 0)
       break;
   if (cmp == 0) {                           /* Duplicate factor */
-    (*pexponents)[i]++;
+    (*pexponents)[i] += e;
     return nfactors;
   }
   /* factor[i] > f.  Move everything from i to nfactors up. */
@@ -74,18 +88,33 @@ static int add_factor(int nfactors, mpz_t f, mpz_t** pfactors, int** pexponents)
     (*pexponents)[j] = (*pexponents)[j-1];
   }
   mpz_set((*pfactors)[i], f);
-  (*pexponents)[i] = 1;
+  (*pexponents)[i] = e;
   return nfactors+1;
 }
 
 #define ADD_FACTOR_UI(f, t) \
   do { \
     mpz_set_ui(f, t); \
-    nfactors = add_factor(nfactors, f, &factors, &exponents); \
+    nfactors = add_factor(nfactors, f, 1, &factors, &exponents); \
   } while (0)
 
 #define ADD_FACTOR(f) \
-  do { nfactors = add_factor(nfactors, f, &factors, &exponents); } while (0)
+  do { nfactors = add_factor(nfactors, f, 1, &factors, &exponents); } while (0)
+
+#define ADD_FACTORS(f, e) \
+  do { nfactors = add_factor(nfactors, f, e, &factors, &exponents); } while (0)
+
+#define TRIAL_DIVIDE_SMALL(n, pn_lo, pn_hi) \
+  { UV sp, p; \
+    for (sp = pn_lo, p = primes_small[sp]; \
+         sp <= pn_hi && mpz_cmp_ui(n,p*p) >= 0; \
+         p = primes_small[++sp]) { \
+      if (mpz_divisible_ui_p(n, p)) { \
+        mpz_set_ui(f, p); \
+        ADD_FACTORS(f, mpz_remove(n,n,f)); \
+      } \
+    } \
+  }
 
 int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
@@ -106,30 +135,21 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   }
 
   /* Trial factor to small limit */
-  while (mpz_even_p(n)) {
-    ADD_FACTOR_UI(f, 2);
-    mpz_divexact_ui(n, n, 2);
+  if (mpz_even_p(n)) {
+    mpz_set_ui(f,2);
+    ADD_FACTORS(f, mpz_remove(n,n,f));
   }
-  tlim = (mpz_sizeinbase(n,2) > 80)  ?  4001  :  16001;
-  {
-    UV sp, p, un;
-    un = (mpz_cmp_ui(n,2*tlim*tlim) >= 0) ? 2*tlim*tlim : mpz_get_ui(n);
+  /* Using gcd to detect any factors in the range, then remove them if found */
+  if (mpz_gcd(f,n,_gcd_1k), mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,   2,  168);
+  if (mpz_gcd(f,n,_gcd_4k), mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 169,  550);
+  if (mpz_gcd(f,n,_gcd_16k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 551, 1862);
+  if (mpz_gcd(f,n,_gcd_32k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,1863, 3432);
 
-    for (sp = 2, p = primes_small[sp];
-         p < tlim && p*p <= un;
-         p = primes_small[++sp]) {
-      while (mpz_divisible_ui_p(n, p)) {
-        ADD_FACTOR_UI(f, p);
-        mpz_divexact_ui(n, n, p);
-        un = (mpz_cmp_ui(n,2*tlim*tlim) > 0) ? 2*tlim*tlim : mpz_get_ui(n);
-      }
-    }
-
-    if (un < p*p) {
-      if (un > 1)
-        ADD_FACTOR(n);
-      goto DONE;
-    }
+  tlim = 32003;
+  if (mpz_cmp_ui(n,tlim*tlim) < 0) {
+    if (mpz_cmp_ui(n,1) > 0)
+      ADD_FACTOR(n);
+    goto DONE;
   }
 
   /* Power factor */
