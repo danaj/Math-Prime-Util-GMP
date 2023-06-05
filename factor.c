@@ -572,15 +572,14 @@ void jordan_totient(mpz_t tot, mpz_t n, unsigned long k)
 
     nfactors = factor(n, &factors, &exponents);
     mpz_init(t);
-    mpz_set_ui(tot, 1);
     for (i = 0; i < nfactors; i++) {
       mpz_pow_ui(t, factors[i], k);
-      mpz_sub_ui(t, t, 1);
-      mpz_mul(tot, tot, t);
-      mpz_add_ui(t, t, 1);
+      mpz_sub_ui(factors[i], t, 1);
       for (j = 1; j < exponents[i]; j++)
-        mpz_mul(tot, tot, t);
+        mpz_mul(factors[i], factors[i], t);
     }
+    mpz_product(factors, 0, nfactors-1);
+    mpz_set(tot, factors[0]);
     mpz_clear(t);
     clear_factors(nfactors, &factors, &exponents);
   }
