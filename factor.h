@@ -29,6 +29,7 @@ extern int  _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2);
 extern int  _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2);
 extern int  _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_squfof_factor(mpz_t n, mpz_t f, UV rounds);
+extern int  _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx);
 
 extern UV   power_factor(mpz_t n, mpz_t f);
 

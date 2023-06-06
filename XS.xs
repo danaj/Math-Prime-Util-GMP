@@ -1640,16 +1640,17 @@ trial_factor(IN char* strn, ...)
     pbrent_factor = 2
     pminus1_factor = 3
     pplus1_factor = 4
-    holf_factor = 5
-    squfof_factor = 6
-    ecm_factor = 7
-    qs_factor = 8
+    cheb_factor = 5
+    holf_factor = 6
+    squfof_factor = 7
+    ecm_factor = 8
+    qs_factor = 9
   PREINIT:
     mpz_t n;
     UV arg1, arg2, uf;
     static const UV default_arg1[] =
-      {0,   64000000,64000000,5000000,5000000,256000000,100000000,0,  0  };
-    /*Trial,Rho,     Brent,   P-1,    P+1,    HOLF,     SQUFOF,   ECM,QS */
+      {0,   64000000,64000000,5000000,5000000,0,256000000,100000000,0,  0  };
+    /*Trial,Rho,     Brent,   P-1,    P+1,    Cheb, HOLF, SQUFOF,   ECM,QS */
   PPCODE:
     VALIDATE_AND_SET(n, strn);
     {
@@ -1692,9 +1693,10 @@ trial_factor(IN char* strn, ...)
                 success = _GMP_pminus1_factor(n, f, arg1,arg2);   break;
         case 4: if (arg2 == 0)  arg2 = arg1*10;
                 success = _GMP_pplus1_factor(n, f, 0,arg1,arg2);  break;
-        case 5: success = _GMP_holf_factor(n, f, arg1);           break;
-        case 6: success = squfof126(n, f, arg1);                  break;
-        case 7: if (arg2 == 0) arg2 = 100;
+        case 5: success = _GMP_cheb_factor(n, f, arg1,arg2);      break;
+        case 6: success = _GMP_holf_factor(n, f, arg1);           break;
+        case 7: success = squfof126(n, f, arg1);                  break;
+        case 8: if (arg2 == 0) arg2 = 100;
                 if (arg1 == 0) {
                   success =    _GMP_ECM_FACTOR(n, f,     1000, 40)
                             || _GMP_ECM_FACTOR(n, f,    10000, 40)
@@ -1705,7 +1707,7 @@ trial_factor(IN char* strn, ...)
                   success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
                 }
                 break;
-        case 8:
+        case 9:
         default:{
                   mpz_t farray[66];
                   int i, nfactors;

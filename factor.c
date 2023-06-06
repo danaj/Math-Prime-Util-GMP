@@ -10,6 +10,7 @@
 #include "ecm.h"
 #include "tinyqs.h"
 #include "simpqs.h"
+#include "lucas_seq.h"
 
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
@@ -196,7 +197,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       }
       if (nbits >= 65 && nbits <= 126) {
         if (!success) success = _GMP_pminus1_factor(n, f, 5000, 5000);
-        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",5000,f);o=0;}
+        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",5,f);o=0;}
         if (!success) success = tinyqs(n, f);
         if (success&&o) {gmp_printf("tinyqs found factor %Zd\n", f);o=0;}
       }
@@ -301,6 +302,10 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       /* HOLF in case it's a near-ratio-of-perfect-square */
       if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
       if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
+
+      /* Chebyshev poly in case p+1 is smooth */
+      if (!success) success = _GMP_cheb_factor(n, f, 50000, 0);
+      if (success&&o) {gmp_printf("cheb (%dk) found factor %Zd\n",50,f);o=0;}
 
       /* Large p-1 with stage 2: B2 = 20*B1 */
       if (!success)  success = _GMP_pminus1_factor(n,f,5000000,5000000*20);
@@ -1459,6 +1464,47 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
     prime_iterator_destroy(&iter);
     mpz_clear(X);  mpz_clear(Y);  mpz_clear(saveX);
     return (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0);
+}
+
+int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
+{
+  UV sqrtB, p;
+  double logB;
+  mpz_t x, inv, t, k, P, Q;
+  PRIME_ITERATOR(iter);
+
+  if (B == 0) { B = mpz_sizeinbase(n,2);  B = B*B*B; }
+
+  TEST_FOR_2357(n, f);
+  if (B < 7) return 0;
+
+  logB = logl(B);
+  mpz_init_set_ui(inv, 2);
+  mpz_invert(inv, inv, n);   /* multiplying by this will divide by two */
+  mpz_init_set_ui(x, (initx == 0) ? 72 : initx);
+  mpz_init(t);
+  mpz_init(k);
+  mpz_init(P);
+  mpz_init_set_ui(Q, 1);
+
+  mpz_set_ui(f, 1);
+  for (p = 2; p <= B && mpz_cmp_ui(f,1) <= 0; p = prime_iterator_next(&iter)) {
+    UV lgbp = (UV) (logB / logl(p));   /* Alternately logint(mpzB,p) */
+    if (lgbp > 1)  mpz_ui_pow_ui(k, p, lgbp);
+    else           mpz_set_ui(k, p);
+    mpz_mul_2exp(P, x, 1);
+    lucasvmod(x, P, Q, k, n, t);
+    mpz_mul(x, x, inv);
+    mpz_mod(x, x, n);
+    mpz_sub_ui(t, x, 1);
+    mpz_gcd(f, t, n);
+  }
+  if (mpz_cmp_ui(f,1) <= 0)
+    mpz_set(f,n);
+  prime_iterator_destroy(&iter);
+  mpz_clear(Q);  mpz_clear(P);  mpz_clear(k);  mpz_clear(t);
+  mpz_clear(x);  mpz_clear(inv);
+  return (mpz_cmp_ui(f, 1) > 0) && (mpz_cmp(f, n) < 0);
 }
 
 int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
