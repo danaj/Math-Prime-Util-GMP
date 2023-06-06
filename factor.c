@@ -1099,6 +1099,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   mpz_init(saveXi);
 
   r = 1;
+  mpz_set_ui(f,1);
   while (rounds > 0) {
     UV rleft = (r > rounds) ? rounds : r;
     while (rleft > 0) {   /* Do rleft rounds, inner at a time */
