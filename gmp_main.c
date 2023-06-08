@@ -11,6 +11,7 @@
 #include "ecpp.h"
 #include "factor.h"
 #include "real.h"
+#include "random_prime.h"
 
 #define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
@@ -1175,65 +1176,72 @@ void exp_mangoldt(mpz_t res, mpz_t n)
 
 int is_carmichael(mpz_t n)
 {
-  mpz_t nm1, t, *factors;
+  mpz_t nm1, base, t, *factors;
   int i, res, nfactors, *exponents;
 
   /* small or even */
-  if (mpz_cmp_ui(n,561) < 0 || mpz_even_p(n))  return 0;
-
-  /* divisible by small square */
-  for (i = 1; i < 9; i++)
-    if (mpz_divisible_ui_p(n, sprimes[i] * sprimes[i]))
-      return 0;
+  if (mpz_cmp_ui(n,1105) < 0 || mpz_even_p(n))
+    return mpz_cmp_ui(n,561)==0;
 
   mpz_init(nm1);
   mpz_sub_ui(nm1, n, 1);
 
-  /* Korselt's criterion for small divisors */
-  for (i = 2; i < 20; i++)
-    if (mpz_divisible_ui_p(n, sprimes[i]) && !mpz_divisible_ui_p(nm1, sprimes[i]-1))
-      { mpz_clear(nm1); return 0; }
-
-  mpz_init_set_ui(t, 2);
-  mpz_powm(t, t, nm1, n);
-  if (mpz_cmp_ui(t, 1) != 0) {   /* if 2^(n-1) mod n != 1, fail */
-    mpz_clear(t);  mpz_clear(nm1);
-    return 0;
-  }
-
-  /* If large enough, use probable test */
-  if (mpz_sizeinbase(n,10) > 50) {
-    res = !_GMP_is_prime(n);  /* It must be a composite */
-    for (i = 20; res && i <= 100; i++) {
-      UV p = sprimes[i];
-      UV gcd = mpz_gcd_ui(NULL, n, p);
-      if (gcd == 1) {
-        /* For each non prime factor it passes a Fermat test */
-        if (mpz_set_ui(t,p), mpz_powm(t,t,nm1,n), mpz_cmp_ui(t, 1) != 0)
-          res = 0;
-      } else {
-        /* For each prime factor it meets Korselt criterion */
-        if (gcd != p || !mpz_divisible_ui_p(nm1, p-1))
-          res = 0;
-      }
+  for (i = 1; i < 30; i++) {
+    if (mpz_divisible_ui_p(n, sprimes[i])) {
+      if (    mpz_divisible_ui_p(n, sprimes[i]*sprimes[i])
+           || !mpz_divisible_ui_p(nm1, sprimes[i]-1)       )
+        { mpz_clear(nm1); return 0; }
     }
-    mpz_clear(t);  mpz_clear(nm1);
-    return res;
   }
 
-  nfactors = factor(n, &factors, &exponents);
-  res = (nfactors > 2);                       /* must have 3+ factors */
-  for (i = 0; res && i < nfactors; i++) {     /* must be square free  */
-    if (exponents[i] > 1)
-      res = 0;
+  mpz_init(t);
+  mpz_init(base);
+
+  /* Check 2^(n-1) mod n = 1 */
+  res = (mpz_set_ui(t,2), mpz_powm(t,t,nm1,n), mpz_cmp_ui(t,1) == 0);
+
+  /* Check with a few random small primes */
+  for (i = 0; res && i < 5; i++) {
+    mpz_random_nbit_prime(base, 32);
+    if (mpz_divisible_p(n, base)) {
+      if ( (mpz_mul(t, base, base), mpz_divisible_p(n, t)) ||
+           (mpz_sub_ui(t, base, 1), !mpz_divisible_p(nm1, t)) )
+        res = 0;
+    } else {
+      mpz_powm(t, t, nm1, n),
+      res = (mpz_cmp_ui(t, 1) == 0);
+    }
   }
-  for (i = 0; res && i < nfactors; i++) {     /* p-1 | n-1 for all p */
-    mpz_sub_ui(t, factors[i], 1);
-    if (!mpz_divisible_p(nm1, t))
-      res = 0;
+  if (!res)
+    { mpz_clear(base); mpz_clear(t);  mpz_clear(nm1);  return 0; }
+
+  /* Decent chance that at this point it's prime or a Carmichael number. */
+
+  if (mpz_sizeinbase(n,10) > 50) {      /* Probabilistic test */
+
+    res = !_GMP_is_prime(n);  /* It must be a composite */
+    for (i = 0; res && i < 128; i++) {
+      mpz_sub_ui(t, n, 4);
+      mpz_isaac_urandomm(base, t);
+      mpz_add_ui(base, base, 3);    /* random base between 3 and n-2 */
+      mpz_powm(t, base, nm1, n);
+      res = (mpz_cmp_ui(t, 1) == 0);  /* if base^(n-1) mod n != 1, fail */
+    }
+
+  } else {                              /* Deterministic test (factor n) */
+
+    nfactors = factor(n, &factors, &exponents);
+    res = (nfactors > 2);                       /* must have 3+ factors */
+    for (i = 0; res && i < nfactors; i++)       /* must be square free  */
+      if (exponents[i] > 1)
+        res = 0;
+    for (i = 0; res && i < nfactors; i++)       /* p-1 | n-1 for all p */
+      if (mpz_sub_ui(t, factors[i], 1), !mpz_divisible_p(nm1, t))
+        res = 0;
+    clear_factors(nfactors, &factors, &exponents);
+
   }
-  clear_factors(nfactors, &factors, &exponents);
-  mpz_clear(t);  mpz_clear(nm1);
+  mpz_clear(base);  mpz_clear(t);  mpz_clear(nm1);
   return res;
 }
 

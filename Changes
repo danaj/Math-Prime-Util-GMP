@@ -83,6 +83,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - sqrtmod now works with composites and uses absolute value of modulus.
 
+    - is_carmichael for 51+ digit inputs uses random bases.  Github #34.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached
