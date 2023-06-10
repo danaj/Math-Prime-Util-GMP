@@ -1224,8 +1224,8 @@ int is_carmichael(mpz_t n)
       mpz_sub_ui(t, n, 4);
       mpz_isaac_urandomm(base, t);
       mpz_add_ui(base, base, 3);    /* random base between 3 and n-2 */
-      mpz_powm(t, base, nm1, n);
-      res = (mpz_cmp_ui(t, 1) == 0);  /* if base^(n-1) mod n != 1, fail */
+      mpz_powm(t, base, n, n);
+      res = (mpz_cmp(t, base) == 0);  /* if base^n mod n != base, fail */
     }
 
   } else {                              /* Deterministic test (factor n) */
