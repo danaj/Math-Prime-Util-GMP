@@ -183,7 +183,8 @@ plan tests => 0 + 9
                 + 5 * scalar(@comp128)    # strong probable prime tests
                 + 15  # Check Frobenius for small primes
                 + 3   # mrr with seed and neg bases
-                + 4  *scalar(@perrint);   # Perrin pseudoprime types
+                + 4  *scalar(@perrint)    # Perrin pseudoprime types
+                + 2   # Test for unusual single digit pseudoprimes
                 + 0;
 
 eval { is_strong_pseudoprime(2047); };
@@ -457,3 +458,7 @@ for my $pdata (@perrint) {
     }
   }
 }
+
+###### Tests for Github #36
+ok( is_pseudoprime(4,5), "4 is a base 5 pseudoprime" );
+ok( is_pseudoprime(8,9), "8 is a base 9 pseudoprime" );

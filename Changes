@@ -85,6 +85,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - is_carmichael for 51+ digit inputs uses random bases.  Github #34.
 
+    - is_pseudoprime(k,base) was incorrect for some single digit k with
+      non-standard base.  Github #36.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

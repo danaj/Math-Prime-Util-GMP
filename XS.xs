@@ -155,13 +155,6 @@ is_pseudoprime(IN char* strn, ...)
   CODE:
     if (items < 2) croak("%s: no bases", GvNAME(CvGV(cv)));
     validate_string_number(cv,"n",strn);
-    if (strn[1] == 0) {
-      switch (strn[0]) {
-        case '2': case '3': case '5': case '7': XSRETURN_IV(1); break;
-        case '0': case '1': case '4': case '6': case '8': XSRETURN_IV(0); break;
-        default:  break; /* let 9 fall through */
-      }
-    }
     for (i = 1; i < items; i++) {
       const char* strbase = SvPV_nolen(ST(i));
       validate_string_number(cv, "base", strbase);

@@ -434,15 +434,23 @@ verification.  Proof types used include:
 
 Takes a positive number C<n> and one or more non-zero positive bases as input.
 Returns C<1> if the input is a probable prime to each base, C<0> if not.
-This is the simple Fermat primality test.
+This is the simple Fermat primality test, checking that C<b^(n-1) = 1 mod n>.
 Removing primes, given base 2 this produces the sequence L<OEIS A001567|http://oeis.org/A001567>.
+
+C<n=2> is always returned as a pseudoprime.  No other restrictions are used,
+so for instance, 4 is a Fermat pseudoprime base 5.
 
 =head2 is_euler_pseudoprime
 
 Takes a positive number C<n> and one or more non-zero positive bases as input.
 Returns C<1> if the input is an Euler probable prime to each base, C<0> if not.
-This is the Euler test, sometimes called the Euler-Jacobi test.
+This is the Euler test, sometimes called the Euler-Jacobi test,
+checking that C<kronecker(b,n) = b^((n-1)/2) mod n>
 Removing primes, given base 2 this produces the sequence L<OEIS A047713|http://oeis.org/A047713>.
+
+C<n=2> is always returned as an Euler-Jacobi pseudoprime.
+All other even C<n> return 0.
+All bases not co-prime to C<n> will return 0.
 
 =head2 is_strong_pseudoprime
 
@@ -458,15 +466,7 @@ returned, then it is either a prime or a strong pseudoprime to all
 the given bases.  Given enough distinct bases, the chances become
 very strong that the number is actually prime.
 
-Both the input number and the bases may be big integers.  If base
-modulo n E<lt>= 1 or base modulo n = n-1, then the result will be 1.
-This allows the bases to be larger than n if desired, while still
-returning meaningful results.  For example,
-
-  is_strong_pseudoprime(367, 1101)
-
-would incorrectly return 0 if this was not done properly.  A 0 result
-should be returned only if n is composite, regardless of the base.
+Both the input number and the bases may be big integers.
 
 This is usually used in combination with other tests to make either stronger
 tests (e.g. the strong BPSW test) or deterministic results for numbers less
@@ -477,11 +477,24 @@ are some math packages that just use multiple MR tests for primality testing,
 though in the early 1990s almost all serious software switched to the
 BPSW test.
 
-Even numbers other than 2 will always return 0 (composite).  While the
-algorithm works with even input, most sources define it only on odd input.
-Returning composite for all non-2 even input makes the function match most
+C<n=2> is always returned as strong pseudoprime.
+All other even C<n> return 0 (most sources define this test for odd C<n>).
+Returning 0 for all even composite C<n> makes the function match most
 other implementations including L<Math::Primality>'s C<is_strong_pseudoprime>
 function.
+
+If base modulo n E<lt>= 1 or base modulo n = n-1, then the result will be 1.
+The test is not well defined if C<base = 0 mod n>
+(e.g. Crandall and Pomerance page 135), so we define it to return 1,
+which allows bases to be larger than n if desired while still
+returning meaningful results for all n.  For example,
+
+  is_strong_pseudoprime(367, 1101)
+
+would return 0 if this change was not made.  This is important for using
+deterministic base sets with large bases.  Note that this only matters if
+the base used is greater than or equal to C<n>.
+A 0 result will not be returned for a prime C<n>, regardless of the base.
 
 =head2 miller_rabin_random
 

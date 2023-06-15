@@ -21,7 +21,7 @@ static int _preprocess_base(mpz_t n, mpz_t a)
 {
   if (mpz_cmp_ui(a, 1) <= 0)
     croak("Base %ld is invalid", mpz_get_si(a));
-  if (mpz_cmp_ui(n, 3) <= 0)
+  if (mpz_cmp_ui(n, 2) <= 0)
     return (mpz_cmp_ui(n, 2) >= 0);
 
   if (mpz_cmp_ui(a, 2) > 0) {
@@ -107,7 +107,7 @@ int miller_rabin(mpz_t n, mpz_t a)
 
   cmpr = mpz_cmp_ui(n, 2);
   if (cmpr == 0)     return 1;  /* 2 is prime */
-  if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (cmpr < 0)      return 0;  /* below 2 is not prime */
   if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   if (mpz_cmp_ui(a, 1) <= 0) croak("Base %ld is invalid", mpz_get_si(a));
 
@@ -134,7 +134,7 @@ int miller_rabin_ui(mpz_t n, unsigned long a)
 
   cmpr = mpz_cmp_ui(n, 2);
   if (cmpr == 0)     return 1;  /* 2 is prime */
-  if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (cmpr < 0)      return 0;  /* below 2 is not prime */
   if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   if (a <= 1) croak("Base %lu is invalid", a);
 
@@ -163,7 +163,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
 
@@ -538,7 +538,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
 
@@ -625,7 +625,7 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
 
@@ -742,7 +742,7 @@ int is_perrin_pseudoprime(mpz_t n, int restricted)
 
   cmpr = mpz_cmp_ui(n, 2);
   if (cmpr == 0)     return 1;  /* 2 is prime */
-  if (cmpr < 0)      return 0;  /* below 2 is composite */
+  if (cmpr < 0)      return 0;  /* below 2 is not prime */
   if (restricted > 2 && mpz_even_p(n)) return 0;
 
   { /* Simple filter for composites */
@@ -845,7 +845,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
   mpz_init(t);
@@ -1020,7 +1020,7 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
 
@@ -1090,7 +1090,7 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
   {
     int cmpr = mpz_cmp_ui(n, 2);
     if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is composite */
+    if (cmpr < 0)      return 0;  /* below 2 is not prime */
     if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
   }
   if (mpz_perfect_square_p(n)) return 0;
