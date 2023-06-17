@@ -166,7 +166,7 @@ my %pi2n = (
 );
 
 
-plan tests => 4 + scalar (keys %pivals) + scalar @tests + 2*scalar(keys %pi2n) + 2;
+plan tests => 4 + scalar (keys %pivals) + scalar @tests + 2*scalar(keys %pi2n) + 2 + 2;
 
 
 # TODO: error cases
@@ -193,3 +193,7 @@ while (my($n, $pin) = each (%pi2n)) {
 # Larger to exercise the sieve code
 is( prime_count(0,100010), 9593, "prime_count(0,100010) = 9593");
 is( prime_count(1000000,1100010), 7217, "prime_count(1e6+0,1e6+100010) = 7217");
+
+# Github #33
+is( prime_count(619,619), 1, "prime_count(619,619) = 1");
+is( prime_count(619,631), 2, "prime_count(619,631) = 2");

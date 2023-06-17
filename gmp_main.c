@@ -1527,10 +1527,10 @@ uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime)
 
 /*****************************************************************************/
 
-static unsigned long small_prime_count(unsigned long n)
+static unsigned short small_prime_count(unsigned short n)
 {
   unsigned long i;
-  for (i = 0; i <= NSMALLPRIMES; i++)
+  for (i = 0; i < NSMALLPRIMES; i++)
     if (n < sprimes[i])
       break;
   return i;
@@ -1542,7 +1542,7 @@ void prime_count_lower(mpz_t pc, mpz_t n)
   unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
   unsigned long N = mpz_get_ui(n);
 
-  if (mpz_cmp_ui(n, 1000) < 0)
+  if (mpz_cmp_ui(n, 1009) < 0)
     { mpz_set_ui(pc, small_prime_count(N)); return; }
 
   mpf_init2(x,     bits);
@@ -1654,7 +1654,7 @@ void prime_count_upper(mpz_t pc, mpz_t n)
   unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
   unsigned long N = mpz_get_ui(n);
 
-  if (mpz_cmp_ui(n, 1000) < 0)
+  if (mpz_cmp_ui(n, 1009) < 0)
     { mpz_set_ui(pc, small_prime_count(N)); return; }
 
   if (mpz_cmp_ui(n, 15900) < 0) {
@@ -1760,10 +1760,10 @@ void prime_count_range(mpz_t count, mpz_t ilo, mpz_t ihi)
 
   if (mpz_cmp(ilo, ihi) > 0 || mpz_cmp_ui(ihi,2) < 0) return;
 
-  if (mpz_cmp_ui(ihi, 1000) < 0) {
+  if (mpz_cmp_ui(ihi, 1009) < 0) {
      UV ulo = mpz_get_ui(ilo), uhi = mpz_get_ui(ihi);
      UV cnt = small_prime_count(uhi)
-            - ((ulo <= 2) ? 0 : small_prime_count(ulo));
+            - ((ulo <= 2) ? 0 : small_prime_count(ulo-1));
      mpz_set_ui(count, cnt);
      return;
   }
