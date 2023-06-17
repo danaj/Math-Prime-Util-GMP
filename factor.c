@@ -407,7 +407,7 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
 
 
 /* TODO: Optimize to factor down to the last semiprime. */
-static void _omega(mpz_t n, int* omega, int* bigomega)
+static void _omega(mpz_t n, uint32_t* omega, uint32_t* bigomega)
 {
   mpz_t* factors;
   int i, nfactors, result, *exponents;
@@ -419,21 +419,21 @@ static void _omega(mpz_t n, int* omega, int* bigomega)
       result += exponents[i];
     *bigomega = result;
   }
-  clear_factors(nfactors, &factors, &exponents);
   if (omega != 0)
     *omega = nfactors;
+  clear_factors(nfactors, &factors, &exponents);
 }
 
-int omega(mpz_t n)
+uint32_t omega(mpz_t n)
 {
-  int o, bo;
-  _omega(n, &o, &bo);
+  uint32_t o;
+  _omega(n, &o, 0);
   return o;
 }
-int bigomega(mpz_t n)
+uint32_t bigomega(mpz_t n)
 {
-  int o, bo;
-  _omega(n, &o, &bo);
+  uint32_t bo;
+  _omega(n, 0, &bo);
   return bo;
 }
 
@@ -501,7 +501,7 @@ void sigma(mpz_t res, mpz_t n, UV k)
 static const unsigned long smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
 int moebius(mpz_t n)
 {
-  int i, o, bo;
+  uint32_t i, o, bo;
 
   if (mpz_sgn(n) < 0) {
     mpz_neg(n,n);
@@ -524,7 +524,7 @@ int moebius(mpz_t n)
 
 int liouville(mpz_t n)
 {
-  int result = bigomega(n);
+  uint32_t result = bigomega(n);
   return (result & 1)  ?  -1  : 1;
 }
 
@@ -1527,7 +1527,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
 
 int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
 {
-  UV sqrtB, p;
+  UV p;
   double logB;
   mpz_t x, inv, t, k, P, Q;
   PRIME_ITERATOR(iter);

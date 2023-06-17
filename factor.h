@@ -9,8 +9,8 @@ extern void _init_factor(void);
 extern int factor(mpz_t n, mpz_t* factors[], int* exponents[]);
 extern void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[]);
 
-extern int omega(mpz_t n);
-extern int bigomega(mpz_t n);
+extern uint32_t omega(mpz_t n);
+extern uint32_t bigomega(mpz_t n);
 extern void sigma(mpz_t res, mpz_t n, UV k);
 extern int moebius(mpz_t n);
 extern int liouville(mpz_t n);
