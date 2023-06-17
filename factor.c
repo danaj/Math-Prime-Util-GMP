@@ -617,10 +617,76 @@ void carmichael_lambda(mpz_t lambda, mpz_t n)
   }
 }
 
+static const unsigned char _zntiny[7][7] = {
+  {2},
+  {0,2},
+  {4,4,2},
+  {0,0,0,2},
+  {3,6,3,6,2},
+  {0,2,0,2,0,2},
+  {6,0,3,6,0,3,2} };
+static const unsigned char _zn11[ 9] = {10,5,5,5,10,10,10,5,2};
+static const unsigned char _zn13[11] = {12,3,6,4,12,12,4,3,6,12,2};
+static const unsigned char _zn16[14] = {0,4,0,4,0,2,0,2,0,4,0,4,0,2};
+static const unsigned char _zn17[15] = {8,16,4,16,16,16,8,8,16,16,16,4,16,8,2};
+
+/* Do not alias any of the arguments */
+static void _znorder1(mpz_t order, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t n)
+{
+  mpz_t phi, *factors;
+  int* exponents;
+  int i, j, nfactors;
+
+  mpz_set_ui(order, 1);
+  mpz_pow_ui(n, p, e);
+
+  /* Remove some simple cases */
+  if (mpz_cmp_ui(n, 1) <= 0)  { mpz_set(order, n); return; }
+  mpz_mod(t, a, n);
+  if (mpz_cmp_ui(t, 1) <= 0)  { mpz_set(order, t); return; }
+  /* These are purely for performance. */
+  if (mpz_cmp_ui(n,17) <= 0) {
+    unsigned long int nn = mpz_get_ui(n), aa = mpz_get_ui(t);
+    if (nn <=  9)  { mpz_set_ui(order, _zntiny[nn-3][aa-2]); return; }
+    if (nn == 11)  { mpz_set_ui(order, _zn11[aa-2]); return; }
+    if (nn == 13)  { mpz_set_ui(order, _zn13[aa-2]); return; }
+    if (nn == 16)  { mpz_set_ui(order, _zn16[aa-2]); return; }
+    if (nn == 17)  { mpz_set_ui(order, _zn17[aa-2]); return; }
+  }
+
+  /* Abhijit Das, algorithm 1.7 */
+  /* This could be further simplified / optimized */
+  mpz_init(phi);
+  mpz_sub_ui(phi, p, 1);
+  nfactors = factor(phi, &factors, &exponents);
+  if (e > 1) {
+    mpz_pow_ui(t, p, e-1);
+    mpz_mul(phi, phi, t);
+    ADD_FACTORS(p, e-1);
+  }
+  for (i = 0; i < nfactors; i++) {
+    mpz_divexact(t, phi, factors[i]);
+    for (j = 1; j < exponents[i]; j++)
+      mpz_divexact(t, t, factors[i]);
+    mpz_powm(t, a, t, n);
+    for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
+      if (j++ >= exponents[i]) {
+        mpz_set_ui(order, 0);
+        break;
+      }
+      mpz_mul(order, order, factors[i]);
+    }
+    if (j > exponents[i]) break;
+  }
+  mpz_clear(phi);
+  clear_factors(nfactors, &factors, &exponents);
+}
+
 void znorder(mpz_t res, mpz_t a, mpz_t n)
 {
-  mpz_t t;
+  mpz_t t, order;
 
+  /* TODO: Usually we don't want to modify their inputs */
   mpz_abs(n,n);
   if (mpz_cmp_ui(n, 1) <= 0) { mpz_set(res, n); return; }
   mpz_mod(a, a, n);
@@ -628,39 +694,31 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
 
   mpz_init(t);
   mpz_gcd(t, a, n);
-
   if (mpz_cmp_ui(t, 1) != 0) {
     mpz_set_ui(res, 0);
-  } else {
-    mpz_t order, phi;
-    mpz_t* factors;
-    int* exponents;
-    int i, j, nfactors;
-
-    mpz_init_set_ui(order, 1);
-    mpz_init(phi);
-    /* Abhijit Das, algorithm 1.7, applied to Carmichael Lambda */
-    carmichael_lambda(phi, n);
-    nfactors = factor(phi, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      mpz_divexact(t, phi, factors[i]);
-      for (j = 1; j < exponents[i]; j++)
-        mpz_divexact(t, t, factors[i]);
-      mpz_powm(t, a, t, n);
-      for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
-        if (j++ >= exponents[i]) {
-          mpz_set_ui(order, 0);
-          break;
-        }
-        mpz_mul(order, order, factors[i]);
-      }
-      if (j > exponents[i]) break;
-    }
-    mpz_set(res, order);
-    mpz_clear(phi);
-    mpz_clear(order);
-    clear_factors(nfactors, &factors, &exponents);
+    mpz_clear(t);
+    return;
   }
+  mpz_init_set_ui(order, 1);
+
+  { /* Factor n, then lcm all the znorder(p^e). */
+    mpz_t order1, t2, *factors;
+    int* exponents;
+    int i, nfactors;
+
+    mpz_init(order1);
+    mpz_init(t2);
+    nfactors = factor(n, &factors, &exponents);
+    for (i = 0; i < nfactors; i++) {
+      _znorder1(order1, a, factors[i], exponents[i], t, t2);
+      mpz_lcm(order, order, order1);
+    }
+    clear_factors(nfactors, &factors, &exponents);
+    mpz_clear(t2);
+    mpz_clear(order1);
+  }
+  mpz_set(res, order);
+  mpz_clear(order);
   mpz_clear(t);
 }
 
@@ -1780,7 +1838,7 @@ int is_powerful(mpz_t n, uint32_t k) {
   /* 3. Fully factor */
   nfactors = factor(N, &factors, &exponents);
   for (i = 0; i < nfactors; i++) {
-    if (exponents[i] < k)
+    if ((uint32_t)exponents[i] < k)
       break;
   }
   clear_factors(nfactors, &factors, &exponents);

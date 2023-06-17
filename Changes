@@ -97,6 +97,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - factoring with many small factors, e.g. a factorial, is much faster.
 
+    - znorder is slightly faster for general inputs, and much faster for n
+      with many factors (e.g. a factorial).  Github #38.
+
     [OTHER]
 
     - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.

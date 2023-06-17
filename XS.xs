@@ -1143,13 +1143,13 @@ void powersum(IN char* stra, IN char* strb)
   ALIAS:
     faulhaber_sum = 1
   PREINIT:
-    mpz_t a, b, t;
-    int retundef;
+    mpz_t a, b;
   PPCODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("powersum: negative argument");
-    faulhaber_sum(a, a, mpz_get_ui(b));
+    if (ix == 0 || ix == 1)
+      faulhaber_sum(a, a, mpz_get_ui(b));
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
 

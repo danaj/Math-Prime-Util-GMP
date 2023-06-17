@@ -22,8 +22,8 @@ use Math::Prime::Util::PP;
       my $p3 = Math::Prime::Util::GMP::is_pseudoprime($n,$base);
       my $p4 = Math::Prime::Util::PP::is_pseudoprime($n,$base);
       push @IM, "$n $base     $p1  $p2" unless $p1 == $p2;
-      push @IG, "$n $base     $p1  $p2" unless $p1 == $p3;
-      push @IP, "$n $base     $p1  $p2" unless $p1 == $p4;
+      push @IG, "$n $base     $p1  $p3" unless $p1 == $p3;
+      push @IP, "$n $base     $p1  $p4" unless $p1 == $p4;
     }
   }
   showerr("is_pseudoprime", "MPU", @IM);
@@ -40,8 +40,8 @@ print "\n";
       my $p3 = Math::Prime::Util::GMP::is_euler_pseudoprime($n,$base);
       my $p4 = Math::Prime::Util::PP::is_euler_pseudoprime($n,$base);
       push @IM, "$n $base     $p1  $p2" unless $p1 == $p2;
-      push @IG, "$n $base     $p1  $p2" unless $p1 == $p3;
-      push @IP, "$n $base     $p1  $p2" unless $p1 == $p4;
+      push @IG, "$n $base     $p1  $p3" unless $p1 == $p3;
+      push @IP, "$n $base     $p1  $p4" unless $p1 == $p4;
     }
   }
   showerr("is_euler_pseudoprime", "MPU", @IM);
@@ -58,8 +58,8 @@ print "\n";
       my $p3 = Math::Prime::Util::GMP::is_strong_pseudoprime($n,$base);
       my $p4 = Math::Prime::Util::PP::is_strong_pseudoprime($n,$base);
       push @IM, "$n $base     $p1  $p2" unless $p1 == $p2;
-      push @IG, "$n $base     $p1  $p2" unless $p1 == $p3;
-      push @IP, "$n $base     $p1  $p2" unless $p1 == $p4;
+      push @IG, "$n $base     $p1  $p3" unless $p1 == $p3;
+      push @IP, "$n $base     $p1  $p4" unless $p1 == $p4;
     }
   }
   showerr("is_strong_pseudoprime", "MPU", @IM);
