@@ -16,6 +16,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_almost_prime(k,n)     does n have exactly k prime factors
     - is_divisible(n,d)        is n exactly divisible by d
     - is_congruent(n,c,d)      is n congruent to c mod d
+    - is_qr(a,n)               is n a quadratic residue mod n
     - prime_bigomega(n)        number of factors (with multiplicity)
     - prime_omega(n)           number of factors (distinct)
     - powerful_count(n[,k])    count of k-powerful numbers <= n

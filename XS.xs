@@ -1139,6 +1139,24 @@ invmod(IN char* stra, IN char* strb)
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
 
+int is_qr(IN char* stra, IN char* strn)
+  PREINIT:
+    mpz_t a, n;
+    int retval;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    retval = -1;
+    if (mpz_sgn(n) != 0) {
+      mpz_abs(n,n);
+      retval = sqrtmod(a,a,n);
+    }
+    mpz_clear(n); mpz_clear(a);
+    if (retval == -1)
+      XSRETURN_UNDEF;
+    else
+      XSRETURN_IV(retval);
+
 void powersum(IN char* stra, IN char* strb)
   ALIAS:
     faulhaber_sum = 1

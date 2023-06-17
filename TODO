@@ -196,3 +196,5 @@
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
 - what's going on with compbit and bitcom?
+
+- is_qr faster version?  Better tests?

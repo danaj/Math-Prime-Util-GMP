@@ -80,6 +80,7 @@ our @EXPORT_OK = qw(
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      invmod sqrtmod addmod submod mulmod divmod powmod
+                     is_qr
                      muladdmod mulsubmod
                      vecsum vecprod
                      exp_mangoldt
@@ -1287,7 +1288,7 @@ Returns the product of all arguments, each of which must be an integer.
 =head2 kronecker
 
 Returns the Kronecker symbol C<(a|n)> for two integers.  The possible
-return values with their meanings for odd positive C<n> are:
+return values with their meanings for odd prime C<n> are:
 
    0   a = 0 mod n
    1   a is a quadratic residue modulo n (a = x^2 mod n for some x)
@@ -1299,6 +1300,10 @@ The Jacobi symbol is itself an extension of the Legendre symbol, which is
 only defined for odd prime values of C<n>.  This corresponds to Pari's
 C<kronecker(a,n)> function and Mathematica's C<KroneckerSymbol[n,m]>
 function.
+
+If C<n> is not an odd prime, then the result does not necessarily
+indicate whether C<a> is a quadratic residue mod C<n>.  Using the function
+L</is_qr> will return correct results for any C<n>, though could be slower.
 
 =head2 binomial
 
@@ -1687,6 +1692,19 @@ C<k> must be greater than 1.
 C<|n| = 0> returns undef, and C<|n| = 1> returns zero.
 
 This corresponds to Pari and SAGE's C<valuation> function.
+
+=head2 is_qr
+
+Given two integers C<a> and C<n>, returns 1 if C<a> is a
+quadratic residue modulo C<|n|>, and 0 otherwise.
+A return value of 1 indicates there exists an C<x> where C<a = x^2 mod |n|>.
+
+For odd primes, this is similar to checking C<a==0 || kronecker(a,n) == 1>.
+
+For all values, this will be equal to C<sqrtmod(a,n) != undef>, with
+possibly better performance.
+
+If C<n = 0> the function returns undef.
 
 =head2 hammingweight
 

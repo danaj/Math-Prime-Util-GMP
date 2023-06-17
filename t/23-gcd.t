@@ -4,6 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight invmod
+                              is_qr
                               is_power is_prime_power is_square
                               binomial gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -170,7 +171,7 @@ plan tests => scalar(@gcds)
             + scalar(@gcdexts)
             + scalar(@vecsums)
             + scalar(@vecprods)
-            + 3 + 3 + 1 + 5 + 4 + 3 + 3;
+            + 3 + 3 + 1 + 5 + 4 + 3 + 3 + 2;
 
 foreach my $garg (@gcds) {
   my($aref, $exp) = @$garg;
@@ -264,3 +265,6 @@ is_deeply(
 );
 is(is_square(60481729), 1, "60481729 is a square");
 is(is_square("1147957727564358902879339073765020815402752648121"), 1, "is_square(<square of 80-bit prime>) = 1");
+
+is(is_qr("2636542937688", "3409243234243"), 1, "2636542937688 is a qr mod 3409243234243");
+is(is_qr("8534974153093298555336377189642110468409", "9823409234092340923409234092340923409243234243"), 1, "is_qr for large inputs");
