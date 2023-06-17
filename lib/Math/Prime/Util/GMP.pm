@@ -57,6 +57,7 @@ our @EXPORT_OK = qw(
                      pbrent_factor
                      pminus1_factor
                      pplus1_factor
+                     cheb_factor
                      holf_factor
                      squfof_factor
                      ecm_factor
@@ -450,7 +451,7 @@ Removing primes, given base 2 this produces the sequence L<OEIS A047713|http://o
 
 C<n=2> is always returned as an Euler-Jacobi pseudoprime.
 All other even C<n> return 0.
-All bases not co-prime to C<n> will return 0.
+All bases not coprime to C<n> will return 0.
 
 =head2 is_strong_pseudoprime
 
@@ -1629,6 +1630,8 @@ This is L<OEIS series A025528|http://oeis.org/A025528>.
 
 =head2 powersum
 
+=head2 faulhaber_sum
+
   say powersum(111,18);
   # 41588295196841906092077874022002239896
 
@@ -1645,7 +1648,7 @@ L</bernvec> should be called once on a single thread, then future calls to
 C<powersum> and the other functions can be safely done on multiple
 threads if and only if within that range.
 
-This is aliased to C<faulhaber_sum>.
+C<powersum> and C<faulhaber_sum> are aliases for the same function.
 
 =head2 sigma
 
@@ -1676,12 +1679,12 @@ and Pari's C<ramanujantau> function.
 
   say "$n is divisible by 2 ", valuation($n,2), " times.";
 
-Given integers C<n> and C<k>, returns the numbers of times C<n> is divisible
+Given integers C<n> and C<k>, returns the numbers of times C<|n|> is divisible
 by C<k>.  This is a very limited version of the algebraic valuation -- here
 it is just applied to integers.
 
 C<k> must be greater than 1.
-C<|n| is used, C<|n| = 0> returns undef, and C<|n| = 1> returns zero.
+C<|n| = 0> returns undef, and C<|n| = 1> returns zero.
 
 This corresponds to Pari and SAGE's C<valuation> function.
 
@@ -2159,6 +2162,10 @@ Given integers C<a> and C<b>, return bitwise C<a AND b>.
 
 Given integers C<a> and C<b>, return bitwise C<a OR b>.
 
+=head2 bitxor
+
+Given integers C<a> and C<b>, return bitwise C<a XOR b>.
+
 =head2 bitnot
 
 Given integer C<n>, return bitwise C<NOT n>.
@@ -2320,6 +2327,16 @@ the smoothness limit B1 for the first stage.
 Factoring will stop when the input is a prime, one factor has been found,
 or the algorithm fails to find a factor with the given smoothness.
 
+
+=head2 cheb_factor
+
+  my @factors = cheb_factor($n);
+  my @factors = cheb_factor($n, 1_000);          # set B1 smoothness
+
+Given a positive number input, tries to discover a factor using properties
+of Chebyshev polynomials (particularly that C<T_mn(x) = T_m(T_n(x))>)
+and their relationship with the Lucas sequence.
+This works when C<p-1> or C<p+1> is smooth.
 
 
 =head2 holf_factor
@@ -2646,7 +2663,7 @@ preprint, Jan 2003.  L<http://cr.yp.to/papers/aks.pdf>
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
-Jason Papadopoulos wrote the tinyqs code which is basically unchanged.
+Jason Papadopoulos wrote the C<tinyqs> code which is basically unchanged.
 William Hart wrote SIMPQS which is the basis for the QS code.
 
 
