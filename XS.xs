@@ -744,6 +744,11 @@ void powreal(IN char* strn, IN char* strx, IN UV prec = 40)
     mpf_init2(x, bits);
     if (mpf_set_str(x, strx, 10) != 0)
       croak("Not valid base-10 floating point input: %s", strx);
+    if ( (ix == 0 && mpf_sgn(n) < 0 && !mpf_integer_p(x)) ||
+         (ix == 0 && mpf_sgn(n) == 0 && mpf_sgn(x) < 0) ||
+         (ix == 1 && mpf_sgn(x) == 0) ||
+         (ix == 1 && mpf_sgn(n) < 0 && mpf_cmp_ui(x,1)!=0 && mpf_cmp_si(x,-1)!=0) )
+      XSRETURN_UNDEF;
     switch (ix) {
       case 0:  res = powreal(n, x, prec);  break;
       case 1:  res = rootreal(n, x, prec); break;

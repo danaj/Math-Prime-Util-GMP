@@ -1394,13 +1394,17 @@ The implementation computes C<sinh(n)>, then C<e^x> from that.
 
 =head2 powreal
 
-Returns C<n^x> for the inputs C<n> and C<x>.
+Returns C<x^n> for the inputs C<x> and C<n>.
 An optional third argument indicates the number of significant digits
 (default 40) with the result rounded.
 
 Like L</logreal> and L</expreal>, this is a basic math function that is
 not available from the GMP library but implemented in MPFR.  Since the
 latter is not always available, this can be useful to have.
+
+A negative C<x> with non-integer C<n> will return undef as the result is
+complex.  C<x=0> with negative C<n> will also return undef as this is
+dividing by zero.
 
 =head2 rootreal
 
@@ -1410,6 +1414,9 @@ An optional third argument indicates the number of significant digits
 
 This is just C<powreal(x^(1/n)>, but allows C<n> to be easily specified
 in full precision.
+
+Asking for the 0-th root will return undef, as will negative C<x> with
+roots other than 1 or -1.
 
 =head2 agmreal
 

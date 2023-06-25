@@ -89,6 +89,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_pseudoprime(k,base) was incorrect for some single digit k with
       non-standard base.  Github #36.
 
+    - powreal and rootreal now return undef for cases where they would divide
+      by zero or have a complex result.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

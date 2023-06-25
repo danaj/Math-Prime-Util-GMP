@@ -936,11 +936,13 @@ void mpf_exp(mpf_t expn, mpf_t x)
 void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
 {
   mpf_t t;
-  int neg = 0;
+  int neg = (mpf_sgn(b) < 0);
 
+  if (mpf_sgn(x) == 0) { mpf_set_ui(powx, 1); return; }
   if (mpf_sgn(b) == 0) { mpf_set_ui(powx, 0); return; }
-  if (mpf_sgn(b) <  0) { neg = 1; }
-  if (mpf_cmp_ui(b,1) == 0) { mpf_set_ui(powx, 1-2*neg); return; }
+  if (mpf_cmp_ui(b,1) == 0) { mpf_set_ui(powx, 1); return; }
+  if (mpf_cmp_ui(x,1) == 0) { mpf_set(powx, b); return; }
+  if (mpf_cmp_si(x,-1) == 0) { mpf_ui_div(powx, 1, b); return; }
 
   if (mpf_integer_p(x) && mpf_fits_ulong_p(x)) {
     mpf_pow_ui(powx, b, mpf_get_ui(x));
@@ -959,8 +961,8 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
 void mpf_root(mpf_t rootx, mpf_t x, mpf_t n)
 {
   if (mpf_sgn(n) == 0) {
-   mpf_set_ui(rootx, 0);
-  } else if (mpf_cmp_ui(n, 2) == 0) {
+    mpf_set_ui(rootx, 0);
+  } else if (mpf_cmp_ui(n, 2) == 0 && mpf_sgn(x) >= 0) {
     mpf_sqrt(rootx, x);
   } else {
     mpf_t t;
