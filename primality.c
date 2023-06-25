@@ -1280,9 +1280,9 @@ int _GMP_is_prime(mpz_t n)
   /* For small numbers, try a quick BLS75 proof. */
   if (prob_prime == 1) {
     if (is_proth_form(n))
-      prob_prime = _GMP_primality_bls_nm1(n, 2 /* effort */, 0 /* cert */);
+      prob_prime = BLS_primality_nm1(n, 2 /* effort */, 0 /* cert */);
     else if (nbits <= 150)
-      prob_prime = _GMP_primality_bls_nm1(n, 0 /* effort */, 0 /* cert */);
+      prob_prime = BLS_primality_nm1(n, 0 /* effort */, 0 /* cert */);
     /* We could do far better by calling bls75_hybrid, especially with a
      * larger effort.  But that takes more time.  I've decided it isn't worth
      * the extra time here.  We'll still try a very quick N-1 proof. */
@@ -1361,14 +1361,22 @@ int _GMP_is_provable_prime(mpz_t n, char** prooftext)
   if (prob_prime != 1)  return prob_prime;
 
   /* We can choose a primality proving algorithm:
-   *   AKS    _GMP_is_aks_prime       really slow, don't bother
-   *   N-1    _GMP_primality_bls_nm1  small or special numbers
-   *   ECPP   _GMP_ecpp               fastest in general
+   *   AKS      _GMP_is_aks_prime       really slow, don't bother
+   *   N-1      BLS_primality_nm1       small or special numbers
+   *   N+1      BLS_primality_np1       small or special numbers
+   *   N-1/N+1  BLS_primality           small or special numbers
+   *   ECPP     _GMP_ecpp               fastest in general
    */
 
-  /* Give n-1 a small go */
-  prob_prime = _GMP_primality_bls_nm1(n, is_proth_form(n) ? 3 : 1, prooftext);
-  if (prob_prime != 1)  return prob_prime;
+  if (prooftext) {
+    /* Give n-1 a small go */
+    prob_prime = BLS_primality_nm1(n, is_proth_form(n) ? 3 : 1, prooftext);
+    if (prob_prime != 1)  return prob_prime;
+  } else {
+    /* See if there's an easy n-1 / n+1 hybrid proof */
+    prob_prime = BLS_primality(n, is_proth_form(n) ? 3 : 1, prooftext);
+    if (prob_prime != 1)  return prob_prime;
+  }
 
   /* ECPP */
   prob_prime = _GMP_ecpp(n, prooftext);

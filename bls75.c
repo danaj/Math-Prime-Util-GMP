@@ -1,6 +1,7 @@
 #include <string.h>
 #include <gmp.h>
 #include "ptypes.h"
+static const int ev = 0;
 
 #include "bls75.h"
 #include "primality.h"
@@ -15,7 +16,14 @@
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 #include "utility.h"
 
+static const int maxuibits = (sizeof(unsigned long) > BITS_PER_WORD)
+                           ? BITS_PER_WORD : (8*sizeof(unsigned long));
+
 /*
+ *
+ * Theorems where we are factoring n-1.
+ *
+ *
  * Lucas (1876): Given a completely factored n-1, if there exists an a s.t.
  *     a^(n-1) % n = 1
  *     a^((n-1/f) % n != 1 for ALL factors f of n-1
@@ -32,10 +40,23 @@
  *         gcd(a^((n-1)/f)-1,n) = 1
  * then n is prime.
  *
- * BLS T5: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), and an a, then if:
+ * BLS T5: given n-1 = A*B, factored A, s=B/2A r=B mod (2A), then if:
  *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
  *   - n < (A+1) * (2*A*A + (r-1) * A + 1)
  *   - for each each factor f of A, there exists an a (1 < a < n-1) s.t.
+ *     - a^(n-1) % n = 1
+ *     - gcd(a^((n-1)/f)-1,n) = 1  for ALL factors f of A
+ * then:
+ *     if s = 0 or r*r - 8*s is not a perfect square
+ *         n is prime
+ *     else
+ *         n is composite
+ *
+ * BLS T7: given n-1 = A*B, factored A, a B1 where all factors of B are >= B1,
+ *         s=B/2A r=B mod (2A), then if:
+ *   - A is even, B is odd, and AB=n-1 (all implied by n = odd and the above),
+ *   - n < (B1*A+1) * (2*A*A + (r-B1)*A + 1)
+ *   - for each f in {B, factors of A}, there exists an a (1 < a < n-1) s.t.
  *     - a^(n-1) % n = 1
  *     - gcd(a^((n-1)/f)-1,n) = 1  for ALL factors f of A
  * then:
@@ -49,7 +70,7 @@
  * since we only have to find factors up to sqrt(n), _and_ we can choose
  * a different 'a' value for each factor.  This is corollary 1 from BLS75.
  *
- * BLS is the Brillhart-Lehmer-Selfridge 1975 theorem 5 (see link below).
+ * BLS T5 is the Brillhart-Lehmer-Selfridge 1975 theorem 5 (see link below).
  * We can factor even less of n, and the test lets us kick out some
  * composites early, without having to test n-3 different 'a' values.
  *
@@ -61,15 +82,32 @@
  * BLS75 theorem 7 is the final n-1 theorem and takes into account any
  * knowledge that the remaining factor is not below a threshold B.  Since
  * we do initial trial division this helps.  It is usually of only small
- * benefit.
+ * benefit, but it costs nothing.
  *
  *
  * AKS is not too hard to implement, but it's impractically slow.
  *
  * ECPP is very fast and definitely the best method for most numbers.
  *
+ * APR-CL is very practical for numbers of a few hundred digits.
+ *
  * BLS75:  http://www.ams.org/journals/mcom/1975-29-130/S0025-5718-1975-0384673-1/S0025-5718-1975-0384673-1.pdf
  *
+ */
+
+/*
+ * Theorems where we are factoring n+1.
+ *
+ * Corollary 8 is analagous to Corollary 1 (generalized Pocklington).
+
+ * Theorem 15 is analagous to Theorem 3.  These are simple proofs for the case
+ * of n+1 (theorem 15) / n-1 (theorem 3) having a large prime factor.  These
+ * are used by ECPP.  T3 is slightly better than the original Proth theorem.
+
+ * Theorem 17 is analagous to Theorem 5.
+ * Theorem 19 is analagous to Theorem 7.
+ *
+ * Theorem 20 is a hybrid, combining theorems 7 and 19.
  */
 
 /* Like all the primality functions:
@@ -78,6 +116,8 @@
  * You really should run is_prob_prime on n first, so we only have to run
  * these tests on numbers that are very probably prime.
  */
+
+
 
 
 static int tfe(mpz_t f, mpz_t n, int effort)
@@ -125,11 +165,13 @@ static int tfe(mpz_t f, mpz_t n, int effort)
             } break;
     case 7: if (log2n > 210) { success = _GMP_ECM_FACTOR(n, f, 20000, 10); }
             break;
-    case 8: if (log2n > 240) { success = _GMP_ECM_FACTOR(n, f, 40000, 10); }
+    case 8: success = _GMP_cheb_factor(n, f, 50000, 0);
             break;
-    case 9: if (log2n > 240) { success = _GMP_ECM_FACTOR(n, f, 80000,  5); }
+    case 9: if (log2n > 240) { success = _GMP_ECM_FACTOR(n, f, 40000, 10); }
             break;
-    case 10:if (log2n > 270) { success = _GMP_ECM_FACTOR(n, f,160000, 20); }
+    case 10:if (log2n > 240) { success = _GMP_ECM_FACTOR(n, f, 80000,  5); }
+            break;
+    case 11:if (log2n > 270) { success = _GMP_ECM_FACTOR(n, f,160000, 20); }
             break;
 
     /* QS for sizes 30-90 digits */
@@ -226,11 +268,13 @@ static void factor_out_ui(mpz_t R, mpz_t F, unsigned long v) {
   }
 }
 
-static void factor_test_ui(unsigned long f, mpz_t R, mpz_t F, fstack_t* s) {
+static int factor_test_ui(unsigned long f, mpz_t R, mpz_t F, fstack_t* s) {
   if (mpz_divisible_ui_p(R, f)) {
     push_fstack_ui(s, f);
     factor_out_ui(R, F, f);
+    return 1;
   }
+  return 0;
 }
 
 typedef int (*bls_func_t)(mpz_t, int, char**);
@@ -274,15 +318,20 @@ static void handle_factor2(mpz_t f, mpz_t R, mpz_t F,
   }
 }
 
-static void trim_factors(mpz_t F, mpz_t R, mpz_t n, mpz_t none, UV flim, fstack_t* fs, limit_func_t func, mpz_t t, mpz_t m, mpz_t r, mpz_t s) {
+static void trim_factors(mpz_t F, mpz_t R, mpz_t n, mpz_t n_pm_one, UV B, fstack_t* fs, limit_func_t func, mpz_t t, mpz_t m, mpz_t r, mpz_t s) {
+  int i;
+  if (ev > 1) gmp_printf("Starting trim with F %Zd R %Zd\n", F, R);
   if (fs->cur > 1) {
-    int i;
+    if (mpz_odd_p(n_pm_one)) croak("n-1 / n+1 isn't even in trim_factors");
     mpz_set_ui(F, 1);
-    mpz_set(R, none);
+    mpz_set(R, n_pm_one);
     for (i = 0; i < fs->cur; i++) {
-      if (i > 0 && func(n, F, R, flim, t, m, r, s))
+      /* 2 always goes into F and all factors < B go into F */
+      if (i > 0 && mpz_cmp_ui(fs->stack[i],B) >= 0
+                && func(n, F, R, B, t, m, r, s))
         break;
       factor_out(R, F, fs->stack[i]);
+      if (ev > 1) gmp_printf("   %Zd -> F %Zd R %Zd\n", fs->stack[i], F, R);
     }
     /* Remove excess factors */
     while (i < fs->cur)
@@ -294,23 +343,38 @@ static void trim_factors(mpz_t F, mpz_t R, mpz_t n, mpz_t none, UV flim, fstack_
   /* r and s have been set by func */
 }
 
-/* Sort factors found from largest to smallest, but 2 must be at start. */
-static void sort_and_trim_factors(int* fsp, mpz_t* fstack)
+static int numcmp(const void *av, const void *bv)
+  { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
+
+/* Remove duplicates, sort smallest factors < B, reverse sort rest. */
+static void _sort_and_remove_dup_factors(int* fsp, mpz_t* fstack, UV B)
 {
   int i, j;
-  for (i = 2; i < *fsp; i++)
-    for (j = i; j > 1 && mpz_cmp(fstack[j-1], fstack[j]) < 0; j--)
-      mpz_swap( fstack[j-1], fstack[j] );
-  for (i = 2; i < *fsp; i++) { /* Remove any duplicate factors */
+  if (B < 3) B = 3;
+  /* 1.  Sort everything smallest to largest */
+  qsort(fstack, *fsp, sizeof(mpz_t), numcmp);
+  /* 2.  Remove any duplicate factors */
+  for (i = 1; i < *fsp; i++) {
     if (mpz_cmp(fstack[i], fstack[i-1]) == 0) {
       for (j = i+1; j < *fsp; j++)
         mpz_set(fstack[j-1], fstack[j]);
       *fsp -= 1;
+      mpz_clear(fstack[*fsp]);
     }
   }
+  /* 3.  Find first factor >= B */
+  for (i = 1; i < *fsp; i++)
+    if (mpz_cmp_ui(fstack[i], B) >= 0)
+      break;
+  /* 4.  Reverse all remaining factors */
+  if ((*fsp-i) > 1) {
+    int ihead, itail;
+    for (ihead = i, itail = *fsp-1;  ihead < itail;  ihead++, itail--)
+      mpz_swap(fstack[ihead], fstack[itail]);
+  }
 }
-static void fstack_sort_trim(fstack_t* s) {
-  sort_and_trim_factors(&(s->cur), s->stack);
+static void fstack_tidy(fstack_t* s, UV B) {
+  _sort_and_remove_dup_factors(&(s->cur), s->stack, B);
 }
 
 
@@ -358,6 +422,15 @@ static int bls_theorem7_limit(mpz_t n, mpz_t F1, mpz_t R1, UV B1,
 
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
+
+/*
+17:  N < (m F2 - 1)  ( 2 F2 F2 + m F2 - |r| F2 + 1 )
+     (III) test (l*F2+1) doesn't divide N for 1 .. m
+
+19:  N < (B2 F2 - 1) ( 2 F2 F2 + B2 F2 - |r| F2 + 1 )
+     (III) (IV) R2 factors > B2
+*/
+
 static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2, UV dummy,
                                mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
@@ -408,20 +481,33 @@ static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
 
-/*
-17:  N < (m F2 - 1)  ( 2 F2 F2 + m F2 - |r| F2 + 1 )
-     (III) test (l*F2+1) doesn't divide N for 1 .. m
-
-19:  N < (B2 F2 - 1) ( 2 F2 F2 + B2 F2 - |r| F2 + 1 )
-     (III) (IV) R2 factors > B2
-*/
+static int bls_corollary11_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2, UV B,
+                                 mpz_t t, mpz_t g, mpz_t r, mpz_t s)
+{
+  if (mpz_cmp(F1,F2) >= 0) {
+    mpz_tdiv_q_2exp(t, F2, 1);
+    mpz_mul(t, t, F1);
+    mpz_mul(t, t, F1);
+  } else {
+    mpz_tdiv_q_2exp(t, F1, 1);
+    mpz_mul(t, t, F2);
+    mpz_mul(t, t, F2);
+  }
+  mpz_ui_pow_ui(g, B, 3);
+  mpz_mul(t, t, g);
+  return (mpz_cmp(n, t) < 0);
+}
 
 static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
                                UV B, UV m,
                                mpz_t t, mpz_t g, mpz_t r, mpz_t s)
 {
-  mpz_tdiv_q_2exp(t, F2, 1);
-  mpz_tdiv_qr(s, r, R1, t);
+  int m_used = 0;
+
+  if (bls_corollary11_limit(n,R1,F1,F2,B,t,g,r,s)) {
+    mpz_set_ui(s,0);   /* No test for m needed */
+    return 1;
+  }
 
   mpz_mul_ui(t, F1, B);
   mpz_add_ui(g, t, 1);
@@ -431,29 +517,29 @@ static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
 
   if (mpz_cmp(t, g) > 0)  mpz_set(g, t);
 
+  mpz_tdiv_q_2exp(t, F2, 1);
+  mpz_tdiv_qr(s, r, R1, t);
+  mpz_mul(t, F1, F2);
+  mpz_mul_ui(t, t, m);
+  mpz_tdiv_q_2exp(t, t, 1);
+  mpz_mul(r, r, F1);           /* r *= F1;  t += r */
+  mpz_add(t, t, r);
+  mpz_add_ui(t, t, 1);         /* t = m * F1 * F2/2 + r * F1 + 1 */
+
+  if (mpz_cmp(t, g) > 0) {
+    m_used = 1;
+    mpz_set(g, t);
+  }
+
   mpz_mul(t, F1, F2);
   mpz_tdiv_q_2exp(t, t, 1);
   mpz_mul_ui(t, t, B);
   mpz_mul_ui(t, t, B);
   mpz_add_ui(s, t, 1);    /* s = B1*B2*F1*F2/2+1 */
-
   mpz_mul(g, g, s);
-  if (mpz_cmp(n, g) < 0) {
-    mpz_set_ui(s, 0);     /* Use s to signal whether we must test for m. */
-    return 1;
-  }
 
-  mpz_mul(t, F1, F2);
-  mpz_mul_ui(t, t, m);
-  mpz_tdiv_q_2exp(t, t, 1);
-  mpz_mul(r, r, F1);           /* r *= F1;  t += r,  r /= F1; */
-  mpz_add(t, t, r);
-  mpz_divexact(r, r, F1);
-  mpz_add_ui(t, t, 1);         /* t = m * F1 * F2/2 + r * F1 + 1 */
-  mpz_mul(g, s, t);
-  mpz_set_ui(s, 1);
-
-  return (mpz_cmp(n, g) < 0) ? 1 : 0;
+  mpz_set_ui(s, m_used);   /* Use s to signal whether we must test for m. */
+  return (mpz_cmp(n, g) < 0);
 }
 
 
@@ -461,7 +547,7 @@ static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
 
 
 /* (I) For each prime p_i dividing F1 [N-1 = F1R1] there exists an a_i
- *     such that N is a psp base a_i and gcd(A_i^{(N-1)/p_i}-1,N) = 1.
+ *     such that N is a psp base a_i and gcd(a_i^{(N-1)/p_i}-1,N) = 1.
  */
 static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, char* pspcache)
 {
@@ -469,18 +555,17 @@ static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, ch
   PRIME_ITERATOR(iter);
 
   for (a = 2; !success && a <= alimit; a = prime_iterator_next(&iter)) {
-     int psp = -1;
+     int psp = pspcache  ?  pspcache[a]  :  -1;
      mpz_set_ui(ap, a);
 
-     if (pspcache)  psp = pspcache[a];
      if (psp == -1) {
        mpz_sub_ui(t, n, 1);
        mpz_powm(t, ap, t, n);
        psp = (mpz_cmp_ui(t, 1) == 0);
      }
-     if (pspcache)  pspcache[a] = psp;
      if (!psp)
-       continue;
+       return -1;  /* We failed a Fermat test, n is composite. */
+     if (pspcache)  pspcache[a] = psp;
 
      mpz_sub_ui(t, n, 1);
      mpz_divexact(t, t, pi);
@@ -493,157 +578,188 @@ static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, ch
      success = 1;   /* We found an a for this p */
   }
   prime_iterator_destroy(&iter);
+
+  /* No result found in first <alimit> primes.  Check random values. */
+  if (!success) {
+    int starta = a;
+    for (a = 0; !success && a < 100; a++) {
+      if (a < 10) {
+        mpz_set_ui(ap, irand64(32));    /* ap: 0 to 2^32-1 */
+        mpz_add_ui(ap, ap, starta);     /* ap: starta to 2^32-1+starta */
+      } else {
+        mpz_sub_ui(t, n, starta+2);
+        mpz_isaac_urandomm(ap, t);      /* ap: 0 to n-starta-2 */
+        mpz_add_ui(ap, ap, 2);          /* ap: starta to n-2 */
+      }
+
+      mpz_sub_ui(t, n, 1);
+      mpz_powm(t, ap, t, n);
+      if (mpz_cmp_ui(t,1) != 0)
+       return -1;  /* We failed a Fermat test, n is composite. */
+
+      mpz_sub_ui(t, n, 1);
+      mpz_divexact(t, t, pi);
+      mpz_powm(t, ap, t, n);
+      mpz_sub_ui(t, t, 1);
+      mpz_gcd(t, t, n);
+      if (mpz_cmp_ui(t, 1) != 0)
+        continue;
+      success = 1;  /* we found an a for this p */
+    }
+  }
+  if (ev>1) gmp_printf("  %s pi %Zd  a=%Zd\n", success ? "PASS" : "FAIL", pi, ap);
   return success;
 }
 
 /* (III) For each prime q_i dividing F2 [N+1 = F2R2] there exists a Lucas
  *       sequence U_k with discriminant D for which D/N = -1, N divides
  *       U_{N+1} and gcd(U_{(N+1)/q_i},N} = 1.
+ *       [Note: All sequences used must have the same D.]
  */
-static int _verify_cond_III_q2(mpz_t n, mpz_t qi, IV p, IV q, mpz_t U, mpz_t V, mpz_t k, mpz_t t1, mpz_t t2)
+
+static int _test_III_D(mpz_t n, mpz_t np1, IV D, IV P, IV Q, fstack_t* qi, mpz_t R2, mpz_t t, mpz_t U, mpz_t t1, mpz_t t2)
 {
-  mpz_add_ui(k, n, 1);
-  mpz_divexact(k, k, qi);
-  lucas_seq(U, V, n, p, q, k,  t1, t2);
-  mpz_gcd(k, U, n);
-  return (mpz_cmp_ui(k, 1) == 0) ? 1 : 0;
+  mpz_t t3;
+  char *qdone;
+  int i, ipq, nqi, nqileft;
+
+  nqi = nstack(qi)+1;
+  nqileft = nqi;
+  Newz(0, qdone, nqi, char);
+
+  if (mpz_cmp_ui(R2,1) == 0) { qdone[nqi-1] = 1; nqileft--; }
+
+  for (ipq = 0; nqileft > 0 && ipq < 12; ipq++) {
+    if (ipq > 0) {  Q += P+1;  P += 2;  }
+    if (ev > 1) gmp_printf("   n %Zd   III start  D %ld  P %ld Q %ld\n", n, D, P, Q);
+    if ((P*P-4*Q) != D) croak("test_III_D bad D construction");
+    mpz_set_si(t1,P);
+    mpz_set_si(t2,Q);
+    mpz_gcd(t, n, t2);
+    if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0) {  /* Found a factor of n */
+      Safefree(qdone);
+      return -1;
+    }
+    if (mpz_cmp_ui(t,1) != 0)
+      continue;
+    lucasumod(U, t1, t2, np1, n, t);
+    if (mpz_sgn(U) != 0)
+      continue;
+
+    if (ev > 1) gmp_printf("   n %Zd   III facts  D %ld  P %ld Q %ld\n", n, D, P, Q);
+    /* This P/Q sequence with the given D is acceptable.  Now check each Qi. */
+    mpz_init(t3);
+    for (i = 0; i < nqi; i++) {
+      if (qdone[i])
+        continue;
+      mpz_divexact(t3, np1, (i == nqi-1) ? R2 : qi->stack[i]);
+      lucasumod(U, t1, t2, t3, n, t);
+      mpz_gcd(t, n, U);
+      if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0) {  /* Found a factor of n */
+        mpz_clear(t3);
+        Safefree(qdone);
+        return -1;   /* We found a factor of n */
+      }
+      if (mpz_cmp_ui(t,1) == 0) {
+        qdone[i] = 1;
+        nqileft--;
+        continue;
+      }
+    }
+    mpz_clear(t3);
+  }
+  Safefree(qdone);
+  return (nqileft == 0)  ?  2 /* Prime */  :  1 /* Not sure */;
 }
 
-#define MAXQV 50
-
-static int _verify_cond_III_q(mpz_t n, mpz_t qi, IV* qv, int* pnumqv, IV* lp, IV* lq)
+static int _test_III_IV(mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
+                        mpz_t t, mpz_t m, mpz_t r, mpz_t s)
 {
-  int i, numqv = *pnumqv, rval = 0;
-  IV d, p, q, startq;
-  mpz_t U, V, k, t1, t2;
+  PRIME_ITERATOR(iter);
+  IV P, Q, D;
+  int i, knd, success = 1;
 
-  mpz_init(U);  mpz_init(V);  mpz_init(k);  mpz_init(t1);  mpz_init(t2);
-
-  /* Try previous q values with (D|n)=-1 and U_(n+1) = 0 mod n */
-  for (i = 0; i < numqv; i++) {
-    q = qv[i];
-    p = (q % 2) ? 2 : 1;
-    if (_verify_cond_III_q2(n, qi, p, q, U, V, k, t1, t2)) {
-      rval = 2;
-      break;
+  for (Q = 2; success == 1 && Q < 72; Q = prime_iterator_next(&iter)) {
+    P = 83;
+    D = P*P - 4*Q;
+    /* if (D == 0) continue; */   /* None with this method. */
+    knd = mpz_si_kronecker(D,n);
+    if (knd == 0) {
+      mpz_set_si(t,D);
+      mpz_gcd(t,t,n);
+      if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0)
+        success = -1;  /* We found a factor */
     }
+    if (knd != -1) continue;
+    /* -1=comp,2=prime,1=dunno */
+    success = _test_III_D(n, np1, D, P, Q, fstack, R2, /*temps*/ t, m, r, s);
   }
-
-  if (rval == 0) {
-    /* Search for a q value */
-    startq = (numqv > 0) ? qv[numqv-1]+1 : 2;
-    for (q = startq; q < startq+1000; q++) {
-      if (mpz_cmp_ui(n, (unsigned long)q) <= 0) break;
-      p = (q % 2) ? 2 : 1;
-      d = p*p - 4*q;
-      mpz_set_si(t1, d);
-      if (mpz_jacobi(t1, n) != -1)
-        continue;
-      /* we have a d/p/q where d = -1.  Check the first Lucas sequence. */
-      mpz_add_ui(k, n, 1);
-      lucas_seq(U, V, n, p, q, k,  t1, t2);
-      if (mpz_sgn(U) != 0)
-        continue;
-      /* Passed first test, add to qv list */
-      if (numqv < MAXQV) {
-        qv[numqv] = q;
-        *pnumqv = ++numqv;
-      }
-      /* Verify second Lucas sequence */
-      if (_verify_cond_III_q2(n, qi, p, q, U, V, k, t1, t2)) {
-        rval = 2;
-        break;
-      }
+  for (i = 0; success == 1 && i < 12; i++) {
+    P = 100 + irand64((maxuibits/2)-4);
+    Q = 100 + irand64((maxuibits/2)-4);
+    D = P*P - 4*Q;
+    if (D == 0) continue;
+    knd = mpz_si_kronecker(D,n);
+    if (knd == 0) {
+      mpz_set_si(t,D);
+      mpz_gcd(t,t,n);
+      if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0)
+        success = -1;  /* We found a factor */
     }
+    if (knd != -1) continue;
+    /* -1=comp,2=prime,1=dunno */
+    success = _test_III_D(n, np1, D, P, Q, fstack, R2, /*temps*/ t, m, r, s);
   }
-  mpz_clear(U);  mpz_clear(V);  mpz_clear(k);  mpz_clear(t1);  mpz_clear(t2);
-  if (lp) *lp = p;
-  if (lq) *lq = q;
-  return rval;
+  prime_iterator_destroy(&iter);
+  if (success == 1)
+    success = 0;
+  return success;  /* -1 = composite, 2 = prime, 0 = no proof found */
 }
-#if 0
-/* N divides V_{(N+1)/2} and for q > 2 does not divide V{(N+1)/(2q)} */
-static int _verify_theorem14_q(mpz_t n, mpz_t qi, IV* lastq, IV* lp, IV* lq)
+
+  /*
+   *   -1   definitely composite.
+   *    0   no proof.  We can't say anything about n.
+   *    2   definitely prime.
+   */
+static int _prove_T19(mpz_t n, mpz_t np1, mpz_t F2, mpz_t R2, UV B2,
+                      fstack_t* fstack, mpz_t t, mpz_t m, mpz_t r, mpz_t s)
 {
-  int rval = 0;
-  IV d, p, q;
-  mpz_t U, V, k, t1, t2;
+  trim_factors(F2, R2, n, np1, B2, fstack, &bls_theorem19_limit, t, m, r, s);
+  if (!bls_theorem19_limit(n, F2, R2, B2, t,m,r,s))
+    return 0;
+   mpz_mul(t, r, r);
+   mpz_addmul_ui(t, s, 8);   /* t = r^2 + 8s */
+   /* N is prime if and only if s=0 OR t not a perfect square */
+   if (mpz_sgn(s) != 0 && mpz_perfect_square_p(t))
+     return -1;
+  if (ev) gmp_printf("N %Zd  F2 %Zd  R2 %Zd  B2 %lu\n", n, F2, R2, B2);
 
-  mpz_init(U);  mpz_init(V);  mpz_init(k);  mpz_init(t1);  mpz_init(t2);
-
-  if (lastq && *lastq > 0 && mpz_cmp_ui(qi,2) > 0) {
-    q = *lastq;
-    p = (q % 2) ? 2 : 1;
-    d = p*p - 4*q;
-    mpz_set_si(t1, d);
-    if (mpz_jacobi(t1, n) == -1) {
-      /* q passed the first tst.  Do the second that depends on the factor. */
-      mpz_add_ui(k, n, 1);
-      mpz_tdiv_q_2exp(k, k, 1);
-      mpz_divexact(k, k, qi);
-      lucas_seq(U, V, n, p, q, k,  t1, t2);
-      if (mpz_sgn(V) != 0) {
-        rval = 2;
-      }
-    }
-  }
-
-  if (!rval) {
-    for (q = (lastq && *lastq > 0) ? *lastq + 1 : 2; q < 1000; q++) {
-      p = (q % 2) ? 2 : 1;
-      d = p*p - 4*q;
-      mpz_set_si(t1, d);
-      if (mpz_jacobi(t1, n) != -1)
-        continue;
-
-      /* we have a d/p/q where d = -1.  Check the Lucas sequence. */
-
-      mpz_add_ui(k, n, 1);
-      mpz_tdiv_q_2exp(k, k, 1);
-      lucas_seq(U, V, n, p, q, k,    t1, t2);
-      if (mpz_sgn(V) == 0) {
-        if (mpz_cmp_ui(qi, 2) <= 0) {
-          rval = 2; break;
-        } else {
-          mpz_divexact(k, k, qi);
-          lucas_seq(U, V, n, p, q, k,  t1, t2);
-          if (mpz_sgn(V) != 0) {
-            rval = 2; break;
-          }
-        }
-      }
-    }
-  }
-
-  mpz_clear(U);  mpz_clear(V);  mpz_clear(k);  mpz_clear(t1);  mpz_clear(t2);
-  if (lp) *lp = p;
-  if (lq) *lq = q;
-  if (lastq)  *lastq = q;
-  return rval;
+  /* Now verify (III) and (IV). */
+  return _test_III_IV(n, np1, R2, fstack, t, m, r, s);
 }
-#endif
-
 
 
 /******************************************************************************/
 
 
 
-int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality_nm1(mpz_t n, int effort, char** prooftextptr)
 {
-  mpz_t nm1, A, B, t, m, f, r, s;
+  mpz_t nm1, F1, R1, t, m, f, r, s;
   FACTOR_STACK(fstack);
   FACTOR_STACK(mstack);
   int e, success = 1;
-  UV B1 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 10000;
+  UV B1 = (effort < 2 && mpz_sizeinbase(n,2) < 160) ?  6000 :
+          (mpz_sizeinbase(n,2) < 1000)              ? 20000 : 200000;
+  limit_func_t limitfunc = (prooftextptr) ? bls_theorem5_limit : bls_theorem7_limit;
 
   /* We need to do this for BLS */
-  if (mpz_even_p(n)) return 0;
+  if (mpz_even_p(n)) return (mpz_cmp_ui(n,2) == 0);
 
   mpz_init(nm1);
   mpz_sub_ui(nm1, n, 1);
-  mpz_init_set_ui(A, 1);
-  mpz_init_set(B, nm1);
+  mpz_init_set_ui(F1, 1);
+  mpz_init_set(R1, nm1);
   mpz_init(m);
   mpz_init(f);
   mpz_init(t);
@@ -654,20 +770,35 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     PRIME_ITERATOR(iter);
     UV tf;
     for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
-      if (mpz_cmp_ui(B, tf*tf) < 0) break;
-      factor_test_ui(tf, B, A, &fstack);
+      if (mpz_cmp_ui(R1, tf*tf) < 0)
+        break;
+      if (factor_test_ui(tf, R1, F1, &fstack)) {
+        if (limitfunc(n, F1, R1, B1, t, m, r, s))
+          break;
+      }
     }
+    B1 = (tf >= B1) ?  B1  :  (tf == 2)  ?  3  :  tf+2;
     prime_iterator_destroy(&iter);
   }
 
-  if (success && mpz_cmp_ui(B,1) > 0) {
-    mpz_set(f, B);
-    handle_factor(f, B, A, &fstack, &mstack, effort, prooftextptr, 1, &_GMP_primality_bls_nm1);
+  if (prooftextptr) B1 = 3;  /* BLS Theorem 5 doesn't care about B1 */
+
+  if (ev) gmp_printf("n-1 after trial  %d n %Zd  nm1 %Zd  F1 %Zd R1 %Zd B1 %lu\n",success,n,nm1,F1,R1,B1);
+
+  /* If we got enough from trial factoring then no more factoring needed */
+  if (limitfunc(n, F1, R1, B1, t, m, r, s))
+    goto start_nm1_proof;
+
+  if (success && mpz_cmp_ui(R1,1) > 0) {
+    mpz_set(f, R1);
+    handle_factor(f, R1, F1, &fstack, &mstack, effort, prooftextptr, 1, &BLS_primality_nm1);
   }
+
+  if (ev) gmp_printf("n-1 after R1     %d n %Zd  nm1 %Zd  F1 %Zd R1 %Zd B1 %lu\n",success,n,nm1,F1,R1,B1);
 
   while (success) {
 
-    if ( (prooftextptr && bls_theorem5_limit(n, A, B, B1, t, m, r, s)) || (!prooftextptr && bls_theorem7_limit(n, A, B, B1, t, m, r, s)) )
+    if (limitfunc(n, F1, R1, B1, t, m, r, s))
       break;
 
     success = 0;
@@ -678,6 +809,7 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     for (e = 0; !success && e <= effort; e++)
       success = tfe(f, m, e);
 
+    if (ev) gmp_printf("n-1 factored    %d n %Zd  nm1 %Zd  F1 %Zd R1 %Zd B1 %lu\n",success,n,nm1,F1,R1,B1);
     /* If we couldn't factor m and the stack is empty, we've failed. */
     if ( (!success) && (nstack(&mstack) == 0) )
       break;
@@ -685,24 +817,25 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     mpz_divexact(m, m, f);
     if (mpz_cmp(m, f) < 0)
       mpz_swap(m, f);
-    handle_factor(f, B, A, &fstack, &mstack, effort, prooftextptr, 0, &_GMP_primality_bls_nm1);
-    handle_factor(m, B, A, &fstack, &mstack, effort, prooftextptr, 0, &_GMP_primality_bls_nm1);
+    handle_factor(f, R1, F1, &fstack, &mstack, effort, prooftextptr, 0, &BLS_primality_nm1);
+    handle_factor(m, R1, F1, &fstack, &mstack, effort, prooftextptr, 0, &BLS_primality_nm1);
   }
+
+start_nm1_proof:
+
+  if (ev) gmp_printf("n-1 start proof  %d n %Zd  nm1 %Zd  F1 %Zd R1 %Zd B1 %lu\n",success,n,nm1,F1,R1,B1);
 
   /* clear mstack since we don't care about it.  Use to hold a values. */
   clear_fstack(&mstack);
 
-  fstack_sort_trim(&fstack);
+  fstack_tidy(&fstack, B1);
 
   /* Shrink to smallest set and verify conditions. */
   if (success > 0) {
-    if (prooftextptr)
-      trim_factors(A, B, n, nm1, B1, &fstack, &bls_theorem5_limit, t, m, r, s);
-    else
-      trim_factors(A, B, n, nm1, B1, &fstack, &bls_theorem7_limit, t, m, r, s);
+    trim_factors(F1, R1, n, nm1, B1, &fstack, limitfunc, t, m, r, s);
     /* Verify conditions */
     success = 0;
-    if ( (prooftextptr && bls_theorem5_limit(n, A, B, B1, t, m, r, s)) || (!prooftextptr && bls_theorem7_limit(n, A, B, B1, t, m, r, s)) ) {
+    if (limitfunc(n, F1, R1, B1, t, m, r, s)) {
       mpz_mul(t, r, r);
       mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
       /* N is prime if and only if s=0 OR t not a perfect square */
@@ -722,16 +855,23 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
     /* Cache result that doesn't depend on factor */
     for (a = 0; a <= alimit; a++)  afermat[a] = -1;
 
-    for (pcount = 0; success && pcount < fstack.cur; pcount++) {
+    for (pcount = 0; success > 0 && pcount < fstack.cur; pcount++) {
       success = _verify_cond_I_p(n, fstack.stack[pcount], ap, t, alimit, afermat);
-      if (success)
+      if (success > 0)
         push_fstack(&mstack, ap);
     }
+    /* Using T7 proof, need to test R1 */
+    if (success > 0 && !prooftextptr && mpz_cmp_ui(R1,1) > 0) {
+      success = _verify_cond_I_p(n, R1, ap, t, alimit, afermat);
+      if (success > 0)
+        push_fstack(&mstack, ap);
+    }
+
     /* If we could not find 'a' values, then we should return 1 (maybe prime)
      * since we did not perform an exhaustive search.  It would be quite
      * unusual to find a prime that didn't have an 'a' in the first 10,000
      * primes, but it could happen.  It's a "dubiously prime" :) */
-    if (!success && get_verbose_level() > 0)
+    if (success == 0 && get_verbose_level() > 0)
       printf("N-1 factored but failed to prove.  Perhaps composite.\n");
     mpz_clear(p);
     mpz_clear(ap);
@@ -769,8 +909,8 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
   destroy_fstack(&fstack);
   destroy_fstack(&mstack);
   mpz_clear(nm1);
-  mpz_clear(A);
-  mpz_clear(B);
+  mpz_clear(F1);
+  mpz_clear(R1);
   mpz_clear(m);
   mpz_clear(f);
   mpz_clear(t);
@@ -782,19 +922,18 @@ int _GMP_primality_bls_nm1(mpz_t n, int effort, char** prooftextptr)
 }
 
 
-int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality_np1(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t np1, F2, R2, t, m, f, r, s;
   FACTOR_STACK(fstack);
   FACTOR_STACK(mstack);
   int e, success = 1;
-  UV B2 = (mpz_sizeinbase(n,10) > 1000) ? 100000 : 10000;
-
-  /* TODO: T19 doesn't seem right, and we're still
-   * passing some composites like 14299. */
+  UV B2 = (effort < 2 && mpz_sizeinbase(n,2) < 160) ?  6000 :
+          (mpz_sizeinbase(n,2) < 1000)              ? 20000 : 200000;
+  limit_func_t limitfunc = bls_theorem19_limit;
 
   /* We need to do this for BLS */
-  if (mpz_even_p(n)) return 0;
+  if (mpz_even_p(n)) return (mpz_cmp_ui(n,2) == 0) ? 2 : 0;
 
   mpz_init(np1);
   mpz_add_ui(np1, n, 1);
@@ -810,22 +949,32 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
     PRIME_ITERATOR(iter);
     UV tf;
     for (tf = 2; tf < B2; tf = prime_iterator_next(&iter)) {
-      if (mpz_cmp_ui(R2, tf*tf) < 0) break;
-      factor_test_ui(tf, R2, F2, &fstack);
+      if (mpz_cmp_ui(R2, tf*tf) < 0)
+        break;
+      if (factor_test_ui(tf, R2, F2, &fstack)) {
+        if (limitfunc(n, F2, R2, B2, t, m, r, s))
+          break;
+      }
     }
+    B2 = (tf >= B2) ?  B2  :  (tf == 2)  ?  3  :  tf+2;
     prime_iterator_destroy(&iter);
   }
+  if (ev) gmp_printf("N %Zd  F2 %Zd  R2 %Zd  B2 %lu\n", n, F2, R2, B2);
 
   /* printf("trial  np1: %lu bits, %lu bits factored\n", mpz_sizeinbase(np1,2), mpz_sizeinbase(F2,2)); */
 
+  /* If we got enough from trial factoring then no more factoring needed */
+  if (limitfunc(n, F2, R2, B2, t, m, r, s))
+    goto start_np1_proof;
+
   if (success && mpz_cmp_ui(R2,1) > 0) {
     mpz_set(f, R2);
-    handle_factor(f, R2, F2, &fstack, &mstack, effort, prooftextptr, 1, &_GMP_primality_bls_np1);
+    handle_factor(f, R2, F2, &fstack, &mstack, effort, prooftextptr, 1, &BLS_primality_np1);
   }
 
   while (success) {
 
-    if (bls_theorem17_limit(n, F2, R2, B2, t, m, r, s))
+    if (limitfunc(n, F2, R2, B2, t, m, r, s))
       break;
 
     success = 0;
@@ -844,43 +993,24 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
     mpz_divexact(m, m, f);
     if (mpz_cmp(m, f) < 0)
       mpz_swap(m, f);
-    handle_factor(f, R2, F2, &fstack, &mstack, effort, prooftextptr, 0, &_GMP_primality_bls_np1);
-    handle_factor(m, R2, F2, &fstack, &mstack, effort, prooftextptr, 0, &_GMP_primality_bls_np1);
+    handle_factor(f, R2, F2, &fstack, &mstack, effort, prooftextptr, 0, &BLS_primality_np1);
+    handle_factor(m, R2, F2, &fstack, &mstack, effort, prooftextptr, 0, &BLS_primality_np1);
   }
+  /* TODO: success = 0 here just means we couldn't factor */
+
+start_np1_proof:
 
   /* clear mstack since we don't care about it.  Use to hold a values. */
   clear_fstack(&mstack);
 
   /* printf("factor  np1: %lu bits, %lu bits factored\n", mpz_sizeinbase(np1,2), mpz_sizeinbase(F2,2)); */
 
-  fstack_sort_trim(&fstack);
+  fstack_tidy(&fstack, B2);
+  if (ev) gmp_printf("end trim:  N %Zd  F2 %Zd  R2 %Zd  B2 %lu\n", n, F2, R2, B2);
 
-  /* Shrink to smallest set and verify conditions. */
-  if (success > 0) {
-    trim_factors(F2, R2, n, np1, B2, &fstack, &bls_theorem17_limit, t, m, r, s);
-    /* Verify conditions */
-    success = 0;
-    if (bls_theorem17_limit(n, F2, R2, B2, t, m, r, s)) {
-      mpz_mul(t, r, r);
-      mpz_addmul_ui(t, s, 8);   /* t = r^2 + 8s */
-      /* N is prime if and only if s=0 OR t not a perfect square */
-      success = (mpz_sgn(s) == 0 || !mpz_perfect_square_p(t))  ?  1  :  -1;
-    }
-  }
-
-  if (success > 0) {
-    IV qv[MAXQV];
-    int pcount, numqv = 0;
-    for (pcount = 0; success && pcount < fstack.cur; pcount++) {
-      success = _verify_cond_III_q(n, fstack.stack[pcount], qv, &numqv, 0, 0);
-    }
-    /* If we meet theorem 17 limits, then no need to test R2 */
-    if (success && !bls_theorem17_limit(n, F2, R2, B2, t, m, r, s)) {
-      success = _verify_cond_III_q(n, R2, qv, &numqv, 0, 0);
-    }
-    if (!success && get_verbose_level() > 0)
-      printf("N+1 factored but failed to prove.  Perhaps composite.\n");
-  }
+  if (success > 0)
+    success = _prove_T19(n, np1, F2, R2, B2, &fstack, t, m, r, s);
+  /* -1 = composite, 2 = prime, 0 = no proof found */
 
   /* TODO: Proof text */
 
@@ -894,9 +1024,9 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
   mpz_clear(t);
   mpz_clear(r);
   mpz_clear(s);
-  if (success < 0) return 0;
-  if (success > 0) return 2;
-  return 1;
+  if (success < 0) return 0;   /* Composite */
+  if (success > 0) return 2;   /* Prime */
+  return 1;                    /* Not sure */
 }
 
 /******************************************************************************/
@@ -907,12 +1037,13 @@ int _GMP_primality_bls_np1(mpz_t n, int effort, char** prooftextptr)
  *    N-1   Corollary 1
  *    N-1   Theorem 5
  *    N-1   Theorem 7
- *    N+1   Corollary 8
- *    N+1   Theorem 17
- *    N+1   Theorem 19
+ *    N+1   Corollary 8      not used now
+ *    N+1   Theorem 17       not used now
+ *    N+1   Theorem 19       not used now
  *    Comb  Theorem 20
+ *    Comb  Corollary 11
  */
-int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality(mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, np1, F1, F2, R1, R2;
   mpz_t r, s, t, u, f, c1, c2;
@@ -928,9 +1059,8 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
   FACTOR_STACK(m2stack);
   int pcount, e, success = 1;
   int low_effort = (effort < 1) ? 0 : 1;
-  UV B1 = (effort < 2 && mpz_sizeinbase(n,2) < 160) ?  6000 :
-          (mpz_sizeinbase(n,2) < 1024)              ? 20000 : 200000;
-  UV m = B1-1;   /* m should be less than B1 */
+  UV m, B1 = (effort < 2 && mpz_sizeinbase(n,2) < 160) ?  6000 :
+             (mpz_sizeinbase(n,2) < 1024)              ? 20000 : 200000;
 #if PRINT_PCT
   double trial_pct, prime_pct, fac_pct, fin_pct;
 #endif
@@ -956,13 +1086,18 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
     for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
       /* Page 635 of BLS75 describes an optimization for divisibility
        * testing.  It seems slower than just doing two UI div tests. */
-      if (mpz_cmp_ui(R1, tf*tf) >= 0)
-        factor_test_ui(tf, R1, F1, &f1stack);
-      if (mpz_cmp_ui(R2, tf*tf) >= 0)
-        factor_test_ui(tf, R2, F2, &f2stack);
+      int testr1 = (mpz_cmp_ui(R1, tf*tf) >= 0);
+      int testr2 = (mpz_cmp_ui(R2, tf*tf) >= 0);
+      if (!testr1 || !testr2) { B1 = tf; break; }
+      if (ev) printf("   factoring out %lu\n", tf);
+      if (testr1) factor_test_ui(tf, R1, F1, &f1stack);
+      if (testr2) factor_test_ui(tf, R2, F2, &f2stack);
     }
     prime_iterator_destroy(&iter);
   }
+  m = B1-1;   /* m should be less than B1 */
+  if (ev) gmp_printf("N %Zd  F1 %Zd  R1 %Zd  B1 %lu\n", n, F1, R1, B1);
+  if (ev) gmp_printf("N %Zd  F2 %Zd  R2 %Zd  B1 %lu\n", n, F2, R2, B1);
 
 #if PRINT_PCT
   trial_pct = (100.0 * (mpz_sizeinbase(F1,2) + mpz_sizeinbase(F2,2))) / (mpz_sizeinbase(nm1,2) + mpz_sizeinbase(np1,2));
@@ -970,17 +1105,16 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
 #endif
 
   if ( bls_theorem7_limit(n, F1, R1, B1, t, u, r, s) ||
-       bls_theorem19_limit(n, F2, R2, B1, t, u, r, s) ||
        bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s) )
     goto start_hybrid_proof;
 
   if (mpz_cmp_ui(R1,1) > 0) {
     mpz_set(f, R1);
-    handle_factor2(f, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &bls75_hybrid);
+    handle_factor2(f, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &BLS_primality);
   }
   if (mpz_cmp_ui(R2,1) > 0) {
     mpz_set(f, R2);
-    handle_factor2(f, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &bls75_hybrid);
+    handle_factor2(f, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &BLS_primality);
   }
 
 #if PRINT_PCT
@@ -993,7 +1127,6 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
 
     success = 1;
     if ( bls_theorem7_limit(n, F1, R1, B1, t, u, r, s) ||
-         bls_theorem19_limit(n, F2, R2, B1, t, u, r, s) ||
          bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s) )
       break;
 
@@ -1025,14 +1158,14 @@ int bls75_hybrid(mpz_t n, int effort, char** prooftextptr)
       mpz_divexact(u, u, f);
       if (mpz_cmp(u, f) < 0)
         mpz_swap(u, f);
-      handle_factor2(f, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &bls75_hybrid);
-      handle_factor2(u, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &bls75_hybrid);
+      handle_factor2(f, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &BLS_primality);
+      handle_factor2(u, R1, F1, &f1stack, &p1stack, &m1stack, low_effort, prooftextptr, &BLS_primality);
     } else if (success == 2) {
       mpz_divexact(u, u, f);
       if (mpz_cmp(u, f) < 0)
         mpz_swap(u, f);
-      handle_factor2(f, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &bls75_hybrid);
-      handle_factor2(u, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &bls75_hybrid);
+      handle_factor2(f, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &BLS_primality);
+      handle_factor2(u, R2, F2, &f2stack, &p2stack, &m2stack, low_effort, prooftextptr, &BLS_primality);
     }
 #if PRINT_PCT
     fac_pct = (100.0 * (mpz_sizeinbase(F1,2) + mpz_sizeinbase(F2,2))) / (mpz_sizeinbase(nm1,2) + mpz_sizeinbase(np1,2));
@@ -1045,6 +1178,7 @@ start_hybrid_proof:
   mpz_mul(t, F2, R2); if (mpz_cmp(np1, t) != 0) croak("Bad n+1 factor");
 
   /* We've done all the factoring we need or can. */
+  if (ev) gmp_printf("start hybrid:  N %Zd  F2 %Zd  R2 %Zd  B1 %lu\n", n, F2, R2, B1);
 
   /* Finish proofs for p{1,2}stack as needed. */
   /* TODO: optimize for cases of both n-1 and n+1 working */
@@ -1053,7 +1187,7 @@ start_hybrid_proof:
       int pr = 1;
       pop_fstack(f, &p1stack);
       if (effort > low_effort)
-        pr = bls75_hybrid(f, effort, prooftextptr);
+        pr = BLS_primality(f, effort, prooftextptr);
       if      (pr == 0) croak("probable prime factor proved composite");
       else if (pr == 2) push_fstack(&f1stack, f); /* Proved, put on F stack */
       else              factor_out(F1, R1, f);    /* No proof.  Move to R */
@@ -1064,15 +1198,17 @@ start_hybrid_proof:
       int pr = 1;
       pop_fstack(f, &p2stack);
       if (effort > low_effort)
-        pr = bls75_hybrid(f, effort, prooftextptr);
+        pr = BLS_primality(f, effort, prooftextptr);
       if      (pr == 0) croak("probable prime factor proved composite");
       else if (pr == 2) push_fstack(&f2stack, f); /* Proved, put on F stack */
       else              factor_out(F2, R2, f);    /* No proof.  Move to R */
     }
   }
 
-  fstack_sort_trim(&f1stack);
-  fstack_sort_trim(&f2stack);
+  if (ev) gmp_printf("start tidy:  N %Zd  F2 %Zd  R2 %Zd  B1 %lu\n", n, F2, R2, B1);
+  fstack_tidy(&f1stack, B1);
+  fstack_tidy(&f2stack, B1);
+  if (ev) gmp_printf("end tidy:  N %Zd  F2 %Zd  R2 %Zd  B1 %lu\n", n, F2, R2, B1);
 
 #if PRINT_PCT
   fin_pct = (100.0 * (mpz_sizeinbase(F1,2) + mpz_sizeinbase(F2,2))) / (mpz_sizeinbase(nm1,2) + mpz_sizeinbase(np1,2));
@@ -1080,11 +1216,15 @@ start_hybrid_proof:
   printf("\n");  fflush(stdout);
 #endif
 
+  if (ev) gmp_printf("check:  N %Zd  F2 %Zd  R2 %Zd  B1 %lu\n", n, F2, R2, B1);
   /* Check the theorems we have available */
 
+  /* If we can do a standard n-1 proof, do that. */
   if (bls_theorem7_limit(n, F1, R1, B1, t, u, r, s)) {
     if (get_verbose_level() > 0) printf("BLS75 proof using N-1\n");
+    if (ev) gmp_printf("N %Zd  F1 %Zd  R1 %Zd  B1 %lu\n", n, F1, R1, B1);
     trim_factors(F1, R1, n, nm1, B1, &f1stack, &bls_theorem7_limit, t, u, r, s);
+    if (ev) gmp_printf("N %Zd  F1 %Zd  R1 %Zd  B1 %lu\n", n, F1, R1, B1);
     for (pcount = 0; success > 0 && pcount < f1stack.cur; pcount++)
       success = _verify_cond_I_p(n, f1stack.stack[pcount], u, t, 1000, 0);
     if (success > 0 && (mpz_mul(t, F1, F1), mpz_cmp(t,n) > 0))
@@ -1100,31 +1240,13 @@ start_hybrid_proof:
     goto end_hybrid;    /* Theorem 5 or 7 */
   }
 
-
-  if (bls_theorem19_limit(n, F2, R2, B1, t, u, r, s)) {
-    IV qv[MAXQV];
-    int numqv = 0;
-    if (get_verbose_level() > 0) printf("BLS75 proof using N+1\n");
-    trim_factors(F2, R2, n, np1, B1, &f2stack, &bls_theorem19_limit, t, u, r, s);
-    for (pcount = 0; success > 0 && pcount < f2stack.cur; pcount++)
-      success = _verify_cond_III_q(n, f2stack.stack[pcount], qv, &numqv, 0, 0);
-    if (success > 0 && (mpz_mul(t,F2,F2), mpz_add_ui(t,t,1), mpz_cmp(t,n) > 0))
-      goto end_hybrid;  /* Corollary 8, n+1 factored more than sqrt(n)+1 */
-    if (success > 0 && !bls_theorem17_limit(n, F2, R2, B1, t, u, r, s))
-      success = _verify_cond_III_q(n, R2, qv, &numqv, 0, 0);
-    if (success > 0) {
-      mpz_mul(t, r, r);
-      mpz_submul_ui(t, s, 8);   /* t = r^2 - 8s */
-      /* N is prime if and only if s=0 OR t not a perfect square */
-      success = (mpz_sgn(s) == 0 || !mpz_perfect_square_p(t))  ?  1  :  -1;
-    }
-    goto end_hybrid;   /* Theorem 17 or 19 */
-  }
-
-  if (get_verbose_level() > 0) printf("BLS75 proof using N-1 / N+1 (T20)\n");
+  /* Rather than looking at theorem 19 for an N+1 proof, we'll just go to
+   * theorem 20 (or corollary 11).  T20 is faster. */
 
   /* Check N < B^3 F1*F2*F2/2  or  N < B^3 F1*F1*F2/2 */
   success = bls_theorem20_limit(n, R1, F1, F2, B1, m, t, u, r, s);
+
+  if (get_verbose_level() > 0) printf("BLS75 proof using N-1 / N+1 (T20)\n");
 
   /* Trim some factors from f2stack if possible */
   if (nstack(&f2stack) > 1) {
@@ -1156,7 +1278,7 @@ start_hybrid_proof:
         if (mpz_divisible_p(n, u)) {
           /* Check that we found a non-trivial divisor */
           mpz_gcd(t, u, n);
-          success = (mpz_cmp_ui(t,1) > 0 || mpz_cmp(t,n) < 0) ? -1 : 0;
+          success = (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0) ? -1 : 0;
           break;
         }
     }
@@ -1172,12 +1294,7 @@ start_hybrid_proof:
 
   /* Verify (III) page 631 and (IV) page 633 */
   if (success > 0) {
-    IV qv[MAXQV];
-    int numqv = 0;
-    for (pcount = 0; success > 0 && pcount < f2stack.cur; pcount++)
-      success = _verify_cond_III_q(n, f2stack.stack[pcount], qv, &numqv, 0, 0);
-    if (success > 0)
-      success = _verify_cond_III_q(n, R2, qv, &numqv, 0, 0);
+    success = _test_III_IV(n, np1, R2, &f2stack, t, u, r, s);
   }
 
 #if 0
@@ -1208,8 +1325,11 @@ end_hybrid:
 }
 
 
+
+/******************************************************************************/
+
 /* Given an n where we're factored n-1 down to p, check BLS theorem 3 */
-int _GMP_primality_bls_3(mpz_t n, mpz_t p, UV* reta)
+int BLS_check_T3(mpz_t n, mpz_t p, UV* reta)
 {
   mpz_t nm1, m, t, t2;
   int rval = 0;
@@ -1263,7 +1383,7 @@ end_bls3:
 }
 
 /* Given an n where we're factored n+1 down to f, check BLS theorem 15 */
-int _GMP_primality_bls_15(mpz_t n, mpz_t f, IV* lp, IV* lq)
+int BLS_check_T15(mpz_t n, mpz_t f, IV* lp, IV* lq)
 {
   mpz_t np1, m, t, t2;
   int rval = 0;
@@ -1327,124 +1447,3 @@ end_bls15:
   mpz_clear(np1);  mpz_clear(m);  mpz_clear(t);  mpz_clear(t2);
   return rval;
 }
-
-#if 0   /* These are not currently used */
-
-/* F*R = n, F is factored part, R is remainder */
-static void small_factor(mpz_t F, mpz_t R, UV B1)
-{
-  PRIME_ITERATOR(iter);
-  UV tf;
-  for (tf = 2; tf < B1; tf = prime_iterator_next(&iter)) {
-    if (mpz_cmp_ui(R, tf*tf) < 0) break;
-    if (mpz_divisible_ui_p(R, tf)) {
-      do {
-        mpz_mul_ui(F, F, tf);
-        mpz_divexact_ui(R, R, tf);
-      } while (mpz_divisible_ui_p(R, tf));
-    }
-  }
-  prime_iterator_destroy(&iter);
-}
-
-/* Given an n, try using BLS75 theorem 15, N+1 = mq.
- * Note: this does _not_ prove n is prime!  If it returns 1, then we have
- * found a q/D that satisfy theorem 15, but we leave proving q for the caller.
- */
-int _GMP_primality_bls_np1_split(mpz_t n, int effort, mpz_t q, IV* lp, IV* lq)
-{
-  mpz_t np1, m, f, sqrtn, t;
-  int e, success = 1;
-  UV B1 = 2000;
-
-  /* We need to do this for BLS */
-  if (mpz_even_p(n)) return 0;
-
-  mpz_init(np1);  mpz_init(m);  mpz_init(f);  mpz_init(sqrtn);  mpz_init(t);
-  mpz_add_ui(np1, n, 1);
-  mpz_set_ui(m, 1);
-  mpz_set(q, np1);
-  mpz_sqrt(sqrtn, n);
-
-  small_factor(m, q, B1);
-
-  while (success) {
-    success = 0;
-    mpz_mul_ui(t, q, 2);
-    mpz_sub_ui(t, t, 1);
-    if (mpz_cmp(t, sqrtn) <= 0)
-      break;
-    if (_GMP_is_prob_prime(q)) {
-      success = 1;
-      break;
-    }
-    for (e = 0; !success && e <= effort; e++)
-      success = tfe(f, q, e);
-    if (success) {
-      mpz_divexact(q, q, f);
-      if (mpz_cmp(q, f) < 0)
-        mpz_swap(q, f);
-      mpz_mul(m, m, f);
-    }
-  }
-
-  if (success)
-    success = _GMP_primality_bls_15(n, q, lp, lq);
-
-  mpz_clear(np1);
-  mpz_clear(m);
-  mpz_clear(f);
-  mpz_clear(sqrtn);
-  mpz_clear(t);
-  return success;
-}
-
-/* Given an n, try using BLS75 theorem 3, N-1 = mp. */
-int _GMP_primality_bls_nm1_split(mpz_t n, int effort, mpz_t p, UV *reta)
-{
-  mpz_t nm1, m, f, sqrtn, t;
-  int e, success = 1;
-  UV B1 = 2000;
-
-  /* We need to do this for BLS */
-  if (mpz_even_p(n)) return 0;
-
-  mpz_init(nm1);  mpz_init(m);  mpz_init(f);  mpz_init(sqrtn);  mpz_init(t);
-  mpz_sub_ui(nm1, n, 1);
-  mpz_set_ui(m, 1);
-  mpz_set(p, nm1);
-  mpz_sqrt(sqrtn, n);
-
-  small_factor(m, p, B1);
-
-  while (success) {
-    success = 0;
-    mpz_mul_ui(t, p, 2);
-    mpz_add_ui(t, t, 1);
-    if (mpz_cmp(t, sqrtn) <= 0)
-      break;
-    if (_GMP_is_prob_prime(p)) {
-      success = 1;
-      break;
-    }
-    for (e = 0; !success && e <= effort; e++)
-      success = tfe(f, p, e);
-    if (success) {
-      mpz_divexact(p, p, f);
-      if (mpz_cmp(p, f) < 0)
-        mpz_swap(p, f);
-      mpz_mul(m, m, f);
-    }
-  }
-
-  if (success)
-    success = _GMP_primality_bls_3(n, p, reta);
-
-  mpz_clear(nm1);
-  mpz_clear(m);
-  mpz_clear(f);
-  mpz_clear(sqrtn);
-  mpz_clear(t);
-  return success;
-}
-#endif

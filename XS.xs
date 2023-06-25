@@ -300,9 +300,9 @@ is_prime(IN char* strn)
       case 4: ret = proth(n); break;
       case 5: ret = is_trial_prime(n); break;
       case 6: ret = is_aks_prime(n); break;
-      case 7: ret = (_GMP_primality_bls_nm1(n, 100, 0) == 2) ? 1 : 0; break;
-      case 8: ret = (_GMP_primality_bls_np1(n, 100, 0) == 2) ? 1 : 0; break;
-      case 9: ret = (bls75_hybrid(n, 100, 0) == 2) ? 1 : 0; break;
+      case 7: ret = (BLS_primality_nm1(n, 100, 0) == 2) ? 1 : 0; break;
+      case 8: ret = (BLS_primality_np1(n, 100, 0) == 2) ? 1 : 0; break;
+      case 9: ret = (BLS_primality(n, 100, 0) == 2) ? 1 : 0; break;
       case 10:
       default:ret = (_GMP_ecpp(n, 0) == 2) ? 1 : 0; break;
     }

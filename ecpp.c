@@ -716,8 +716,8 @@ static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz
         if (verbose)
           { printf("%*sN[%d] (%d dig) %s", i, "", i, nidigits, ptype); fflush(stdout); }
         curveresult = (nm1_success > 0)
-                    ? _GMP_primality_bls_3(Ni, q, &nm1a)
-                    : _GMP_primality_bls_15(Ni, q, &np1lp, &np1lq);
+                    ? BLS_check_T3(Ni, q, &nm1a)
+                    : BLS_check_T15(Ni, q, &np1lp, &np1lq);
         if (verbose) { printf("  %d\n", curveresult); fflush(stdout); }
         if ( ! curveresult ) { /* This ought not happen */
           if (verbose)
@@ -1068,11 +1068,11 @@ int main(int argc, char **argv)
       if (do_bpsw) {
         /* Done */
       } else if (do_nminus1) {
-        isprime = _GMP_primality_bls_nm1(n, 100, &cert);
+        isprime = BLS_primality_nm1(n, 100, &cert);
       } else if (do_nplus1) {
-        isprime = _GMP_primality_bls_np1(n, 100, &cert);
+        isprime = BLS_primality_np1(n, 100, &cert);
       } else if (do_bls75) {
-        isprime = bls75_hybrid(n, 100, &cert);
+        isprime = BLS_primality(n, 100, &cert);
       } else if (do_aks) {
         isprime = 2 * is_aks_prime(n);
         do_printcert = 0;
@@ -1087,7 +1087,7 @@ int main(int argc, char **argv)
       } else {
         if (!do_ecpp) {
           /* Quick n-1 test */
-          isprime = _GMP_primality_bls_nm1(n, 1, &cert);
+          isprime = BLS_primality_nm1(n, 1, &cert);
         }
         if (isprime == 1)
           isprime = _GMP_ecpp(n, &cert);

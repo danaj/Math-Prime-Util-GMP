@@ -392,7 +392,7 @@ deterministic answer for tiny numbers (under C<2^64>).  If no
 certificate is required, LLR and Proth tests can be run, and small
 numbers (under approximately C<2^82>) can be satisfied with a
 deterministic Miller-Rabin test.  If the result is still not determined,
-a quick  BLS75 C<n-1> test is attempted, followed by ECPP.
+a quick BLS75 C<n-1> test is attempted, followed by ECPP.
 
 The time required for primes of different input sizes on a circa-2009
 workstation averages about C<3ms> for 30-digits, C<5ms> for 40-digit,
@@ -745,6 +745,7 @@ Given two integers C<a> and C<b> as input, returns 0 (definitely composite),
 complex number C<a+bi> is a Guassian prime.  The L</is_prime> function is
 used internally to make the determination.
 
+
 =head2 is_miller_prime
 
   say "$n is definitely prime" if is_miller_prime($n);
@@ -764,6 +765,7 @@ the unconditional test grows quite rapidly, impractically many past about
 160 bits, and overflows a 64-bit integer at 456 bits -- sizes that are
 trivial for the unconditional APR-CL and ECPP tests.
 
+
 =head2 is_nminus1_prime
 
   say "$n is definitely prime" if is_nminus1_prime($n);
@@ -778,7 +780,17 @@ slows down rapidly.
 
 This method is most appropriate for numbers of the form C<k+1> where C<k>
 can be easily factored.
-Typically you should use L</is_provable_prime> and let it decide the method.
+
+This is a test specifically for this proof method.  The return values are:
+
+  1   We constructed a primality proof, hence C<n> is definitely prime.
+  0   We were unable to construct a proof, hence no conclusive result.
+
+An answer of 0 might be because C<n> is composite, but it could also be
+a failure to factor or find the right parameters.
+Typically you should use L</is_provable_prime> and let it decide the method
+and returns definitely prime, probably prime, or definitely composite.
+
 
 =head2 is_nplus1_prime
 
@@ -794,6 +806,17 @@ Disregarding factoring, this is slightly slower than the C<n-1> methods.
 It is most appropriate for numbers of the form C<k-1> where C<k> can be
 easily factored.
 
+This is a test specifically for this proof method.  The return values are:
+
+  1   We constructed a primality proof, hence C<n> is definitely prime.
+  0   We were unable to construct a proof, hence no conclusive result.
+
+An answer of 0 might be because C<n> is composite, but it could also be
+a failure to factor or find the right parameters.
+Typically you should use L</is_provable_prime> and let it decide the method
+and returns definitely prime, probably prime, or definitely composite.
+
+
 =head2 is_bls75_prime
 
 Takes a positive number as input, and returns 1 if the input passes one of
@@ -807,6 +830,17 @@ use one of:
 
 This is appropriate for cases where either C<n-1> or C<n+1> can be easily
 factored, or when both of them have many small factors.
+
+This is a test specifically for this proof method.  The return values are:
+
+  1   We constructed a primality proof, hence C<n> is definitely prime.
+  0   We were unable to construct a proof, hence no conclusive result.
+
+An answer of 0 might be because C<n> is composite, but it could also be
+a failure to factor or find the right parameters.
+Typically you should use L</is_provable_prime> and let it decide the method
+and returns definitely prime, probably prime, or definitely composite.
+
 
 =head2 is_ecpp_prime
 
@@ -824,7 +858,15 @@ digits.  Having a larger set will help with large numbers (a set of 2650
 is available on github in the C<xt/> directory).  A future implementation
 may include code to generate class polynomials as needed.
 
-Typically you should use L</is_provable_prime> and let it decide the method.
+This is a test specifically for this proof method.  The return values are:
+
+  1   We constructed a primality proof, hence C<n> is definitely prime.
+  0   We were unable to construct a proof, hence no conclusive result.
+
+An answer of 0 might be because C<n> is composite, but it could also be
+a failure to factor or find the right parameters.
+Typically you should use L</is_provable_prime> and let it decide the method
+and returns definitely prime, probably prime, or definitely composite.
 
 
 =head2 primes

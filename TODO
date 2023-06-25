@@ -106,23 +106,6 @@
   All current calls are testing primality, so don't need multiple returns.
   Changing the XS call to return multiple values might be useful.
 
-- mpu 'use bigint; $n=14299; say is_prime($n); say Math::Prime::Util::GMP::is_nplus1_prime($n)'
-  n=14299  F2=52 R2=275.  s=3,r=-37.  This passes theorem 17.
-  qi=2  p=66,q=2,d=4348
-  qi=13 p=45,q=1,d=2021
-  5543 also
-  all examples of this seem to be n+1 = 2 * [many small factors]
-
-  n = 5543 = 23*241, n+1=5544
-  n+1 = F2 * R2 = 88 * 63.  R2>1.  gcd(F2,R2)=1.
-  q_1 = 2    p=19,q=5,d=341
-  q_2 = 11   p=18,q=50,d=124
-  By Corollary 8, N is prime.
-  By Theorem 17, N is prime.
-  r2 = 63    p=11,q=29,d=5
-  By Corollary 10, N is prime
-  By Theorem 19, N is prime
-
 - zeta below -20 or so is increasingly wrong.  We should use reflection
   formula, but that requires some new functions.  The MPU interface doesn't
   even allow negative inputs at all so it isn't critical.
