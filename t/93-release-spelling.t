@@ -29,7 +29,7 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  setbit clrbit notbit tstbit
                  bitand bitor bitxor bitnot
                  p-adic bitwise
-                 -th
+                 0-th -th
                  -inf
                  von
                  PSP-2
