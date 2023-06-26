@@ -22,6 +22,7 @@ use Math::Prime::Util::GMP qw/
    miller_rabin_random
    primes/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
+my $use64 = (~0 > 4294967295);
 
 # pseudoprimes from 2-100k for many bases
 
@@ -124,10 +125,13 @@ my %lucas_sequences = (
   "3 3 3 1" => [1,0,0],
   "3 -30 -30 1" => [1,0,0],
   "1 9 5 0" => [0,0,0],      # Everything mod 1
-
-  # This will make P*P-2 and P*P-4Q overflow.
-  "124838608575421729 82826032115733949 1 9" => [105023007914661659, 30068202713672712, 1],
 );
+# Test to make P*P-2 and P*P-4Q overflow.
+if ($use64) {
+  $lucas_sequences{"124838608575421729 82826032115733949 1 9"} = [105023007914661659, 30068202713672712, 1];
+} else {
+  $lucas_sequences{"1248386085 828260321 1 9"} = [177951510, 794464463, 1];
+}
 
 my @primes128 = (qw/
   216807359884357411648908138950271200947

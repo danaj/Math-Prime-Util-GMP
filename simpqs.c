@@ -491,7 +491,7 @@ static void computeFactorBase(mpz_t n, unsigned long B,unsigned long multiplier)
   }
   prime_iterator_destroy(&iter);
 #ifdef LARGESTP
-  gmp_printf("Largest prime less than %Zd\n",p);
+  gmp_printf("Largest prime less than %lu\n",p);
 #endif
 
   /* Allocate and compute the number of bits required to store each prime */
