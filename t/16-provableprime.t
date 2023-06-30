@@ -72,6 +72,9 @@ my @akss = (  # Cover a number of the various tests before the big loop
   [74903, 1],   # Small input that actually runs the full test
 );
 
+my @composites = (35, 247, 377, 391, 527, 567, 2627, 5543, 13919, 14299, 23939, 47627, 86519, 92819);
+
+
 plan tests => 0 + 6
                 + 38
                 + 43
@@ -85,6 +88,7 @@ plan tests => 0 + 6
                 + scalar(@llrs)   # llr
                 + scalar(@prs)    # proth
                 + scalar(@akss)   # AKS
+                + scalar(@composites)  # various composites
                 + 2   # _validate_ecpp_curve
                 + 0;
 
@@ -290,6 +294,16 @@ for my $d (@prs) {
 for my $d (@akss) {
   my($n,$exp) = @$d;
   is(is_aks_prime($n), $exp, "is_aks_prime($n) = $exp");
+}
+
+###### Test small composites
+for my $n (@composites) {
+  is_deeply(
+    [is_provable_prime($n), is_trial_prime($n),
+     is_miller_prime($n), is_ecpp_prime($n),
+     is_nminus1_prime($n), is_nplus1_prime($n), is_bls75_prime($n)],
+    [0,0,0,0,0,0,0],
+    "No method says $n is prime" );
 }
 
 ###### _validate_ecpp_curve (used by validator)
