@@ -497,7 +497,7 @@ static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
     UV gcd = mpz_gcd_ui(NULL, n, D);
     if (gcd > 1 && mpz_cmp_ui(n, gcd) != 0)
       return 0;
-    mpz_set_ui(t, D);
+    mpz_set_uv(t, D);
     if (mpz_jacobi(t, n) == -1)
       break;
     if (tP == (3+20*inc) && mpz_perfect_square_p(n))
@@ -897,7 +897,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
   if (k == 1) {
     mpz_set_si(Vcomp, 2);
   } else {
-    mpz_set_si(Vcomp, Q);
+    mpz_set_iv(Vcomp, Q);
     mpz_mul_ui(Vcomp, Vcomp, 2);
     mpz_mod(Vcomp, Vcomp, n);
   }

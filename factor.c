@@ -22,7 +22,7 @@ static mpz_t _gcd_4k;
 static mpz_t _gcd_16k;
 static mpz_t _gcd_32k;
 void _init_factor(void) {
-  UV pn;
+  uint32_t pn;
   PRIME_ITERATOR(iter);
   primes_small[0] = 0;
   primes_small[1] = 2;
@@ -31,7 +31,7 @@ void _init_factor(void) {
   mpz_init_set_ui(_gcd_16k, 1);
   mpz_init_set_ui(_gcd_32k, 1);
   for (pn = 2; pn < NPRIMES_SMALL; pn++) {
-    UV p = prime_iterator_next(&iter);
+    unsigned long p = prime_iterator_next(&iter);
     primes_small[pn] = p;
     if (p >     2 && p <=  1000)  mpz_mul_ui(_gcd_1k, _gcd_1k, p);
     if (p >  1000 && p <=  4000)  mpz_mul_ui(_gcd_4k, _gcd_4k, p);
@@ -95,7 +95,7 @@ static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexp
 
 #define ADD_FACTOR_UI(f, t) \
   do { \
-    mpz_set_ui(f, t); \
+    mpz_set_uv(f, t); \
     nfactors = add_factor(nfactors, f, 1, &factors, &exponents); \
   } while (0)
 
@@ -106,7 +106,7 @@ static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexp
   do { nfactors = add_factor(nfactors, f, e, &factors, &exponents); } while (0)
 
 #define TRIAL_DIVIDE_SMALL(n, pn_lo, pn_hi) \
-  { UV sp, p; \
+  { unsigned long sp, p; \
     for (sp = pn_lo, p = primes_small[sp]; \
          sp <= pn_hi && mpz_cmp_ui(n,p*p) >= 0; \
          p = primes_small[++sp]) { \
@@ -321,7 +321,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 
       /* Our method of last resort: ECM with high bmax and many curves*/
       if (!success) {
-        UV i;
+        int i;
         if (get_verbose_level()) gmp_printf("starting large ECM on %Zd\n",n);
         B1 *= 8;
         for (i = 0; i < 10; i++) {
@@ -437,7 +437,7 @@ uint32_t bigomega(mpz_t n)
   return bo;
 }
 
-void sigma(mpz_t res, mpz_t n, UV k)
+void sigma(mpz_t res, mpz_t n, unsigned long k)
 {
   mpz_t* factors;
   mpz_t pk, pke, fmult;
@@ -792,7 +792,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
 {
   mpz_t t, t1, t2, t3, t4, *factors;
   int i, nfactors, *exponents;
-  UV j, p2;
+  unsigned long j, p2;
 
   if (mpz_cmp_ui(n, NTAU) < 0) {
     if (mpz_sgn(n) <= 0) mpz_set_si(res, 0);
@@ -827,7 +827,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
       p2 = mpz_get_ui(t);
       mpz_set_ui(t2, 0);
       for (j = 1; j <= p2; j++) {
-        mpz_set_ui(t, j);
+        mpz_set_uv(t, j);
         sigma(t3, t, 5);
         mpz_sub_ui(t, factors[i], j);
         sigma(t, t, 5);
@@ -851,7 +851,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
       } else {
         /* t1 = t^e  t2 = neg sum,  t3 = prod,  t4 = temp */
         mpz_set_ui(t2, 0);
-        for (j = 1; j <= (UV) (exponents[i]>>1); j++) {
+        for (j = 1; j <= ((unsigned long)exponents[i])>>1; j++) {
           mpz_set_si(t3, (j&1) ? -1 : 1);
           mpz_pow_ui(t4, factors[i], 11*j);
           mpz_mul(t3, t3, t4);
@@ -875,7 +875,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
 int is_semiprime(mpz_t n)
 {
   int ret;
-  UV k, div, lim = 6000;
+  unsigned long k, div, lim = 6000;
   mpz_t t;
 
   if (mpz_cmp_ui(n,6) < 0)
@@ -1527,7 +1527,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
 
 int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
 {
-  UV p;
+  unsigned long p;
   double logB;
   mpz_t x, inv, t, k, P, Q;
   PRIME_ITERATOR(iter);
@@ -1548,9 +1548,9 @@ int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
 
   mpz_set_ui(f, 1);
   for (p = 2; p <= B && mpz_cmp_ui(f,1) <= 0; p = prime_iterator_next(&iter)) {
-    UV lgbp = (UV) (logB / logl(p));   /* Alternately logint(mpzB,p) */
+    unsigned long lgbp = (unsigned long) (logB / logl(p));   /* Alternately logint(mpzB,p) */
     if (lgbp > 1)  mpz_ui_pow_ui(k, p, lgbp);
-    else           mpz_set_ui(k, p);
+    else           mpz_set_uv(k, p);
     mpz_mul_2exp(P, x, 1);
     lucasvmod(x, P, Q, k, n, t);
     mpz_mul(x, x, inv);
@@ -1612,9 +1612,9 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
 }
 
 /* See if n is a perfect power */
-UV power_factor(mpz_t n, mpz_t f)
+unsigned long power_factor(mpz_t n, mpz_t f)
 {
-  UV k = 1, b = 2;
+  unsigned long k = 1, b = 2;
   if (mpz_cmp_ui(n, 1) > 0 && mpz_perfect_power_p(n)) {
     mpz_t nf, tf;
     PRIME_ITERATOR(iter);
@@ -1622,7 +1622,7 @@ UV power_factor(mpz_t n, mpz_t f)
     mpz_init_set(nf, n);
     mpz_init(tf);
     while (1) {
-      UV ok = k;
+      unsigned long ok = k;
       while (mpz_root(tf, nf, b)) {
         mpz_set(f, tf);
         mpz_set(nf, tf);

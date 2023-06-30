@@ -347,7 +347,7 @@ void _GMP_next_prime(mpz_t n)
     UV m23 = mpz_fdiv_ui(n, 223092870UL);  /* 2*3*5*7*11*13*17*19*23 */
     UV m = m23 % 30;
     do {
-      UV skip = wheel_advance[m];
+      uint32_t skip = wheel_advance[m];
       mpz_add_ui(n, n, skip);
       m23 += skip;
       m = next_wheel[m];
@@ -377,7 +377,7 @@ void _GMP_prev_prime(mpz_t n)
     m = m23 % 30;
     m23 += 223092870UL;  /* No need to re-mod inside the loop */
     do {
-      UV skip = wheel_retreat[m];
+      uint32_t skip = wheel_retreat[m];
       mpz_sub_ui(n, n, skip);
       m23 -= skip;
       m = prev_wheel[m];
@@ -396,7 +396,7 @@ void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
   log2n = mpz_sizeinbase(n, 2);
   for (log2log2n = 1, i = log2n; i >>= 1; ) log2log2n++;
 
-  if (log2n < 64) {
+  if (log2n < 8*sizeof(unsigned long)) {
     mpz_init(t);
     mpz_set(t, n);
     _GMP_prev_prime(t);
@@ -697,7 +697,7 @@ void binomial(mpz_t r, UV n, UV k)
   Safefree(mprimes);
 }
 
-void multifactorial(mpz_t r, UV n, UV k)
+void multifactorial(mpz_t r, unsigned long n, unsigned long k)
 {
   if (k == 0) {  mpz_set_ui(r, 1); return;  }
   if (k == 1) {  mpz_fac_ui(r, n); return;  }
@@ -714,10 +714,10 @@ void multifactorial(mpz_t r, UV n, UV k)
 #endif
 }
 
-void factorial_sum(mpz_t r, UV n)
+void factorial_sum(mpz_t r, unsigned long n)
 {
   mpz_t t;
-  UV k;
+  unsigned long k;
   if (n == 0) { mpz_set_ui(r,0); return; }
 
   mpz_set_ui(r,1);
@@ -729,9 +729,9 @@ void factorial_sum(mpz_t r, UV n)
   mpz_clear(t);
 }
 
-void subfactorial(mpz_t r, UV n)
+void subfactorial(mpz_t r, unsigned long n)
 {
-  UV k;
+  unsigned long k;
   if (n == 0) { mpz_set_ui(r,1); return; }
   if (n == 1) { mpz_set_ui(r,0); return; }
   /* We could loop using Pochhammer, but that's much slower. */
@@ -743,7 +743,7 @@ void subfactorial(mpz_t r, UV n)
   }
 }
 
-void falling_factorial(mpz_t r, UV x, UV n)
+void falling_factorial(mpz_t r, unsigned long x, unsigned long n)
 {
   mpz_t t;
   if (n == 0) { mpz_set_ui(r,1); return; }
@@ -753,7 +753,7 @@ void falling_factorial(mpz_t r, UV x, UV n)
   mpz_mul(r, r, t);
   mpz_clear(t);
 }
-void rising_factorial(mpz_t r, UV x, UV n) {
+void rising_factorial(mpz_t r, unsigned long x, unsigned long n) {
   falling_factorial(r, x+n-1, n);
 }
 
@@ -834,6 +834,7 @@ void factorialmod(mpz_t r, UV N, mpz_t m)
     /* Further group by primes with the same power. */
     for (j = sd-1; j >= 1 && mpz_sgn(t); j--) {
       UV lo = D / (j+1)+1,  hi = D / j;
+      MPUassert(p >= lo, "factorialmod prime loop p should be in range");
       /* while (p < lo) p = prime_iterator_next(&iter); */
       for (mpz_set_ui(t2,1), i=0;  p <= hi;  p = prime_iterator_next(&iter)) {
         mpz_mul_ui(t2, t2, p);
@@ -1126,9 +1127,9 @@ void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
   }
 }
 
-void consecutive_integer_lcm(mpz_t m, UV B)
+void consecutive_integer_lcm(mpz_t m, unsigned long B)
 {
-  UV i, p, p_power, pmin;
+  unsigned long i, p, p_power, pmin;
   mpz_t t[8];
   PRIME_ITERATOR(iter);
 
@@ -1359,45 +1360,52 @@ int is_totient(mpz_t n)
   return _totpred(n, n);
 }
 
-void polygonal_nth(mpz_t r, mpz_t n, UV k)
+void polygonal_nth(mpz_t r, mpz_t n, mpz_t k)
 {
   mpz_t D, t;
-  UV R;
+  uint32_t ksmall = mpz_fits_uint_p(k) ? mpz_get_ui(k) : 0xFFFFFFFFU;
 
-  if (k < 3 || mpz_sgn(n) < 0) { mpz_set_ui(r,0); return; }
-  if (mpz_cmp_ui(n,1) <= 0)    { mpz_set_ui(r,1); return; }
+  if (mpz_sgn(n) < 0 || mpz_sgn(k) < 0) { mpz_set_ui(r,0); return; }
+  if (ksmall < 3)                       { mpz_set_ui(r,0); return; }
+  if (mpz_cmp_ui(n,1) <= 0)             { mpz_set_ui(r,1); return; }
 
-  if (k == 4) {
+  if (ksmall == 4) {
     if (mpz_perfect_square_p(n)) mpz_sqrt(r, n);
     else                         mpz_set_ui(r, 0);
     return;
   }
 
   mpz_init(D);
-  if (k == 3) {
+  mpz_init(t);
+
+  if (ksmall == 3) {
     mpz_mul_2exp(D, n, 3);
     mpz_add_ui(D, D, 1);
-  } else if (k == 5) {
-    mpz_mul_ui(D, n, (8*k-16));
+  } else if (ksmall == 5) {
+    mpz_mul_ui(D, n, 24); /* 8*k-16 = 24 if k=5 */
     mpz_add_ui(D, D, 1);
   } else {
-    mpz_mul_ui(D, n, (8*k-16));
-    mpz_init_set_ui(t, k-4);
+    mpz_mul_ui(D, k, 8);
+    mpz_sub_ui(D, D, 16);
+    mpz_mul(D, D, n);
+    mpz_sub_ui(t, k, 4);
     mpz_mul(t, t, t);
     mpz_add(D, D, t);
-    mpz_clear(t);
   }
   if (mpz_perfect_square_p(D)) {
     mpz_sqrt(D, D);
-    if (k == 3)  mpz_sub_ui(D, D, 1);
-    else         mpz_add_ui(D, D, k-4);
-    R = 2*k-4;
-    if (mpz_divisible_ui_p(D, R)) {
-      mpz_divexact_ui(r, D, R);
+    if (ksmall == 3)  { mpz_sub_ui(D, D, 1); }
+    else              { mpz_sub_ui(t, k, 4); mpz_add(D, D, t); }
+    mpz_mul_ui(t, k, 2);
+    mpz_sub_ui(t, t, 4);
+    if (mpz_divisible_p(D, t)) {
+      mpz_divexact(r, D, t);
+      mpz_clear(t);
       mpz_clear(D);
       return;
     }
   }
+  mpz_clear(t);
   mpz_clear(D);
   mpz_set_ui(r, 0);
 }
@@ -1761,9 +1769,9 @@ void prime_count_range(mpz_t count, mpz_t ilo, mpz_t ihi)
   if (mpz_cmp(ilo, ihi) > 0 || mpz_cmp_ui(ihi,2) < 0) return;
 
   if (mpz_cmp_ui(ihi, 1009) < 0) {
-     UV ulo = mpz_get_ui(ilo), uhi = mpz_get_ui(ihi);
-     UV cnt = small_prime_count(uhi)
-            - ((ulo <= 2) ? 0 : small_prime_count(ulo-1));
+     uint32_t ulo = mpz_get_ui(ilo), uhi = mpz_get_ui(ihi);
+     uint32_t cnt = small_prime_count(uhi)
+                  - ((ulo <= 2) ? 0 : small_prime_count(ulo-1));
      mpz_set_ui(count, cnt);
      return;
   }
@@ -1970,7 +1978,7 @@ void next_twin_prime(mpz_t res, mpz_t n) {
 
   mpz_init(t);
   if (mpz_cmp_ui(n, 1000000) < 0) {
-    UV p, ulow = mpz_get_ui(n), last = 0;
+    uint32_t p, ulow = mpz_get_ui(n), last = 0;
     PRIME_ITERATOR(iter);
     prime_iterator_setprime(&iter, ulow);
     while (1) {
@@ -2054,7 +2062,7 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
 
   /* Handle small primes that will get sieved out */
   if (mpz_cmp_ui(low, k) <= 0) {
-    UV p, ulow = mpz_get_ui(low);
+    uint32_t p, ulow = mpz_get_ui(low);
     PRIME_ITERATOR(iter);
     for (p = 2; p <= k; p = prime_iterator_next(&iter)) {
       if (p < ulow) continue;
@@ -2065,7 +2073,7 @@ UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn) {
   }
 
   mpz_sub(t, high, low);
-  length = mpz_get_ui(t) + 1;
+  length = mpz_get_uv(t) + 1;
   starti = ((starti+skipi) - mpz_fdiv_ui(low,skipi) + 1) % skipi;
 
   /* Get bit array of odds marked with composites(k) marked with 1 */

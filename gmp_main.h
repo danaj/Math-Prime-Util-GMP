@@ -17,16 +17,16 @@ extern void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width);
 
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, UV n);
-extern void consecutive_integer_lcm(mpz_t m, UV B);
+extern void consecutive_integer_lcm(mpz_t m, unsigned long B);
 extern void stirling(mpz_t r, unsigned long n, unsigned long m, UV type);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
 extern void factorialmod(mpz_t r, UV n, mpz_t m);
-extern void multifactorial(mpz_t r, UV n, UV k);
-extern void factorial_sum(mpz_t r, UV n);
-extern void subfactorial(mpz_t r, UV n);
-extern void rising_factorial(mpz_t r, UV x, UV n);
-extern void falling_factorial(mpz_t r, UV x, UV n);
+extern void multifactorial(mpz_t r, unsigned long n, unsigned long k);
+extern void factorial_sum(mpz_t r, unsigned long n);
+extern void subfactorial(mpz_t r, unsigned long n);
+extern void rising_factorial(mpz_t r, unsigned long x, unsigned long n);
+extern void falling_factorial(mpz_t r, unsigned long x, unsigned long n);
 
 extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
 
@@ -36,7 +36,7 @@ extern int  is_carmichael(mpz_t n);
 extern int  is_fundamental(mpz_t n);
 extern int  is_practical(mpz_t n);
 extern int  is_totient(mpz_t n);
-extern void polygonal_nth(mpz_t r, mpz_t n, UV k);
+extern void polygonal_nth(mpz_t r, mpz_t n, mpz_t k);
 
 extern void exp_mangoldt(mpz_t res, mpz_t n);
 

@@ -16,6 +16,11 @@ extern void mpz_isaac_urandomm(mpz_t rop, mpz_t n);
 extern UV irand64(int nbits);
 extern NV drand64(void);
 
+extern void mpz_set_uv(mpz_t n, UV v);
+extern void mpz_set_iv(mpz_t n, IV v);
+extern UV   mpz_get_uv(mpz_t n);
+/* TODO: cmp_uv, cmp_iv, mul_iv, mul_uv, etc. */
+
 extern UV   is_power(mpz_t n, UV a);
 extern UV   prime_power(mpz_t prime, mpz_t n);
 extern int  is_primitive_root(mpz_t a, mpz_t b, int nprime);
@@ -38,7 +43,7 @@ extern void gcdext(mpz_t g, mpz_t s, mpz_t t, const mpz_t a, const mpz_t b);
 
 extern int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items);
 
-extern UV mpz_order_ui(UV r, mpz_t n, UV limit);
+extern UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit);
 
 extern void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
 extern void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
@@ -101,7 +106,6 @@ extern void mpf_root(mpf_t rootx, mpf_t x, mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
 extern UV logint(mpz_t n, UV base);
-
 
 #if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)
 static UV isqrt(UV n) {

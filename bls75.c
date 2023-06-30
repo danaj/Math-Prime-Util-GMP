@@ -431,6 +431,7 @@ static int bls_theorem7_limit(mpz_t n, mpz_t F1, mpz_t R1, UV B1,
      (III) (IV) R2 factors > B2
 */
 
+#if 0
 static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2, UV dummy,
                                mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
@@ -455,6 +456,7 @@ static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2, UV dummy,
 
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
+#endif
 static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
                                mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
@@ -633,8 +635,8 @@ static int _test_III_D(mpz_t n, mpz_t np1, IV D, IV P, IV Q, fstack_t* qi, mpz_t
     if (ipq > 0) {  Q += P+1;  P += 2;  }
     if (ev > 1) gmp_printf("   n %Zd   III start  D %ld  P %ld Q %ld\n", n, D, P, Q);
     if ((P*P-4*Q) != D) croak("test_III_D bad D construction");
-    mpz_set_si(t1,P);
-    mpz_set_si(t2,Q);
+    mpz_set_iv(t1,P);
+    mpz_set_iv(t2,Q);
     mpz_gcd(t, n, t2);
     if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0) {  /* Found a factor of n */
       Safefree(qdone);
@@ -685,7 +687,7 @@ static int _test_III_IV(mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
     /* if (D == 0) continue; */   /* None with this method. */
     knd = mpz_si_kronecker(D,n);
     if (knd == 0) {
-      mpz_set_si(t,D);
+      mpz_set_iv(t,D);
       mpz_gcd(t,t,n);
       if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0)
         success = -1;  /* We found a factor */
@@ -701,7 +703,7 @@ static int _test_III_IV(mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
     if (D == 0) continue;
     knd = mpz_si_kronecker(D,n);
     if (knd == 0) {
-      mpz_set_si(t,D);
+      mpz_set_iv(t,D);
       mpz_gcd(t,t,n);
       if (mpz_cmp_ui(t,1) > 0 && mpz_cmp(t,n) < 0)
         success = -1;  /* We found a factor */
@@ -1421,7 +1423,7 @@ int BLS_check_T15(mpz_t n, mpz_t f, IV* lp, IV* lq)
     for (q = 2; q < 1000; q++) {
       p = (q % 2) ? 2 : 1;
       d = p*p - 4*q;
-      mpz_set_si(t, d);
+      mpz_set_iv(t, d);
       if (mpz_jacobi(t, n) != -1)
         continue;
       /* we have a d/p/q where d = -1.  Check the Lucas sequences. */

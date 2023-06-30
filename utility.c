@@ -148,15 +148,50 @@ void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
   }
 }
 
+void mpz_set_uv(mpz_t n, UV v)
+{
+  if (v <= 0xFFFFFFFFUL || sizeof(unsigned long int) >= sizeof(UV)) {
+    mpz_set_ui(n, v);
+  } else {
+    mpz_set_ui(n, (v >> 32));
+    mpz_mul_2exp(n, n, 32);
+    mpz_add_ui(n, n, v & 0xFFFFFFFFUL);
+  }
+}
+void mpz_set_iv(mpz_t n, IV v)
+{
+  if ((v <= 0x7FFFFFFFL && v >= -0x80000000L) || sizeof(unsigned long int) >= sizeof(UV)) {
+    mpz_set_si(n, v);
+  } else if (v >= 0) {
+    mpz_set_uv(n, v);
+  } else {
+    mpz_set_uv(n, -v);
+    mpz_neg(n, n);
+  }
+}
+UV mpz_get_uv(mpz_t n)
+{
+  UV v = mpz_getlimbn(n,0);
+#if BITS_PER_WORD == 64
+  if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
+    v |= ((UV)mpz_getlimbn(n,1)) << 32;
+#endif
+  return v;
+}
+
+
+
 /* a=0, return power.  a>1, return bool if an a-th power */
 UV is_power(mpz_t n, UV a)
 {
   if (mpz_cmp_ui(n,3) <= 0 && a == 0)
     return 0;
-  else if (a == 1)
+  else if (a == 1 || mpz_cmp_ui(n,1) == 0)
     return 1;
   else if (a == 2)
     return mpz_perfect_square_p(n);
+  else if (a >= 2 && mpz_sizeinbase(n,2) < a)
+    return 0;
   else {
     UV result;
     mpz_t t;
@@ -200,7 +235,7 @@ int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
   if (mpz_cmp_ui(n,1) == 0)
     return 1;
   if (mpz_cmp_ui(n,4) <= 0)
-    return mpz_get_ui(ina) == mpz_get_ui(n)-1;
+    return (mpz_cmp_ui(ina,4) <= 0) && (mpz_get_ui(ina) == mpz_get_ui(n)-1);
   if (mpz_divisible_2exp_p(n,2))
     return 0;
 
@@ -585,8 +620,8 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
 }
 
 
-UV mpz_order_ui(UV r, mpz_t n, UV limit) {
-  UV j;
+UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit) {
+  unsigned long j;
   mpz_t t;
 
   /* If n < limit, set limit to n */
@@ -659,6 +694,7 @@ void mpz_veclcm(mpz_t* A, UV a, UV b) {
   }
 }
 
+/* TODO: possible UV / unsigned long mismatch */
 UV logint(mpz_t n, UV base) {
   mpz_t nt;
   double logn, logbn, coreps;
@@ -1057,7 +1093,7 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
   UV degree = r-1;
 
   mpz_mul(t, mod, mod);
-  mpz_mul_ui(t, t, r);
+  mpz_mul_ui(t, t, r);    /* TODO: possible UV / ui mismatch */
   bits = mpz_sizeinbase(t, 2);
 
   mpz_set_ui(p, 0);
@@ -1100,7 +1136,7 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
   char* s;
 
   mpz_mul(t, mod, mod);
-  mpz_mul_ui(t, t, r);
+  mpz_mul_ui(t, t, r);    /* TODO: possible UV / ui mismatch */
   bytes = mpz_sizeinbase(t, 256);
   mpz_set_ui(p, 0);
   mpz_set_ui(p2, 0);
@@ -1225,7 +1261,7 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 
   mpz_init(p); mpz_init(t);
   *dr = dx+dy;
-  r = *dr+1;
+  r = *dr+1;    /* TODO: long to UV */
   mpz_mul(t, mod, mod);
   mpz_mul_ui(t, t, r);
   bits = mpz_sizeinbase(t, 2);

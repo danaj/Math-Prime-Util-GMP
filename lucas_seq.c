@@ -93,7 +93,7 @@ void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   }
 #endif
   mpz_t Pmod, Qmod, Dmod;
-  UV b;
+  unsigned long b;
   int qsignorig, qsign;
 
   if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
@@ -310,8 +310,9 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
                mpz_t Qk, mpz_t t)
 {
   mpz_t mP, mQ;
-  mpz_init_set_si(mP, P);
-  mpz_init_set_si(mQ, Q);
+  mpz_init(mP);  mpz_init(mQ);
+  mpz_set_iv(mP, P);
+  mpz_set_iv(mQ, Q);
   lucasuvmod(U, V, mP, mQ, k, n, t);
   mpz_powm(Qk, mQ, k, n);
   mpz_clear(mQ); mpz_clear(mP);
@@ -327,7 +328,7 @@ void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 
   if (mpz_cmp_ui(n, 1) < 0) croak("Lucas sequence modulus n must be > 0");
   if (mpz_cmp_ui(n, 1) == 0) { mpz_set_ui(V,0); return; }
-  if (mpz_cmp_ui(k, 0) <= 0) { mpz_set_ui(V, 2); mpz_mod(V, V, n); return; }
+  if (mpz_cmp_ui(k, 0) <= 0) { mpz_set_ui(V,2); mpz_mod(V, V, n); return; }
 
   mpz_init(Pmod);
   mpz_init(Qmod);

@@ -181,3 +181,7 @@
 - what's going on with compbit and bitcom?
 
 - is_qr faster version?  Better tests?
+
+- finish looking at all mp*_ui functions to check for UV/IV vs long use.
+
+- new trial factoring.  Also we probably want trial factor UV -> ui.

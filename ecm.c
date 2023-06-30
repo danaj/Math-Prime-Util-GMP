@@ -185,7 +185,7 @@ int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
         while (k <= kmin)
           k *= q;
 
-        mpz_set_ui(mk, k);
+        mpz_set_uv(mk, k);
         if (ec_affine_multiply(a, mk, n, X, &Y, f)) {
           prime_iterator_destroy(&iter);
           mpz_clear(a);

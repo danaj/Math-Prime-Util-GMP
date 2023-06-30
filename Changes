@@ -92,6 +92,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - powreal and rootreal now return undef for cases where they would divide
       by zero or have a complex result.
 
+    - polygonal_nth and is_polygonal accept large k.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

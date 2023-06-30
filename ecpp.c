@@ -200,7 +200,7 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
         ecm_params params;
         ecm_init(params);
         params->method = ECM_ECM;
-        mpz_set_ui(params->B2, 10*B1);
+        mpz_set_uv(params->B2, 10*B1);
         mpz_set_ui(params->sigma, 0);
         success = ecm_factor(f, n, B1/4, params);
         ecm_clear(params);

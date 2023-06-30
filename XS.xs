@@ -379,8 +379,7 @@ is_almost_prime(IN unsigned int k, IN char* strn)
   OUTPUT:
     RETVAL
 
-UV
-is_power(IN char* strn, IN UV a = 0)
+UV is_power(IN char* strn, IN UV a = 0)
   PREINIT:
     mpz_t n;
     int isneg;
@@ -561,7 +560,7 @@ totient(IN char* strn)
                break;
       case 6:  ramanujan_tau(res, n);  break;
       case 7:  mpz_sqrt(res, n);  break;
-      case 8:  mpz_set_ui(res, prime_power(res, n)); break;
+      case 8:  mpz_set_uv(res, prime_power(res, n)); break;
       case 9:  prime_count_lower(res, n); break;
       case 10: prime_count_upper(res, n); break;
       case 13: mpz_isaac_urandomm(res, n); break;
@@ -1072,11 +1071,11 @@ invmod(IN char* stra, IN char* strb)
       case 6: mpz_set_si(a, is_primitive_root(a, b, 0) );
               break;
       case 7: if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
-              polygonal_nth(a, a, mpz_get_ui(b));
+              polygonal_nth(a, a, b);
               mpz_set_si(a, mpz_sgn(a));
               break;
       case 8: if (mpz_cmp_ui(b,3) < 0) croak("polygonal_nth: k must be >= 3");
-              polygonal_nth(a, a, mpz_get_ui(b));
+              polygonal_nth(a, a, b);
               break;
       case 9: if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
               if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
@@ -1084,7 +1083,7 @@ invmod(IN char* stra, IN char* strb)
               break;
       case 10:if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
               if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
-              mpz_set_ui(a, logint(a, mpz_get_ui(b)));
+              mpz_set_uv(a, logint(a, mpz_get_uv(b)));
               break;
       case 11:if (mpz_sgn(b) < 0) croak("powint: exponent must be >= 0");
               mpz_pow_ui(a, a, mpz_get_ui(b));
@@ -1700,7 +1699,7 @@ trial_factor(IN char* strn, ...)
       switch (ix) {
         case 0: if (arg1 == 0) arg1 = 2147483647;
                 uf = _GMP_trial_factor(n, 2, arg1);
-                mpz_set_ui(f, uf);
+                mpz_set_uv(f, uf);
                 success = (uf > 0);
                 break;
         case 1: success = _GMP_prho_factor(n, f, 3, arg1);        break;
