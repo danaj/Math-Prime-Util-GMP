@@ -324,7 +324,6 @@ void prime_iterator_global_shutdown(void)
   small_primes = 0;
 }
 
-#if 0
 void prime_iterator_init(prime_iterator *iter)
 {
   iter->p = 2;
@@ -333,6 +332,7 @@ void prime_iterator_init(prime_iterator *iter)
   iter->segment_mem = 0;
 }
 
+#if 0
 prime_iterator prime_iterator_default(void)
 {
   prime_iterator iter = {2, 0, 0, 0};
