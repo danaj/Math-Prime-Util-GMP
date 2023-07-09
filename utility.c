@@ -150,6 +150,9 @@ void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
 
 void mpz_set_uv(mpz_t n, UV v)
 {
+#if BITS_PER_WORD == 32
+  mpz_set_ui(n, v);
+#else
   if (v <= 0xFFFFFFFFUL || sizeof(unsigned long int) >= sizeof(UV)) {
     mpz_set_ui(n, v);
   } else {
@@ -157,9 +160,13 @@ void mpz_set_uv(mpz_t n, UV v)
     mpz_mul_2exp(n, n, 32);
     mpz_add_ui(n, n, v & 0xFFFFFFFFUL);
   }
+#endif
 }
 void mpz_set_iv(mpz_t n, IV v)
 {
+#if BITS_PER_WORD == 32
+    mpz_set_si(n, v);
+#else
   if ((v <= 0x7FFFFFFFL && v >= -0x80000000L) || sizeof(unsigned long int) >= sizeof(UV)) {
     mpz_set_si(n, v);
   } else if (v >= 0) {
@@ -168,15 +175,18 @@ void mpz_set_iv(mpz_t n, IV v)
     mpz_set_uv(n, -v);
     mpz_neg(n, n);
   }
+#endif
 }
 UV mpz_get_uv(mpz_t n)
 {
+#if BITS_PER_WORD == 32
+  return mpz_get_ui(n);
+#else
   UV v = mpz_getlimbn(n,0);
-#if BITS_PER_WORD == 64
   if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
     v |= ((UV)mpz_getlimbn(n,1)) << 32;
-#endif
   return v;
+#endif
 }
 
 
@@ -678,6 +688,17 @@ void mpz_product(mpz_t* A, UV a, UV b) {
     mpz_mul(A[a], A[a], A[c]);
   }
 }
+
+void mpz_product_ui(mpz_t prod, unsigned long *v, unsigned long n) {
+  mpz_set_ui(prod, 1);
+  while (n > 0) {
+    unsigned long p = v[--n];
+    while (n > 0 && v[n-1] < ULONG_MAX/p)
+      p *= v[--n];
+    mpz_mul_ui(prod, prod, p);
+  }
+}
+
 void mpz_veclcm(mpz_t* A, UV a, UV b) {
   if (b <= a) {
     /* nothing */

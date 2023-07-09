@@ -48,6 +48,7 @@ extern UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit);
 extern void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
 extern void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
 extern void mpz_product(mpz_t* A, UV a, UV b);
+extern void mpz_product_ui(mpz_t prod, unsigned long *v, unsigned long n);
 extern void mpz_veclcm(mpz_t* A, UV a, UV b);
 
 extern void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t t1, mpz_t t2, mpz_t t3);
