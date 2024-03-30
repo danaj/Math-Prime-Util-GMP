@@ -56,46 +56,19 @@
 #include <math.h>
 #include <gmp.h>
 
+#include "ptypes.h"
 #ifdef STANDALONE_SIMPQS
-#   include "ptypes.h"
+#   include "gmp_main.h"
 #   define UV_MAX ULONG_MAX
 #   define UVCONST(x) ((unsigned long)x##UL)
-/*
-#   define INLINE
-#   define croak(fmt,...)            { printf(fmt,##__VA_ARGS__); exit(1); }
-*/
 #   define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
 #   define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
 #   define Safefree(mem)             free((void*)mem)
-#   define PRIME_ITERATOR(i) mpz_t i; mpz_init_set_ui(i, 2)
-    static UV prime_iterator_next(mpz_t *iter) {
-        mpz_nextprime(*iter, *iter);
-        return mpz_get_ui(*iter);
-    }
-    static void prime_iterator_destroy(mpz_t *iter) {
-        mpz_clear(*iter);
-    }
-    static void prime_iterator_setprime(mpz_t *iter, UV n) {
-        mpz_set_ui(*iter, n);
-    }
-/*
-    static int prime_iterator_isprime(mpz_t *iter, UV n) {
-        int isp;
-        mpz_t t;
-        mpz_init_set_ui(t, n);
-        isp = mpz_probab_prime_p(t, 10);
-        mpz_clear(t);
-        return isp;
-    }
-*/
-    static int _verbose = 0;
-    static int get_verbose_level(void) { return _verbose; }
 #else
-#   include "ptypes.h"
 #   include "simpqs.h"
-#   include "prime_iterator.h"
 #endif
 
+#include "prime_iterator.h"
 #include "utility.h"
 #include "rootmod.h"
 
@@ -234,8 +207,6 @@ static unsigned int gaussReduce(
 /* #define LARGESTP */
  /* Prints the number of curves used and number of partial relations */
 /* #define CURPARTS */
- /* Report sieve size, multiplier and number of primes used */
-/* #define REPORT */
 
 #ifdef ERRORS
 #   define CHECK_EXPONENT(exponent, k) \
@@ -1332,9 +1303,6 @@ static int mainRoutine(
     printf("%lu curves, %lu partials.\n", curves, npartials);
 #endif
 
-#ifdef REPORT
-    printf("Done with sieving!\n");
-#endif
     if (verbose > 4)
         printf("# qs done sieving\n");
 
@@ -1369,9 +1337,6 @@ static int mainRoutine(
     /* Do the matrix algebra step */
 
     numRelations = gaussReduce(m, numPrimes, relSought);
-#ifdef REPORT
-    printf("%ld relations in kernel.\n", numRelations);
-#endif
     if (verbose > 3)
         printf("# qs found %lu relations in kernel\n", numRelations);
 
@@ -1452,9 +1417,6 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
 
     if (verbose > 2)
         gmp_printf("# qs trying %Zd (%lu digits)\n", n, decdigits);
-#ifdef REPORT
-    gmp_printf("%Zd (%ld decimal digits)\n", n, decdigits);
-#endif
 
     /* It's important to remove small factors. */
     {
@@ -1499,12 +1461,6 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
         threshold = 43 + (7 * decdigits) / 10;
     }
 
-#ifdef REPORT
-    printf("Using multiplier: %lu\n", multiplier);
-    printf("%lu primes in factor base.\n", numPrimes);
-    printf("Sieving interval M = %lu\n", Mdiv2 * 2);
-    printf("Large prime cutoff = factorBase[%u]\n", largeprime);
-#endif
     if (verbose > 2)
         gmp_printf("# qs    mult %lu, digits %lu, sieving %lu, primes %lu\n",
                 multiplier, decdigits, Mdiv2 * 2, numPrimes);
@@ -1526,43 +1482,49 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
             gmp_printf(" %Zd", farray[i]);
         gmp_printf("%s\n", (result) ? "" : " no factors");
     }
-    /* if (!result) gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits); */
+    if (verbose > 2 && !result)
+        gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits);
     return result;
 }
 
 #ifdef STANDALONE_SIMPQS
-/*===========================================================================
-   Main Program:
-
-   Function: Factors a user specified number using a quadratic sieve
-
-===========================================================================*/
+/* Main Program: factors a user specified number using a quadratic sieve */
 int main(int argc, char **argv) {
-    int i, nfactors;
+    int i = 1, nfactors;
     mpz_t n;
     mpz_t *farray;
 
-    mpz_init(n);
+    while (i < argc && argv[i][0] == '-') {
+        char *arg = argv[i++];
+        if (arg[1] == '-')
+            break;
+        if (arg[1] == 'v') {
+            set_verbose_level(atoi(&arg[2]));
+            continue;
+        }
+        croak("unknown option '%s'\n", arg);
+    }
+    if (i + 1 == argc)
+        mpz_init_set_str(n, argv[i], 10);
+    else
+        croak("usage: %s [options] n\n", argv[0]);
+
+    if (mpz_sizeinbase(n, 10) < MINDIG)
+        croak("Error in input or number has too few digits.\n");
+
+    _GMP_init();
     New(0, farray, 64, mpz_t);
     for (i = 0; i < 64; ++i)
         mpz_init_set_ui(farray[i], 0);
-
-    printf("Input number to factor [ >=%d decimal digits]: ", MINDIG);
-    gmp_scanf("%Zd",n);
-    getchar();
-
-    if (mpz_sizeinbase(n, 10) < MINDIG)
-        croak("SIMPQS: Error in input or number has too few digits.\n");
 
     nfactors = _GMP_simpqs(n, farray);
 
     for (i = 0; i < nfactors; ++i)
         gmp_printf("  %Zd\n", farray[i]);
-
     for (i = 0; i < 64; ++i)
         mpz_clear(farray[i]);
     Safefree(farray);
-
-    return 0;
+    mpz_clear(n);
+    _GMP_destroy();
 }
 #endif
