@@ -1026,7 +1026,7 @@ static int mainRoutine(
     unsigned long npartials = 0;
     unsigned long relsFound = 0;
     unsigned long  *relations;
-    unsigned short *primecount;
+    unsigned int   *primecount;
     unsigned char  *sieve;
     int            *exponents;
     unsigned long  *aind;
@@ -1347,14 +1347,14 @@ static int mainRoutine(
     /* Now do the "sqrt" and GCD steps hopefully obtaining factors of n */
     mpz_set(farray[0], n);
     nfactors = 1;  /* We have one result -- n */
-    New(0, primecount, numPrimes, unsigned short);
+    New(0, primecount, numPrimes, unsigned int);
     if (primecount == 0)
         croak("SIMPQS: Unable to allocate memory!\n");
     for (l = (int)relSought - 64; l < (int)relSought; ++l) {
         unsigned int mat2offset = rightMatrixOffset(numPrimes);
         mpz_set_ui(temp, 1);
         mpz_set_ui(temp2, 1);
-        memset(primecount, 0, numPrimes * sizeof(unsigned short));
+        memset(primecount, 0, numPrimes * sizeof(unsigned int));
         for (i = 0; i< numPrimes; ++i) {
             if (getEntry(m, l, mat2offset + i)) {
                 int nrelations = get_relation(relations, i, 0);
