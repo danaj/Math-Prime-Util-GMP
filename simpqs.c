@@ -968,6 +968,7 @@ static int insert_factor(mpz_t n, mpz_t *farray, int nfacs, mpz_t f) {
         return nfacs;
 
     /* skip duplicates */
+    /* (hv) hmm, what if p^2 divides n? */
     for (i = 0; i < nfacs; ++i)
         if (mpz_cmp(farray[i], f) == 0)
             break;
@@ -1162,6 +1163,7 @@ static int mainRoutine(
             p = factorBase[aind[i] + min];
             mpz_tdiv_q_ui(temp, A, p);
             amodp[i] = mpz_fdiv_r_ui(temp, temp, p);
+            /* (hv) how do we know A/p^2 fits ui? */
             mpz_set_ui(temp, modinverse(mpz_get_ui(temp), p));
             mpz_mul(temp, temp, sqrts[aind[i] + min]);
             mpz_fdiv_r_ui(temp, temp, p);
@@ -1416,6 +1418,8 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
         gmp_printf("# qs trying %Zd (%lu digits)\n", n, decdigits);
 
     /* It's important to remove small factors. */
+    /* (hv) this isn't needed for the entry-point used by factor(), which
+     * will already have done trial division - can it move to STANDALONE? */
     {
         UV p;
         PRIME_ITERATOR(iter);
@@ -1426,7 +1430,9 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
                 mpz_divexact_ui(n, n, p);
             }
         }
+        /* (hv) this duplicates work done above when no new factors found */
         decdigits = mpz_sizeinbase(n, 10);
+        /* (hv) return here misses mpz_set(farray[result], n) for last factor */
         if (decdigits < MINDIG)
             return result;
         mpz_set(farray[result], n);
@@ -1449,6 +1455,12 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
         errorbits = errorAmounts[decdigits - MINDIG];
         threshold = thresholds[decdigits - MINDIG];
     } else {
+        /* (hv) this config makes no sense: it should surely be based on
+         * that for 91 digits, which would be:
+          numPrimes >= 80000
+          largeprime >= 1000 * 500000 (not 1/10 of that)
+          errorbits >= 33
+         */
         numPrimes = 64000;
         Mdiv2 = 192000 / SIEVEDIV;
         largeprime = numPrimes * 10 * decdigits;
