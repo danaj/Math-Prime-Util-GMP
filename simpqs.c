@@ -1378,6 +1378,12 @@ static int mainRoutine(
         }
         mpz_sub(temp, temp2, temp);
         mpz_gcd(temp, temp, n);
+#if 0
+        /* (hv) shouldn't every hit give gcd > 1?
+         * If so, failures represent a bug somewhere to investigate.  */
+        if (mpz_cmp_ui(temp, 1) == 0)
+            gmp_printf("failed result for l = %d\n", l);
+#endif
         /* only non-trivial factors */
         if (mpz_cmp_ui(temp, 1) && mpz_cmp(temp, n)) {
             if (verbose > 4)
