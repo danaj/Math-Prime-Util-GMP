@@ -1053,7 +1053,7 @@ static int mainRoutine(
     Newz(0, soln1, numPrimes, unsigned long);
     Newz(0, soln2, numPrimes, unsigned long);
     Newz(0, Ainv2B,        s, unsigned long *);
-    Newz(0, XArr,  relSought, mpz_t);
+    New( 0, XArr,  relSought, mpz_t);
     New( 0, Bterms,        s, mpz_t);
     if (exponents == 0 || aind == 0 || amodp == 0 || Ainv == 0
         || soln1 == 0 || soln2 == 0 || Ainv2B == 0 || Bterms == 0
