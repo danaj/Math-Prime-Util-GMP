@@ -1377,10 +1377,7 @@ static int mainRoutine(
         mpz_sub(temp, temp2, temp);
         mpz_gcd(temp, temp, n);
         /* only non-trivial factors */
-        if (mpz_cmp_ui(temp, 1)
-            && mpz_cmp(temp, n)
-            && mpz_divisible_p(n, temp)
-        ) {
+        if (mpz_cmp_ui(temp, 1) && mpz_cmp(temp, n)) {
             if (verbose > 4)
                 gmp_printf("# qs factor %Zd\n", temp);
             nfactors = insert_factor(n, farray, nfactors, temp);
