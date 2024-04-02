@@ -1366,14 +1366,14 @@ static int mainRoutine(
                 for (j = 1; j <= nrelations; ++j)
                     ++primecount[ get_relation(relations, i, j) ];
             }
-            if ((i % 16) == 0)
+            if (((i + 1) % 16) == 0)
                 mpz_mod(temp2, temp2, n);
         }
         for (j = 0; j < numPrimes; ++j) {
             mpz_set_ui(temp3, factorBase[j]);
             mpz_pow_ui(temp3, temp3, primecount[j] / 2);
             mpz_mul(temp, temp, temp3);
-            if ((j % 16) == 0)
+            if (((j + 1) % 16) == 0)
                 mpz_mod(temp, temp, n);
         }
         mpz_sub(temp, temp2, temp);
