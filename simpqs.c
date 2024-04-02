@@ -868,19 +868,24 @@ static void sieve2(
     const unsigned long *soln1, const unsigned long *soln2,
     unsigned char *flags
 ) {
-    unsigned int prime;
+    unsigned int prime, p;
+    unsigned char size;
+    unsigned char *pos1;
+    unsigned char *pos2;
     unsigned char *end = sieve + M;
 
     memset(flags, 0, numPrimes * sizeof(unsigned char));
 
     for (prime = secondprime; prime < numPrimes; ++prime) {
-        unsigned int  p    = factorBase[prime];
-        unsigned char size = primeSizes[prime];
-        unsigned char *pos1 = sieve + soln1[prime];
-        unsigned char *pos2 = sieve + soln2[prime];
-
+        /* (hv) is this possible? needs aind[0..s-1] + min >= secondprime */
         if (soln2[prime] == (unsigned long)-1)
             continue;
+
+        p = factorBase[prime];
+        size = primeSizes[prime];
+        pos1 = sieve + soln1[prime];
+        pos2 = sieve + soln2[prime];
+
         while (end - pos1 > 0) {
             flags[prime] |= (unsigned char)1 << ((pos1 - sieve) & 7);
             *pos1 += size;
