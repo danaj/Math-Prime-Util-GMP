@@ -1020,9 +1020,9 @@ static int mainRoutine(
     mpz_t *farray,
     unsigned long multiplier
 ) {
-    mpz_t A, B, C, D, Bdivp2, q, r, nsqrtdiv, temp, temp2, temp3, temp4;
+    mpz_t A, B, C, D, Bdivp2, nsqrtdiv, temp, temp2, temp3, temp4;
     int i, j, l, s, fact, span, min, nfactors, verbose;
-    unsigned long u1, p, reps, numRelations, M;
+    unsigned long u1, p, reps, numRelations, M, Mq, Mr;
     unsigned long curves = 0;
     unsigned long npartials = 0;
     unsigned long relsFound = 0;
@@ -1088,7 +1088,7 @@ static int mainRoutine(
         croak("SIMPQS: Unable to allocate memory!\n");
 
     mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
-    mpz_init(Bdivp2); mpz_init(q); mpz_init(r); mpz_init(nsqrtdiv);
+    mpz_init(Bdivp2); mpz_init(nsqrtdiv);
     mpz_init(temp); mpz_init(temp2); mpz_init(temp3); mpz_init(temp4);
 
     /* Compute sqrt(n) mod factorbase[i] */
@@ -1244,9 +1244,9 @@ static int mainRoutine(
             mpz_divexact(C, C, A);
 
             /* Do the sieving and relation collection */
-            mpz_set_ui(temp, Mdiv2 * 2);
-            mpz_fdiv_qr_ui(q, r, temp, CACHEBLOCKSIZE);
-            M = mpz_get_ui(temp);
+            M = Mdiv2 * 2;
+            Mq = M / CACHEBLOCKSIZE;
+            Mr = M % CACHEBLOCKSIZE;
 
             /* set the solns1 and solns2 arrays */
             update_solns(1, numPrimes, soln1, soln2, polyadd, polycorr);
@@ -1260,14 +1260,14 @@ static int mainRoutine(
             set_offsets(sieve, soln1, soln2, offsets, offsets2);
             /* Sieve [firstprime , secondprime) */
             sieveInterval(CACHEBLOCKSIZE, sieve, 1, offsets, offsets2);
-            if (mpz_cmp_ui(q, 1) > 0) {
-                unsigned long maxreps = mpz_get_ui(q) - 1;
+            if (Mq > 0) {
+                unsigned long maxreps = Mq - 1;
                 for (reps = 1; reps < maxreps; ++reps)
                     sieveInterval(
                         CACHEBLOCKSIZE, sieve + CACHEBLOCKSIZE * reps,
                         1, offsets, offsets2
                     );
-                if (mpz_cmp_ui(r, 0) == 0)
+                if (Mr == 0)
                     sieveInterval(
                         CACHEBLOCKSIZE, sieve + CACHEBLOCKSIZE * reps,
                         0, offsets, offsets2
@@ -1279,7 +1279,7 @@ static int mainRoutine(
                     );
                     ++reps;
                     sieveInterval(
-                        mpz_get_ui(r), sieve + CACHEBLOCKSIZE * reps,
+                        Mr, sieve + CACHEBLOCKSIZE * reps,
                         0, offsets, offsets2
                     );
                 }
@@ -1333,7 +1333,6 @@ static int mainRoutine(
     Safefree(offsets2); offsets2 = 0;
 
     mpz_clear(A);  mpz_clear(B);  mpz_clear(C);  mpz_clear(D);
-    mpz_clear(q);  mpz_clear(r);
     mpz_clear(Bdivp2); mpz_clear(nsqrtdiv);
 
     /* Do the matrix algebra step */
