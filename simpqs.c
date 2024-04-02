@@ -220,7 +220,7 @@ static unsigned int gaussReduce(
         if (exponent > 0)                 \
             printf(" %u", factorBase[k]); \
         if (exponent > 1)                 \
-            printf("^%d", exponent);      \
+            printf("^%u", exponent);      \
     } while (0)
 #else
 #   define PRINT_FB(exponent, k)
@@ -427,7 +427,7 @@ static unsigned long knuthSchroeppel(mpz_t n, unsigned long numPrimes) {
             best_mult = multipliers[i];
         }
     }
-    /* gmp_printf("%Zd mult %lu\n", n, best_mult); */
+    /* gmp_printf("%Zd mult %u\n", n, best_mult); */
     return best_mult;
 }
 
@@ -476,7 +476,7 @@ static void computeFactorBase(
             factorBase[primesinbase++] = p;
     prime_iterator_destroy(&iter);
 #ifdef LARGESTP
-    gmp_printf("Largest prime less than %lu\n", p);
+    gmp_printf("Largest prime less than %lu\n", (unsigned long)p);
 #endif
 
     /* Allocate and compute the number of bits required to store each prime */
@@ -1297,7 +1297,7 @@ static int mainRoutine(
 
 #ifdef COUNT
         if ((curves % 20) == 0)
-            printf("%ld curves.\n", (long)curves);
+            printf("%lu curves.\n", curves);
 #endif
     }
 
@@ -1498,7 +1498,7 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
         gmp_printf("%s\n", (result) ? "" : " no factors");
     }
     if (verbose > 2 && !result)
-        gmp_printf("QS Fail: %Zd (%ld digits)\n", n, decdigits);
+        gmp_printf("QS Fail: %Zd (%lu digits)\n", n, decdigits);
     return result;
 }
 
