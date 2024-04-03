@@ -16,17 +16,19 @@
      - Alternate multiplier selection routine.
      - lots of little changes / optimizations
 
-   Version 2.0 scatters temp files everywhere, but that could be solved.
-   The main benefits left in 2.0 are:
-      (1) combining partial relations (this is huge for large inputs)
-      (2) much less memory use, though partly due to using temp files
-      (3) jasonp's block Lanczos routine.
-   This code goes through curves slightly faster than v2.0, but with big
-   inputs it ends up needing 2x the time because of not combining partials
-   as well as the final linear algebra time.
+   Modifications made in 2024 by Hugo van der Sanden:
+     - combining partial relations (this is huge for large inputs)
+     - jasonp's block Lanczos routine
+     - much less memory use for large inputs
+     - further little changes / optimizations
+
+   There may be further improvements to find in msieve, particularly to
+   the block Lanczos code: https://sourceforge.net/projects/msieve/
 
    To compile standalone:
-   gcc -O2 -DSTANDALONE_SIMPQS -DSTANDALONE simpqs.c utility.c -lgmp -lm
+   gcc -O2 -DSTANDALONE_SIMPQS -DSTANDALONE simpqs.c utility.c \
+     bls75.c ecm.c ecpp.c factor.c gmp_main.c isaac.c lucas_seq.c pbrent63.c \
+     primality.c prime_iterator.c random_prime.c real.c rootmod.c squfof126.c \      tinyqs.c -lgmp -lm
 
 ============================================================================*/
 
@@ -47,6 +49,34 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 ============================================================================*/
+
+/*============================================================================
+    Block Lanczos code Copyright 2006 Jason Papadopoulos
+
+    This file is part of FLINT.
+
+    FLINT is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    FLINT is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with FLINT; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
+===============================================================================
+
+Optionally, please be nice and tell me if you find this source to be
+useful. Again optionally, if you add to the functionality present here
+please consider making those additions public too, so that others may
+benefit from your work.
+                       --jasonp@boo.net 9/8/06
+--------------------------------------------------------------------*/
 
 #include <string.h>
 #include <stdio.h>
@@ -70,124 +100,6 @@
 #include "prime_iterator.h"
 #include "utility.h"
 #include "rootmod.h"
-
-/* DANAJ: Modify matrix code to do 64-bit-padded character arrays */
-typedef unsigned char *row_t;  /* row of an F2 matrix */
-typedef row_t *matrix_t;       /* matrix as a list of pointers to rows */
-
-#define insertEntry(m, i, j)   m[i][(j) / 8] |= (1U << ((j) % 8))
-#define xorEntry(m, i, j)      m[i][(j) / 8] ^= (1U << ((j) % 8))
-#define getEntry(m, i, j)     (m[i][(j) / 8] &  (1U << ((j) % 8)))
-#define swapRows(m, x, y) do { \
-    row_t temp = m[x];         \
-    m[x] = m[y];               \
-    m[y] = temp;               \
-} while (0)
-
-#define matBytes(numcols) (((numcols+63)/64) * 8)
-#define rightMatrixOffset(numcols)  (8 * matBytes(numcols))
-
-/* Clear just the left side */
-static INLINE void clearRow(
-    matrix_t m, unsigned int numcols, unsigned int row
-) {
-    memset(m[row], 0, matBytes(numcols));
-}
-
-/* bitwise xor of two rows, both left and right matrices */
-static void xorRows(
-    matrix_t m, unsigned int numcols, unsigned int source, unsigned int dest
-) {
-    unsigned int i, q;
-    UV *x = (UV *)m[dest];
-    UV *y = (UV *)m[source];
-    size_t nwords = (2 * matBytes(numcols)) / sizeof(UV);
-
-    q = 8 * (nwords / 8);
-    for (i = 0; i < q; i += 8) {
-        x[i+0] ^= y[i+0];  x[i+1] ^= y[i+1];
-        x[i+2] ^= y[i+2];  x[i+3] ^= y[i+3];
-        x[i+4] ^= y[i+4];  x[i+5] ^= y[i+5];
-        x[i+6] ^= y[i+6];  x[i+7] ^= y[i+7];
-    }
-    for ( ; i < nwords; ++i)
-        x[i] ^= y[i];
-}
-
-static matrix_t constructMat(unsigned int cols, unsigned int rows) {
-    unsigned int i;
-    matrix_t m;
-    size_t nbytes = matBytes(cols);
-    unsigned int mat2offset = rightMatrixOffset(cols);
-
-    /* printf("construct mat %u %u (%lu bytes)\n", cols, rows, rows*sizeof(row) + rows*(2*nbytes)); */
-    /* If cols > rows, we write off the array */
-    if (cols < rows)
-        croak("SIMPQS:  cols %u > rows %u\n", cols, rows);
-    New(0, m, rows, row_t);
-    if (m == 0)
-        croak("SIMPQS: Unable to allocate memory for matrix!\n");
-
-    for (i = 0; i < rows; ++i) { /* two matrices, side by side */
-        Newz(0, m[i], 2 * nbytes, unsigned char);
-        if (m[i] == 0)
-            croak("SIMPQS: Unable to allocate memory for matrix!\n");
-    }
-
-    /* make second matrix identity, i.e. 1's along diagonal */
-    for (i = 0; i < rows; ++i)
-        insertEntry(m, i, mat2offset + i);
-
-    return m;
-}
-
-static void destroyMat(matrix_t m, unsigned int rows) {
-    unsigned int i;
-    for (i = 0; i < rows; ++i)
-        Safefree(m[i]);
-    Safefree(m);
-}
-
-#if 0
-static void displayRow(matrix_t m, unsigned int row, unsigned int numcols) {
-    int j;
-    unsigned int mat2offset = rightMatrixOffset(numcols);
-
-    printf("[");
-    for (j = 0; j < numcols; ++j)
-        printf("%c", getEntry(m, row, j) ? '1' : '0');
-    printf("  ");
-    for (j = 0; j < numcols; ++j)
-        printf("%c", getEntry(m, row, mat2offset + j) ? '1' : '0');
-    printf("]\n");
-}
-#endif
-
-/* gaussReduce:  Apply Gaussian elimination to a matrix. */
-static unsigned int gaussReduce(
-    matrix_t m, unsigned int cols, unsigned int rows
-) {
-    unsigned int rowUpto = 0;
-    unsigned int irow, checkRow;
-    int icol;
-
-    for (icol = cols-1; icol >= 0; --icol) {
-        irow = rowUpto;
-
-        while ((irow < rows) && (getEntry(m, irow, icol) == 0))
-            ++irow;
-
-        if (irow < rows) {
-            swapRows(m, rowUpto, irow);
-            for (checkRow = rowUpto + 1; checkRow < rows; ++checkRow) {
-                if (getEntry(m, checkRow, icol) != 0)
-                    xorRows(m, cols, rowUpto, checkRow);
-            }
-            ++rowUpto;
-        }
-    }
-    return rowUpto;
-}
 
 /*===========================================================================*/
  /* Uncomment these for various pieces of debugging information */
@@ -331,23 +243,1202 @@ static const unsigned int sieveSize[] = {
 
 static unsigned int secondprime;  /* cutoff for using flags when sieving */
 static unsigned int firstprime;   /* first prime actually sieved with */
-static unsigned char errorbits;   /* first prime actually sieved with */
+static unsigned char errorbits;
 static unsigned char threshold;   /* sieve threshold cutoff for smooth relations */
 static unsigned int largeprime;
 static unsigned int *factorBase;  /* array of factor base primes */
 static unsigned char *primeSizes; /* array of sizes in bits of fb primes */
 
-#define RELATIONS_PER_PRIME 100
-static INLINE void set_relation(
-    unsigned long *rel, unsigned int prime, unsigned int nrel, unsigned long val
+/* lanczos.c */
+
+typedef struct {
+    unsigned long *data;        /* The list of occupied rows in this column */
+    unsigned long weight;       /* Number of nonzero entries in this column */
+    unsigned long orig;         /* Original relation number */
+} la_col_t;
+
+/* insertColEntry: insert an entry into a column of the matrix, reallocating
+ * the space for the column if necessary.
+ * Note: we keep the data sized to a multiple of 16 entries, and assume it
+ * must be reallocated any time we find there is exactly a multiple of 16
+ * present before insert. This means we may undergo unnecessary churn if
+ * xorColEntry() frequently removes entries across a 16-boundary.
+ * Probably better to track size and grow exponentially in any case.
+*/
+static inline void insertColEntry(
+    la_col_t* colarray, unsigned long colNum, unsigned long entry
 ) {
-    if (nrel < RELATIONS_PER_PRIME)
-        rel[prime * RELATIONS_PER_PRIME + nrel] = val;
+    unsigned long* temp;
+
+    if ((colarray[colNum].weight & 0x0f) == 0) {
+        /* need more space */
+        temp = colarray[colNum].data;
+        colarray[colNum].data = (unsigned long*)malloc(
+                (colarray[colNum].weight + 16) * sizeof(unsigned long));
+        for (long i = 0; i < colarray[colNum].weight; ++i)
+            colarray[colNum].data[i] = temp[i];
+        free(temp);
+    }
+
+    colarray[colNum].data[colarray[colNum].weight] = entry;
+    ++colarray[colNum].weight;
+    colarray[colNum].orig = colNum;
 }
-static INLINE unsigned long get_relation(
-    unsigned long *rel, unsigned int prime, unsigned int nrel
+
+/* xorColEntry: xor entry corresponding to a prime dividing A */
+static inline void xorColEntry(
+    la_col_t* colarray, unsigned long colNum, unsigned long entry
 ) {
-    return rel[prime * RELATIONS_PER_PRIME + nrel];
+    for (long i = 0; i < colarray[colNum].weight; ++i)
+        if (colarray[colNum].data[i] == entry) {
+            /* found, so remove it */
+            for (unsigned long j = i; j < colarray[colNum].weight - 1; ++j)
+                colarray[colNum].data[j] = colarray[colNum].data[j + 1];
+            --colarray[colNum].weight;
+            return;
+        }
+    /* not found, so insert it */
+    insertColEntry(colarray, colNum, entry);
+}
+
+/* clearCol: Function: clear a column */
+static inline void clearCol(la_col_t* colarray, unsigned long colNum) {
+   colarray[colNum].weight = 0;
+}
+
+#define NUM_EXTRA_RELATIONS 64
+
+#define BIT(x) (((u_int64_t)1) << (x))
+
+static const u_int64_t bitmask[64] = {
+    BIT( 0), BIT( 1), BIT( 2), BIT( 3), BIT( 4), BIT( 5), BIT( 6), BIT( 7),
+    BIT( 8), BIT( 9), BIT(10), BIT(11), BIT(12), BIT(13), BIT(14), BIT(15),
+    BIT(16), BIT(17), BIT(18), BIT(19), BIT(20), BIT(21), BIT(22), BIT(23),
+    BIT(24), BIT(25), BIT(26), BIT(27), BIT(28), BIT(29), BIT(30), BIT(31),
+    BIT(32), BIT(33), BIT(34), BIT(35), BIT(36), BIT(37), BIT(38), BIT(39),
+    BIT(40), BIT(41), BIT(42), BIT(43), BIT(44), BIT(45), BIT(46), BIT(47),
+    BIT(48), BIT(49), BIT(50), BIT(51), BIT(52), BIT(53), BIT(54), BIT(55),
+    BIT(56), BIT(57), BIT(58), BIT(59), BIT(60), BIT(61), BIT(62), BIT(63),
+};
+
+/* Returns true if the entry with indices i,l is 1 in the
+ * supplied 64xN matrix. This is used to read the nullspace
+ * vectors which are output by the Lanczos routine
+ */
+u_int64_t getNullEntry(u_int64_t *nullrows, long i, long l) {
+    return nullrows[i] & bitmask[l];
+}
+
+/* Poor man's random number generator. It satisfies no
+ * particularly good randomness properties, but is good
+ * enough for this application
+ */
+u_long random32(void) {
+    static unsigned long randval = 4035456057U;
+    randval = ((u_int64_t)randval * 1025416097U + 286824428U)
+            % (u_int64_t)4294967291U;
+    return randval;
+}
+
+/* Returns the maximum of two unsigned long's */
+unsigned long max(unsigned long a, unsigned long b) {
+   return (a < b) ? b : a;
+}
+
+/* Perform light filtering on the nrows x ncols matrix specified by cols[].
+ * The processing here is limited to deleting columns that contain a singleton
+ * row, then resizing the matrix to have a few more columns than rows.
+ * Because deleting a column reduces the counts in several different rows,
+ * the process must iterate to convergence.
+ *
+ * Note that this step is not intended to make the Lanczos iteration run
+ * any faster (though it will); it's just that if we don't go to this trouble
+ * then there are factorizations for which the matrix step will fail outright.
+ */
+void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
+    unsigned long r, c, i, j, k;
+    unsigned long passes;
+    unsigned long *counts;
+    unsigned long reduced_rows;
+    unsigned long reduced_cols;
+
+    /* count the number of nonzero entries in each row */
+    counts = (unsigned long *)calloc((size_t)*nrows, sizeof(unsigned long));
+    for (i = 0; i < *ncols; ++i)
+        for (j = 0; j < cols[i].weight; ++j)
+            ++counts[cols[i].data[j]];
+
+    reduced_rows = *nrows;
+    reduced_cols = *ncols;
+    passes = 0;
+
+    do {
+        r = reduced_rows;
+
+        /* remove any columns that contain the only entry in one or more rows,
+         * then update the row counts to reflect the missing column.
+         * Iterate until no more columns can be deleted */
+        do {
+            c = reduced_cols;
+            for (i = j = 0; i < reduced_cols; ++i) {
+                la_col_t *col = cols + i;
+                for (k = 0; k < col->weight; ++k)
+                    if (counts[col->data[k]] < 2)
+                        break;
+
+                if (k < col->weight) {
+                    for (k = 0; k < col->weight; ++k)
+                        --counts[col->data[k]];
+                    free(col->data);
+                    col->data = NULL;
+                } else {
+                    if (j != i) {
+                        /* j lags i, will never have data to free */
+                        cols[j] = cols[i];
+                        cols[i].data = NULL;
+                    }
+                    ++j;
+                }
+            }
+            reduced_cols = j;
+        } while (c != reduced_cols);
+
+        /* count the number of rows that contain a nonzero entry */
+        for (i = reduced_rows = 0; i < *nrows; ++i)
+            if (counts[i])
+                ++reduced_rows;
+
+        /* Because deleting a column reduces the weight of many rows, the
+         * number of nonzero rows may be much less than the number of columns.
+         * Delete more columns until the matrix has the correct aspect ratio.
+         * Columns at the end of cols[] are the heaviest, so delete those
+         * (and update the row counts again) */
+        if (reduced_cols > reduced_rows + NUM_EXTRA_RELATIONS) {
+            for (i = reduced_rows + NUM_EXTRA_RELATIONS;
+                i < reduced_cols; ++i
+            ) {
+                la_col_t *col = &cols[i];
+                for (j = 0; j < col->weight; ++j)
+                    --counts[col->data[j]];
+                free(col->data);
+                col->data = NULL;
+            }
+            reduced_cols = reduced_rows + NUM_EXTRA_RELATIONS;
+        }
+
+        /* if any columns were deleted in the previous step, then the matrix
+         * is less dense and more columns can be deleted; iterate until no
+         * further deletions are possible */
+        ++passes;
+    } while (r != reduced_rows);
+
+    if (get_verbose_level() > 3)
+        printf("reduced to %lu x %lu in %lu passes\n",
+                reduced_rows, reduced_cols, passes);
+
+    free(counts);
+
+    /* Record the final matrix size. Note that we can't touch nrows because
+     * all the column data (and the sieving relations that produced it) would
+     * have to be updated */
+    *ncols = reduced_cols;
+}
+
+/* c[][] := x[][] * y[][], where all operands are 64 x 64 (i.e. contain 64
+ * words of 64 bits each). The result may overwrite a or b.
+ */
+static void mul_64x64_64x64(u_int64_t *a, u_int64_t *b, u_int64_t *c) {
+    u_int64_t ai, accum;
+    u_int64_t tmp[64];
+    unsigned long i, j;
+
+    for (i = 0; i < 64; ++i) {
+        j = 0;
+        accum = 0;
+        ai = a[i];
+        while (ai) {
+            if (ai & 1)
+                accum ^= b[j];
+            ai >>= 1;
+            ++j;
+        }
+        tmp[i] = accum;
+    }
+    memcpy(c, tmp, sizeof(tmp));
+}
+
+/* Let x[][] be a 64 x 64 matrix in GF(2), represented as 64 words of 64 bits
+ * each. Let c[][] be an 8 x 256 matrix of 64-bit words. This code fills c[][]
+ * with a bunch of "partial matrix multiplies". For 0 <= i < 256, the j_th row
+ * of c[][] contains the matrix product:
+ *
+ *   (i << (8 * j)) * x[][]
+ *
+ * where the quantity in parentheses is considered a 1 x 64 vector of elements
+ * in GF(2). The resulting table can dramatically speed up matrix multiplies
+ * by x[][].
+ */
+static void precompute_Nx64_64x64(u_int64_t *x, u_int64_t *c) {
+    u_int64_t accum;
+    unsigned long i, j, k, index;
+
+    for (j = 0; j < 8; ++j) {
+        for (i = 0; i < 256; ++i) {
+            k = 0;
+            index = i;
+            accum = 0;
+            while (index) {
+                if (index & 1)
+                    accum ^= x[k];
+                index >>= 1;
+                ++k;
+            }
+            c[i] = accum;
+        }
+        x += 8;
+        c += 256;
+    }
+}
+
+/* Let v[][] be an n x 64 matrix with elements in GF(2), represented as an
+ * array of n 64-bit words. Let c[][] be an 8 x 256 scratch matrix of 64-bit
+ * words. This code multiplies v[][] by the 64x64 matrix x[][], then XORs
+ * the n x 64 result into y[][].
+ */
+static void mul_Nx64_64x64_acc(
+    u_int64_t *v, u_int64_t *x, u_int64_t *c, u_int64_t *y, unsigned long n
+) {
+    unsigned long i;
+    u_int64_t word;
+
+    precompute_Nx64_64x64(x, c);
+    for (i = 0; i < n; ++i) {
+        word = v[i];
+        y[i] ^=  c[0 * 256 + ((word >>  0) & 0xff)]
+               ^ c[1 * 256 + ((word >>  8) & 0xff)]
+               ^ c[2 * 256 + ((word >> 16) & 0xff)]
+               ^ c[3 * 256 + ((word >> 24) & 0xff)]
+               ^ c[4 * 256 + ((word >> 32) & 0xff)]
+               ^ c[5 * 256 + ((word >> 40) & 0xff)]
+               ^ c[6 * 256 + ((word >> 48) & 0xff)]
+               ^ c[7 * 256 + ((word >> 56)       )];
+    }
+}
+
+/* Let x and y be n x 64 matrices. This routine computes the 64 x 64 matrix
+ * xy[][] given by transpose(x) * y. c[][] is a 256 x 8 scratch matrix of
+ * 64-bit words.
+*/
+static void mul_64xN_Nx64(
+    u_int64_t *x, u_int64_t *y, u_int64_t *c, u_int64_t *xy, unsigned long n
+) {
+    unsigned long i;
+
+    memset(c, 0, 256 * 8 * sizeof(u_int64_t));
+    memset(xy, 0, 64 * sizeof(u_int64_t));
+
+    for (i = 0; i < n; ++i) {
+        u_int64_t xi = x[i];
+        u_int64_t yi = y[i];
+        c[0 * 256 + ( xi        & 0xff)] ^= yi;
+        c[1 * 256 + ((xi >>  8) & 0xff)] ^= yi;
+        c[2 * 256 + ((xi >> 16) & 0xff)] ^= yi;
+        c[3 * 256 + ((xi >> 24) & 0xff)] ^= yi;
+        c[4 * 256 + ((xi >> 32) & 0xff)] ^= yi;
+        c[5 * 256 + ((xi >> 40) & 0xff)] ^= yi;
+        c[6 * 256 + ((xi >> 48) & 0xff)] ^= yi;
+        c[7 * 256 + ((xi >> 56)       )] ^= yi;
+    }
+
+    for (i = 0; i < 8; ++i) {
+        unsigned long j;
+        u_int64_t a0, a1, a2, a3, a4, a5, a6, a7;
+
+        a0 = a1 = a2 = a3 = 0;
+        a4 = a5 = a6 = a7 = 0;
+        for (j = 0; j < 256; ++j) {
+            if ((j >> i) & 1) {
+                a0 ^= c[0 * 256 + j];
+                a1 ^= c[1 * 256 + j];
+                a2 ^= c[2 * 256 + j];
+                a3 ^= c[3 * 256 + j];
+                a4 ^= c[4 * 256 + j];
+                a5 ^= c[5 * 256 + j];
+                a6 ^= c[6 * 256 + j];
+                a7 ^= c[7 * 256 + j];
+            }
+        }
+
+        xy[ 0] = a0; xy[ 8] = a1; xy[16] = a2; xy[24] = a3;
+        xy[32] = a4; xy[40] = a5; xy[48] = a6; xy[56] = a7;
+        ++xy;
+    }
+}
+
+/* Given a 64x64 matrix t[][] (i.e. sixty-four 64-bit words) and a list of
+ * 'last_dim' column indices enumerated in last_s[]:
+ *  - find a submatrix of t that is invertible
+ *  - invert it and copy to w[][]
+ *  - enumerate in s[] the columns represented in w[][]
+ */
+static unsigned long find_nonsingular_sub(
+    u_int64_t *t, unsigned long *s, unsigned long *last_s,
+    unsigned long last_dim, u_int64_t *w
+) {
+    unsigned long i, j;
+    unsigned long dim;
+    unsigned long cols[64];
+    u_int64_t M[64][2];
+    u_int64_t mask, *row_i, *row_j;
+    u_int64_t m0, m1;
+
+    /* M = [t | I] for I the 64x64 identity matrix */
+    for (i = 0; i < 64; ++i) {
+        M[i][0] = t[i];
+        M[i][1] = bitmask[i];
+    }
+
+    /* put the column indices from last_s[] into the back of cols[], and copy
+     * to the beginning of cols[] any column indices not in last_s[] */
+    mask = 0;
+    for (i = 0; i < last_dim; ++i) {
+        cols[63 - i] = last_s[i];
+        mask |= bitmask[last_s[i]];
+    }
+    for (i = j = 0; i < 64; ++i)
+        if (!(mask & bitmask[i]))
+            cols[j++] = i;
+
+    /* compute the inverse of t[][] */
+    for (i = dim = 0; i < 64; ++i) {
+        /* find the next pivot row and put in row i */
+        mask = bitmask[cols[i]];
+        row_i = M[cols[i]];
+
+        for (j = i; j < 64; ++j) {
+            row_j = M[cols[j]];
+            if (row_j[0] & mask) {
+                m0 = row_j[0];
+                m1 = row_j[1];
+                row_j[0] = row_i[0];
+                row_j[1] = row_i[1];
+                row_i[0] = m0;
+                row_i[1] = m1;
+                break;
+            }
+        }
+
+        /* if a pivot row was found, eliminate the pivot column from all
+         * other rows */
+        if (j < 64) {
+            for (j = 0; j < 64; ++j) {
+                row_j = M[cols[j]];
+                if ((row_i != row_j) && (row_j[0] & mask)) {
+                    row_j[0] ^= row_i[0];
+                    row_j[1] ^= row_i[1];
+                }
+            }
+
+            /* add the pivot column to the list of accepted columns */
+            s[dim++] = cols[i];
+            continue;
+        }
+
+        /* otherwise, use the right-hand half of M[] to compensate for
+         * the absence of a pivot column */
+        for (j = i; j < 64; ++j) {
+            row_j = M[cols[j]];
+            if (row_j[1] & mask) {
+                m0 = row_j[0];
+                m1 = row_j[1];
+                row_j[0] = row_i[0];
+                row_j[1] = row_i[1];
+                row_i[0] = m0;
+                row_i[1] = m1;
+                break;
+            }
+        }
+
+        if (j == 64) {
+            printf("lanczos error: submatrix is not invertible\n");
+            return 0;
+        }
+
+        /* eliminate the pivot column from the other rows of the inverse */
+        for (j = 0; j < 64; ++j) {
+            row_j = M[cols[j]];
+            if (row_i != row_j && (row_j[1] & mask)) {
+                row_j[0] ^= row_i[0];
+                row_j[1] ^= row_i[1];
+            }
+        }
+
+        /* wipe out the pivot row */
+        row_i[0] = row_i[1] = 0;
+    }
+
+    /* the right-hand half of M[] is the desired inverse */
+    for (i = 0; i < 64; ++i)
+        w[i] = M[i][1];
+
+    /* The block Lanczos recurrence depends on all columns of t[][] appearing
+     * in s[] and/or last_s[]. Verify that condition here */
+    mask = 0;
+    for (i = 0; i < dim; ++i)
+        mask |= bitmask[s[i]];
+    for (i = 0; i < last_dim; ++i)
+        mask |= bitmask[last_s[i]];
+    if (mask != (u_int64_t)(-1)) {
+        printf("lanczos error: not all columns used\n");
+        return 0;
+    }
+    return dim;
+}
+
+/* Multiply the vector x[] by the matrix A (stored columnwise) and put
+ * the result in b[]. vsize refers to the number of u_int64_t's allocated for
+ * x[] and b[]; vsize is probably different from ncols.
+ */
+void mul_MxN_Nx64(
+    unsigned long vsize, unsigned long dense_rows, unsigned long ncols,
+    la_col_t *A, u_int64_t *x, u_int64_t *b
+) {
+    unsigned long i, j;
+
+    memset(b, 0, vsize * sizeof(u_int64_t));
+
+    for (i = 0; i < ncols; ++i) {
+        la_col_t *col = &A[i];
+        unsigned long *row_entries = col->data;
+        u_int64_t tmp = x[i];
+
+        for (j = 0; j < col->weight; ++j)
+            b[row_entries[j]] ^= tmp;
+    }
+
+    if (dense_rows)
+        for (i = 0; i < ncols; ++i) {
+            la_col_t *col = &A[i];
+            unsigned long *row_entries = col->data + col->weight;
+            u_int64_t tmp = x[i];
+
+            for (j = 0; j < dense_rows; ++j)
+                if (row_entries[j / 32] & ((unsigned long)1 << (j % 32)))
+                    b[j] ^= tmp;
+        }
+}
+
+/* Multiply the vector x[] by the transpose of the matrix A and put the result
+ * in b[]. Since A is stored by columns, this is just a matrix-vector product.
+ */
+void mul_trans_MxN_Nx64(
+    unsigned long dense_rows, unsigned long ncols,
+    la_col_t *A, u_int64_t *x, u_int64_t *b
+) {
+    unsigned long i, j;
+
+    for (i = 0; i < ncols; ++i) {
+        la_col_t *col = &A[i];
+        unsigned long *row_entries = col->data;
+        u_int64_t accum = 0;
+
+        for (j = 0; j < col->weight; ++j)
+            accum ^= x[row_entries[j]];
+        b[i] = accum;
+    }
+
+    if (dense_rows)
+        for (i = 0; i < ncols; ++i) {
+            la_col_t *col = &A[i];
+            unsigned long *row_entries = col->data + col->weight;
+            u_int64_t accum = b[i];
+
+            for (j = 0; j < dense_rows; ++j)
+                if (row_entries[j / 32] & ((unsigned long)1 << (j % 32)))
+                    accum ^= x[j];
+            b[i] = accum;
+        }
+}
+
+/* Hideously inefficent routine to transpose a vector v[] of 64-bit words
+ * into a 2-D array trans[][] of 64-bit words.
+ */
+static void transpose_vector(
+    unsigned long ncols, u_int64_t *v, u_int64_t **trans
+) {
+    unsigned long i, j;
+    unsigned long col;
+    u_int64_t mask, word;
+
+    for (i = 0; i < ncols; ++i) {
+        col = i / 64;
+        mask = bitmask[i % 64];
+        word = v[i];
+        j = 0;
+        while (word) {
+            if (word & 1)
+                trans[j][col] |= mask;
+            word = word >> 1;
+            ++j;
+        }
+    }
+}
+
+/* Once the block Lanczos iteration has finished, x[] and v[] will contain
+ * mostly nullspace vectors between them, as well as possibly some columns
+ * that are linear combinations of nullspace vectors. Given vectors ax[]
+ * and av[] that are the result of multiplying x[] and v[] by the matrix,
+ * this routine will use Gauss elimination on the columns of [ax | av]
+ * to find all of the linearly dependent columns. The column operations
+ * needed to accomplish this are mirrored in [x | v] and the columns that
+ * are independent are skipped. Finally, the dependent columns are copied
+ * back into x[] and represent the nullspace vector output of the block
+ * Lanczos code.
+ *
+ * v[] and av[] can be NULL, in which case the elimination process assumes
+ * 64 dependencies instead of 128.
+ */
+void combine_cols(
+    unsigned long ncols, u_int64_t *x, u_int64_t *v,
+    u_int64_t *ax, u_int64_t *av
+) {
+    unsigned long i, j, k, bitpos, col, col_words, num_deps;
+    u_int64_t mask;
+    u_int64_t *matrix[128], *amatrix[128], *tmp;
+
+    num_deps = 128;
+    if (v == NULL || av == NULL)
+        num_deps = 64;
+    col_words = (ncols + 63) / 64;
+
+    for (i = 0; i < num_deps; ++i) {
+        matrix[i] = (u_int64_t *)calloc((size_t)col_words, sizeof(u_int64_t));
+        amatrix[i] = (u_int64_t *)calloc((size_t)col_words, sizeof(u_int64_t));
+    }
+
+    /* operations on columns can more conveniently become operations on rows
+     * if all the vectors are first transposed */
+    transpose_vector(ncols, x, matrix);
+    transpose_vector(ncols, ax, amatrix);
+    if (num_deps == 128) {
+        transpose_vector(ncols, v, matrix + 64);
+        transpose_vector(ncols, av, amatrix + 64);
+    }
+
+    /* Keep eliminating rows until the unprocessed part of amatrix[][] is
+     * all zero. The rows where this happens correspond to linearly dependent
+     * vectors in the nullspace */
+    for (i = bitpos = 0; i < num_deps && bitpos < ncols; ++bitpos) {
+        /* find the next pivot row */
+        mask = bitmask[bitpos % 64];
+        col = bitpos / 64;
+        for (j = i; j < num_deps; ++j)
+            if (amatrix[j][col] & mask) {
+                tmp = matrix[i];
+                matrix[i] = matrix[j];
+                matrix[j] = tmp;
+                tmp = amatrix[i];
+                amatrix[i] = amatrix[j];
+                amatrix[j] = tmp;
+                break;
+            }
+        if (j == num_deps)
+            continue;
+
+        /* a pivot was found; eliminate it from the remaining rows */
+        for (++j; j < num_deps; ++j)
+            if (amatrix[j][col] & mask) {
+                /* Note that the entire row, *not* just the nonzero part of
+                 * it, must be eliminated; this is because the corresponding
+                 * (dense) row of matrix[][] must have the same operation
+                 * applied */
+                for (k = 0; k < col_words; ++k) {
+                    amatrix[j][k] ^= amatrix[i][k];
+                    matrix[j][k] ^= matrix[i][k];
+                }
+            }
+        ++i;
+    }
+
+    /* transpose rows i to 64 back into x[] */
+    for (j = 0; j < ncols; ++j) {
+        u_int64_t word = 0;
+
+        col = j / 64;
+        mask = bitmask[j % 64];
+
+        for (k = i; k < 64; ++k)
+            if (matrix[k][col] & mask)
+                word |= bitmask[k];
+        x[j] = word;
+    }
+
+    for (i = 0; i < num_deps; ++i) {
+        free(matrix[i]);
+        free(amatrix[i]);
+    }
+}
+
+/* Solve Bx = 0 for some nonzero x; the computed solution, containing up to
+ * 64 of these nullspace vectors, is returned.
+ */
+u_int64_t * block_lanczos(
+    unsigned long nrows, unsigned long dense_rows, unsigned long ncols,
+    la_col_t *B
+) {
+    u_int64_t *vnext, *v[3], *x, *v0;
+    u_int64_t *winv[3];
+    u_int64_t *vt_a_v[2], *vt_a2_v[2];
+    u_int64_t *scratch;
+    u_int64_t *d, *e, *f, *f2;
+    u_int64_t *tmp;
+    unsigned long s[2][64];
+    unsigned long i, iter;
+    unsigned long n = ncols;
+    unsigned long dim0, dim1;
+    u_int64_t mask0, mask1;
+    unsigned long vsize;
+
+    /* allocate all of the size-n variables. Note that because B has been
+     * preprocessed to ignore singleton rows, the number of rows may really
+     * be less than nrows and may be greater than ncols. vsize is the maximum
+     * of these two numbers. */
+    vsize = max(nrows, ncols);
+    v[0] = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    v[1] = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    v[2] = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    vnext = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    x = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    v0 = (u_int64_t *)malloc(vsize * sizeof(u_int64_t));
+    scratch = (u_int64_t *)malloc(max(vsize, 256 * 8) * sizeof(u_int64_t));
+
+    /* allocate all the 64x64 variables */
+    winv[0] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    winv[1] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    winv[2] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    vt_a_v[0] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    vt_a_v[1] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    vt_a2_v[0] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    vt_a2_v[1] = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    d = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    e = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    f = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+    f2 = (u_int64_t *)malloc(64 * sizeof(u_int64_t));
+
+    /* The iterations computes v[0], vt_a_v[0], vt_a2_v[0], s[0] and winv[0].
+     * Subscripts larger than zero represent past versions of these
+     * quantities, which start off empty (except for the past version of s[],
+     * which contains all the column indices */
+    memset(v[1], 0, vsize * sizeof(u_int64_t));
+    memset(v[2], 0, vsize * sizeof(u_int64_t));
+    for (i = 0; i < 64; ++i) {
+        s[1][i] = i;
+        vt_a_v[1][i] = 0;
+        vt_a2_v[1][i] = 0;
+        winv[1][i] = 0;
+        winv[2][i] = 0;
+    }
+    dim0 = 0;
+    dim1 = 64;
+    mask1 = (u_int64_t)-1;
+    iter = 0;
+
+    /* The computed solution 'x' starts off random, and v[0] starts off
+     * as B*x. This initial copy of v[0] must be saved off separately */
+    for (i = 0; i < n; ++i)
+        v[0][i] = (u_int64_t)(random32()) << 32
+                | (u_int64_t)(random32());
+
+    memcpy(x, v[0], vsize * sizeof(u_int64_t));
+    mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], scratch);
+    mul_trans_MxN_Nx64(dense_rows, ncols, B, scratch, v[0]);
+    memcpy(v0, v[0], vsize * sizeof(u_int64_t));
+
+    /* perform the iteration */
+    while (1) {
+        ++iter;
+
+        /* multiply the current v[0] by a symmetrized version of B,
+         * or B'B (apostrophe means transpose). Use "A" to refer to B'B  */
+        mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], scratch);
+        mul_trans_MxN_Nx64(dense_rows, ncols, B, scratch, vnext);
+
+        /* compute v0'*A*v0 and (A*v0)'(A*v0) */
+        mul_64xN_Nx64(v[0], vnext, scratch, vt_a_v[0], n);
+        mul_64xN_Nx64(vnext, vnext, scratch, vt_a2_v[0], n);
+
+        /* if the former is orthogonal to itself, then the iteration has
+         * finished */
+        for (i = 0; i < 64; ++i)
+            if (vt_a_v[0][i] != 0)
+                break;
+        if (i == 64)
+            break;
+
+        /* Find the size-'dim0' nonsingular submatrix of v0'*A*v0, invert it,
+         * and list the column indices present in the submatrix */
+        dim0 = find_nonsingular_sub(vt_a_v[0], s[0], s[1], dim1, winv[0]);
+        if (dim0 == 0)
+            break;
+
+        /* mask0 contains one set bit for every column that participates
+         * in the inverted submatrix computed above */
+        mask0 = 0;
+        for (i = 0; i < dim0; ++i)
+            mask0 |= bitmask[s[0][i]];
+
+        /* compute d */
+        for (i = 0; i < 64; ++i)
+            d[i] = (vt_a2_v[0][i] & mask0) ^ vt_a_v[0][i];
+        mul_64x64_64x64(winv[0], d, d);
+        for (i = 0; i < 64; ++i)
+            d[i] = d[i] ^ bitmask[i];
+
+        /* compute e */
+        mul_64x64_64x64(winv[1], vt_a_v[0], e);
+        for (i = 0; i < 64; ++i)
+            e[i] = e[i] & mask0;
+
+        /* compute f */
+        mul_64x64_64x64(vt_a_v[1], winv[1], f);
+        for (i = 0; i < 64; ++i)
+            f[i] = f[i] ^ bitmask[i];
+        mul_64x64_64x64(winv[2], f, f);
+        for (i = 0; i < 64; ++i)
+            f2[i] = ((vt_a2_v[1][i] & mask1) ^ vt_a_v[1][i]) & mask0;
+        mul_64x64_64x64(f, f2, f);
+
+        /* compute the next v */
+        for (i = 0; i < n; ++i)
+            vnext[i] = vnext[i] & mask0;
+        mul_Nx64_64x64_acc(v[0], d, scratch, vnext, n);
+        mul_Nx64_64x64_acc(v[1], e, scratch, vnext, n);
+        mul_Nx64_64x64_acc(v[2], f, scratch, vnext, n);
+
+        /* update the computed solution 'x' */
+        mul_64xN_Nx64(v[0], v0, scratch, d, n);
+        mul_64x64_64x64(winv[0], d, d);
+        mul_Nx64_64x64_acc(v[0], d, scratch, x, n);
+
+        /* rotate all the variables */
+        tmp = v[2];
+        v[2] = v[1];
+        v[1] = v[0];
+        v[0] = vnext;
+        vnext = tmp;
+        tmp = winv[2];
+        winv[2] = winv[1];
+        winv[1] = winv[0];
+        winv[0] = tmp;
+        tmp = vt_a_v[1]; vt_a_v[1] = vt_a_v[0]; vt_a_v[0] = tmp;
+        tmp = vt_a2_v[1]; vt_a2_v[1] = vt_a2_v[0]; vt_a2_v[0] = tmp;
+        memcpy(s[1], s[0], 64 * sizeof(unsigned long));
+        mask1 = mask0;
+        dim1 = dim0;
+    }
+
+    if (get_verbose_level() > 3)
+        printf("lanczos halted after %lu iterations\n", iter);
+
+    /* free unneeded storage */
+    free(vnext);
+    free(scratch);
+    free(v0);
+    free(vt_a_v[0]);
+    free(vt_a_v[1]);
+    free(vt_a2_v[0]);
+    free(vt_a2_v[1]);
+    free(winv[0]);
+    free(winv[1]);
+    free(winv[2]);
+    free(d);
+    free(e);
+    free(f);
+    free(f2);
+
+    /* if a recoverable failure occurred, start everything over again */
+    if (dim0 == 0) {
+        printf("linear algebra failed; retrying...\n");
+        free(x);
+        free(v[0]);
+        free(v[1]);
+        free(v[2]);
+        return NULL;
+    }
+
+    /* convert the output of the iteration to an actual collection of
+     * nullspace vectors */
+    mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[1]);
+    mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], v[2]);
+    combine_cols(ncols, x, v[0], v[1], v[2]);
+
+    /* verify that these really are linear dependencies of B */
+    mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[0]);
+    for (i = 0; i < ncols; ++i)
+        if (v[0][i] != 0)
+            break;
+    if (i < ncols) {
+        printf("lanczos error: dependencies don't work %lu\n",i);
+        abort();
+    }
+
+    free(v[0]);
+    free(v[1]);
+    free(v[2]);
+    return x;
+}
+
+/* small prime power */
+typedef struct {
+    unsigned int p;
+    unsigned int e;
+} spp_t;
+
+/* dynamic array of prime powers */
+typedef struct {
+    unsigned int size;
+    unsigned int count;
+    spp_t *fact;
+} fact_t;
+
+/* relation */
+typedef struct {
+    fact_t f;
+    mpz_t X;
+    /* full relation if Q = 0, else Q is the partial */
+    unsigned long Q;
+} rel_t;
+
+/* dynamic array of relations */
+typedef struct {
+    unsigned int size;
+    unsigned int count;
+    rel_t **r;
+} arel_t;
+
+rel_t *new_rel(void) {
+    rel_t *r = calloc(1, sizeof(rel_t));
+    mpz_init(r->X);
+    return r;
+}
+
+void resize_fact(fact_t *f, unsigned int size) {
+    if (size > f->size) {
+        f->fact = realloc(f->fact, size * sizeof(spp_t));
+        f->size = size;
+    }
+}
+
+void add_factor(rel_t *r, unsigned int p, unsigned int e) {
+    unsigned int i = r->f.count;
+    if (i >= r->f.size)
+        resize_fact(&r->f, r->f.size ? (r->f.size * 3 / 2) : 64);
+    r->f.fact[i].p = p;
+    r->f.fact[i].e = e;
+    ++r->f.count;
+}
+
+void resize_arel(arel_t *ar, unsigned int size) {
+    if (size > ar->size) {
+        ar->r = realloc(ar->r, size * sizeof(rel_t *));
+        ar->size = size;
+    }
+}
+void reset_factors(rel_t *r) {
+    r->f.count = 0;
+}
+void reset_arel(arel_t *ar) {
+    ar->count = 0;
+}
+arel_t *new_arel(void) {
+    return (arel_t *)calloc(1, sizeof(arel_t));
+}
+void free_rel(rel_t *r) {
+    mpz_clear(r->X);
+    free(r->f.fact);
+    free(r);
+}
+/* note, does not free rel_t relations referenced */
+void steal_arel(arel_t *ar) {
+    free(ar->r);
+    free(ar);
+}
+void free_arel(arel_t *ar) {
+    for (unsigned int i = 0; i < ar->count; ++i)
+        free_rel(ar->r[i]);
+    steal_arel(ar);
+}
+
+int fact_cmp(const void *va, const void *vb) {
+    spp_t *a = (spp_t *)va;
+    spp_t *b = (spp_t *)vb;
+    return (a->p < b->p) ? -1 : (a->p == b->p) ? 0 : 1;
+}
+int arel_cmp(const void *va, const void *vb) {
+    rel_t **a = (rel_t **)va;
+    rel_t **b = (rel_t **)vb;
+    unsigned long aQ = (*a)->Q;
+    unsigned long bQ = (*b)->Q;
+    return (aQ == bQ) ? mpz_cmp((*a)->X, (*b)->X) : (aQ < bQ) ? -1 : 1;
+}
+
+void sort_fact(fact_t *f) {
+    qsort(f->fact, f->count, sizeof(spp_t), fact_cmp);
+}
+void sort_rel(arel_t *ar) {
+    qsort(ar->r, ar->count, sizeof(rel_t *), arel_cmp);
+}
+
+void save_rel(arel_t *ar, rel_t *r) {
+    unsigned int i = ar->count;
+#if RELPRINT
+    if (r->Q)
+        gmp_printf("save partial Q=%lu X=%Zd\n", r->Q, r->X);
+    else
+        gmp_printf("save full X=%Zd\n", r->X);
+#endif
+    if (i >= ar->size)
+        resize_arel(ar, ar->size ? (ar->size * 3 / 2) : 64);
+    ar->r[ar->count++] = r;
+    return;
+}
+
+unsigned int merge_full(arel_t *ara, arel_t *arb) {
+    arel_t *arc = new_arel();
+    resize_arel(arc, ara->count + arb->count);
+    unsigned int ia = 0, ib = 0, ic = 0;
+    rel_t *next_ra = ara->count ? ara->r[ia++] : NULL;
+    rel_t *next_rb = arb->count ? arb->r[ib++] : NULL;
+    mpz_t *lastp = NULL;
+
+    while (next_ra && next_rb) {
+        if (mpz_cmp(next_ra->X, next_rb->X) <= 0) {
+            if (lastp && mpz_cmp(next_ra->X, *lastp) == 0) {
+                free_rel(next_ra);
+            } else {
+                arc->r[ic++] = next_ra;
+                lastp = &next_ra->X;
+            }
+            next_ra = (ia < ara->count) ? ara->r[ia++] : NULL;
+        } else {
+            if (lastp && mpz_cmp(next_rb->X, *lastp) == 0) {
+                free_rel(next_rb);
+            } else {
+                arc->r[ic++] = next_rb;
+                lastp = &next_rb->X;
+            }
+            next_rb = (ib < arb->count) ? arb->r[ib++] : NULL;
+        }
+    }
+    while (next_ra) {
+        arc->r[ic++] = next_ra;
+        lastp = &next_ra->X;
+        next_ra = (ia < ara->count) ? ara->r[ia++] : NULL;
+    }
+    while (next_rb) {
+        if (lastp && mpz_cmp(next_rb->X, *lastp) == 0) {
+            free_rel(next_rb);
+        } else {
+            arc->r[ic++] = next_rb;
+            lastp = &next_rb->X;
+        }
+        next_rb = (ib < arb->count) ? arb->r[ib++] : NULL;
+    }
+    arc->count = ic;
+    /* now swap contents of ara and arc, and free the old ara */
+    arel_t tmp = *ara;
+    *ara = *arc;
+    *arc = tmp;
+    steal_arel(arc);
+    return ara->count;
+}
+
+unsigned int combine_partial(arel_t *comb, rel_t *ra, rel_t *rb,
+    unsigned long numPrimes, mpz_t n
+) {
+    /* same partial, nothing to do */
+    if (mpz_cmpabs(ra->X, rb->X) == 0)
+        return 0;
+
+    mpz_t X;
+    mpz_init_set_ui(X, ra->Q);
+    if (!mpz_invert(X, X, n)) {
+        /* We have found a factor. It could be N when N is quite small;
+           or we might just have found a divisor by sheer luck. */
+        mpz_gcd_ui(X, n, ra->Q);
+        if (mpz_cmp(X, n) == 0) {
+            /* it was N, nothing to see here */
+            mpz_clear(X);
+            return 0;
+        }
+        /* FIXME: record this factor and let the world know */
+        gmp_fprintf(stderr,
+                "Early factor found %Zd (not necessarily prime)\n", X);
+        mpz_clear(X);
+        return 0;
+    }
+    mpz_mul(X, X, ra->X);
+    mpz_mul(X, X, rb->X);
+    mpz_mod(X, X, n);
+
+    /* prefer the smaller of (X, n - X) */
+    mpz_t X2;
+    mpz_init(X2);
+    mpz_sub(X2, n, X);
+    if (mpz_cmp(X2, X) < 0)
+        mpz_set(X, X2);
+    mpz_clear(X2);
+
+    rel_t *r = new_rel();
+    mpz_set(r->X, X);
+    fact_t *fa = &ra->f;
+    fact_t *fb = &rb->f;
+    resize_fact(&r->f, fa->count + fb->count);
+
+    unsigned int ia = 0, ib = 0;
+    while (ia < fa->count && ib < fb->count) {
+        if (fa->fact[ia].p == fb->fact[ib].p) {
+            add_factor(r, fa->fact[ia].p, fa->fact[ia].e + fb->fact[ib].e);
+            ++ia;
+            ++ib;
+        } else if (fa->fact[ia].p < fb->fact[ib].p) {
+            add_factor(r, fa->fact[ia].p, fa->fact[ia].e);
+            ++ia;
+        } else {
+            add_factor(r, fb->fact[ib].p, fb->fact[ib].e);
+            ++ib;
+        }
+    }
+    while (ia < ra->f.count) {
+        add_factor(r, fa->fact[ia].p, fa->fact[ia].e);
+        ++ia;
+    }
+    while (ib < rb->f.count) {
+        add_factor(r, fb->fact[ib].p, fb->fact[ib].e);
+        ++ib;
+    }
+    save_rel(comb, r);
+    mpz_clear(X);
+    return 1;
+}
+
+unsigned int merge_partial(arel_t *ara, arel_t *arb, arel_t *comb,
+    unsigned long numPrimes, mpz_t n
+) {
+    arel_t *arc = new_arel();
+    /* make room for worst case, if no full relations are extracted */
+    resize_arel(arc, ara->count + arb->count);
+    unsigned int i, ia = 0, ib = 0, ic = 0;
+    rel_t *ra = ara->count ? ara->r[ia++] : NULL;
+    rel_t *rb = arb->count ? arb->r[ib++] : NULL;
+
+    while (rb) {
+        if (ra) {
+            if (ra->Q < rb->Q) {
+                arc->r[ic++] = ra;
+                ra = (ia < ara->count) ? ara->r[ia++] : NULL;
+                continue;
+            }
+            if (ra->Q == rb->Q) {
+                while (rb && ra->Q == rb->Q) {
+                    combine_partial(comb, ra, rb, numPrimes, n);
+                    free_rel(rb);
+                    rb = (ib < arb->count) ? arb->r[ib++] : NULL;
+                }
+                arc->r[ic++] = ra;
+                ra = (ia < ara->count) ? ara->r[ia++] : NULL;
+                continue;
+            }
+        }
+        /* rb is next, but may combine with rb' */
+        if (ib < arb->count && rb->Q == arb->r[ib]->Q) {
+            arc->r[ic++] = rb;
+            rel_t *rb2 = arb->r[ib++];
+            while (rb2 && rb->Q == rb2->Q) {
+                combine_partial(comb, rb, rb2, numPrimes, n);
+                free_rel(rb2);
+                rb2 = (ib < arb->count) ? arb->r[ib++] : NULL;
+            }
+            rb = rb2;
+            continue;
+        }
+        /* rb is next, and does not combine */
+        arc->r[ic++] = rb;
+        rb = (ib < arb->count) ? arb->r[ib++] : NULL;
+    }
+    if (ra) {
+        for (i = ia - 1; i < ara->count; ++i)
+            arc->r[ic++] = ara->r[i];
+    }
+    arc->count = ic;
+    /* now swap contents of ara and arc, and free the old ara */
+    arel_t tmp = *ara;
+    *ara = *arc;
+    *arc = tmp;
+    steal_arel(arc);
+    return ara->count;
+}
+
+unsigned long read_matrix(
+    arel_t *full,
+    la_col_t *colarray,
+    unsigned long relsFound,
+    unsigned long relSought,
+    mpz_t n
+) {
+#ifdef ERROR
+    mpz_t test1, test2;
+    mpz_init(test1);
+    mpz_init(test2);
+#endif
+
+    for (unsigned int i = 0; i < full->count && relsFound < relSought; ++i) {
+        rel_t *r = full->r[i];
+        for (unsigned int j = 0; j < r->f.count; ++j) {
+            spp_t *f = &r->f.fact[j];
+            if (f->e & 1)
+                xorColEntry(colarray, relsFound, (unsigned long)f->p);
+        }
+
+#ifdef ERROR
+        mpz_set_ui(test1,1);
+        for (unsigned long j = 0; j < r->f.count; ++j) {
+            mpz_set_ui(test2, r->f.fact[j].p);
+            mpz_powm_ui(test2, test2, r->f.fact[j].e, n);
+            mpz_mul(test1, test1, test2);
+            if ((j % 30) == 0)
+                mpz_mod(test1, test1, n);
+        }
+        mpz_mod(test1, test1, n);
+        mpz_mul(test2, r->X, r->X);
+        mpz_mod(test2, test2, n);
+        if (mpz_cmp(test1, test2) != 0) {
+            mpz_add(test1, test1, test2);
+            if (mpz_cmp(test1, n) != 0) {
+                clearCol(colarray, relsFound);
+                mpz_sub(test1, test1, test2);
+                gmp_printf("Product mismatch: for %Zu got %Zu with factors",
+                        test2, test1);
+                for (unsigned int j = 0; j < r->f.count; ++j) {
+                    spp_t *f = &r->f.fact[j];
+                    printf(" %u", factorBase[f->p]);
+                    if (f->e > 1)
+                        printf("^%u", f->e);
+                }
+                printf("\n");
+            } else
+                ++relsFound;
+        } else
+            ++relsFound;
+#else
+        ++relsFound;
+#endif
+    }
+#ifdef ERROR
+    mpz_clear(test1);
+    mpz_clear(test2);
+#endif
+    return relsFound;
 }
 
 /*=========================================================================
@@ -511,14 +1602,12 @@ static void tonelliShanks(unsigned long numPrimes, mpz_t n, mpz_t *sqrts) {
 /*==========================================================================
    evaluateSieve:
 
-   Function: searches sieve for relations and sticks them into a matrix, then
-             sticks their X and Y values into two arrays XArr and YArr
+   Function: searches sieve for relations and sticks them into a list.
 
 ===========================================================================*/
 static void evaluateSieve(
     unsigned long numPrimes,
     unsigned long Mdiv2,
-    unsigned long *relations,
     unsigned long ctimesreps,
     unsigned long M,
     unsigned char *sieve,
@@ -528,35 +1617,27 @@ static void evaluateSieve(
     unsigned long *soln1,
     unsigned long *soln2,
     unsigned char *flags,
-    matrix_t m,
-    mpz_t *XArr,
+    la_col_t *colarray,
     unsigned long *aind,
     int min,
     int s,
-    int *exponents,
-    unsigned long *npartials,
-    unsigned long *nrelsfound,
-    unsigned long *nrelssought,
+    arel_t *rels,   /* to add full relations */
+    arel_t *lpnew,  /* to add partial relations */
     mpz_t temp,
     mpz_t temp2,
     mpz_t temp3,
     mpz_t res
 ) {
-    long i, j, ii;
+    long i, j;
     unsigned int k;
-    unsigned int exponent, vv;
+    unsigned int exponent;
+    unsigned char vv;
     unsigned char extra;
     unsigned int modp;
     unsigned long *sieve2;
     unsigned char bits;
-    int numfactors;
-    unsigned long relsFound = *nrelsfound;
-    unsigned long relSought = *nrelssought;
+    rel_t *rel = NULL;  /* new relation to add */
 
-    mpz_set_ui(temp, 0);
-    mpz_set_ui(temp2, 0);
-    mpz_set_ui(temp3, 0);
-    mpz_set_ui(res, 0);
     i = 0;
     j = 0;
     sieve2 = (unsigned long *)sieve;
@@ -576,7 +1657,7 @@ static void evaluateSieve(
                 ++i;
         } while (sieve[i] < threshold);
 
-        if ((unsigned long)i < M && relsFound < relSought) {
+        if ((unsigned long)i < M) {
             mpz_set_ui(temp, i + ctimesreps);
             mpz_sub_ui(temp, temp, Mdiv2); /* X              */
             mpz_set(temp3, B);             /* B              */
@@ -586,11 +1667,12 @@ static void evaluateSieve(
             mpz_add(res, temp2, C);        /* AX^2 + 2BX + C */
 
             bits = mpz_sizeinbase(res, 2) - errorbits;
-
-            numfactors = 0;
             extra = 0;
-            memset(exponents, 0, firstprime * sizeof(int));
 
+            if (rel == NULL)
+                rel = new_rel();
+            else
+                reset_factors(rel);
             if (factorBase[0] != 1 && mpz_divisible_ui_p(res, factorBase[0])) {
                 extra += primeSizes[0];
                 if (factorBase[0] == 2) {
@@ -600,12 +1682,10 @@ static void evaluateSieve(
                     mpz_set_ui(temp, factorBase[0]);
                     exponent = mpz_remove(res, res, temp);
                 }
-                exponents[0] = exponent;
+                add_factor(rel, 0, exponent);
             }
 
-            exponents[1] = 0;
             if (mpz_divisible_ui_p(res, factorBase[1])) {
-                extra += primeSizes[1];
                 if (factorBase[1] == 2) {
                     exponent = mpz_scan1(res, 0);
                     mpz_tdiv_q_2exp(res, res, exponent);
@@ -613,27 +1693,31 @@ static void evaluateSieve(
                     mpz_set_ui(temp, factorBase[1]);
                     exponent = mpz_remove(res, res, temp);
                 }
-                exponents[1] = exponent;
+                add_factor(rel, 1, exponent);
+                /* (hv) simpqs-2.0 adds exponent rather than primeSizes[1]
+                 * here, no idea why */
+                extra += exponent;
             }
 
             for (k = 2; k < firstprime; ++k) {
                 modp = (i + ctimesreps) % factorBase[k];
-                exponents[k] = 0;
                 if (soln2[k] != (unsigned long)-1) {
                     if (modp == soln1[k] || modp == soln2[k]) {
-                        extra += primeSizes[k];
                         mpz_set_ui(temp, factorBase[k]);
                         exponent = mpz_remove(res, res, temp);
                         CHECK_EXPONENT(exponent, k);
                         PRINT_FB(exponent, k);
-                        exponents[k] = exponent;
+                        extra += primeSizes[k];
+                        add_factor(rel, k, exponent);
                     }
-                } else if (mpz_divisible_ui_p(res, factorBase[k])) {
-                    extra += primeSizes[k];
+                } else {
                     mpz_set_ui(temp, factorBase[k]);
                     exponent = mpz_remove(res, res, temp);
-                    PRINT_FB(exponent, k);
-                    exponents[k] = exponent;
+                    if (exponent) {
+                        PRINT_FB(exponent, k);
+                        extra += primeSizes[k];
+                        add_factor(rel, k, exponent);
+                    }
                 }
             }
             sieve[i] += extra;
@@ -643,28 +1727,21 @@ static void evaluateSieve(
                     modp = (i + ctimesreps) % factorBase[k];
                     if (soln2[k] != (unsigned long)-1) {
                         if (modp == soln1[k] || modp == soln2[k]) {
-                            extra += primeSizes[k];
                             mpz_set_ui(temp, factorBase[k]);
                             exponent = mpz_remove(res, res, temp);
                             CHECK_EXPONENT(exponent, k);
                             PRINT_FB(exponent, k);
-                            if (exponent)
-                                for (ii = 0; ii < (long)exponent; ++ii)
-                                    set_relation(
-                                        relations, relsFound, ++numfactors, k
-                                    );
-                            if (exponent & 1)
-                                insertEntry(m, relsFound, k);
+                            extra += primeSizes[k];
+                            add_factor(rel, k, exponent);
                         }
-                    } else if (mpz_divisible_ui_p(res, factorBase[k])) {
-                        extra += primeSizes[k];
+                    } else {
                         mpz_set_ui(temp, factorBase[k]);
                         exponent = mpz_remove(res, res, temp);
-                        PRINT_FB(exponent, k);
-                        for (ii = 0; ii < (long)exponent; ++ii)
-                            set_relation(relations, relsFound, ++numfactors, k);
-                        if (exponent & 1)
-                            insertEntry(m, relsFound, k);
+                        if (exponent) {
+                            PRINT_FB(exponent, k);
+                            extra += primeSizes[k];
+                            add_factor(rel, k, exponent);
+                        }
                     }
                 }
 
@@ -672,87 +1749,67 @@ static void evaluateSieve(
                     if (flags[k] & vv) {
                         modp = (i + ctimesreps) % factorBase[k];
                         if (modp == soln1[k] || modp == soln2[k]) {
-                            extra += primeSizes[k];
                             mpz_set_ui(temp, factorBase[k]);
                             exponent = mpz_remove(res, res, temp);
                             CHECK_EXPONENT(exponent, k);
                             PRINT_FB(exponent, k);
-                            if (exponent)
-                                for (ii = 0; ii < (long)exponent; ++ii)
-                                    set_relation(
-                                        relations, relsFound, ++numfactors, k
-                                    );
-                            if (exponent & 1)
-                                insertEntry(m, relsFound, k);
+                            extra += primeSizes[k];
+                            add_factor(rel, k, exponent);
                         }
                     }
-                }
-
-                for (ii = 0; ii < s; ++ii) {
-                    xorEntry(m, relsFound, aind[ii] + min);
-                    set_relation(
-                        relations, relsFound, ++numfactors, aind[ii] + min
-                    );
                 }
 
                 if (mpz_cmp_ui(res, 1000) > 0) {
-                    if (mpz_cmp_ui(res, largeprime) < 0)
-                        ++*npartials;
-                    clearRow(m, numPrimes, relsFound);
-#ifdef RELPRINT
-                    gmp_printf(" %Zd\n", res);
-#endif
-                } else {
-                    mpz_neg(res, res);
-                    if (mpz_cmp_ui(res, 1000) > 0) {
-                        if (mpz_cmp_ui(res, largeprime) < 0)
-                            ++*npartials;
-                        clearRow(m, numPrimes, relsFound);
+                    if (mpz_cmp_ui(res, largeprime) < 0) {
 #ifdef RELPRINT
                         gmp_printf(" %Zd\n", res);
 #endif
-                     } else {
+                        for (int i = 0; i < s; ++i)
+                            add_factor(rel, aind[i] + min, 1);
+                        sort_fact(&rel->f);
+                        mpz_set(rel->X, temp3);
+                        rel->Q = mpz_get_ui(res);
+                        save_rel(lpnew, rel);
+                        rel = NULL;
+                    }
+                } else {
+                    mpz_neg(res, res);
+                    if (mpz_cmp_ui(res, 1000) > 0) {
+                        if (mpz_cmp_ui(res, largeprime) < 0) {
+#ifdef RELPRINT
+                            gmp_printf(" %Zd\n", res);
+#endif
+                            for (int i = 0; i < s; ++i)
+                                add_factor(rel, aind[i] + min, 1);
+                            sort_fact(&rel->f);
+                            mpz_set(rel->X, temp3);
+                            rel->Q = mpz_get_ui(res);
+                            save_rel(lpnew, rel);
+                            rel = NULL;
+                        }
+                    } else {
 #ifdef RELPRINT
                         printf("....R\n");
 #endif
-                        for (ii = 0; ii < (long)firstprime; ++ii) {
-                            int jj;
-                            for (jj = 0; jj < exponents[ii]; ++jj)
-                                set_relation(
-                                    relations, relsFound, ++numfactors, ii
-                                );
-                            if (exponents[ii] & 1)
-                                insertEntry(m, relsFound, ii);
-                        }
-                        set_relation(relations, relsFound, 0, numfactors);
-
-                        mpz_init_set(XArr[relsFound], temp3);  /* (AX+B) */
-
-                        ++relsFound;
-#ifdef COUNT
-                        if ((relsFound % 20) == 0)
-                            fprintf(stderr, "%lu relations, %lu partials.\n",
-                                    relsFound, *npartials);
-#endif
+                        for (int i = 0; i < s; ++i)
+                            add_factor(rel, aind[i] + min, 1);
+                        sort_fact(&rel->f);
+                        mpz_set(rel->X, temp3);
+                        save_rel(rels, rel);
+                        rel = NULL;
                     }
                 }
             } else {
-                clearRow(m, numPrimes, relsFound);
 #ifdef RELPRINT
-                printf("\r                                                                    \r");
+                printf("\n");
 #endif
-
             }
             ++i;
-
-        } else if (relsFound >= relSought)
-            ++i;
+        }
     }
-    /* Update caller */
-    *nrelsfound = relsFound;
-    *nrelssought = relSought;
+    if (rel != NULL)
+        free_rel(rel);
 }
-
 
 static void update_solns(
     unsigned long first, unsigned long limit,
@@ -1025,15 +2082,11 @@ static int mainRoutine(
     unsigned long multiplier
 ) {
     mpz_t A, B, C, D, Bdivp2, nsqrtdiv, temp, temp2, temp3, temp4;
-    int i, j, l, s, fact, span, min, nfactors, verbose;
-    unsigned long u1, p, reps, numRelations, M, Mq, Mr;
+    int i, j, s, fact, span, min, nfactors, verbose;
+    unsigned long u1, p, reps, M, Mq, Mr;
     unsigned long curves = 0;
-    unsigned long npartials = 0;
-    unsigned long relsFound = 0;
-    unsigned long  *relations;
     unsigned int   *primecount;
     unsigned char  *sieve;
-    int            *exponents;
     unsigned long  *aind;
     unsigned long  *amodp;
     unsigned long  *Ainv;
@@ -1043,26 +2096,34 @@ static int mainRoutine(
     unsigned long **Ainv2B;
     unsigned char **offsets;
     unsigned char **offsets2;
-    mpz_t          *XArr;
+    la_col_t       *colarray;
     mpz_t          *Bterms;
     mpz_t          *sqrts;
-    matrix_t m;
+
+    unsigned long next_cutoff = (relSought - 1) / 40 + 1;
+    unsigned long next_inc = next_cutoff;
+
+    arel_t *frels = new_arel();   /* all natural full relations */
+    arel_t *rels = new_arel();    /* new natural full relations, to be merged */
+    arel_t *lprels = new_arel();  /* all partial relations */
+    arel_t *lpnew = new_arel();   /* new partial relations, to be merged */
+    arel_t *comb = new_arel();    /* new full relations found from partials */
+    arel_t *flprels = new_arel(); /* all combined full relations */
 
     verbose = get_verbose_level();
     s = mpz_sizeinbase(n, 2) / 28 + 1;
 
-    New( 0, exponents, firstprime, int);
     Newz(0, aind,          s, unsigned long);
     Newz(0, amodp,         s, unsigned long);
     Newz(0, Ainv,  numPrimes, unsigned long);
     Newz(0, soln1, numPrimes, unsigned long);
     Newz(0, soln2, numPrimes, unsigned long);
     Newz(0, Ainv2B,        s, unsigned long *);
-    New( 0, XArr,  relSought, mpz_t);
     New( 0, Bterms,        s, mpz_t);
-    if (exponents == 0 || aind == 0 || amodp == 0 || Ainv == 0
+    Newz(0, colarray, relSought, la_col_t);
+    if (aind == 0 || amodp == 0 || Ainv == 0
         || soln1 == 0 || soln2 == 0 || Ainv2B == 0 || Bterms == 0
-        || XArr == 0
+        || colarray == 0
     )
         croak("SIMPQS: Unable to allocate memory!\n");
 
@@ -1080,15 +2141,12 @@ static int mainRoutine(
         mpz_init(Bterms[i]);
     }
 
-    m = constructMat(numPrimes, relSought);
-
     /* one extra word for sentinel */
     Newz(0, sieve,     Mdiv2 * 2 + sizeof(unsigned long), unsigned char);
     New( 0, offsets,   secondprime, unsigned char *);
     New( 0, offsets2,  secondprime, unsigned char *);
-    Newz(0, relations, relSought * RELATIONS_PER_PRIME, unsigned long);
 
-    if (sieve == 0 || offsets == 0 || offsets2 == 0 || relations == 0)
+    if (sieve == 0 || offsets == 0 || offsets2 == 0)
         croak("SIMPQS: Unable to allocate memory!\n");
 
     mpz_init(A); mpz_init(B); mpz_init(C); mpz_init(D);
@@ -1099,8 +2157,8 @@ static int mainRoutine(
     New(0, sqrts, numPrimes, mpz_t);
     if (sqrts == 0)
         croak("SIMPQS: Unable to allocate memory!\n");
-    for (p = 0; p < numPrimes; ++p)
-        mpz_init(sqrts[p]);
+    for (i = 0; i < numPrimes; ++i)
+        mpz_init(sqrts[i]);
     tonelliShanks(numPrimes, n, sqrts);
 
     /* Compute min A_prime and A_span */
@@ -1121,12 +2179,11 @@ static int mainRoutine(
 
     /* Compute first polynomial and adjustments */
 
-    while (relsFound < relSought) {
-        int polyindex;
+    while (frels->count + flprels->count < relSought) {
         mpz_set_ui(A, 1);
         for (i = 0; i < s - 1; ) {
             unsigned long ran = span / 2 + silly_random(span / 2);
-            j = -1L;
+            j = -1;
             while (j != i) {
                 ++ran;
                 for (j = 0; j < i && aind[j] != ran; ++j)
@@ -1136,7 +2193,7 @@ static int mainRoutine(
             mpz_mul_ui(A, A, factorBase[ran + min]);
             ++i;
             if (i < s - 1) {
-                j = -1L;
+                j = -1;
                 ran = ((min + span / 2) * (min + span / 2)) / (ran + min)
                         - silly_random(10) - min;
                 while (j != i) {
@@ -1150,7 +2207,7 @@ static int mainRoutine(
             }
         }
 
-        mpz_div(temp, nsqrtdiv, A);
+        mpz_fdiv_q(temp, nsqrtdiv, A);
         for (fact = 1; mpz_cmp_ui(temp, factorBase[fact]) >= 0; ++fact)
             ;
         fact -= min;
@@ -1195,17 +2252,16 @@ static int mainRoutine(
 
             mpz_fdiv_r_ui(temp, B, p);
             mpz_sub(temp, sqrts[i], temp);
-            mpz_add_ui(temp, temp, p);
             mpz_mul_ui(temp, temp, Ainv[i]);
             mpz_add_ui(temp, temp, Mdiv2);
             soln1[i] = mpz_fdiv_r_ui(temp, temp, p);
             mpz_sub_ui(temp, sqrts[i], p);
             mpz_neg(temp, temp);
             mpz_mul_ui(temp, temp, 2 * Ainv[i]);
-            soln2[i] = mpz_fdiv_r_ui(temp, temp, p) + soln1[i];
+            soln2[i] = mpz_fdiv_ui(temp, p) + soln1[i];
         }
 
-        for (polyindex = 1; polyindex < (1 << (s - 1)) - 1; ++polyindex) {
+        for (int polyindex = 1; polyindex < (1 << (s - 1)) - 1; ++polyindex) {
             int polyadd;
             unsigned long *polycorr;
             for (j = 0; j < s; ++j)
@@ -1227,16 +2283,14 @@ static int mainRoutine(
                 mpz_fdiv_r_ui(D, n, p * p);
                 mpz_fdiv_r_ui(Bdivp2, B, p * p);
                 mpz_mul_ui(temp, Bdivp2, amodp[j]);
-                mpz_fdiv_r_ui(temp, temp, p);
-                u1 = modinverse(mpz_fdiv_r_ui(temp, temp, p), p);
+                u1 = modinverse(mpz_fdiv_ui(temp, p), p);
                 mpz_mul(temp, Bdivp2, Bdivp2);
                 mpz_sub(temp, temp, D);
                 mpz_neg(temp, temp);
                 mpz_tdiv_q_ui(temp, temp, p);
                 mpz_mul_ui(temp, temp, u1);
                 mpz_add_ui(temp, temp, Mdiv2);
-                mpz_add_ui(temp, temp, p);
-                soln1[findex] = mpz_fdiv_r_ui(temp, temp, p);
+                soln1[findex] = mpz_fdiv_ui(temp, p);
                 soln2[findex] = (unsigned long)-1;
             }
 
@@ -1291,12 +2345,37 @@ static int mainRoutine(
 
             evaluateSieve(
                 numPrimes, Mdiv2,
-                relations, 0, M, sieve, A, B, C,
-                soln1, soln2, flags, m, XArr, aind,
-                min, s, exponents,
-                &npartials, &relsFound, &relSought,
-                temp, temp2, temp3, temp4
+                0, M, sieve, A, B, C,
+                soln1, soln2, flags, colarray, aind,
+                min, s,
+                rels, lpnew, temp, temp2, temp3, temp4
             );
+
+            if (2 * (rels->count + frels->count) >= next_cutoff) {
+                sort_rel(lpnew);
+                /* full relations found while merging are extracted into comb */
+                merge_partial(lprels, lpnew, comb, numPrimes, n);
+                reset_arel(lpnew);
+
+                sort_rel(rels);
+                merge_full(frels, rels);
+                reset_arel(rels);
+
+                /* why keep combined full relations separate from naturals? */
+                sort_rel(comb);
+                merge_full(flprels, comb);
+                reset_arel(comb);
+#ifdef COUNT
+                printf("%u full, %u combined, %u partial\n",
+                        frels->count, flprels->count, lprels->count);
+#endif
+                if (
+                    next_cutoff < relSought
+                    && next_cutoff + next_inc / 2 >= relSought
+                )
+                    next_inc = next_inc / 2;
+                next_cutoff += next_inc;
+            }
         }
 
 #ifdef COUNT
@@ -1306,7 +2385,7 @@ static int mainRoutine(
     }
 
 #ifdef CURPARTS
-    printf("%lu curves, %lu partials.\n", curves, npartials);
+    printf("%lu curves, %u partials.\n", curves, lprels->count);
 #endif
 
     if (verbose > 4)
@@ -1314,14 +2393,13 @@ static int mainRoutine(
 
     /* Free everything we don't need for the linear algebra */
 
-    for (p = 0; p < numPrimes; ++p)
-        mpz_clear(sqrts[p]);
+    for (i = 0; i < numPrimes; ++i)
+        mpz_clear(sqrts[i]);
     Safefree(sqrts);
     for (i = 0; i < s; ++i) {
         Safefree(Ainv2B[i]);
         mpz_clear(Bterms[i]);
     }
-    Safefree(exponents);
     Safefree(aind);
     Safefree(amodp);
     Safefree(Ainv);
@@ -1341,33 +2419,166 @@ static int mainRoutine(
 
     /* Do the matrix algebra step */
 
-    numRelations = gaussReduce(m, numPrimes, relSought);
-    if (verbose > 3)
-        printf("# qs found %lu relations in kernel\n", numRelations);
+    unsigned long ncols = relSought;
+    unsigned long nrows = numPrimes;
+
+#ifdef ERRORS
+    for (j = frels->count; j < relSought; ++j)
+        if (colarray[j].weight != 0)
+            printf("Dirty at col %d\n", j);
+#endif
+
+#ifdef COUNT
+    printf("%u relations found in total!\n", frels->count + flprels->count);
+#endif
+
+    unsigned long relsFound = 0;
+    relsFound = read_matrix(frels, colarray, 0, relSought, n);
+    relsFound = read_matrix(flprels, colarray, relsFound, relSought, n);
+
+/* temporary, while we store frels and flprels separately: return a (rel_t *)
+ * pointer to the relation with the given index */
+#define RELINDEX(ri) ((ri >= frels->count) ? flprels->r[ri - frels->count] : frels->r[ri])
+
+#ifdef ERRORS
+    for (j = 0; j < relSought; ++j)
+        if (colarray[j].orig != j) {
+            printf("Column numbering error, %d\n", j);
+            colarray[j].orig = j;
+        }
+
+    for (j = 0; j < relSought; ++j)
+        for (i = 0; i < colarray[j].weight; ++i)
+            if (colarray[j].data[i] > numPrimes)
+                printf("Error prime too large: %lu\n", colarray[j].data[i]);
+
+    mpz_t test1, test2, test3;
+    mpz_init(test1);
+    mpz_init(test2);
+    mpz_init(test3);
+    unsigned int *exps = malloc(numPrimes * sizeof(unsigned int));
+    for (j = 0; j < relSought; ++j) {
+        for (i = 0; i < numPrimes; ++i)
+            exps[i] = 0;
+        rel_t *r = RELINDEX(j);
+        mpz_set_ui(test1, 1);
+        for (i = 0; i < r->f.count; ++i) {
+            mpz_ui_pow_ui(test2, factorBase[ r->f.fact[i].p ], r->f.fact[i].e);
+            mpz_mul(test1, test1, test2);
+            exps[ r->f.fact[i].p ] += r->f.fact[i].e;
+        }
+        mpz_mod(test1, test1, n);
+        mpz_mul(test2, r->X, r->X);
+        mpz_mod(test2, test2, n);
+        if (mpz_cmp(test1, test2) != 0) {
+            mpz_add(test3, test1, test2);
+            if (mpz_cmp(test3, n) != 0) {
+                gmp_printf("%Zd !=\n%Zd\nin column %d and\n", test3, n, j);
+                gmp_printf("%Zd !=\n%Zd\n\n", test1, test2);
+            }
+        }
+        for (i = 0; i < colarray[j].weight; ++i) {
+            if (exps[colarray[j].data[i]] % 2 != 1)
+                printf("Col %d, row %d incorrect\n", j, i);
+            exps[colarray[j].data[i]] = 0;
+        }
+        for (i = 0; i < numPrimes; ++i)
+            if ((exps[i] % 2) == 1)
+                printf("exps[%d] is not even in row %d\n", i, j);
+    }
+    free(exps);
+    mpz_clear(test1);
+    mpz_clear(test2);
+    mpz_clear(test3);
+#endif
+
+    reduce_matrix(&nrows, &ncols, colarray);
+
+#ifdef ERRORS
+    exps = (unsigned int *)malloc(numPrimes * sizeof(unsigned int));
+    for (j = 0; j < ncols; ++j) {
+        for (i = 0; i < numPrimes; ++i)
+            exps[i] = 0;
+        unsigned int index = colarray[j].orig;
+        rel_t *r = RELINDEX(index);
+        for (i = 0; i < r->f.count; ++i)
+            exps[r->f.fact[i].p] += r->f.fact[i].e;
+        for (i = 0; i < colarray[j].weight; ++i) {
+            for (int k = 0; k < i; ++k)
+                if (colarray[j].data[i] == colarray[j].data[k])
+                    printf("Duplicate in column %d: %d, %d\n", j, i, k);
+            if ((exps[colarray[j].data[i]] % 2) != 1)
+                printf("Col %d, row %d incorrect\n", j, i);
+            exps[colarray[j].data[i]] = 0;
+        }
+        for (i = 0; i < numPrimes; ++i)
+            if ((exps[i] % 2) == 1)
+                printf("exps[%d] is not even in row %d\n", i, j);
+    }
+    free(exps);
+#endif
+
+    u_int64_t *nullrows;
+    do {
+        nullrows = block_lanczos(nrows, 0, ncols, colarray);
+    } while (nullrows == NULL);
+
+    long mask = 0;
+    for (i = 0; i < ncols; ++i)
+        mask |= nullrows[i];
+
+    if (verbose > 3) {
+        for (i = j = 0; i < 64; ++i)
+            if (mask & ((u_int64_t)1 << i))
+                ++j;
+        printf ("%d nullspace vectors found.\n", j);
+    }
+
+#ifdef ERRORS
+    exps = (unsigned int *)malloc(numPrimes * sizeof(unsigned int));
+    for (j = 0; j < ncols; ++j) {
+        for (i = 0; i < numPrimes; ++i)
+            exps[i] = 0;
+        unsigned int index = colarray[j].orig;
+        rel_t *r = RELINDEX(index);
+        for (i = 0; i < r->f.count; ++i)
+            exps[ r->f.fact[i].p ] += r->f.fact[i].e;
+        for (i = 0; i < colarray[j].weight; ++i) {
+            if ((exps[ colarray[j].data[i] ] % 2) != 1)
+                printf("Col %d, row %d incorrect\n", j, i);
+            exps[colarray[j].data[i]] = 0;
+        }
+        for (i = 0; i < numPrimes; ++i)
+            if ((exps[i] % 2) == 1)
+                printf("exps[%d] is not even in row %d\n", i, j);
+    }
+    free(exps);
+#endif
 
     /* We want factors of n, not kn, so divide out by the multiplier */
+    mpz_divexact_ui(n, n, multiplier);
+    if (mask == 0)
+        croak("Failed, no rows found (mask == 0)\n");
 
-    mpz_tdiv_q_ui(n, n, multiplier);
-
-    /* Now do the "sqrt" and GCD steps hopefully obtaining factors of n */
+    /* Now find the factors via square root and gcd */
     mpz_set(farray[0], n);
     nfactors = 1;  /* We have one result -- n */
     New(0, primecount, numPrimes, unsigned int);
     if (primecount == 0)
         croak("SIMPQS: Unable to allocate memory!\n");
-    for (l = (int)relSought - 64; l < (int)relSought; ++l) {
-        unsigned int mat2offset = rightMatrixOffset(numPrimes);
+    for (int l = 0; l < 64; ++l) {
+        while (!(mask & ((u_int64_t)1 << l)))
+            ++l;
         mpz_set_ui(temp, 1);
         mpz_set_ui(temp2, 1);
         memset(primecount, 0, numPrimes * sizeof(unsigned int));
-        for (i = 0; i< numPrimes; ++i) {
-            if (getEntry(m, l, mat2offset + i)) {
-                int nrelations = get_relation(relations, i, 0);
-                if (nrelations >= RELATIONS_PER_PRIME)
-                    nrelations = RELATIONS_PER_PRIME - 1;
-                mpz_mul(temp2, temp2, XArr[i]);
-                for (j = 1; j <= nrelations; ++j)
-                    ++primecount[ get_relation(relations, i, j) ];
+        for (i = 0; i < ncols; ++i) {
+            if (getNullEntry(nullrows, i, l)) {
+                unsigned int index = colarray[i].orig;
+                rel_t *r = RELINDEX(index);
+                mpz_mul(temp2, temp2, r->X);
+                for (j = 0; j < r->f.count; ++j)
+                    primecount[r->f.fact[j].p] += r->f.fact[j].e;
             }
             if (((i + 1) % 16) == 0)
                 mpz_mod(temp2, temp2, n);
@@ -1399,15 +2610,17 @@ static int mainRoutine(
     }
 
     /* Free everything remaining */
+    free(nullrows);
+    free_arel(frels);
+    free_arel(rels);
+    free_arel(lprels);
+    free_arel(lpnew);
+    free_arel(comb);
+    free_arel(flprels);
+    for (i = 0; i < relSought; ++i)
+        free(colarray[i].data);
+    Safefree(colarray);
     Safefree(primecount);
-
-    destroyMat(m, relSought);
-    Safefree(relations);
-
-    for (i = 0; i < (int)relSought; ++i)
-        mpz_clear(XArr[i]);
-    Safefree(XArr);
-
     mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(temp4);
 
     return nfactors;
