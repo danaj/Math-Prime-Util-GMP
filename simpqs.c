@@ -151,6 +151,7 @@ benefit from your work.
 
 /* Should be a little less than the L1/L2 cache size and a multiple of 64000 */
 #define CACHEBLOCKSIZE 64000
+#define MIDPRIME 1500
 /* Make lower for slower machines */
 #define SECONDPRIME 6000
 /* Used for tweaking the bit size calculation for factorBase primes */
@@ -245,6 +246,7 @@ static unsigned int secondprime;  /* cutoff for using flags when sieving */
 static unsigned int firstprime;   /* first prime actually sieved with */
 static unsigned char errorbits;
 static unsigned char threshold;   /* sieve threshold cutoff for smooth relations */
+static unsigned int midprime;
 static unsigned int largeprime;
 static unsigned int *factorBase;  /* array of factor base primes */
 static unsigned char *primeSizes; /* array of sizes in bits of fb primes */
@@ -1839,7 +1841,7 @@ static void set_offsets(
     unsigned char **offsets1, unsigned char **offsets2
 ) {
     unsigned int prime;
-    for (prime = firstprime; prime < secondprime; ++prime)
+    for (prime = firstprime; prime < midprime; ++prime)
         if (soln2[prime] == (unsigned long)-1) {
             offsets1[prime] = 0;
             offsets2[prime] = 0;
@@ -1868,7 +1870,7 @@ static void sieveInterval(
     unsigned char *bound;
     ptrdiff_t diff;
 
-    for (prime = firstprime; prime < secondprime; ++prime) {
+    for (prime = firstprime; prime < midprime; ++prime) {
         if (offsets1[prime] == 0)
             continue;
         p = factorBase[prime];
@@ -1877,10 +1879,9 @@ static void sieveInterval(
         pos2 = offsets2[prime];
         diff = pos2 - pos1;
         /* if pos1 < bound, then both *pos1 and *pos2 can be written to. */
-        bound = (diff >= 0) ? end - diff : end;
+        bound = end - 4 * p;
 
         /* Write both values, unrolled 4 times. */
-        bound -= (4 - 1) * p;
         while (pos1 < bound) {
             pos1[0    ] += size;  pos1[        diff] += size;
             pos1[1 * p] += size;  pos1[1 * p + diff] += size;
@@ -1888,9 +1889,9 @@ static void sieveInterval(
             pos1[3 * p] += size;  pos1[3 * p + diff] += size;
             pos1 += 4 * p;
         }
-        bound += (4 - 1) * p;
+
         /* Write both values */
-        while (pos1 < bound) {
+        while (pos1 < end && pos1 + diff < end) {
             pos1[0] += size;
             pos1[diff] += size;
             pos1 += p;
@@ -1898,11 +1899,11 @@ static void sieveInterval(
         pos2 = pos1 + diff;    /* Restore pos2 */
 
         /* Finish writing to pos1 and pos2 */
-        while (pos1 < end) {
+        if (pos1 < end) {
             *pos1 += size;
             pos1 += p;
         }
-        while (pos2 < end) {
+        if (pos2 < end) {
             *pos2 += size;
             pos2 += p;
         }
@@ -1930,7 +1931,24 @@ static void sieve2(
     unsigned char *pos2;
     unsigned char *end = sieve + M;
 
-    memset(flags, 0, numPrimes * sizeof(unsigned char));
+    for (prime = midprime; prime < secondprime; ++prime) {
+        /* (hv) is this possible? needs aind[0..s-1] + min >= midprime */
+        if (soln2[prime] == (unsigned long)-1)
+            continue;
+
+        p = factorBase[prime];
+        size = primeSizes[prime];
+        pos1 = sieve + soln1[prime];
+        pos2 = sieve + soln2[prime];
+        while (end - pos1 > 0 && end - pos2 > 0) {
+            *pos1 += size;  pos1 += p;
+            *pos2 += size;  pos2 += p;
+        }
+        if (end - pos2 > 0)
+            *pos2 += size;
+        if (end - pos1 > 0)
+            *pos1 += size;
+    }
 
     for (prime = secondprime; prime < numPrimes; ++prime) {
         /* (hv) is this possible? needs aind[0..s-1] + min >= secondprime */
@@ -2128,8 +2146,8 @@ static int mainRoutine(
         croak("SIMPQS: Unable to allocate memory!\n");
 
     flags = 0;
-    if (secondprime < numPrimes) {
-        New(0, flags, numPrimes, unsigned char);
+    if (midprime < numPrimes) {
+        Newz(0, flags, numPrimes, unsigned char);
         if (flags == 0)
             croak("SIMPQS: Unable to allocate memory!\n");
     }
@@ -2143,8 +2161,8 @@ static int mainRoutine(
 
     /* one extra word for sentinel */
     Newz(0, sieve,     Mdiv2 * 2 + sizeof(unsigned long), unsigned char);
-    New( 0, offsets,   secondprime, unsigned char *);
-    New( 0, offsets2,  secondprime, unsigned char *);
+    New( 0, offsets,   midprime, unsigned char *);
+    New( 0, offsets2,  midprime, unsigned char *);
 
     if (sieve == 0 || offsets == 0 || offsets2 == 0)
         croak("SIMPQS: Unable to allocate memory!\n");
@@ -2311,12 +2329,12 @@ static int mainRoutine(
             /* Clear sieve and insert sentinel at end (used in evaluateSieve) */
             memset(sieve, 0, M * sizeof(unsigned char));
             sieve[M] = 255;
-            /* Sieve [secondprime , numPrimes) */
-            if (secondprime < numPrimes)
+            /* Sieve [midprime, numPrimes) */
+            if (midprime < numPrimes)
                 sieve2(M, numPrimes, sieve, soln1, soln2, flags);
             /* Set the offsets and offsets2 arrays used for small sieve */
             set_offsets(sieve, soln1, soln2, offsets, offsets2);
-            /* Sieve [firstprime , secondprime) */
+            /* Sieve [firstprime, midprime) */
             sieveInterval(CACHEBLOCKSIZE, sieve, 1, offsets, offsets2);
             if (Mq > 0) {
                 unsigned long maxreps = Mq - 1;
@@ -2673,6 +2691,7 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
             Mdiv2 = CACHEBLOCKSIZE / 2;
         largeprime = 1000 * largeprimes[decdigits - MINDIG];
         secondprime = (numPrimes < SECONDPRIME) ? numPrimes : SECONDPRIME;
+        midprime = (numPrimes < MIDPRIME) ? numPrimes : MIDPRIME;
         firstprime = firstPrimes[decdigits - MINDIG];
         errorbits = errorAmounts[decdigits - MINDIG];
         threshold = thresholds[decdigits - MINDIG];
@@ -2687,6 +2706,7 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
         Mdiv2 = 192000 / SIEVEDIV;
         largeprime = numPrimes * 10 * decdigits;
         secondprime = SECONDPRIME;
+        midprime = MIDPRIME;
         firstprime = 30;
         errorbits = decdigits / 4 + 2;
         threshold = 43 + (7 * decdigits) / 10;
