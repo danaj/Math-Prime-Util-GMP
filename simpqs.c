@@ -85,6 +85,11 @@ benefit from your work.
 #include <math.h>
 #include <gmp.h>
 
+/* random failure rate of block_lanczos() appears to be about 4%, but
+ * a matrix that fails once appears to have a higher probability of failing
+ * more times - so there's a risk that some matrix will fail every time. */
+#define BL_MAX_FAIL 100
+
 #include "ptypes.h"
 #ifdef STANDALONE_SIMPQS
 # include "gmp_main.h"
@@ -691,7 +696,8 @@ static unsigned long find_nonsingular_sub(
   for (i = 0; i < last_dim; ++i)
     mask |= bitmask[last_s[i]];
   if (mask != (u_int64_t)(-1)) {
-    printf("lanczos error: not all columns used\n");
+    if (get_verbose_level() > 3)
+      printf("lanczos error: not all columns used\n");
     return 0;
   }
   return dim;
@@ -1059,7 +1065,8 @@ u_int64_t * block_lanczos(
 
   /* if a recoverable failure occurred, start everything over again */
   if (dim0 == 0) {
-    printf("linear algebra failed; retrying...\n");
+    if (get_verbose_level() > 3)
+      printf("linear algebra failed; retrying...\n");
     free(x);
     free(v[0]);
     free(v[1]);
@@ -2531,19 +2538,32 @@ static int mainRoutine(
 #endif
 
   u_int64_t *nullrows;
-  do {
-    nullrows = block_lanczos(nrows, 0, ncols, colarray);
-  } while (nullrows == NULL);
-
   long mask = 0;
-  for (i = 0; i < ncols; ++i)
-    mask |= nullrows[i];
+  int fail_count = 0;
+  while (mask == 0 && fail_count < BL_MAX_FAIL) {
+    nullrows = block_lanczos(nrows, 0, ncols, colarray);
+    if (nullrows == NULL) {
+      ++fail_count;
+      continue;
+    }
+    for (i = 0; i < ncols; ++i)
+      mask |= nullrows[i];
+    if (mask == 0)
+      ++fail_count;
+  }
+  if (fail_count >= BL_MAX_FAIL) {
+	gmp_printf(
+	  "block_lanczos failed %d times on target %Zd (multiplier %d), giving up",
+	  fail_count, n, multiplier
+    );
+	croak("assert");
+  }
 
   if (verbose > 3) {
     for (i = j = 0; i < 64; ++i)
       if (mask & ((u_int64_t)1 << i))
         ++j;
-    printf ("%d nullspace vectors found.\n", j);
+    printf("%d nullspace vectors found.\n", j);
   }
 
 #ifdef ERRORS
@@ -2569,8 +2589,6 @@ static int mainRoutine(
 
   /* We want factors of n, not kn, so divide out by the multiplier */
   mpz_divexact_ui(n, n, multiplier);
-  if (mask == 0)
-    croak("Failed, no rows found (mask == 0)\n");
 
   /* Now find the factors via square root and gcd */
   mpz_set(farray[0], n);
@@ -2710,7 +2728,7 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
     gmp_printf("# qs    mult %lu, digits %lu, sieving %lu, primes %lu\n",
         multiplier, decdigits, Mdiv2 * 2, numPrimes);
 
-  /* We probably need fewer than this */
+  /* as numPrimes+64, was commented: we probably need fewer than this */
   relSought = numPrimes;
   initFactorBase();
   computeFactorBase(n, numPrimes, multiplier);
