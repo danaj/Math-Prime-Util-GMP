@@ -256,6 +256,16 @@ static unsigned int largeprime;
 static unsigned int *factorBase;  /* array of factor base primes */
 static unsigned char *primeSizes; /* array of sizes in bits of fb primes */
 
+/* Poor man's random number generator. It satisfies no particularly good
+ * randomness properties, but is good enough for this application
+ */
+static unsigned long randval = 4035456057U;
+static unsigned long init_randval;   /* for diagnostics */
+static unsigned long simple_random(unsigned long upto) {
+  randval = (randval * 1025416097U + 286824428U) % 4294967291U;
+  return upto ? (randval % upto) : randval;
+}
+
 /* lanczos.c */
 
 typedef struct {
@@ -334,17 +344,6 @@ static const u_int64_t bitmask[64] = {
  */
 u_int64_t getNullEntry(u_int64_t *nullrows, long i, long l) {
   return nullrows[i] & bitmask[l];
-}
-
-/* Poor man's random number generator. It satisfies no
- * particularly good randomness properties, but is good
- * enough for this application
- */
-u_long random32(void) {
-  static unsigned long randval = 4035456057U;
-  randval = ((u_int64_t)randval * 1025416097U + 286824428U)
-          % (u_int64_t)4294967291U;
-  return randval;
 }
 
 /* Returns the maximum of two unsigned long's */
@@ -953,8 +952,8 @@ u_int64_t * block_lanczos(
   /* The computed solution 'x' starts off random, and v[0] starts off
    * as B*x. This initial copy of v[0] must be saved off separately */
   for (i = 0; i < n; ++i)
-    v[0][i] = (u_int64_t)(random32()) << 32
-        | (u_int64_t)(random32());
+    v[0][i] = (u_int64_t)(simple_random(0)) << 32
+        | (u_int64_t)(simple_random(0));
 
   memcpy(x, v[0], vsize * sizeof(u_int64_t));
   mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], scratch);
@@ -1981,20 +1980,6 @@ static void sieve2(
 
 /*============================================================================
 
-   random:
-
-   Function: Generates a pseudo-random integer between 0 and n-1 inclusive
-
-============================================================================*/
-static unsigned long randval = 2994439072U;
-static unsigned long silly_random(unsigned long upto) {
-  randval = ((unsigned long)randval * 1025416097U + 286824428U)
-          % (unsigned long)4294967291U;
-  return randval % upto;
-}
-
-/*============================================================================
-
   danaj: added these routines to reduce the set of factors to co-primes.
   It's not the most efficient solution, but it's trivial in time compared
   to the loop it's in, much less the rest of the QS.  It gives us a nice
@@ -2205,7 +2190,7 @@ static int mainRoutine(
   while (frels->count + flprels->count < relSought) {
     mpz_set_ui(A, 1);
     for (i = 0; i < s - 1; ) {
-      unsigned long ran = span / 2 + silly_random(span / 2);
+      unsigned long ran = span / 2 + simple_random(span / 2);
       j = -1;
       while (j != i) {
         ++ran;
@@ -2218,7 +2203,7 @@ static int mainRoutine(
       if (i < s - 1) {
         j = -1;
         ran = ((min + span / 2) * (min + span / 2)) / (ran + min)
-            - silly_random(10) - min;
+            - simple_random(10) - min;
         while (j != i) {
           ++ran;
           for (j = 0; j < i && aind[j] != ran; ++j)
@@ -2552,11 +2537,11 @@ static int mainRoutine(
       ++fail_count;
   }
   if (fail_count >= BL_MAX_FAIL) {
-	gmp_printf(
-	  "block_lanczos failed %d times on target %Zd (multiplier %d), giving up",
-	  fail_count, n, multiplier
+    gmp_printf(
+      "block_lanczos failed %d times on target %Zd (multiplier %d) from randval %lu, giving up",
+      fail_count, n, multiplier, init_randval
     );
-	croak("assert");
+    croak("assert");
   }
 
   if (verbose > 3) {
@@ -2733,6 +2718,7 @@ int _GMP_simpqs(mpz_t n, mpz_t *farray) {
   initFactorBase();
   computeFactorBase(n, numPrimes, multiplier);
 
+  init_randval = randval;
   result += mainRoutine(
     numPrimes, Mdiv2, relSought, n, farray + result, multiplier
   );
@@ -2763,6 +2749,10 @@ int main(int argc, char **argv) {
       break;
     if (arg[1] == 'v') {
       set_verbose_level(atoi(&arg[2]));
+      continue;
+    }
+    if (arg[1] == 'r') {
+      randval = strtoul(&arg[2], NULL, 10);
       continue;
     }
     croak("unknown option '%s'\n", arg);
