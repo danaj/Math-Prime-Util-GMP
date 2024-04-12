@@ -6,17 +6,16 @@ use Test::More;
 use Math::Prime::Util::GMP qw/is_powerful powerful_count
                               factor/;
 
-plan tests => 3+1+10+4+2+1
+plan tests => 2+1+10+5+4+2+1
             + 5 + 2;
 
 {
   my @exp = map { fac_is_powerful($_, 2) } 0 .. 258;
   is_deeply( [map { is_powerful($_,2) } 0..258], \@exp, "is_powerful(0..258,2)");
   is_deeply( [map { is_powerful($_) } 0..258], \@exp, "is_powerful(0..258)");
-  is_deeply( [map { is_powerful($_,0) } 0..258], \@exp, "is_powerful(0..258,0)");
 }
 
-is( scalar(grep { is_powerful($_,1) } 0..32), 33, "is_powerful(n,1) = 1" );
+is( scalar(grep { is_powerful($_,1) } 0..32), 32, "is_powerful(n,1) = 1 for positive n" );
 
 for my $k (3 .. 12) {
   my @nums = (227411960,105218838,79368063,58308379,210322300,44982156,67831696,165946352,243118692,128757041,150085583);
@@ -24,6 +23,12 @@ for my $k (3 .. 12) {
   my @got = map {     is_powerful($_, $k) } 0 .. 32, @nums;
   is_deeply(\@got, \@exp, "is_powerful(n,$k) for 0..32 and 11 larger nums");
 }
+
+is( is_powerful(0), 0, "is_powerful(0) returns false");
+is( is_powerful(-16,0), 0, "is_powerful(-16,0) returns false");
+is( is_powerful(-32,1), 0, "is_powerful(-32,1) returns false");
+is( is_powerful(-64,2), 0, "is_powerful(-64,2) returns false");
+is( is_powerful(-128,3), 0, "is_powerful(-128,3) returns false");
 
 {
   my @pow2 = map { 5*5 * $_*$_ } 1..50;
@@ -80,8 +85,9 @@ if (1) {
 
 sub fac_is_powerful {
   my($n, $k) = @_;
-  $k = 2 if !defined $k || $k == 0;
-  return 1 if $n <= 1 || $k <= 1;
+  $k = 2 if !defined $k;
+  return 0 if $n < 1;
+  return 1 if $n == 1 || $k <= 1;
   return 0 if $n < (1<<$k);
   return 0 if (!($n%2)) && ($n%4);
   my %exponents;

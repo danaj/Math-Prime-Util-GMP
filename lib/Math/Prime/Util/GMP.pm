@@ -79,7 +79,7 @@ our @EXPORT_OK = qw(
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
-                     invmod sqrtmod addmod submod mulmod divmod powmod
+                     negmod invmod sqrtmod addmod submod mulmod divmod powmod
                      is_qr
                      muladdmod mulsubmod
                      vecsum vecprod
@@ -211,7 +211,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
 
 =head1 NAME
 
@@ -1609,13 +1609,14 @@ of C<n> are smaller than C<k>.
 
 =head2 is_powerful
 
-Given two non-negative integer inputs C<n> and C<k>,
+Given an integer input C<n> and an optional non-negative integer input C<k>,
 returns C<1> if C<n> is C<k>-powerful, and C<0> otherwise.
-If C<k> is omitted or zero, C<k=2> is used.
+If C<k> is omitted, C<k=2> is used.
 
-A k-powerful number is one that where all prime factors appear at least
-C<k> times.  All numbers are therefore 1-powerful, and C<1> is powerful
-for all C<k>.
+A k-powerful number is a positive integer where all prime factors appear
+at least C<k> times.
+All positive integers are therefore 0- and 1-powerful,
+and C<1> is powerful for all C<k>.
 
 =head2 is_practical
 
@@ -1797,6 +1798,12 @@ If the modulus is prime, the function will always return C<r>, the smaller
 of the two square roots (the other being C<-r mod |n|>.  If the modulus is
 composite, one of possibly many square roots will be returned, and it will
 not necessarily be the smallest.
+
+=head2 negmod
+
+Given two integers C<a> and C<n>, return C<-a mod |n|>.
+
+This is similar to C<submod(0,$a,$n)>.
 
 =head2 addmod
 

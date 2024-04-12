@@ -984,12 +984,12 @@ liouville(IN char* strn)
     RETVAL
 
 int
-is_powerful(IN char* strn, IN UV k = 0)
+is_powerful(IN char* strn, IN UV k = 2)
   PREINIT:
     mpz_t n;
   CODE:
-    VALIDATE_AND_SET(n, strn);
-    RETVAL = is_powerful(n, (k == 0) ? 2 : k);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    RETVAL = is_powerful(n, k);
     mpz_clear(n);
   OUTPUT:
     RETVAL
@@ -1204,6 +1204,22 @@ powerful_count(IN char* strn, IN int k = 2)
     XPUSH_MPZ(r);
     mpz_clear(r);
     mpz_clear(n);
+
+void negmod(IN char* stra, IN char* strn)
+  PREINIT:
+    mpz_t a, n;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    if (mpz_sgn(n) == 0) {
+      mpz_clear(n); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    mpz_abs(n, n);
+    mpz_neg(a, a);
+    mpz_mod(a, a, n);
+    XPUSH_MPZ(a);
+    mpz_clear(n); mpz_clear(a);
 
 void
 addmod(IN char* stra, IN char* strb, IN char* strn)

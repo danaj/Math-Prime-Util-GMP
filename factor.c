@@ -15,30 +15,47 @@
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
-#define NPRIMES_SMALL 3450
+#define NPRIMES_SMALL 6500
 static unsigned short primes_small[NPRIMES_SMALL];
 static mpz_t _gcd_1k;
 static mpz_t _gcd_4k;
 static mpz_t _gcd_16k;
 static mpz_t _gcd_32k;
+static mpz_t _gcd_64k;
 void _init_factor(void) {
   uint32_t pn;
-  PRIME_ITERATOR(iter);
-  primes_small[0] = 0;
-  primes_small[1] = 2;
+  UV nprimes, *pr;
+
   mpz_init_set_ui(_gcd_1k, 1);
   mpz_init_set_ui(_gcd_4k, 1);
   mpz_init_set_ui(_gcd_16k, 1);
   mpz_init_set_ui(_gcd_32k, 1);
-  for (pn = 2; pn < NPRIMES_SMALL; pn++) {
-    unsigned long p = prime_iterator_next(&iter);
-    primes_small[pn] = p;
-    if (p >     2 && p <=  1000)  mpz_mul_ui(_gcd_1k, _gcd_1k, p);
-    if (p >  1000 && p <=  4000)  mpz_mul_ui(_gcd_4k, _gcd_4k, p);
-    if (p >  4000 && p <= 16000)  mpz_mul_ui(_gcd_16k, _gcd_16k, p);
-    if (p > 16000 && p <= 32000)  mpz_mul_ui(_gcd_32k, _gcd_32k, p);
+  mpz_init_set_ui(_gcd_64k, 1);
+
+  pr = sieve_to_n(65063, &nprimes);
+  MPUassert(nprimes >= NPRIMES_SMALL, "Not enough primes generated in GMP init_factor");
+  primes_small[0] = 0;
+  for (pn = 1; pn < NPRIMES_SMALL; pn++)
+    primes_small[pn] = pr[pn-1];
+
+  mpz_product_ui( _gcd_1k, pr +    1,  167);
+  mpz_product_ui( _gcd_4k, pr +  168,  550 -  168);
+  mpz_product_ui(_gcd_16k, pr +  550, 1862 -  550);
+  mpz_product_ui(_gcd_32k, pr + 1862, 3432 - 1862);
+  mpz_product_ui(_gcd_64k, pr + 3432, 6413 - 3432);
+
+#if 0
+  for (pn = 0; pn < NPRIMES_SMALL; pn++) {
+    UV p = pr[pn];
+    if (p > 2 && p < 1000 && !mpz_divisible_ui_p(_gcd_1k,p)) croak("1k");
+    if (p >= 1000 && p <= 4000 && !mpz_divisible_ui_p(_gcd_4k,p)) croak("4k");
+    if (p >= 4000 && p <= 16000 && !mpz_divisible_ui_p(_gcd_16k,p)) croak("16k");
+    if (p >= 16000 && p <= 32000 && !mpz_divisible_ui_p(_gcd_32k,p)) croak("32k");
+    if (p >= 32000 && p <= 64000 && !mpz_divisible_ui_p(_gcd_64k,p)) croak("64k");
   }
-  prime_iterator_destroy(&iter);
+#endif
+
+  Safefree(pr);
 }
 
 /* Max number of factors on the unfactored stack, not the max total factors.
@@ -145,8 +162,9 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   if (mpz_gcd(f,n,_gcd_4k), mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 169,  550);
   if (mpz_gcd(f,n,_gcd_16k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 551, 1862);
   if (mpz_gcd(f,n,_gcd_32k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,1863, 3432);
+  if (mpz_gcd(f,n,_gcd_64k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,3433, 6413);
 
-  tlim = 32003;
+  tlim = 64007;
   if (mpz_cmp_ui(n,tlim*tlim) < 0) {
     if (mpz_cmp_ui(n,1) > 0)
       ADD_FACTOR(n);
@@ -399,7 +417,8 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
   while (nfactors > 0)
     mpz_clear((*pfactors)[--nfactors]);
   Safefree(*pfactors);
-  Safefree(*pexponents);
+  if (pexponents != 0)
+    Safefree(*pexponents);
 }
 
 
@@ -1792,9 +1811,10 @@ int is_powerful(mpz_t n, uint32_t k) {
   int i, nfactors, *exponents;
   uint32_t e, klo, khi, div;
 
-  if (k == 0) k = 2;   /* API */
+  /* If n is not a positive integer, return 0 regardless of k.*/
+  if (mpz_sgn(n) <= 0) return 0;
 
-  if (k <= 1 || mpz_cmp_ui(n,1) <= 0) return 1;
+  if (k <= 1 || mpz_cmp_ui(n,1) == 0) return 1;
 
   mpz_init_set(N, n);
   e = mpz_scan1(N, 0);
