@@ -1296,7 +1296,7 @@ unsigned int combine_partial(arel_t *comb, rel_t *ra, rel_t *rb,
   mpz_clear(X2);
 
   rel_t *r = new_rel();
-  mpz_set(r->X, X);
+  mpz_abs(r->X, X);
   fact_t *fa = &ra->f;
   fact_t *fb = &rb->f;
   resize_fact(&r->f, fa->count + fb->count);
@@ -1773,7 +1773,7 @@ static void evaluateSieve(
             for (int i = 0; i < s; ++i)
               add_factor(rel, aind[i] + min, 1);
             sort_fact(&rel->f);
-            mpz_set(rel->X, temp3);
+            mpz_abs(rel->X, temp3);
             rel->Q = mpz_get_ui(res);
             save_rel(lpnew, rel);
             rel = NULL;
@@ -1788,7 +1788,7 @@ static void evaluateSieve(
               for (int i = 0; i < s; ++i)
                 add_factor(rel, aind[i] + min, 1);
               sort_fact(&rel->f);
-              mpz_set(rel->X, temp3);
+              mpz_abs(rel->X, temp3);
               rel->Q = mpz_get_ui(res);
               save_rel(lpnew, rel);
               rel = NULL;
@@ -1800,7 +1800,7 @@ static void evaluateSieve(
             for (int i = 0; i < s; ++i)
               add_factor(rel, aind[i] + min, 1);
             sort_fact(&rel->f);
-            mpz_set(rel->X, temp3);
+            mpz_abs(rel->X, temp3);
             save_rel(rels, rel);
             rel = NULL;
           }
