@@ -2111,12 +2111,10 @@ static int mainRoutine(
   unsigned long next_cutoff = (relSought - 1) / 40 + 1;
   unsigned long next_inc = next_cutoff;
 
-  arel_t *frels = new_arel();   /* all natural full relations */
-  arel_t *rels = new_arel();    /* new natural full relations, to be merged */
+  arel_t *frels = new_arel();   /* all full relations */
+  arel_t *rels = new_arel();    /* new full relations, to be merged */
   arel_t *lprels = new_arel();  /* all partial relations */
   arel_t *lpnew = new_arel();   /* new partial relations, to be merged */
-  arel_t *comb = new_arel();    /* new full relations found from partials */
-  arel_t *flprels = new_arel(); /* all combined full relations */
 
   verbose = get_verbose_level();
   s = mpz_sizeinbase(n, 2) / 28 + 1;
@@ -2187,7 +2185,7 @@ static int mainRoutine(
 
   /* Compute first polynomial and adjustments */
 
-  while (frels->count + flprels->count < relSought) {
+  while (frels->count < relSought) {
     mpz_set_ui(A, 1);
     for (i = 0; i < s - 1; ) {
       unsigned long ran = span / 2 + simple_random(span / 2);
@@ -2357,21 +2355,17 @@ static int mainRoutine(
 
       if (2 * (rels->count + frels->count) >= next_cutoff) {
         sort_rel(lpnew);
-        /* full relations found while merging are extracted into comb */
-        merge_partial(lprels, lpnew, comb, numPrimes, n);
+        /* full relations found while merging are extracted into rels */
+        merge_partial(lprels, lpnew, rels, numPrimes, n);
         reset_arel(lpnew);
 
+        /* combine everything into the main list */
         sort_rel(rels);
         merge_full(frels, rels);
         reset_arel(rels);
 
-        /* (hv) why keep combined full relations separate from naturals? */
-        sort_rel(comb);
-        merge_full(flprels, comb);
-        reset_arel(comb);
 #ifdef COUNT
-        printf("%u full, %u combined, %u partial\n",
-            frels->count, flprels->count, lprels->count);
+        printf("%u full, %u partial\n", frels->count, lprels->count);
 #endif
         if (
           next_cutoff < relSought
@@ -2433,16 +2427,10 @@ static int mainRoutine(
 #endif
 
 #ifdef COUNT
-  printf("%u relations found in total!\n", frels->count + flprels->count);
+  printf("%u relations found in total!\n", frels->count);
 #endif
 
-  unsigned long relsFound = 0;
-  relsFound = read_matrix(frels, colarray, 0, relSought, n);
-  relsFound = read_matrix(flprels, colarray, relsFound, relSought, n);
-
-/* temporary, while we store frels and flprels separately: return a (rel_t *)
- * pointer to the relation with the given index */
-#define RELINDEX(ri) ((ri >= frels->count) ? flprels->r[ri - frels->count] : frels->r[ri])
+  unsigned long relsFound = read_matrix(frels, colarray, 0, relSought, n);
 
 #ifdef ERRORS
   for (j = 0; j < relSought; ++j)
@@ -2464,7 +2452,7 @@ static int mainRoutine(
   for (j = 0; j < relSought; ++j) {
     for (i = 0; i < numPrimes; ++i)
       exps[i] = 0;
-    rel_t *r = RELINDEX(j);
+    rel_t *r = frels->r[j];
     mpz_set_ui(test1, 1);
     for (i = 0; i < r->f.count; ++i) {
       mpz_ui_pow_ui(test2, factorBase[ r->f.fact[i].p ], r->f.fact[i].e);
@@ -2504,7 +2492,7 @@ static int mainRoutine(
     for (i = 0; i < numPrimes; ++i)
       exps[i] = 0;
     unsigned int index = colarray[j].orig;
-    rel_t *r = RELINDEX(index);
+    rel_t *r = frels->r[index];
     for (i = 0; i < r->f.count; ++i)
       exps[r->f.fact[i].p] += r->f.fact[i].e;
     for (i = 0; i < colarray[j].weight; ++i) {
@@ -2557,7 +2545,7 @@ static int mainRoutine(
     for (i = 0; i < numPrimes; ++i)
       exps[i] = 0;
     unsigned int index = colarray[j].orig;
-    rel_t *r = RELINDEX(index);
+    rel_t *r = frels->r[index];
     for (i = 0; i < r->f.count; ++i)
       exps[ r->f.fact[i].p ] += r->f.fact[i].e;
     for (i = 0; i < colarray[j].weight; ++i) {
@@ -2590,7 +2578,7 @@ static int mainRoutine(
     for (i = 0; i < ncols; ++i) {
       if (getNullEntry(nullrows, i, l)) {
         unsigned int index = colarray[i].orig;
-        rel_t *r = RELINDEX(index);
+        rel_t *r = frels->r[index];
         mpz_mul(temp2, temp2, r->X);
         for (j = 0; j < r->f.count; ++j)
           primecount[r->f.fact[j].p] += r->f.fact[j].e;
@@ -2637,8 +2625,6 @@ static int mainRoutine(
   free_arel(rels);
   free_arel(lprels);
   free_arel(lpnew);
-  free_arel(comb);
-  free_arel(flprels);
   for (i = 0; i < relSought; ++i)
     free(colarray[i].data);
   Safefree(colarray);
