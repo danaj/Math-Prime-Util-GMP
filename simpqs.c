@@ -2599,9 +2599,11 @@ static int mainRoutine(
         mpz_mod(temp2, temp2, n);
     }
     for (j = 0; j < numPrimes; ++j) {
-      mpz_set_ui(temp3, factorBase[j]);
-      mpz_pow_ui(temp3, temp3, primecount[j] / 2);
-      mpz_mul(temp, temp, temp3);
+      if (primecount[j]) {
+        mpz_set_ui(temp3, factorBase[j]);
+        mpz_pow_ui(temp3, temp3, primecount[j] / 2);
+        mpz_mul(temp, temp, temp3);
+      }
       if (((j + 1) % 16) == 0)
         mpz_mod(temp, temp, n);
     }
