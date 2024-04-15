@@ -2608,13 +2608,18 @@ static int mainRoutine(
         mpz_mod(temp, temp, n);
     }
     mpz_sub(temp, temp2, temp);
-    mpz_gcd(temp, temp, n);
 #if 0
-    /* (hv) shouldn't every hit give gcd > 1?
-     * If so, failures represent a bug somewhere to investigate. */
-    if (mpz_cmp_ui(temp, 1) == 0)
-      gmp_printf("failed result for l = %d\n", l);
+    /* (hv) I think every hit should be 0 or 1 mod n, or give a factor.
+     * If so, we could check more explicitly for failures that might
+     * represent a bug to investigate. */
+    mpz_mod(temp, temp, n);
+    if (mpz_cmp_ui(temp, 1) > 1) {
+        mpz_gcd(temp, temp, n);
+        if (mpz_cmp_ui(temp, 1) == 1)
+          gmp_printf("failed result for l = %d\n", l);
+    }
 #endif
+    mpz_gcd(temp, temp, n);
     /* only non-trivial factors */
     if (mpz_cmp_ui(temp, 1) && mpz_cmp(temp, n)) {
       if (verbose > 4)
