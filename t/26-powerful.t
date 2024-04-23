@@ -7,7 +7,7 @@ use Math::Prime::Util::GMP qw/is_powerful powerful_count
                               factor/;
 
 plan tests => 2+1+10+5+4+2+1
-            + 5 + 2;
+            + 8 + 2;
 
 {
   my @exp = map { fac_is_powerful($_, 2) } 0 .. 258;
@@ -57,6 +57,14 @@ is_deeply( [map { powerful_count($_) } 1..20],
 is_deeply( [map { powerful_count($_,3) } 1..20],
            [1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,3,3,3,3,3],
            "powerful_count(1..20,3)" );
+
+# test with n <= 0 and k = 0,1,2
+is_deeply( [map { powerful_count($_,0) } -100, -10, -4, -1, 0, 1, 4, 10, 100],
+           [0, 0, 0, 0, 0, 1, 4, 10, 100], "powerful_count(+/- n, 0)" );
+is_deeply( [map { powerful_count($_,0) } -100, -10, -4, -1, 0, 1, 4, 10, 100],
+           [0, 0, 0, 0, 0, 1, 4, 10, 100], "powerful_count(+/- n, 1)" );
+is_deeply( [map { powerful_count($_,2) } -100, -10, -4, -1, 0, 1, 4, 10, 100],
+           [0, 0, 0, 0, 0, 1, 2,  4 , 14], "powerful_count(+/- n, 2)" );
 {
   #my $maxk = ($extra) ? 30 : 15;
   my $maxk = 30;

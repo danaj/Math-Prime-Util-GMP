@@ -1025,9 +1025,9 @@ void powerful_count(mpz_t r, mpz_t n, unsigned long k)
   mpz_t m, t;
 
   mpz_set_ui(r, 0);
-  if (k == 0)
+  if (mpz_sgn(n) <= 0)
     return;
-  if (k == 1 || mpz_cmp_ui(n,1) <= 0) {
+  if (k <= 1 || mpz_cmp_ui(n,1) == 0) {
     mpz_set(r, n);
     return;
   }

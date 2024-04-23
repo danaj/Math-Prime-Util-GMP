@@ -1615,8 +1615,9 @@ If C<k> is omitted, C<k=2> is used.
 
 A k-powerful number is a positive integer where all prime factors appear
 at least C<k> times.
-All positive integers are therefore 0- and 1-powerful,
-and C<1> is powerful for all C<k>.
+All positive integers are therefore 0- and 1-powerful.
+C<n=1> is powerful for all C<k>.
+C<0> is returned for all negative or zero values of C<n>.
 
 =head2 is_practical
 

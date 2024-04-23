@@ -1198,7 +1198,7 @@ powerful_count(IN char* strn, IN int k = 2)
   PREINIT:
     mpz_t n, r;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     mpz_init(r);
     powerful_count(r, n, (unsigned long) k);
     XPUSH_MPZ(r);
