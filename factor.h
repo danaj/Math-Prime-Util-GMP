@@ -33,7 +33,7 @@ extern int  _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx);
 
 extern unsigned long   power_factor(mpz_t n, mpz_t f);
 
-extern mpz_t* divisor_list(int* ndivisors, mpz_t n);
+extern mpz_t* divisor_list(int* ndivisors, mpz_t n, mpz_t maxd);
 
 extern int is_smooth(mpz_t n, mpz_t k);
 extern int is_rough(mpz_t n, mpz_t k);

@@ -1011,7 +1011,7 @@ static void _bernfrac_zeta(mpz_t num, mpz_t den, unsigned long n, mpz_t t)
     mpz_t *D;
 
     mpz_set_ui(t, n >> 1);
-    D = divisor_list(&ndivisors, t);
+    D = divisor_list(&ndivisors, t, t);
     mpz_set_ui(den, 6);
     for (i = 1; i < ndivisors; i++) {
       mpz_mul_2exp(t,D[i],1);  mpz_add_ui(t,t,1);

@@ -1327,7 +1327,7 @@ int _totpred(mpz_t n, mpz_t maxd)
       res = 1;
     } else {
       mpz_init(d);  mpz_init(r);
-      D = divisor_list(&ndivisors, N);
+      D = divisor_list(&ndivisors, N, maxd);
       for (i = 0; res == 0 && i < ndivisors && mpz_cmp(D[i],maxd) < 0; i++) {
         mpz_set(d, D[i]);
         mpz_mul_2exp(p,d,1);  mpz_add_ui(p,p,1);

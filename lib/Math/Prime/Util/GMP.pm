@@ -2291,6 +2291,11 @@ is the same result as evaluating the returned array in scalar context
 The result then corresponds to Pari's C<numdiv> and Mathematica's
 C<DivisorSigma[0,n]> functions.
 
+An optional second positive integer argument C<k> indicates that the results
+should not include any value larger than C<k>.  This is especially useful
+when the number has thousands of divisors and we may only be interested in
+the small ones.
+
 
 =head2 trial_factor
 

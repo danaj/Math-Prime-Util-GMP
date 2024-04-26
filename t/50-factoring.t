@@ -35,7 +35,7 @@ plan tests => 0 + 57
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
                 + scalar(keys %sigmas)
-                + 3    # divisors
+                + 5    # divisors
                 + 2    # is_semiprime
                 + 2*scalar(@omega)
                 + 0;
@@ -214,6 +214,13 @@ while (my($n, $s4) = each (%sigmas)) {
 is_deeply( [divisors(1)], [1], "divisors(1) in list context" );
 is_deeply( [divisors(9283540924)], [qw/1 2 4 7 14 28 331555033 663110066 1326220132 2320885231 4641770462 9283540924/], "divisors(9283540924)" );
 is( scalar(divisors(9283540924)), 12, "scalar divisors(9283540924) = 12" );
+
+is_deeply( [divisors(5040, 120)],
+           [1,2,3,4,5,6,7,8,9,10,12,14,15,16,18,20,21,24,28,30,35,36,40,42,45,48,56,60,63,70,72,80,84,90,105,112,120],
+           "divisors(5040, 120)" );
+is_deeply( [divisors("340282366920938463463374607431768211455", 5040)],
+           [1,3,5,15,17,51,85,255,257,641,771,1285,1923,3205,3855,4369],
+           "divisors(2^128-1, 5040)" );
 
 {
   my @non = map { is_semiprime($_) }

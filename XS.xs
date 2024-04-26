@@ -99,6 +99,8 @@ static SV* sv_return_for_mpz(const mpz_t n) {
 
 #define XPUSH_MPZ(n) \
   XPUSHs(sv_2mortal( sv_return_for_mpz(n) ))
+#define XPUSH_INT(n) \
+  XPUSHs(sv_2mortal( newSViv(n) ))
 
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
@@ -334,11 +336,11 @@ _is_provable_prime(IN char* strn, IN int wantproof = 0)
     }
     if (wantproof == 0) {
       result = _GMP_is_provable_prime(n, 0);
-      XPUSHs(sv_2mortal(newSViv( result )));
+      XPUSH_INT(result);
     } else {
       char* prooftext = 0;
       result = _GMP_is_provable_prime(n, &prooftext);
-      XPUSHs(sv_2mortal(newSViv( result )));
+      XPUSH_INT(result);
       if (prooftext) {
         XPUSHs(sv_2mortal(newSVpv(prooftext, 0)));
         Safefree(prooftext);
@@ -887,7 +889,7 @@ moebius(IN char* strn, IN char* stro = 0)
       mpz_t nhi;
       validate_and_set_signed(cv, nhi, "nhi", stro, VSETNEG_OK);
       while (mpz_cmp(n, nhi) <= 0) {
-        XPUSHs(sv_2mortal(newSViv( moebius(n) )));
+        XPUSH_INT( moebius(n) );
         mpz_add_ui(n, n, 1);
       }
       mpz_clear(n);
@@ -1769,8 +1771,6 @@ trial_factor(IN char* strn, ...)
 
 void
 factor(IN char* strn)
-  ALIAS:
-    divisors = 1
   PREINIT:
     mpz_t n;
     mpz_t* factors;
@@ -1778,7 +1778,7 @@ factor(IN char* strn)
     int nfactors, i, j;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
-    if (ix == 0) {
+    if (GIMME_V != G_VOID) {
       nfactors = factor(n, &factors, &exponents);
       if (GIMME_V == G_SCALAR) {
         for (i = 0, j = 0; i < nfactors; i++)
@@ -1792,20 +1792,40 @@ factor(IN char* strn)
         }
       }
       clear_factors(nfactors, &factors, &exponents);
-    } else {
-      if (GIMME_V == G_SCALAR) {
-        sigma(n, n, 0);
-        XPUSH_MPZ(n);
-      } else {
-        factors = divisor_list(&nfactors, n);
-        EXTEND(SP, nfactors);
-        for (i = 0; i < nfactors; i++) {
-          XPUSH_MPZ(factors[i]);
-          mpz_clear(factors[i]);
-        }
-        Safefree(factors);
-      }
     }
+    mpz_clear(n);
+
+void divisors(IN char* strn, IN char* strk = 0)
+  PREINIT:
+    mpz_t n, k;
+    mpz_t* divs;
+    int ndivisors, i, j;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    if (strk == 0) {
+      mpz_init_set(k, n);
+    } else {
+      VALIDATE_AND_SET(k, strk);
+    }
+    if (GIMME_V == G_VOID) {
+      /* Nothing */
+    } else if (GIMME_V == G_SCALAR && mpz_cmp(k, n) >= 0) {
+      sigma(n, n, 0);
+      XPUSH_MPZ(n);
+    } else {
+      divs = divisor_list(&ndivisors, n, k);
+      if (GIMME_V == G_SCALAR) {
+        XPUSH_INT( ndivisors );
+      } else {
+        EXTEND(SP, ndivisors);
+        for (i = 0; i < ndivisors; i++)
+          XPUSH_MPZ(divs[i]);
+      }
+      for (i = 0; i < ndivisors; i++)
+        mpz_clear(divs[i]);
+      Safefree(divs);
+    }
+    mpz_clear(k);
     mpz_clear(n);
 
 void

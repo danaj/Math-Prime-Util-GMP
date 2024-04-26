@@ -1660,9 +1660,9 @@ unsigned long power_factor(mpz_t n, mpz_t f)
 static int numcmp(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
 
-mpz_t * divisor_list(int *num_divisors, mpz_t n)
+mpz_t * divisor_list(int *num_divisors, mpz_t n, mpz_t maxd)
 {
-  mpz_t *factors, *divs, mult;
+  mpz_t *factors, *divs, mult, t;
   int nfactors, ndivisors, i, j, k, count, *exponents;
 
   nfactors = factor(n, &factors, &exponents);
@@ -1670,7 +1670,7 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
   for (i = 1; i < nfactors; i++)
     ndivisors *= (exponents[i] + 1);
 
-  mpz_init(mult);
+  mpz_init(mult);  mpz_init(t);
   New(0, divs, ndivisors, mpz_t);
   mpz_init_set_ui(divs[0], 1);
   for (count = 1, k = 0; k < nfactors; k++) {
@@ -1679,13 +1679,17 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n)
     for (j = 0; j < exponents[k]; j++) {
       mpz_mul(mult, mult, factors[k]);
       for (i = 0; i < scount; i++) {
-        mpz_init(divs[count]);
-        mpz_mul(divs[count], divs[i], mult);
-        count++;
+        mpz_mul(t, divs[i], mult);
+        if (mpz_cmp(t, maxd) <= 0) {
+          mpz_init(divs[count]);
+          mpz_mul(divs[count], divs[i], mult);
+          count++;
+        }
       }
     }
   }
-  mpz_clear(mult);
+  ndivisors = count;
+  mpz_clear(t);  mpz_clear(mult);
   clear_factors(nfactors, &factors, &exponents);
 
   qsort(divs, ndivisors, sizeof(mpz_t), numcmp);
@@ -1823,6 +1827,9 @@ int is_powerful(mpz_t n, uint32_t k) {
     mpz_tdiv_q_2exp(N, N, e);
     if (mpz_cmp_ui(N,1) == 0) { mpz_clear(N); return 1; }
   }
+
+  /* TODO: https://github.com/trizen/sidef/commit/455eeedf5231e27a0a7a89b6f70055b80d185d17 */
+  /* Can also use a factor iterator when we have one */
 
   for (i = 2; i <= 8; i++) {
     static const unsigned char pr[9] = {0,2,3,5,7,11,13,17,19};
