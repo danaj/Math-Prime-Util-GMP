@@ -464,7 +464,7 @@ void sigma(mpz_t res, mpz_t n, unsigned long k)
   int i, j, nfactors;
 
   if (mpz_cmp_ui(n, 1) <= 0) {
-    mpz_set_ui(res, (k == 0 && mpz_cmp_ui(n,1) < 0) ? 2 : 1);
+    mpz_set_ui(res, (mpz_sgn(n) > 0));
     return;
   }
 
@@ -1664,6 +1664,11 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n, mpz_t maxd)
 {
   mpz_t *factors, *divs, mult, t;
   int nfactors, ndivisors, i, j, k, count, *exponents;
+
+  if (mpz_sgn(n) <= 0 || mpz_sgn(maxd) <= 0) {
+    *num_divisors = 0;
+    return 0;
+  }
 
   nfactors = factor(n, &factors, &exponents);
   ndivisors = 1 + ((nfactors > 0) ? exponents[0] : 0);

@@ -9,7 +9,7 @@ my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 
 my %sigmas = (
-  0 => [2,1,1,1],
+  0 => [0,0,0,0],
   1 => [1,1,1,1],
   2 => [2,3,5,9],
   3 => [2,4,10,28],
@@ -35,7 +35,7 @@ plan tests => 0 + 57
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
                 + scalar(keys %sigmas)
-                + 5    # divisors
+                + 9    # divisors
                 + 2    # is_semiprime
                 + 2*scalar(@omega)
                 + 0;
@@ -221,6 +221,14 @@ is_deeply( [divisors(5040, 120)],
 is_deeply( [divisors("340282366920938463463374607431768211455", 5040)],
            [1,3,5,15,17,51,85,255,257,641,771,1285,1923,3205,3855,4369],
            "divisors(2^128-1, 5040)" );
+is( scalar divisors( 0), 0, "scalar divisors(0) should be 0" );
+is( scalar divisors( 1), 1, "scalar divisors(1) should be 1" );
+is( scalar divisors(12), 6, "scalar divisors(12) should be 6" );
+is_deeply( [ [divisors( 0,0)], [divisors( 0,1)],
+             [divisors( 1,0)], [divisors( 1,1)], [divisors( 1,2)],
+             [divisors(12,0)], [divisors(12,1)], [divisors(12,4)] ],
+           [ [], [],   [], [1], [1],  [], [1], [1,2,3,4] ],
+           "divisors for n 0,1,12 and k 0,1,x" );
 
 {
   my @non = map { is_semiprime($_) }

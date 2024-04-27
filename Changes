@@ -112,6 +112,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - lucasu and lucasv accept bigint P and Q values.
 
+    - divisors takes an optional second argument.
+
+    - divisors(0) returns an empty list, sigma(0) returns 0.
+
 0.52 2020-06-22
 
     [ADDED]

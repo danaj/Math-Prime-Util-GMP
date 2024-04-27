@@ -166,6 +166,9 @@
   simple rho
   distinguished point rho
 
+- next_perfect_power, prev_perfect_power
+  https://github.com/trizen/sidef/commit/81af8f018cca4ab7813d4cfaa46fd2e45796a52d
+
 =============== MUST DO BEFORE RELEASE
 
 - tests for:
@@ -185,3 +188,16 @@
 - finish looking at all mp*_ui functions to check for UV/IV vs long use.
 
 - new trial factoring.  Also we probably want trial factor UV -> ui.
+
+- move treesieve in trial factor to its own routine.
+  In fact, possibly keep all that code but with a different interface.
+
+- consider exporting a sieve segment or sieve from/to routine.  Then our
+  trial iterator can sieve segments, vecprod them, do gcd.  Maybe a
+  prime_iterator_next64 to get 64 values.
+
+- check overflow in prime iterator / trial division for 32-bit unsigned long.
+
+- negmod tests
+
+- make addmod etc work on |n| instead of error
