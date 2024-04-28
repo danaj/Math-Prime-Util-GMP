@@ -1178,7 +1178,7 @@ void exp_mangoldt(mpz_t res, mpz_t n)
 int is_carmichael(mpz_t n)
 {
   mpz_t nm1, base, t, *factors;
-  int i, res, nfactors, *exponents;
+  int i, j, res, nfactors, *exponents;
 
   /* small or even */
   if (mpz_cmp_ui(n,1105) < 0 || mpz_even_p(n))
@@ -1222,9 +1222,14 @@ int is_carmichael(mpz_t n)
 
     res = !_GMP_is_prime(n);  /* It must be a composite */
     for (i = 0; res && i < 128; i++) {
-      mpz_sub_ui(t, n, 4);
-      mpz_isaac_urandomm(base, t);
-      mpz_add_ui(base, base, 3);    /* random base between 3 and n-2 */
+      for (j = 0; j < 40; j++) {
+        mpz_sub_ui(t, n, 4);
+        mpz_isaac_urandomm(base, t);
+        mpz_add_ui(base, base, 3);    /* random base between 3 and n-2 */
+        if (mpz_gcd(t, n, base), mpz_cmp_ui(t,1) == 0) break;
+      }
+      if (mpz_gcd(t, n, base), mpz_cmp_ui(t,1) != 0) continue;
+      /* base is random between 3 and n-2, and coprime to n */
       mpz_powm(t, base, nm1, n);
       res = (mpz_cmp_ui(t, 1) == 0);  /* if base^(n-1) mod n != 1, fail */
     }
