@@ -1218,7 +1218,7 @@ int is_carmichael(mpz_t n)
 
   /* Decent chance that at this point it's prime or a Carmichael number. */
 
-  if (mpz_sizeinbase(n,10) > 50) {      /* Probabilistic test */
+  if (mpz_sizeinbase(n,10) > 40) {      /* Probabilistic test */
 
     res = !_GMP_is_prime(n);  /* It must be a composite */
     for (i = 0; res && i < 128; i++) {

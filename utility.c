@@ -351,12 +351,11 @@ DONE_IPR:
 
 int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
 {
-  int invertible;
-  invertible = mpz_invert(t, b, n);
-  if (!invertible)
-    return 0;
-  mpz_mulmod(r, t, a, n, t); /* mpz_mul(t,t,a); mpz_mod(r,t,n); */
-  return 1;
+  if (mpz_invert(t, b, n)) {
+    mpz_mulmod(r, t, a, n, t); /* mpz_mul(t,t,a); mpz_mod(r,t,n); */
+    return 1;
+  }
+  return 0;  /* Cannot invert */
 }
 
 
