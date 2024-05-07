@@ -517,7 +517,8 @@ void sigma(mpz_t res, mpz_t n, unsigned long k)
 }
 
 
-static const unsigned long smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
+static const signed char _smallmoebius[64] = {0,1,-1,-1,0,-1,1,-1,0,0,1,-1,0,-1,1,1,0,-1,0,-1,0,1,1,-1,0,0,1,0,0,-1,-1,-1,0,1,1,1,0,-1,1,1,0,-1,-1,-1,0,0,1,-1,0,0,0,1,0,-1,0,1,0,1,1,-1,0,-1,1,0};
+static const unsigned long _smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
 int moebius(mpz_t n)
 {
   uint32_t i, o, bo;
@@ -528,17 +529,46 @@ int moebius(mpz_t n)
     mpz_neg(n,n);
     return o;
   }
-  if (mpz_sgn(n) == 0) return 0;
-  if (mpz_cmp_ui(n, 1) == 0) return 1;
+  if (mpz_cmp_ui(n,64) < 0) return _smallmoebius[mpz_get_ui(n)];
 
   for (i = 0; i < 7; i++)
-    if (mpz_divisible_ui_p(n, smalldiv[i]))
+    if (mpz_divisible_ui_p(n, _smalldiv[i]))
       return 0;
 
   _omega(n, &o, &bo);
   return (o != bo) ?   0
       :  (o % 2)   ?  -1
                    :   1;
+}
+
+/* mpu 'for (0..256) { next if moebius($_) == 0; $b[$_ >> 5] |= (1 << ($_%32)); } say join ",",@b;' */
+static const uint32_t _isf[8] = {3840601326,1856556782,3941394158,2362371810,3970362990,3471729898,4008603310,3938642668};
+int is_square_free_ui(unsigned long n)
+{
+  uint32_t i, p, psq;
+
+  if (n < 256)  return _isf[n >> 5] & (1U << (n % 32));
+
+  for (i = 1; i < NPRIMES_SMALL; i++) {
+    p = primes_small[i];
+    if (p >= 65536) break;
+    psq = p * p;
+    if (psq > n)  return 1;
+    if ((n % psq) == 0) return 0;
+  }
+  {
+    mpz_t t;
+    mpz_init_set_ui(t, n);
+    i = (moebius(t) != 0);
+    mpz_clear(t);
+    return i;
+  }
+}
+int is_square_free(mpz_t n)
+{
+  if (mpz_cmp_ui(n, 1000000U) <= 0)
+    return is_square_free_ui(mpz_get_ui(n));
+  return moebius(n) != 0;
 }
 
 int liouville(mpz_t n)

@@ -13,6 +13,8 @@ extern uint32_t omega(mpz_t n);
 extern uint32_t bigomega(mpz_t n);
 extern void sigma(mpz_t res, mpz_t n, unsigned long k);
 extern int moebius(mpz_t n);
+extern int is_square_free_ui(unsigned long n);
+extern int is_square_free(mpz_t n);
 extern int liouville(mpz_t n);
 extern int is_semiprime(mpz_t n);
 extern void totient(mpz_t totient, mpz_t n);
