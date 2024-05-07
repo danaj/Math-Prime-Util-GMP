@@ -42,4 +42,14 @@ extern int is_rough(mpz_t n, mpz_t k);
 extern int is_powerful(mpz_t n, uint32_t k);
 extern int is_almost_prime(uint32_t k, mpz_t n);
 
+/* Trial factor iterator.  next returns factors <= B until it returns 0. */
+extern void* trial_factor_iterator_create(mpz_t n, UV B);
+extern int   trial_factor_iterator_next(unsigned long *f, uint32_t *e, void* ctx);
+extern void  trial_factor_iterator_n(mpz_t n, void* ctx);
+extern void  trial_factor_iterator_destroy(void* ctx);
+
+/* mostly for testing, these do trial factoring of n up to B. */
+extern int tfall1(mpz_t n, UV B, mpz_t* pfactors[]);
+extern int tfall2(mpz_t n, UV B, mpz_t* pfactors[]);
+
 #endif

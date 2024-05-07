@@ -1736,41 +1736,43 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n, mpz_t maxd)
 int is_smooth(mpz_t n, mpz_t k) {
   mpz_t *factors;
   mpz_t N;
-  int i, nfactors, *exponents;
-  uint32_t klo, khi, div;
+  uint32_t khi, res;
 
   if (mpz_cmp_ui(n,1) <= 0) return 1;
   if (mpz_cmp_ui(k,1) <= 0) return 0;
   if (mpz_cmp(n, k) <= 0) return 1;
 
   mpz_init_set(N, n);
-  klo = 2;
   khi = (mpz_cmp_ui(k, 10000000) >= 0) ? 10000000 : mpz_get_ui(k);
+  res = 0;
 
-  while (klo <= khi && (div = _GMP_trial_factor(N, klo, khi)) > 0) {
-    do {
-      mpz_divexact_ui(N, N, div);
-    } while (mpz_divisible_ui_p(N, div));
-    if (mpz_cmp(N, k) <= 0) {
-      mpz_clear(N);
-      return 1;
+  {
+    void *iter = trial_factor_iterator_create(N, khi);
+    unsigned long f;
+    uint32_t e;
+
+    while (!res && trial_factor_iterator_next(&f, &e, iter)) {
+      while (e-- > 0)
+        mpz_divexact_ui(N, N, f);
+      if (mpz_cmp(N, k) <= 0)
+        res = 1;
     }
-    klo = div+1;
-  }
-  /* N still has at least one factor, and no factors in N <= khi */
-  if (mpz_cmp_ui(k, khi) <= 0) {
-    mpz_clear(N);
-    return 0;
+    trial_factor_iterator_destroy(iter);
   }
 
-  nfactors = factor(N, &factors, &exponents);
-  for (i = 0; i < nfactors; i++) {
-    if (mpz_cmp(factors[i], k) > 0)
-      break;
+  /* If we need to keep looking for factors larger than khi, full factor. */
+  if (!res && mpz_cmp_ui(k, khi) > 0) {
+    int i, nfactors, *exponents;
+    nfactors = factor(N, &factors, &exponents);
+    for (i = 0; !res && i < nfactors; i++) {
+      if (mpz_cmp(factors[i], k) > 0)
+        res = 1;
+    }
+    clear_factors(nfactors, &factors, &exponents);
   }
-  clear_factors(nfactors, &factors, &exponents);
+
   mpz_clear(N);
-  return i >= nfactors;
+  return res;
 }
 
 int is_rough(mpz_t n, mpz_t k) {
@@ -1928,4 +1930,382 @@ int is_almost_prime(uint32_t k, mpz_t n)
    * semiprime.  This is all rather tedious. */
 
   return bigomega(n) == k;
+}
+
+/******************************************************************************/
+
+/* Simple treesieve, algorithm from Jens K Andersen. */
+static unsigned long _treesieve(mpz_t n, prime_iterator *piter, unsigned long to_n, unsigned long *vextra, uint32_t *nextra)
+{
+  unsigned long p = 0,  found = 0,  log2n = mpz_sizeinbase(n,2);
+  unsigned long* xn;        /* leaves */
+  mpz_t* xtree[16+1];       /* the tree (maxdepth = 16) */
+  mpz_t* xtemp;
+  unsigned int i, j, d, depth, leafsize, nleaves;
+
+  { /* Decide on the tree depth (3-16) and number of leaves (10-31) */
+    unsigned int dp = log2n >> 10;
+    depth = 0;
+    while (dp >>= 1) depth++;
+    if (depth < 3) depth = 3;
+    if (depth > 16) depth = 16;
+  }
+  leafsize = log2n / (1U << depth) / 68;
+  nleaves = 1 << depth;
+  /* printf("log2n %lu  depth %u  leafsize %u  nleaves %u\n",log2n,depth,leafsize,nleaves); */
+  //printf("log2n %lu  depth %u  leafsize %u  nleaves %u\n",log2n,depth,leafsize,nleaves);
+
+  New(0, xn, nleaves * leafsize, unsigned long);
+  for (d = 0; d <= depth; d++) {
+    unsigned int nodes = 1 << (depth - d);
+    New(0, xtree[d], nodes, mpz_t);
+    for (j = 0; j < nodes; j++)
+      mpz_init(xtree[d][j]);
+  }
+  xtemp = xtree[1];   /* implies mindepth = 3 */
+
+  while (!found && p <= to_n) {
+    /* Create nleaves x[0] values, each the product of leafsize primes */
+    for (i = 0; i < nleaves && p <= to_n; i++) {
+      for (j = 0; j < 4; j++)                  /* Create 4 sub-products */
+        mpz_set_ui(xtemp[j], 1);
+      for (j = 0; j < leafsize; j++) {
+        p = prime_iterator_next(piter);
+        if (p > to_n) break;
+        xn[i*leafsize+j] = p;
+        mpz_mul_ui(xtemp[j&3], xtemp[j&3], p);
+      }
+      mpz_mul(xtemp[0], xtemp[0], xtemp[1]);   /* Combine for final product*/
+      mpz_mul(xtemp[2], xtemp[2], xtemp[3]);
+      mpz_mul(xtree[0][i], xtemp[0], xtemp[2]);
+    }
+    /* Multiply product tree, xtree[depth][0] has nleaves*leafsize product */
+    for (d = 1; d <= depth; d++)
+      for (i = 0; i < (1U << (depth-d)); i++)
+        mpz_mul(xtree[d][i], xtree[d-1][2*i], xtree[d-1][2*i+1]);
+    /* Go backwards replacing the products with remainders */
+    mpz_tdiv_r(xtree[depth][0], n, xtree[depth][0]);
+    for (d = 1; d <= depth; d++)
+      for (i = 0; i < (1U << d); i++)
+        mpz_tdiv_r(xtree[depth-d][i], xtree[depth-d+1][i>>1], xtree[depth-d][i]);
+    /* Search each leaf for divisors */
+    for (i = 0; i < nleaves; i++)
+      for (j = 0; j < leafsize; j++)
+        if (mpz_divisible_ui_p(xtree[0][i], xn[i*leafsize+j])) {
+          if (found) vextra[(*nextra)++] = xn[i*leafsize+j];
+          else       found = xn[i*leafsize+j];
+        }
+
+    /* TODO:
+     *   { nf++;  if (!found) found = xn[i*leafsize+j]; }
+     * .. if (nf > 1) alloc and fill extra array
+     * .. in main routine, store the extra array and counter
+     */
+  }
+  for (d = 0; d <= depth; d++) {
+    unsigned int nodes = 1U << (depth - d);
+    for (j = 0; j < nodes; j++)
+      mpz_clear(xtree[d][j]);
+    Safefree(xtree[d]);
+  }
+  Safefree(xn);
+  return found;
+}
+
+/******************************************************************************/
+
+#define NFOUND 8
+
+typedef struct {
+  mpz_t n;           /* the number we're finding factors in */
+  mpz_t gcd;         /* a variable we can use to store a gcd */
+  mpz_t t;           /* temporary */
+  unsigned long B;   /* the limit they set for trial factoring */
+  int step;          /* where we are in the process */
+  uint32_t pn;       /* prime number for small primes */
+  prime_iterator piter;
+  unsigned long found[NFOUND];
+  uint32_t ifound;
+  uint32_t nfound;
+} tf_iterator_t;
+
+void* trial_factor_iterator_create(mpz_t n, unsigned long B)
+{
+  tf_iterator_t *iter;
+  New(0, iter, 1, tf_iterator_t);
+  mpz_init_set(iter->n, n);
+  mpz_init(iter->gcd);
+  mpz_init(iter->t);
+  iter->B = B;
+  iter->step = 0;
+  prime_iterator_init(&(iter->piter));
+  iter->ifound = iter->nfound = 0;
+  return iter;
+}
+
+
+#define TFITER_FINAL_N(n) \
+  do { \
+    if (mpz_cmp_ui(n, B) > 0) return 0; \
+    *f = mpz_get_ui(n); \
+    if (e) *e = 1; \
+    mpz_set_ui(n,1); \
+    return 1; \
+  } while (0)
+
+#define TFITER_RETURN_UI(p) \
+  do { \
+    mpz_set_ui(iter->t, p); \
+    v = mpz_remove(iter->n, iter->n, iter->t); \
+    *f = p; \
+    if (e) *e = v; \
+    return 1; \
+  } while (0)
+
+
+#define TFITER_PRE_STEP(gcdv) \
+  do { \
+    unsigned long pstart = primes_small[iter->pn]; \
+    if ((pstart) > B || mpz_cmp_ui(iter->n, (pstart)*(pstart)) < 0) return 0; \
+    mpz_gcd(iter->gcd, iter->n, gcdv); \
+    if (mpz_cmp_ui(iter->gcd, 1) != 0) iter->step += 1; \
+    else                               iter->step += 2; \
+  } while (0)
+
+#define TFITER_CHK_STEP(pend) \
+  do { \
+    if (mpz_cmp_ui(iter->gcd,1)==0) croak("fail tf1 step %u gcd",iter->step); \
+    if (mpz_sizeinbase(iter->n,2) <= sizeof(unsigned long)*8) { \
+      unsigned long un = mpz_get_ui(iter->n); \
+      while (iter->pn <= (pend)) { \
+        unsigned long p = primes_small[iter->pn++]; \
+        if (p > B || un < p*p) \
+          TFITER_FINAL_N(iter->n); \
+        if ((un % p) == 0) { \
+          mpz_divexact_ui(iter->gcd, iter->gcd, p); \
+          if (mpz_cmp_ui(iter->gcd, 1) == 0) \
+            iter->step++; \
+          TFITER_RETURN_UI(p); \
+        } \
+      } \
+    } else { \
+      while (iter->pn <= (pend)) { \
+        unsigned long p = primes_small[iter->pn++]; \
+        if (p > B || mpz_cmp_ui(iter->n, p*p) < 0) \
+          TFITER_FINAL_N(iter->n); \
+        if (mpz_divisible_ui_p(iter->gcd, p)) { \
+          mpz_divexact_ui(iter->gcd, iter->gcd, p); \
+          if (mpz_cmp_ui(iter->gcd, 1) == 0) \
+            iter->step++; \
+          TFITER_RETURN_UI(p); \
+        } \
+      } \
+    } \
+    croak("fail tf1 step %u gcd final",iter->step); \
+    iter->step++; \
+  } while (0)
+
+int trial_factor_iterator_next(unsigned long *f, uint32_t *e, void* ctx)
+{
+  tf_iterator_t *iter = ctx;
+  uint32_t v, log2n;
+  unsigned long B = iter->B;
+  prime_iterator *piter = &(iter->piter);
+
+  if (iter->nfound > 0) {
+    unsigned long p = iter->found[iter->ifound++];
+    if (iter->ifound == iter->nfound)
+      iter->ifound = iter->nfound = 0;
+    TFITER_RETURN_UI(p);
+  }
+
+  if (mpz_cmp_ui(iter->n, 1) <= 0)
+    return 0;
+
+  if (iter->step == 101) {
+    unsigned long un = mpz_get_ui(iter->n);
+    unsigned long sqrtn = (unsigned long) sqrt((double)un);
+    if (sqrtn*sqrtn > un) sqrtn--;
+    if ( (sqrtn+1)*(sqrtn+1) <= un && sqrtn < (1UL << 4*sizeof(unsigned long)) )
+      sqrtn++;
+    if (sqrtn < B) B = sqrtn;
+
+    while (1) {
+      unsigned long p = prime_iterator_next(piter);
+      if (p > B)
+        break;
+      if ((un % p) == 0)
+        TFITER_RETURN_UI(p);
+    }
+    return 0;
+  }
+
+  /* Step 0: just starting.  Remove factors of 2. */
+  if (iter->step == 0) {
+    if (B < 2) return 0;
+    iter->step = iter->pn = 1;
+    v = mpz_scan1(iter->n, 0);
+    if (v > 0) {
+      mpz_tdiv_q_2exp(iter->n, iter->n, v);
+      *f = 2;
+      if (e) *e = v;
+      return 1;
+    }
+  }
+  if (iter->step ==  1) {
+    if (B < 3) return 0;
+    iter->step = iter->pn = 2;
+    if (mpz_divisible_ui_p(iter->n, 3))  TFITER_RETURN_UI(3);
+  }
+  if (iter->step ==  2) {
+    if (B < 5) return 0;
+    iter->step = iter->pn = 3;
+    if (mpz_divisible_ui_p(iter->n, 5))  TFITER_RETURN_UI(5);
+  }
+
+  if (iter->step ==  3)  TFITER_PRE_STEP(   _gcd_1k);    /* Prep */
+  if (iter->step ==  4)  TFITER_CHK_STEP(   168);        /* Check */
+
+  if (iter->step ==  5)  TFITER_PRE_STEP(   _gcd_4k);    /* Prep */
+  if (iter->step ==  6)  TFITER_CHK_STEP(   550);        /* Check */
+
+  if (iter->step ==  7)  TFITER_PRE_STEP(   _gcd_16k);   /* Prep */
+  if (iter->step ==  8)  TFITER_CHK_STEP(  1862);        /* Check */
+
+  if (iter->step ==  9)  TFITER_PRE_STEP(   _gcd_32k);   /* Prep */
+  if (iter->step == 10)  TFITER_CHK_STEP(  3432);        /* Check */
+
+  if (iter->step == 11)  TFITER_PRE_STEP(   _gcd_64k);   /* Prep */
+  if (iter->step == 12)  TFITER_CHK_STEP(  6413);        /* Check */
+
+  if (iter->step == 13) {
+    mpz_set_ui(iter->gcd, 1);
+    iter->pn = 6413;
+    prime_iterator_setprime(piter, 64000);
+    iter->step++;
+  }
+
+  if (B < 64007U || mpz_cmp_ui(iter->n, 64007U*64007U) < 0)
+    return 0;
+
+  if (_GMP_is_prime(iter->n))
+    TFITER_FINAL_N(iter->n);
+
+  log2n = mpz_sizeinbase(iter->n,2);
+
+  if (log2n <= sizeof(unsigned long)*8) {
+    iter->step = 101;
+    return trial_factor_iterator_next(f, e, ctx);
+  }
+
+  /* Determine where to stop.  If B^2 <= n, B <= sqrt(n) so stop at B */
+  mpz_ui_pow_ui(iter->t, B, 2);
+  if (mpz_cmp(iter->t, iter->n) > 0) {
+    /* B fits in an unsigned long.  sqrt(n) < B, so it must also fit. */
+    mpz_sqrt(iter->t, iter->n);
+    B = mpz_get_ui(iter->t);
+  }
+
+  /* TODO:
+   *    separate this into:
+   *      1) product tree (pass in primes?)
+   *      2) remainder tree
+   *      3) suck out factors
+   */
+
+  if (1 && log2n >= 3000) {
+    unsigned long p = _treesieve(iter->n, piter, B, iter->found, &(iter->nfound));
+    if (p != 0)
+      TFITER_RETURN_UI(p);
+    return 0;
+  }
+
+  while (1) {
+    unsigned long p = prime_iterator_next(piter);
+    if (p > B)
+      break;
+    if (mpz_divisible_ui_p(iter->n, p))
+      TFITER_RETURN_UI(p);
+  }
+
+  return 0;
+}
+
+void trial_factor_iterator_n(mpz_t n, void* ctx)
+{
+  tf_iterator_t *iter = ctx;
+  mpz_set(n, iter->n);
+}
+void trial_factor_iterator_destroy(void* ctx)
+{
+  tf_iterator_t *iter = ctx;
+  mpz_clear(iter->n);
+  mpz_clear(iter->gcd);
+  mpz_clear(iter->t);
+  prime_iterator_destroy(&(iter->piter));
+  Safefree(ctx);
+}
+
+#define TF_ADD_FACTOR_UI(f) \
+  do { \
+    if (nfactors == 0) \
+      New(0, factors, 10, mpz_t); \
+    else if ((nfactors % 10) == 9) \
+      Renew(factors, nfactors+1+10, mpz_t); \
+    mpz_init_set_ui(factors[nfactors], f); \
+    nfactors++; \
+  } while (0)
+#define TF_ADD_FACTOR_MPZ(f) \
+  do { \
+    if (nfactors == 0) \
+      New(0, factors, 10, mpz_t); \
+    else if ((nfactors % 10) == 9) \
+      Renew(factors, nfactors+1+10, mpz_t); \
+    mpz_init_set(factors[nfactors], f); \
+    nfactors++; \
+  } while (0)
+
+
+int tfall1(mpz_t n, UV B, mpz_t* pfactors[])
+{
+  mpz_t *factors = 0;
+  int nfactors = 0;
+  tf_iterator_t *iter = trial_factor_iterator_create(n, B);
+  unsigned long f;
+  uint32_t e;
+
+  while (trial_factor_iterator_next(&f, &e, iter)) {
+    while (e-- > 0)
+      TF_ADD_FACTOR_UI(f);
+  }
+
+  if (mpz_cmp_ui(iter->n,1) > 0)
+    TF_ADD_FACTOR_MPZ(iter->n);
+
+  trial_factor_iterator_destroy(iter);
+  *pfactors = factors;
+  return nfactors;
+}
+
+int tfall2(mpz_t n, UV B, mpz_t* pfactors[])
+{
+  mpz_t t, nred, *factors = 0;
+  int ret = 1, nfactors = 0;
+  UV p, blo = 2, bhi = B;
+
+  mpz_init_set(nred, n);
+  while (blo <= bhi && (p = _GMP_trial_factor(nred, blo, bhi)) > 0) {
+    TF_ADD_FACTOR_UI(p);
+    uint32_t e = mpz_remove(nred, nred, factors[nfactors-1]);
+    while (e-- > 1)
+      TF_ADD_FACTOR_UI(p);
+    blo = p+1;
+    if (mpz_cmp_ui(nred, blo*blo) < 0)
+      break;
+  }
+  if (mpz_cmp_ui(nred,1) > 0)
+    TF_ADD_FACTOR_MPZ(nred);
+  mpz_clear(nred);
+  *pfactors = factors;
+  return nfactors;
 }

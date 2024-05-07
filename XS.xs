@@ -1830,6 +1830,24 @@ void divisors(IN char* strn, IN char* strk = 0)
     mpz_clear(k);
     mpz_clear(n);
 
+void tfall1(IN char* strn, IN UV B)
+  ALIAS:
+    tfall2 = 1
+  PREINIT:
+    mpz_t n;
+    mpz_t* factors;
+    int nfactors, i;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    switch (ix) {
+      case 0: nfactors = tfall1(n, B, &factors); break;
+      case 1: nfactors = tfall2(n, B, &factors); break;
+    }
+    for (i = 0; i < nfactors; i++)
+      XPUSH_MPZ(factors[i]);
+    clear_factors(nfactors, &factors, 0);
+    mpz_clear(n);
+
 void
 sigma(IN char* strn, IN UV k = 1)
   PREINIT:
