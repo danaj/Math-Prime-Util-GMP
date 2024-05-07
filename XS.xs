@@ -101,6 +101,8 @@ static SV* sv_return_for_mpz(const mpz_t n) {
   XPUSHs(sv_2mortal( sv_return_for_mpz(n) ))
 #define XPUSH_INT(n) \
   XPUSHs(sv_2mortal( newSViv(n) ))
+#define XPUSH_UINT(n) \
+  XPUSHs(sv_2mortal( newSVuv(n) ))
 
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
@@ -684,7 +686,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
       next = 1 + (mpz_sgn(n)==0);
       if (mpz_cmp_ui(n,2) > 0) {
         surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
-        XPUSHs(sv_2mortal(newSVuv(prev)));
+        XPUSH_UINT(prev);
       } else {
         XPUSHs(sv_2mortal(newSV(0)));
       }
@@ -1410,8 +1412,8 @@ void chinese(...)
   PPCODE:
     if (items == 0) {
       if (ix == 0)  XSRETURN_UV(0);
-      XPUSHs(sv_2mortal(newSVuv( 0 )));
-      XPUSHs(sv_2mortal(newSVuv( 0 )));
+      XPUSH_UINT(0);
+      XPUSH_UINT(0);
       XSRETURN(2);
     }
     mpz_init_set_ui(ret, 0);
@@ -1613,7 +1615,7 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
     /* Deal with depth < 2 (no sieving) */
     if (depth < 2) {
       for (i = 0; i < width; i++)
-        XPUSHs(sv_2mortal(newSVuv(offset + i)));
+        XPUSH_UINT(offset + i);
       mpz_add_ui(low, high, 1);
     }
     /* Loop as needed */
@@ -1627,7 +1629,7 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
 
       if (list != 0) {
         for (i = 0; i < nprimes; i++) {
-          XPUSHs(sv_2mortal(newSVuv( offset + list[i] )));
+          XPUSH_UINT(offset + list[i]);
         }
         Safefree(list);
       }
@@ -1698,15 +1700,15 @@ trial_factor(IN char* strn, ...)
     if (items >= 2) SET_UV_VIA_MPZ_STRING(arg1, ST(1), "specific factor arg 1");
     if (items >= 3) SET_UV_VIA_MPZ_STRING(arg2, ST(2), "specific factor arg 2");
     while (mpz_even_p(n)) {
-      XPUSHs(sv_2mortal(newSVuv(2)));
+      XPUSH_UINT(2);
       mpz_divexact_ui(n, n, 2);
     }
     while (mpz_divisible_ui_p(n, 3)) {
-      XPUSHs(sv_2mortal(newSVuv(3)));
+      XPUSH_UINT(3);
       mpz_divexact_ui(n, n, 3);
     }
     while (mpz_divisible_ui_p(n, 5)) {
-      XPUSHs(sv_2mortal(newSVuv(5)));
+      XPUSH_UINT(5);
       mpz_divexact_ui(n, n, 5);
     }
     if (mpz_cmp_ui(n,1) > 0 && !_GMP_is_prob_prime(n)) {
