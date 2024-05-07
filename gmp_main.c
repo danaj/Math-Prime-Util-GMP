@@ -999,12 +999,19 @@ static void _powerful_count_recurse(mpz_t sum, mpz_t n, unsigned long k,
   }
   mpz_init_set(lim, t);
   mpz_init(newm);
-  mpz_init(i);
 
-  for (mpz_set_ui(i,1);  mpz_cmp(i,lim) <= 0;  mpz_add_ui(i,i,1)) {
-    mpz_gcd(t, m, i);
-    if (mpz_cmp_ui(t,1) == 0 && moebius(i) != 0) {
-      mpz_pow_ui(t, i, r);
+  if (mpz_fits_ulong_p(lim)) {
+    unsigned long i, ulim = mpz_get_ui(lim);
+    if (r-1 == k) {
+      mpz_fdiv_q(t, n, m);
+      mpz_root(t, t, k);
+      mpz_add(sum, sum, t);
+    } else {
+      _powerful_count_recurse(sum, n, k, m, r-1, t);
+    }
+    for (i = 2; i <= ulim; i++) {
+      if (!is_square_free_ui(i) || mpz_gcd_ui(NULL, m, i) != 1) continue;
+      mpz_ui_pow_ui(t, i, r);
       mpz_mul(newm, m, t);
       if (r-1 == k) {
         mpz_fdiv_q(t, n, newm);
@@ -1014,10 +1021,26 @@ static void _powerful_count_recurse(mpz_t sum, mpz_t n, unsigned long k,
         _powerful_count_recurse(sum, n, k, newm, r-1, t);
       }
     }
+  } else { /* Arguably if lim exceeds a ui, this is not practical to compute. */
+    mpz_init(i);
+    for (mpz_set_ui(i,1);  mpz_cmp(i,lim) <= 0;  mpz_add_ui(i,i,1)) {
+      mpz_gcd(t, m, i);
+      if (mpz_cmp_ui(t,1) == 0 && is_square_free(i)) {
+        mpz_pow_ui(t, i, r);
+        mpz_mul(newm, m, t);
+        if (r-1 == k) {
+          mpz_fdiv_q(t, n, newm);
+          mpz_root(t, t, k);
+          mpz_add(sum, sum, t);
+        } else {
+          _powerful_count_recurse(sum, n, k, newm, r-1, t);
+        }
+      }
+    }
+    mpz_clear(i);
   }
-  mpz_clear(i);
-  mpz_clear(lim);
   mpz_clear(newm);
+  mpz_clear(lim);
 }
 
 void powerful_count(mpz_t r, mpz_t n, unsigned long k)
@@ -1259,13 +1282,13 @@ int is_fundamental(mpz_t n)
   r = mpz_fdiv_ui(n,16);
   if (r != 0) {
     int r4 = r & 3;
-    if (!neg && r4 == 1 && moebius(n) != 0) ret = 1;
-    if ( neg && r4 == 3 && moebius(n) != 0) ret = 1;
+    if (!neg && r4 == 1 && is_square_free(n)) ret = 1;
+    if ( neg && r4 == 3 && is_square_free(n)) ret = 1;
     if (r4 == 0 && ((!neg && r != 4) || (neg && r != 12))) {
       mpz_t t;
       mpz_init(t);
       mpz_tdiv_q_2exp(t, n, 2);
-      if (moebius(t) != 0)
+      if (is_square_free(t))
         ret = 1;
       mpz_clear(t);
     }
