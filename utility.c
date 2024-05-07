@@ -298,41 +298,24 @@ int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
   if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
 
   ret = 1;
-  { /* Pull out small factors and test */
-    UV p, fromp = 0;
-    while (ret == 1 && (p = _GMP_trial_factor(sreduced, fromp, 60))) {
-      if (mpz_cmp_ui(sreduced,p) == 0) break;
-      IPR_TEST_UI(s, p, a, n, t, ret);
-      mpz_set_ui(t, p);
-      (void) mpz_remove(sreduced, sreduced, t);
-      fromp = p+1;
+  /* Pull out small factors and test */
+  {
+    void *iter = trial_factor_iterator_create(sreduced, 64000);
+    unsigned long f;
+    uint32_t e;
+
+    while (ret && mpz_cmp_ui(sreduced,1) > 0 && trial_factor_iterator_next(&f, &e, iter)) {
+      IPR_TEST_UI(s, f, a, n, t, ret);
+      while (e-- > 0)
+        mpz_divexact_ui(sreduced,sreduced,f);
     }
+    trial_factor_iterator_destroy(iter);
   }
   if (ret == 0 || mpz_cmp_ui(sreduced,1) == 0)
     goto DONE_IPR;
   if (_GMP_BPSW(sreduced)) {
     IPR_TEST(s, sreduced, a, n, t, ret);
     goto DONE_IPR;
-  }
-
-  /* Pull out more factors, noting they can be composites. */
-  while (_GMP_pminus1_factor(sreduced, t, 100000, 100000)) {
-    mpz_divexact(sreduced, sreduced, t);
-    if (_GMP_BPSW(t)) {
-      IPR_TEST(s, t, a, n, t, ret);
-    } else {
-      nfactors = factor(t, &factors, &exponents);
-      for (i = 0; ret == 1 && i < nfactors; i++) {
-        IPR_TEST(s, factors[i], a, n, t, ret);
-      }
-      clear_factors(nfactors, &factors, &exponents);
-    }
-    if (ret == 0 || mpz_cmp_ui(sreduced,1) == 0)
-      goto DONE_IPR;
-    if (_GMP_BPSW(sreduced)) {
-      IPR_TEST(s, sreduced, a, n, t, ret);
-      goto DONE_IPR;
-    }
   }
 
   /* We have a composite and so far it could be a primitive root.  Factor. */
