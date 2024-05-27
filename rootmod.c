@@ -6,6 +6,11 @@
 #include "factor.h"
 
 
+
+/******************************************************************************/
+/*                               SQRT(N) MOD M                                */
+/******************************************************************************/
+
 static int _sqrtmod_return(mpz_t r, mpz_t a, mpz_t n, mpz_t t) {
   mpz_sub(t, n, r);
   if (mpz_cmp(t, r) < 0)
@@ -167,6 +172,7 @@ static int _sqrtmod_prime_power(mpz_t r, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
     return 0;
   }
 
+  /* This differs from the XS code, which always tries to use n*p */
   /* my $np  = ($p == 2)  ?  Mmulint($n,$p)  :  $n; */
   if (mpz_cmp_ui(p,2)==0) mpz_mul_ui(u,n,2);
   else                    mpz_set(u, n);
@@ -257,11 +263,41 @@ static int sqrtmod_t(mpz_t r, mpz_t a, mpz_t n, int isprime,
   return (isprime)  ?  _sqrtmod_prime(    r,a,n, t,u,v,w)
                     :  _sqrtmod_composite(r,a,n, t,u,v,w);
 }
+#define NSMALL 16
+static char _small[NSMALL-3+1][NSMALL-2+1] = {
+  {0},
+  {0,0},
+  {0,0,2},
+  {0,3,2,0},
+  {3,0,2,0,0},
+  {0,0,2,0,0,0},
+  {0,0,2,0,0,4,0},
+  {0,0,2,5,4,0,0,3},
+  {0,5,2,4,0,0,0,3,0},
+  {0,0,2,0,0,0,0,3,0,0},
+  {0,4,2,0,0,0,0,3,6,0,5},
+  {4,0,2,0,0,7,6,3,0,5,0,0},
+  {0,0,2,0,6,0,0,3,5,0,0,0,0},
+  {0,0,2,0,0,0,0,3,0,0,0,0,0,0},
+};
 
-/* No temps and s is allowed to alias a */
+/* No temps and r is allowed to alias a */
 static int _sqrtmodi(mpz_t r, mpz_t a, mpz_t n, int isprime) {
   int res;
   mpz_t x, t1, t2, t3, t4;
+
+  /* Accelerate tiny n as well as a = {0,1} */
+  if (mpz_cmp_ui(n,NSMALL) <= 0 || (mpz_sgn(a) >= 0 && mpz_cmp_ui(a,1) <= 0)) {
+    unsigned long ua, un = mpz_get_ui(n);
+    if (un == 0) { mpz_set_ui(r,0); return 0; }
+    ua = mpz_fdiv_ui(a, un);
+    if (un > 2 && ua > 1) {
+      ua = _small[un-3][ua-2];
+      if (ua == 0) { mpz_set_ui(r,0); return 0; }
+    }
+    mpz_set_ui(r, ua);
+    return 1;
+  }
   mpz_init(x); mpz_init(t1), mpz_init(t2); mpz_init(t3); mpz_init(t4);
   res = sqrtmod_t(x, a, n, isprime, t1, t2, t3, t4);
   mpz_set(r, x);
@@ -280,3 +316,31 @@ int sqrtmodp_t(mpz_t r, mpz_t a, mpz_t p,  mpz_t t1,mpz_t t2,mpz_t t3,mpz_t t4)
 /* TODO: rootmod, rootmodp */
 /* TODO: allsqrtmod */
 /* TODO: allrootmod */
+
+/******************************************************************************/
+/*                          K-TH ROOT OF N MOD M                              */
+/******************************************************************************/
+
+/*
+// don't use:
+//   _ts_prime
+//   _rootmod_prime
+//   _rootmod_prime_poer
+//   _rootmod_kprime
+//   _rootmod_composite2
+// use:
+//   rootmod
+//   _rootmod_composite1
+//   _rootmod_prime_splitk
+//   _compute_generator
+//   _find_ts_generator
+//   _ts_rootmod
+
+//  rootmod, rootmodp
+//     _rootmod_composite1
+//     _hensel_lift
+//     _rootmod_prime_splitk
+//     _compute_generator
+//     _find_ts_generator
+//     _ts_rootmod
+*/
