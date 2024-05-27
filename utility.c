@@ -331,6 +331,47 @@ DONE_IPR:
   return ret;
 }
 
+int  is_qr(mpz_t a, mpz_t n)
+{
+  if (mpz_sgn(n) == 0) return -1;
+  if (mpz_sgn(n) < 0) mpz_abs(n,n);
+  if (mpz_cmp_ui(n,2) <= 0) return 1;
+  if (mpz_cmp(a,n) > 0) mpz_mod(a,a,n);
+  if (mpz_cmp_ui(a,1) <= 0) return 1;
+
+  if (_GMP_is_prime(n))
+    return (mpz_kronecker(a,n) == 1);
+
+#if 0
+  return sqrtmod(a,a,n);
+#else
+  {
+    mpz_t r, *fac;
+    int ret, i, nfactors, *exp;
+
+    mpz_init(r);
+    nfactors = factor(n, &fac, &exp);
+    for (i = 0, ret = 1; ret && i < nfactors; i++) {
+      int gcd_is_1, fac_is_2;
+      mpz_gcd(r, a,fac[i]);
+      gcd_is_1 = mpz_cmp_ui(r,1) == 0;
+      fac_is_2 = mpz_cmp_ui(fac[i],2) == 0;
+      if      (exp[i] == 1 && (fac_is_2 || !gcd_is_1))
+        ret = 1;
+      else if (exp[i] == 1 || (!fac_is_2 && gcd_is_1))
+        ret = mpz_kronecker(a,fac[i]) == 1;
+      else {
+        mpz_pow_ui(fac[i], fac[i], exp[i]);
+        ret = sqrtmod(r, a, fac[i]);
+      }
+    }
+    clear_factors(nfactors, &fac, &exp);
+    mpz_clear(r);
+    return ret;
+  }
+#endif
+}
+
 
 int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
 {

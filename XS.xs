@@ -1154,11 +1154,7 @@ int is_qr(IN char* stra, IN char* strn)
   PPCODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    retval = -1;
-    if (mpz_sgn(n) != 0) {
-      mpz_abs(n,n);
-      retval = sqrtmod(a,a,n);
-    }
+    retval = is_qr(a, n);
     mpz_clear(n); mpz_clear(a);
     if (retval == -1)
       XSRETURN_UNDEF;

@@ -547,7 +547,7 @@ int is_square_free_ui(unsigned long n)
 {
   uint32_t i, p, psq;
 
-  if (n < 256)  return _isf[n >> 5] & (1U << (n % 32));
+  if (n < 256)  return (_isf[n >> 5] & (1U << (n % 32))) != 0;
 
   for (i = 1; i < NPRIMES_SMALL; i++) {
     p = primes_small[i];
