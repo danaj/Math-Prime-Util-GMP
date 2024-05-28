@@ -1808,47 +1808,49 @@ This is similar to C<submod(0,$a,$n)>.
 
 =head2 addmod
 
-Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
-return C<(a+b) mod n>.  This is particularly useful when dealing with
-numbers that are larger than a half-word but still native size.  No
+Given three integers C<a>, C<b>, and C<n>,
+return C<(a+b) mod |n|>.  This is particularly useful when dealing with
+numbers that are larger than a half-word but still native size.  No Perl
 bigint package is needed and this can be 10-200x faster than using one.
+
+Like other mod functions, undef is returned if C<n=0>.
 
 =head2 submod
 
-Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
-return C<(a-b) mod n>.  This is particularly useful when dealing with
+Given three integers C<a>, C<b>, and C<n>,
+return C<(a-b) mod |n|>.  This is particularly useful when dealing with
 numbers that are larger than a half-word but still native size.  No
 bigint package is needed and this can be 10-200x faster than using one.
 
 =head2 mulmod
 
-Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
-return C<(a*b) mod n>.  This is particularly useful when C<n> fits in a
+Given three integers C<a>, C<b>, and C<n>,
+return C<(a*b) mod |n|>.  This is particularly useful when C<n> fits in a
 native integer.  No bigint package is needed and this can be 10-200x
 faster than using one.
 
 =head2 powmod
 
-Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
-return C<(a ** b) mod n>.  Typically binary exponentiation is used, so
+Given three integers C<a>, C<b>, and C<n>,
+return C<(a ** b) mod |n|>.  Typically binary exponentiation is used, so
 the process is very efficient.  With native size inputs, no bigint
 library is needed.
 
 =head2 divmod
 
-Given three integers C<a>, C<b>, and C<n> where C<n> is positive,
-return C<(a/b) mod n>.  This is done as C<(a * (1/b mod n)) mod n>.  If
-no inverse of C<b> mod C<n> exists then undef if returned.
+Given three integers C<a>, C<b>, and C<n>,
+return C<(a/b) mod |n|>.  This is done as C<(a * (1/b mod |n|)) mod |n|>.
+If C<n=0> or no inverse of C<b mod |n|> exists then undef if returned.
 
 =head2 muladdmod
 
-Given four integers C<a>, C<b>, C<c>, and C<n> where C<n> is positive,
-return C<(a*b+c) mod n>.
+Given four integers C<a>, C<b>, C<c>, and C<n>,
+return C<(a*b+c) mod |n|>.
 
 =head2 mulsubmod
 
-Given four integers C<a>, C<b>, C<c>, and C<n> where C<n> is positive,
-return C<(a*b-c) mod n>.
+Given four integers C<a>, C<b>, C<c>, and C<n>,
+return C<(a*b-c) mod |n|>.
 
 =head2 consecutive_integer_lcm
 

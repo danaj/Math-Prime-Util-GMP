@@ -1234,7 +1234,7 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
   PPCODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 4) {
       if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
@@ -1276,7 +1276,7 @@ void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
     if (mpz_sgn(n) <= 0) {
       mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
       XSRETURN_UNDEF;
