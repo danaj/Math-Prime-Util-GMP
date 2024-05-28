@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint subint add1int sub1int divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint/;
+use Math::Prime::Util::GMP qw/powint mulint addint subint add1int sub1int divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint cmpint cmpabsint signint/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -76,6 +76,9 @@ plan tests => 0
             + 4 + 3*scalar(@negshifts)       # shiftint
             + 1                              # absint
             + 1                              # negint
+            + 7                              # cmpint
+            + 9                              # cmpabsint
+            + 3                              # signint
             + 0;
 
 ###### powint
@@ -228,3 +231,33 @@ for my $d (@negshifts) {
 is_deeply([map { absint($_) } -9..9], [map { abs($_) } -9..9], "absint(-9..9)");
 ###### negint
 is_deeply([map { negint($_) } -9..9], [map { -$_ } -9..9], "negint(-9..9)");
+
+###### cmpint
+is(cmpint(1,2),-1,"1 < 2");
+is(cmpint(2,1), 1,"2 > 1");
+is(cmpint(2,2), 0,"2 == 2");
+is(cmpint("18446744073709553664","18446744073709551615"),1,"2^64+2048 > 2^64-1");
+is(cmpint("18446744073709551664","18446744073709551615"),1,"2^64+1048 > 2^64-1");
+is(cmpint("18446744073709551615","18446744073709551616"),-1,"2^64-1 < 2^64");
+is(cmpint("-18446744073709551615","18446744073709551615"),-1,"-2^64-1 < 2^64-1");
+
+###### cmpabsint
+is(cmpabsint(1,2),-1,"1 < 2");
+is(cmpabsint(2,1), 1,"2 > 1");
+is(cmpabsint(2,2), 0,"2 == 2");
+is(cmpabsint("18446744073709553664","18446744073709551615"),1,"2^64+2048 > 2^64-1");
+is(cmpabsint("18446744073709551664","18446744073709551615"),1,"2^64+1048 > 2^64-1");
+is(cmpabsint("18446744073709551615","-18446744073709551616"),-1,"|2^64-1| < |-2^64|");
+is(cmpabsint("-18446744073709551615","18446744073709551615"),0,"|-2^64-1| = |2^64-1|");
+is_deeply( [map { cmpabsint($_,-5) } -10 .. 10],
+           [map { cmpint(absint($_),5) } -10 .. 10],
+           "cmpabsint(-10..10, -5)");
+is_deeply( [map { cmpabsint($_,5) } -10 .. 10],
+           [map { cmpint(absint($_),5) } -10 .. 10],
+           "cmpabsint(-10..10, 5)");
+
+###### signint
+is(signint(-13), -1, "signint(-13) = -1");
+is(signint(0), 0, "signint(0) = 0");
+is(signint(13), 1, "signint(13) = 1");
+

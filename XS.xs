@@ -596,7 +596,7 @@ void signint(IN char* strn)
     mpz_t n;
     int res;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     res = mpz_sgn(n);
     mpz_clear(n);
     XSRETURN_IV(res);
@@ -608,8 +608,8 @@ void cmpint(IN char* stra, IN char* strb)
     mpz_t a, b;
     int res;
   PPCODE:
-    VALIDATE_AND_SET(a, stra);
-    VALIDATE_AND_SET(b, strb);
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     res = (ix == 0) ? mpz_cmp(a, b) : mpz_cmpabs(a, b);
     mpz_clear(a);
     mpz_clear(b);
