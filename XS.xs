@@ -624,7 +624,7 @@ void setbit(IN char* strn, IN UV k)
     mpz_t n;
     int res;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     switch (ix) {
       case 0:  mpz_setbit(n, k); break;
       case 1:  mpz_clrbit(n, k); break;
@@ -643,8 +643,8 @@ void bitand(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    VALIDATE_AND_SET(a, stra);
-    VALIDATE_AND_SET(b, strb);
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     switch (ix) {
       case 0:  mpz_and(a, a, b); break;
       case 1:  mpz_ior(a, a, b); break;
@@ -659,7 +659,7 @@ void bitnot(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     mpz_com(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);

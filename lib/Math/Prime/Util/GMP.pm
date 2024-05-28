@@ -94,8 +94,8 @@ our @EXPORT_OK = qw(
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
-                     setbit clrbit tstbit
-                     bitand bitor bitxor
+                     setbit clrbit tstbit notbit
+                     bitand bitor bitxor bitnot
                      is_divisible is_congruent
                      is_power is_prime_power is_semiprime is_almost_prime
                      is_square is_smooth is_rough is_powerful is_practical
