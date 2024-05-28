@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint subint divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint/;
+use Math::Prime::Util::GMP qw/powint mulint addint subint add1int sub1int divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -63,6 +63,8 @@ plan tests => 0
             + 1 + scalar(@mulints)           # mulint
             + 1 + scalar(@addints)           # addint
             + 1 + scalar(@subints)           # subint
+            + 1                              # add1int
+            + 1                              # sub1int
             + 2 + 2                          # divint
             + 2 + 2                          # modint
             + 2 + 1                          # cdivint
@@ -133,6 +135,17 @@ foreach my $r (@addints) {
 foreach my $r (@subints) {
   my($a, $b, $exp) = @$r;
   is( subint($a,$b), $exp, "subint($a,$b) = ".((defined $exp)?$exp:"<undef>") );
+}
+
+###### add1int / sub1int
+{
+  my @N = (-17 .. 17,
+           "4294967295", "4294967296", "4294967297",
+           "9223372036854775807", "9223372036854775808", "9223372036854775809",
+           "18446744073709551615", "18446744073709551616", "18446744073709551617",
+           "158456325028528675187087900671");
+  is_deeply([map { add1int($_) } @N], [map { addint($_,1) } @N], "add1int");
+  is_deeply([map { sub1int($_) } @N], [map { subint($_,1) } @N], "sub1int");
 }
 
 ###### divint

@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/invmod sqrtmod addmod submod mulmod divmod powmod muladdmod mulsubmod/;
+use Math::Prime::Util::GMP qw/negmod invmod sqrtmod addmod submod mulmod divmod powmod muladdmod mulsubmod/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -69,6 +69,7 @@ my @sqrtmods = (
 );
 
 plan tests => 0
+            + 10                     # negmod
             + scalar(@invmods)
             + scalar(@sqrtmods)
             + 5 + 4
@@ -81,6 +82,21 @@ plan tests => 0
             + 1                      # muladdmod
             + 1                      # mulsubmod
             + 0;
+
+###### negmod
+
+# For n != 0, negmod(a,n) = modint(-a,n).
+# For all inputs, negmod(a,n) = $n ? submod(0, modint(a,n), n) : undef;
+is(negmod(0,0), undef, "negmod(0,0) = undef");
+is(negmod(1,0), undef, "negmod(1,0) = undef");
+is(negmod(0,1), 0, "negmod(0,1) = 0");
+is(negmod(100,1), 0, "negmod(100,1) = 0");
+is(negmod( 100, 123), 23, "negmod(100, 123) = 23");
+is(negmod( 100,-123), 23, "negmod(100,-123) = 23");
+is(negmod(-100, 123), 100, "negmod(-100, 123) = 100");
+is(negmod( 10000, 123), 86, "negmod(10000, 123) = 86");
+is(negmod( 10000,-123), 86, "negmod(10000,-123) = 86");
+is(negmod(-10000, 123), 37, "negmod(-10000, 123) = 37");
 
 ###### invmod
 foreach my $r (@invmods) {
