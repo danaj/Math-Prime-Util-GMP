@@ -29,6 +29,7 @@ WriteMakefile1(
                     'real.o '           .
                     'isaac.o '          .
                     'random_prime.o '   .
+                    'perfect_powers.o ' .
                     'XS.o',
     LIBS         => ['-lgmp -lm'],
 

@@ -20,8 +20,13 @@ Revision history for Perl module Math::Prime::Util::GMP
     - prime_bigomega(n)        number of factors (with multiplicity)
     - prime_omega(n)           number of factors (distinct)
     - powerful_count(n[,k])    count of k-powerful numbers <= n
-    - perfect_power_count(n)   count of perfect powers <= n
-    - perfect_power_count(lo,hi) count of perfect powers <= lo <= n <= hi
+    - is_perfect_power(n)      is n a perfect power (1,4,8,9,16,25,..)
+    - next_perfect_power(n)    next perfect power: p > n
+    - prev_perfect_power(n)    previous perfect power: p < n
+    - perfect_power_count(n)      count of perfect powers <= n
+    - perfect_power_count(lo,hi)  count of perfect powers <= lo <= n <= hi
+    - nth_perfect_power(n)        the nth perfect power
+    - nth_perfect_power_approx(n) fast approximate nth perfect power
     - prime_power_count(n)     count of prime powers <= n
     - prime_power_count(lo,hi) count of prime powers <= lo <= n <= hi
     - lshiftint(n,[k])         left shift n by k bits (default 1)
@@ -93,6 +98,8 @@ Revision history for Perl module Math::Prime::Util::GMP
       by zero or have a complex result.
 
     - polygonal_nth and is_polygonal accept large k.
+
+    - addmod etc. use |n| as the modulus for negative n instead of error.
 
     [PERFORMANCE]
 

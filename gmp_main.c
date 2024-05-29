@@ -1061,51 +1061,6 @@ void powerful_count(mpz_t r, mpz_t n, unsigned long k)
   mpz_clear(m);
 }
 
-void perfect_power_count(mpz_t r, mpz_t n)
-{
-  unsigned long k, log2n;
-  mpz_t t;
-
-  if (mpz_cmp_ui(n,1) <= 0) {
-    mpz_set(r, n);
-    return;
-  }
-
-  log2n = mpz_sizeinbase(n,2);
-  mpz_init(t);
-  mpz_set_ui(r, 1);
-  for (k = 2; k <= log2n; k++) {
-    int m;
-    mpz_set_ui(t,k);
-    m = moebius(t);
-    if (m != 0) {
-      mpz_root(t, n, k);
-      mpz_sub_ui(t, t, 1);
-      if (m < 0) mpz_add(r, r, t);
-      else       mpz_sub(r, r, t);
-    }
-  }
-  mpz_clear(t);
-}
-void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
-  if (mpz_cmp(lo, hi) > 0 || mpz_cmp_ui(hi,1) < 0) {
-    mpz_set_ui(r, 0);
-    return;
-  }
-
-  perfect_power_count(r, hi);
-
-  if (mpz_cmp_ui(lo, 1) > 0) {
-    mpz_t locount, lom1;
-    mpz_init(locount);
-    mpz_init(lom1);
-    mpz_sub_ui(lom1, lo, 1);
-    perfect_power_count(locount, lom1);
-    mpz_sub(r, r, locount);
-    mpz_clear(lom1);
-    mpz_clear(locount);
-  }
-}
 
 void prime_power_count(mpz_t r, mpz_t n)
 {

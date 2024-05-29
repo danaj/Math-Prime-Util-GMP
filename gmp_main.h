@@ -54,9 +54,6 @@ extern void prime_count_range(mpz_t count, mpz_t lo, mpz_t hi);
 extern void prime_power_count(mpz_t r, mpz_t n);
 extern void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi);
 
-extern void perfect_power_count(mpz_t r, mpz_t n);
-extern void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi);
-
 extern void next_twin_prime(mpz_t res, mpz_t n);
 
 extern uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base);

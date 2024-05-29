@@ -22,6 +22,7 @@
 #include "factor.h"
 #include "isaac.h"
 #include "random_prime.h"
+#include "perfect_powers.h"
 #include "real.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
@@ -519,6 +520,32 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
     }
     XPUSH_MPZ(res);
 
+void nth_perfect_power(IN char* strn)
+  ALIAS:
+    nth_perfect_power_approx = 1
+  PREINIT:
+    mpz_t n, res;
+  PPCODE:
+    mpz_init(res);
+    VALIDATE_AND_SET(n, strn);
+    if (ix == 0) nth_perfect_power(res, n);
+    else         nth_perfect_power_approx(res, n);
+    mpz_clear(n);
+    XPUSH_MPZ(res);
+
+void next_perfect_power(IN char* strn)
+  ALIAS:
+    prev_perfect_power = 1
+  PREINIT:
+    mpz_t n, res;
+  PPCODE:
+    mpz_init(res);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    if (ix == 0) next_perfect_power(res, n);
+    else         prev_perfect_power(res, n);
+    mpz_clear(n);
+    XPUSH_MPZ(res);
+
 void
 totient(IN char* strn)
   ALIAS:
@@ -955,32 +982,34 @@ liouville(IN char* strn)
     is_carmichael = 4
     is_practical = 5
     is_fundamental = 6
-    hammingweight = 7
-    prime_omega = 8
-    prime_bigomega = 9
+    is_perfect_power = 7
+    hammingweight = 8
+    prime_omega = 9
+    prime_bigomega = 10
   PREINIT:
     mpz_t n;
     int isneg;
   CODE:
     isneg = validate_and_set_signed( cv, n, "n", strn,
                                      (ix == 0) ? VSETNEG_ERR
-                                   : (ix  < 7) ? VSETNEG_OK
+                                   : (ix  < 8) ? VSETNEG_OK
                                    :             VSETNEG_POS );
     if (isneg && (ix >= 1 && ix <= 5)) {
       RETVAL = 0;
     } else {
       switch (ix) {
-        case 0:  RETVAL = liouville(n);      break;
-        case 1:  RETVAL = is_power(n,2);     break;
-        case 2:  RETVAL = is_semiprime(n);   break;
-        case 3:  RETVAL = is_totient(n);     break;
-        case 4:  RETVAL = is_carmichael(n);  break;
-        case 5:  RETVAL = is_practical(n);   break;
-        case 6:  RETVAL = is_fundamental(n); break;
-        case 7:  RETVAL = mpz_popcount(n);   break;
-        case 8:  RETVAL = omega(n);          break;
-        case 9:
-        default: RETVAL = bigomega(n);       break;
+        case 0:  RETVAL = liouville(n);       break;
+        case 1:  RETVAL = is_power(n,2);      break;
+        case 2:  RETVAL = is_semiprime(n);    break;
+        case 3:  RETVAL = is_totient(n);      break;
+        case 4:  RETVAL = is_carmichael(n);   break;
+        case 5:  RETVAL = is_practical(n);    break;
+        case 6:  RETVAL = is_fundamental(n);  break;
+        case 7:  RETVAL = is_perfect_power(n);break;
+        case 8:  RETVAL = mpz_popcount(n);    break;
+        case 9:  RETVAL = omega(n);           break;
+        case 10:
+        default: RETVAL = bigomega(n);        break;
       }
     }
     mpz_clear(n);

@@ -103,6 +103,8 @@ our @EXPORT_OK = qw(
                      is_primitive_root
                      is_polygonal polygonal_nth
                      powerful_count
+                     is_perfect_power next_perfect_power prev_perfect_power
+                     nth_perfect_power nth_perfect_power_approx
                      perfect_power_count prime_power_count
                      znorder
                      znprimroot
@@ -1668,13 +1670,54 @@ Given two non-negative integer inputs C<n> and C<k>, returns the total
 number of C<k>-powerful numbers from C<1> to C<n> inclusive.
 If C<k> is omitted or zero, C<k=2> is used.
 
+=head2 is_perfect_power
+
+Given an integer C<n>, returns C<1> if C<n> is a perfect power,
+and C<0> otherwise.  That is, if C<n = c^k> for some non-zero
+integer C<c> with C<k> greater than 1.
+
+This is L<OEIS series A001597|http://oeis.org/A001597>.
+
+=head2 next_perfect_power
+
+Given an integer C<n>, returns the smallest perfect power greater
+than C<n>.  Similar in API to L</next_prime>, but returns the next
+perfect power with exponent greater than 1.
+Hence the sequence C<1,4,8,9,16,25,...>.
+
+Negative inputs are supported, with the result being the nearest value
+greater than C<n> where C<is_perfect_power> returns true.
+
+=head2 prev_perfect_power
+
+Given an integer C<n>, returns the greatest perfect power less than C<n>.
+Similar in API to L</prev_prime>, but returns the previous perfect power
+with exponent greater than 1.
+
+Negative inputs are supported, with the result being the nearest value
+less than C<n> where C<is_perfect_power> returns true.
+
 =head2 perfect_power_count
 
 Returns the number of perfect powers up to C<n> (single argument)
-or between C<lo> and C<hi> (two arguments).  The values are inclusive.
+or between C<lo> and C<hi> (two arguments).  The values are inclusive,
+and must be non-negative.
 
 By convention, 1 is included here even though L</is_power(1) = 0>.
 This is L<OEIS series A069623|http://oeis.org/A069623>.
+
+=head2 nth_perfect_power
+
+Given a non-negative integer C<n>, returns the C<n>-th perfect power.
+
+Since the perfect power count can be calculated quite quickly, we use
+successive approximations with corrections provided by the count to
+calculate the C<n>-th perfect power quite rapidly.
+
+=head2 nth_perfect_power_approx
+
+Given a non-negative integer C<n>, quickly returns a
+good estimate of the C<n>-th perfect power.
 
 =head2 prime_power_count
 
@@ -2776,7 +2819,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2023 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2024 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
