@@ -864,7 +864,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
     } while (k == 1);
   } else {
     D = P*P-4*Q;
-    if (is_perfect_square( D >= 0 ? D : -D, 0 ))
+    if (is_perfect_square( D >= 0 ? D : -D ))
       croak("Frobenius invalid P,Q: (%"IVdf",%"IVdf")", P, Q);
     mpz_set_si(t, D);
     k = mpz_jacobi(t, n);
