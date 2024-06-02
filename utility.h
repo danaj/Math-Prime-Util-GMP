@@ -16,9 +16,10 @@ extern void mpz_isaac_urandomm(mpz_t rop, mpz_t n);
 extern UV irand64(int nbits);
 extern NV drand64(void);
 
+extern int  mpz_fits_uv_p(const mpz_t n);
 extern void mpz_set_uv(mpz_t n, UV v);
 extern void mpz_set_iv(mpz_t n, IV v);
-extern UV   mpz_get_uv(mpz_t n);
+extern UV   mpz_get_uv(const mpz_t n);
 /* TODO: cmp_uv, cmp_iv, mul_iv, mul_uv, etc. */
 
 extern UV   is_power(mpz_t n, UV a);
@@ -107,6 +108,10 @@ extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);
 extern void mpf_root(mpf_t rootx, mpf_t x, mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
+extern UV rootint_ui(UV n, UV k);
+extern UV logint_ui(UV n, UV b);
+extern unsigned int log2_ui(UV n);
+
 extern UV logint(mpz_t n, UV base);
 
 #if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)
@@ -121,6 +126,40 @@ static UV isqrt(UV n) {
   while (root*root > n)  root--;
   while ((root+1)*(root+1) <= n)  root++;
   return root;
+}
+#endif
+
+#if defined(FUNC_icbrt) || defined(FUNC_is_perfect_cube)
+static UV icbrt(UV n) {
+  UV b, root = 0;
+#if BITS_PER_WORD == 32
+  int s = 30;
+  if (n >= UVCONST(4291015625)) return UVCONST(1625);
+#else
+  int s = 63;
+  if (n >= UVCONST(18446724184312856125)) return UVCONST(2642245);
+#endif
+  for ( ; s >= 0; s -= 3) {
+    root += root;
+    b = 3*root*(root+1)+1;
+    if ((n >> s) >= b) {
+      n -= b << s;
+      root++;
+    }
+  }
+  return root;
+}
+#endif
+
+#if defined(FUNC_ipow)
+static UV ipow(UV n, UV k) {
+  UV p = 1;
+  while (k) {
+    if (k & 1) p *= n;
+    k >>= 1;
+    if (k)     n *= n;
+  }
+  return p;
 }
 #endif
 
@@ -143,21 +182,30 @@ static UV lcm_ui(UV x, UV y) {
 #endif
 
 #ifdef FUNC_is_perfect_square
-/* Return 0 if n is not a perfect square.  Set sqrtn to int(sqrt(n)) if so.
- * See:  http://mersenneforum.org/showpost.php?p=110896
- */
-static int is_perfect_square(UV n, UV* sqrtn)
+static int is_perfect_square(UV n)
 {
-  UV m;
-  m = n & 127;
+  /* Step 1, reduce to 18% of inputs */
+  uint32_t m = n & 127;
   if ((m*0x8bc40d7d) & (m*0xa1e2f5d1) & 0x14020a)  return 0;
-  /* This cuts out another 80%: */
-  m = n % 63; if ((m*0x3d491df7) & (m*0xc824a9f9) & 0x10f14008) return 0;
-  /* m = n % 25; if ((m*0x1929fc1b) & (m*0x4c9ea3b2) & 0x51001005) return 0; */
+  /* Step 2, reduce to 7% of inputs (mod 99 reduces to 4% but slower) */
+  m = n %240; if ((m*0xfa445556) & (m*0x8021feb1) & 0x614aaa0f) return 0;
+  /* m = n % 99; if ((m*0x5411171d) & (m*0xe41dd1c7) & 0x80028a80) return 0; */
+  /* Step 3, do the square root instead of any more rejections */
   m = isqrt(n);
-  if (n != m*m) return 0;
-  if (sqrtn != 0) *sqrtn = m;
-  return 1;
+  return (UV)m*(UV)m == n;
+}
+#endif
+
+#ifdef FUNC_is_perfect_cube
+static int is_perfect_cube(UV n)
+{
+  uint32_t m;
+  m = n % 117; if ((m*833230740) & (m*120676722) & 813764715) return 0;
+  m = n % 133; if ((m*76846229) & (m*305817297) & 306336544) return 0;
+  m = n % 43; if ((m*193635074) & (m*3653322805U) & 74401) return 0;
+  m = n % 37; if ((m*919307198) & (m*3908849845U) & 6665) return 0;
+  m = icbrt(n);
+  return (UV)m*m*m == n;
 }
 #endif
 
