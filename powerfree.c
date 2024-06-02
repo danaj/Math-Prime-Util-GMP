@@ -2,9 +2,13 @@
 #include "ptypes.h"
 
 #include "powerfree.h"
-#include "utility.h"
 #include "factor.h"
 #include "real.h"
+#include "prime_iterator.h"
+#include "utility.h"
+#define FUNC_isqrt 1
+#define FUNC_ipow 1
+#include "misc_ui.h"
 
 int is_powerfree(mpz_t n, uint32_t k)
 {
@@ -83,6 +87,7 @@ void prev_powerfree(mpz_t prev, mpz_t n, uint32_t k)
   mpz_clear(N);
 }
 
+#if 1
 /*
  * Powerfree count really needs a range moebius for performance.
  */
@@ -159,6 +164,195 @@ void powerfree_count(mpz_t count, mpz_t n, uint32_t k)
   mpz_clear(c);  mpz_clear(nk);  mpz_clear(L1);  mpz_clear(i);  mpz_clear(t);
 #endif
 }
+#else
+
+#define P_GT_LO(f,p,lo)  ( ((f)>=(lo)) ? (f) : (lo)+(((p)-((lo)%(p)))%(p)) )
+
+/* Return a char array with lo-hi+1 elements. mu[k-lo] = µ(k) for k = lo .. hi.
+ * It is the callers responsibility to call Safefree on the result. */
+signed char* range_moebius(UV lo, UV hi)
+{
+  signed char* mu;
+  UV p, i, sqrtn = isqrt(hi), count = hi-lo+1;
+
+  /* Kuznetsov indicates that the Deléglise & Rivat (1996) method can be
+   * modified to work on logs, which allows us to operate with no
+   * intermediate memory at all.  Same time as the D&R method, less memory. */
+  unsigned char logp;
+  UV nextlog, nextlogi;
+
+  if (hi < lo) croak("range_mobius error hi %"UVuf" < lo %"UVuf"\n", hi, lo);
+
+  Newz(0, mu, count, signed char);
+  if (sqrtn*sqrtn != hi && sqrtn < (UVCONST(1)<<(BITS_PER_WORD/2))-1) sqrtn++;
+
+  {
+    PRIME_ITERATOR(iter);
+
+    logp = 1; nextlog = 3; /* 2+1 */
+    for (p = 2; p <= sqrtn; p = prime_iterator_next(&iter)) {
+      UV p2 = p*p;
+      if (p > nextlog) {
+        logp += 2;   /* logp is 1 | ceil(log(p)/log(2)) */
+        nextlog = ((nextlog-1)*4)+1;
+      }
+      for (i = P_GT_LO(p, p, lo); i >= lo && i <= hi; i += p)
+        mu[i-lo] += logp;
+      for (i = P_GT_LO(p2, p2, lo); i >= lo && i <= hi; i += p2)
+        mu[i-lo] = 0x80;
+    }
+    prime_iterator_destroy(&iter);
+  }
+
+  logp = log2_ui(lo);
+  nextlogi = (UVCONST(2) << logp) - lo;
+  for (i = 0; i < count; i++) {
+    unsigned char a = mu[i];
+    if (i >= nextlogi) nextlogi = (UVCONST(2) << ++logp) - lo;
+    if (a & 0x80)       { a = 0; }
+    else if (a >= logp) { a =  1 - 2*(a&1); }
+    else                { a = -1 + 2*(a&1); }
+    mu[i] = a;
+  }
+  if (lo == 0)  mu[0] = 0;
+
+  return mu;
+}
+
+static UV squarefree_count_ui(UV n)
+{
+  signed char* mu;
+  IV *M, *Mx, Mxisum, mert;
+  UV sqrtn, I, D, i, j, S1 = 0, S2 = 0;
+
+  if (n < 4) return n;
+
+  sqrtn = isqrt(n);
+  I = rootint_ui(n, 5);   /* times loglogn ^ (4/5) */
+  D = isqrt(n / I);
+  mu = range_moebius(0, D);
+
+  S1 += n;
+  New(0, M, D+1, IV);
+  M[0] = 0;
+  M[1] = 1;
+  mert = 1;
+  for (i = 2; i <= D; i++) {
+    if (mu[i] != 0) {
+      S1 += mu[i] * (n/(i*i));
+      mert += mu[i];
+    }
+    M[i] = mert;
+  }
+  Safefree(mu);
+
+  Newz(0, Mx, I+1, IV);
+  Mxisum = 0;
+  for (i = I-1; i > 0; i--) {
+    IV Mxi = 1;
+    UV xi = isqrt(n/i);
+    UV L = isqrt(xi);
+    for (j = 1; j <= xi/(L+1); j++)
+      Mxi -= M[j] * (xi/j - xi/(j+1));
+    for (j = 2; j <= L; j++)
+      Mxi -=  (xi/j <= D)  ?  M[xi/j]  :  Mx[j*j*i];
+    Mx[i] = Mxi;
+    Mxisum += Mxi;
+  }
+  S2 = Mxisum - (I - 1) * M[D];
+  Safefree(Mx);
+  Safefree(M);
+
+  return S1 + S2;
+}
+
+static UV powerfree_count_ui(UV n, uint32_t k)
+{
+  UV i, nk, count;
+
+  if (k < 2) return (n >= 1);
+  if (n < 4) return n;
+  if (k == 2) return squarefree_count_ui(n);
+
+  count = n;
+  nk = rootint_ui(n, k);
+
+  {
+    signed char* mu = range_moebius(0, nk);
+    for (i = 2; i <= nk; i++)
+      if (mu[i] != 0)
+        count += mu[i] * (n/ipow(i,k));
+    Safefree(mu);
+  }
+  return count;
+}
+
+
+void powerfree_count(mpz_t count, mpz_t n, uint32_t k)
+{
+  mpz_t t, i, L1, nk, c;
+  signed long int c1;
+
+  if (k < 2 || mpz_sgn(n) <= 0) {
+    mpz_set_ui(count, (mpz_cmp_ui(n,1) >= 0));
+    return;
+  }
+  if (mpz_cmp_ui(n, 4) < 0) {
+    mpz_set(count, n);
+    return;
+  }
+  if (mpz_fits_uv_p(n)) {
+    UV c = powerfree_count_ui(mpz_get_uv(n), k);
+    mpz_set_uv(count, c);
+    return;
+  }
+
+  mpz_init(t);
+  mpz_init(i);
+  mpz_init(L1);
+  mpz_init(nk);
+  mpz_init(c);
+
+  mpz_fdiv_q_2exp(t, n, 1);
+  mpz_root(L1, t, k);
+  mpz_root(nk, n, k);
+  mpz_init_set_ui(c, 0);
+
+  gmp_printf("   nk %Zd   L1 %Zd\n", nk, L1);
+  if (0 && mpz_cmp_ui(nk, 1e8) < 0) {
+    unsigned long int j, nku = mpz_get_ui(nk), L1u = mpz_get_ui(L1);
+    signed char* mu = range_moebius(0, nku);
+    for (j = 2; j <= L1u; j++) {
+      if (mu[j] != 0) {
+        mpz_ui_pow_ui(t, j, k);
+        mpz_fdiv_q(t, n, t);
+        if (mu[j] > 0) mpz_add(c, c, t);
+        else           mpz_sub(c, c, t);
+      }
+    }
+    for (c1 = 0; j <= nku; j++)
+      c1 += mu[j];
+    Safefree(mu);
+  } else {
+    for (mpz_set_ui(i,2);  mpz_cmp(i,L1) <= 0;  mpz_add_ui(i,i,1)) {
+      int m = moebius(i);
+      if (m != 0) {
+        mpz_pow_ui(t, i, k);
+        mpz_fdiv_q(t, n, t);
+        if (m > 0)  mpz_add(c, c, t);
+        else        mpz_sub(c, c, t);
+      }
+    }
+    for (c1 = 0;  mpz_cmp(i,nk) <= 0;  mpz_add_ui(i,i,1))
+      c1 += moebius(i);
+  }
+  mpz_set(count, n);
+  mpz_add(count, count, c);
+  if (c1 >= 0) mpz_add_ui(count, count, (unsigned long) c1);
+  else         mpz_sub_ui(count, count, (unsigned long) (-c1));
+  mpz_clear(c);  mpz_clear(nk);  mpz_clear(L1);  mpz_clear(i);  mpz_clear(t);
+}
+#endif
 
 void nth_powerfree(mpz_t nth, mpz_t n, uint32_t k)
 {

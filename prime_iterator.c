@@ -4,8 +4,9 @@
 #include <math.h>
 
 #include "ptypes.h"
-#define FUNC_isqrt 1
 #include "utility.h"
+#define FUNC_isqrt 1
+#include "misc_ui.h"
 #include "prime_iterator.h"
 
 

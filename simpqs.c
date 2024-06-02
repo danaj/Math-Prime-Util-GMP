@@ -82,6 +82,7 @@
 #endif
 
 #include "utility.h"
+#include "misc_ui.h"
 #include "rootmod.h"
 
 /* DANAJ: Modify matrix code to do 64-bit-padded character arrays */

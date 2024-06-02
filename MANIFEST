@@ -37,6 +37,8 @@ isaac.h
 isaac.c
 lucas_seq.h
 lucas_seq.c
+misc_ui.h
+misc_ui.c
 perfect_powers.h
 perfect_powers.c
 poly.h

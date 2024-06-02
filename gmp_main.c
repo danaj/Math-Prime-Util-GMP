@@ -13,10 +13,11 @@
 #include "real.h"
 #include "random_prime.h"
 
-#define FUNC_gcd_ui 1
 #define FUNC_mpz_logn 1
-#define FUNC_isqrt 1
 #include "utility.h"
+#define FUNC_isqrt 1
+#define FUNC_gcd_ui 1
+#include "misc_ui.h"
 
 static mpz_t _bgcd;
 static mpz_t _bgcd2;

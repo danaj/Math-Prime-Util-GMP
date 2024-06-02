@@ -12,6 +12,7 @@ WriteMakefile1(
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
     OBJECT       => 'prime_iterator.o ' .
+                    'misc_ui.o '        .
                     'utility.o '        .
                     'poly.o '           .
                     'primality.o '      .
