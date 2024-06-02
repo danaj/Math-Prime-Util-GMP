@@ -53,51 +53,10 @@ extern void mpz_product(mpz_t* A, UV a, UV b);
 extern void mpz_product_ui(mpz_t prod, unsigned long *v, unsigned long n);
 extern void mpz_veclcm(mpz_t* A, UV a, UV b);
 
-extern void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t t1, mpz_t t2, mpz_t t3);
-extern void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod);
-
-extern void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, mpz_t mod);
-extern void polyz_mod(mpz_t *pres, mpz_t *pn, long *dn, mpz_t mod);
-
-extern void polyz_set(mpz_t* pr, long* dr, mpz_t* ps, long ds);
-extern void polyz_print(const char* header, mpz_t* pn, long dn);
-extern void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, mpz_t mod);
-extern void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
-                      long *dq, long *dr, long dn, long dd, mpz_t NMOD);
-extern void polyz_pow_polymod(mpz_t* pres,  mpz_t* pn,  mpz_t* pmod,
-                              long *dres,   long   dn,  long   dmod,
-                              mpz_t power, mpz_t NMOD);
-extern void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, mpz_t MODN);
-
-extern void polyz_root_deg1(mpz_t root, mpz_t* pn, mpz_t NMOD);
-extern void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD);
-
-/* Find roots of a polynomial mod a prime, slightly modified. */
-/* We will stop if we've found at least maxroots unique roots. */
-extern void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
-                             mpz_t *pP, long dP, mpz_t NMOD);
-
 /* Solve x^2 + |D|y^2 = p */
 extern int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
 /* Solve x^2 + |D|y^2 = 4p */
 extern int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
-
-/* return a class poly (Hilbert [type 1] or Weber [type 2]) */
-extern UV poly_class_poly(IV D, mpz_t**T, int* type);
-
-extern const char* poly_class_type_name(int type);
-
-/* return a 0 terminated list of all D's sorted by degree */
-extern IV* poly_class_degrees(int insert_1s);
-
-/* List of class polynomial indices in order */
-extern int* poly_class_nums(void);
-/* Given a class poly index, return the degree and fill in (if not null):
- *   D     the discriminant number
- *   T     the polynomial coefficients
- *   type  the poly type:  1 Hilber, 2 Weber
- */
-extern UV poly_class_poly_num(int i, int *D, mpz_t**T, int* type);
 
 #define BITS2DIGS(bits) ceil(bits/3.3219281)
 #define DIGS2BITS(digs) ceil(digs*3.3219281)

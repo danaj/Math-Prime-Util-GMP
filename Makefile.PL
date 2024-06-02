@@ -13,6 +13,7 @@ WriteMakefile1(
 
     OBJECT       => 'prime_iterator.o ' .
                     'utility.o '        .
+                    'poly.o '           .
                     'primality.o '      .
                     'lucas_seq.o '      .
                     'rootmod.o '        .

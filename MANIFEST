@@ -39,6 +39,8 @@ lucas_seq.h
 lucas_seq.c
 perfect_powers.h
 perfect_powers.c
+poly.h
+poly.c
 powerfree.h
 powerfree.c
 random_prime.h

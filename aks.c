@@ -50,6 +50,7 @@
 #endif
 #define FUNC_mpz_log2 1
 #include "utility.h"
+#include "poly.h"
 
 
 static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)

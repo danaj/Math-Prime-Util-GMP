@@ -67,6 +67,7 @@
 #include "gmp_main.h"  /* primorial */
 #include "ecm.h"
 #include "rootmod.h"
+#include "poly.h"
 #include "utility.h"
 #include "prime_iterator.h"
 #include "bls75.h"
