@@ -11,6 +11,7 @@ my @functions = qw(
                      is_bpsw_prime
                      is_provable_prime
                      is_provable_prime_with_cert
+                     is_trial_prime
                      is_aks_prime
                      is_nminus1_prime
                      is_nplus1_prime
@@ -44,11 +45,13 @@ my @functions = qw(
                      next_prime
                      prev_prime
                      surround_primes
+                     next_twin_prime
                      trial_factor
                      prho_factor
                      pbrent_factor
                      pminus1_factor
                      pplus1_factor
+                     cheb_factor
                      holf_factor
                      squfof_factor
                      ecm_factor
@@ -56,7 +59,7 @@ my @functions = qw(
                      factor
                      divisors
                      sigma
-                     chinese
+                     chinese chinese2
                      moebius
                      prime_count prime_count_lower prime_count_upper
                      primorial
@@ -65,12 +68,13 @@ my @functions = qw(
                      factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
+                     bernvec powersum faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
+                     negmod invmod sqrtmod addmod submod mulmod divmod powmod
                      is_qr
-                     invmod sqrtmod addmod submod mulmod divmod powmod
                      muladdmod mulsubmod
                      vecsum vecprod
                      exp_mangoldt
@@ -84,15 +88,21 @@ my @functions = qw(
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
                      lshiftint rshiftint rashiftint
-                     setbit clrbit tstbit
-                     bitand bitor bitxor
+                     setbit clrbit tstbit notbit
+                     bitand bitor bitxor bitnot
+                     is_divisible is_congruent
                      is_power is_prime_power is_semiprime is_almost_prime
                      is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
                      is_polygonal polygonal_nth
                      powerful_count
-                     perfect_power_count prime_power_count
+                     prime_power_count
+                     is_perfect_power next_perfect_power prev_perfect_power
+                     nth_perfect_power nth_perfect_power_approx
+                     perfect_power_count
+                     is_square_free is_powerfree next_powerfree prev_powerfree
+                     powerfree_count nth_powerfree
                      znorder
                      znprimroot
                      ramanujan_tau

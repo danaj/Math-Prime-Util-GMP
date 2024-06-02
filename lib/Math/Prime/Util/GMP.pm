@@ -103,9 +103,12 @@ our @EXPORT_OK = qw(
                      is_primitive_root
                      is_polygonal polygonal_nth
                      powerful_count
+                     prime_power_count
                      is_perfect_power next_perfect_power prev_perfect_power
                      nth_perfect_power nth_perfect_power_approx
-                     perfect_power_count prime_power_count
+                     perfect_power_count
+                     is_square_free is_powerfree next_powerfree prev_powerfree
+                     powerfree_count nth_powerfree
                      znorder
                      znprimroot
                      ramanujan_tau
@@ -213,7 +216,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -1661,6 +1664,48 @@ C<s> must be greater than 2.
 
 Given integers C<x> and C<s>, return N if C<x> is the C<N-th> s-gonal number,
 0 otherwise.
+
+
+=head2 is_square_free
+
+Given integer C<n>, returns 1 if C<|n|> has no repeated factor.
+
+=head2 is_powerfree
+
+Given an integer C<n> and an optional non-negative integer C<k>, returns
+1 is C<|n|> has no divisor C<d^k>, and returns 0 otherwise.
+This determines if C<|n|> has any C<k>-th (or higher) powers in the prime
+factorization.
+C<k> defaults to 2.
+
+=head2 next_powerfree
+
+Given an integer C<n> and an optional non-negative integer C<k>, returns
+the next k-powerfree integer.
+The result will be the smallest k-powerfree integer greater than C<n>.
+C<k> defaults to 2.
+
+=head2 prev_powerfree
+
+Given an integer C<n> and an optional non-negative integer C<k>, returns
+the previous k-powerfree integer.
+The result will be the largest k-powerfree integer smaller than C<n>,
+unless C<n E<lt>= 1>, in which case undef is returned.
+C<k> defaults to 2.
+
+=head2 powerfree_count
+
+Given an integer C<n> and an optional non-negative integer C<k>, returns
+the number of k-powerfree positive integers less than or equal to C<n>.
+C<k> defaults to 2.
+
+=head2 nth_powerfree
+
+Given a non-negative integer C<n> and an optional non-negative integer C<k>,
+returns the C<n>-th k-powerfree number.
+If C<k> is omitted, C<k=2> is used.
+Returns undef if C<k> is less than 2 or C<n=0>.  Returns 1 for C<n=1>.
+
 
 =head2 powerful_count
 

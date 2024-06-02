@@ -39,6 +39,8 @@ lucas_seq.h
 lucas_seq.c
 perfect_powers.h
 perfect_powers.c
+powerfree.h
+powerfree.c
 random_prime.h
 random_prime.c
 real.h
@@ -77,6 +79,7 @@ t/26-logs.t
 t/26-mersenne.t
 t/26-mod.t
 t/26-perfectpowers.t
+t/26-powerfree.t
 t/26-powerful.t
 t/26-powercount.t
 t/26-practical.t

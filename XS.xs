@@ -23,6 +23,7 @@
 #include "isaac.h"
 #include "random_prime.h"
 #include "perfect_powers.h"
+#include "powerfree.h"
 #include "real.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
@@ -975,41 +976,41 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
 
 int
 liouville(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    VALIDATE_AND_SET(n, strn);
+    RETVAL = liouville(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
+is_square(IN char* strn)
   ALIAS:
-    is_square = 1
-    is_semiprime = 2
-    is_totient = 3
-    is_carmichael = 4
-    is_practical = 5
-    is_fundamental = 6
-    is_perfect_power = 7
-    hammingweight = 8
-    prime_omega = 9
-    prime_bigomega = 10
+    is_semiprime = 1
+    is_totient = 2
+    is_carmichael = 3
+    is_practical = 4
+    is_fundamental = 5
+    is_perfect_power = 6
   PREINIT:
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set_signed( cv, n, "n", strn,
-                                     (ix == 0) ? VSETNEG_ERR
-                                   : (ix  < 8) ? VSETNEG_OK
-                                   :             VSETNEG_POS );
-    if (isneg && (ix >= 1 && ix <= 5)) {
+    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    if (isneg && ix <= 4) {
       RETVAL = 0;
     } else {
       switch (ix) {
-        case 0:  RETVAL = liouville(n);       break;
-        case 1:  RETVAL = is_power(n,2);      break;
-        case 2:  RETVAL = is_semiprime(n);    break;
-        case 3:  RETVAL = is_totient(n);      break;
-        case 4:  RETVAL = is_carmichael(n);   break;
-        case 5:  RETVAL = is_practical(n);    break;
-        case 6:  RETVAL = is_fundamental(n);  break;
-        case 7:  RETVAL = is_perfect_power(n);break;
-        case 8:  RETVAL = mpz_popcount(n);    break;
-        case 9:  RETVAL = omega(n);           break;
-        case 10:
-        default: RETVAL = bigomega(n);        break;
+        case 0:  RETVAL = is_power(n,2);      break;
+        case 1:  RETVAL = is_semiprime(n);    break;
+        case 2:  RETVAL = is_totient(n);      break;
+        case 3:  RETVAL = is_carmichael(n);   break;
+        case 4:  RETVAL = is_practical(n);    break;
+        case 5:  RETVAL = is_fundamental(n);  break;
+        case 6:  RETVAL = is_perfect_power(n);break;
+        default: break;
       }
     }
     mpz_clear(n);
@@ -1017,15 +1018,63 @@ liouville(IN char* strn)
     RETVAL
 
 int
+prime_omega(IN char* strn)
+  ALIAS:
+    prime_bigomega = 1
+    hammingweight = 2
+    is_square_free = 3
+  PREINIT:
+    mpz_t n;
+  CODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    switch (ix) {
+      case 0:  RETVAL = omega(n);          break;
+      case 1:  RETVAL = bigomega(n);       break;
+      case 2:  RETVAL = mpz_popcount(n);   break;
+      case 3:  RETVAL = is_square_free(n); break;
+      default: break;
+    }
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int
 is_powerful(IN char* strn, IN UV k = 2)
+  ALIAS:
+    is_powerfree = 1
   PREINIT:
     mpz_t n;
   CODE:
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    RETVAL = is_powerful(n, k);
+    switch (ix) {
+      case 0:  RETVAL = is_powerful(n, k);  break;
+      case 1:  RETVAL = is_powerfree(n,k);  break;
+      default: break;
+    }
     mpz_clear(n);
   OUTPUT:
     RETVAL
+
+void
+next_powerfree(IN char* strn, IN UV k = 2)
+  ALIAS:
+    prev_powerfree = 1
+    nth_powerfree = 2
+  PREINIT:
+    mpz_t n;
+    int retundef;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    switch (ix) {
+      case 0:  next_powerfree(n,n,k);  break;
+      case 1:  prev_powerfree(n,n,k);  break;
+      case 2:  nth_powerfree(n,n,k);  break;
+      default: break;
+    }
+    retundef = (mpz_sgn(n) <= 0);
+    if (!retundef) XPUSH_MPZ(n);
+    mpz_clear(n);
+    if (retundef) XSRETURN_UNDEF;
 
 void
 invmod(IN char* stra, IN char* strb)
@@ -1224,12 +1273,18 @@ lshiftint(IN char* strn, IN unsigned long k = 1)
 
 void
 powerful_count(IN char* strn, IN int k = 2)
+  ALIAS:
+    powerfree_count = 1
   PREINIT:
     mpz_t n, r;
   PPCODE:
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     mpz_init(r);
-    powerful_count(r, n, (unsigned long) k);
+    switch (ix) {
+      case 0:  powerful_count(r, n, (unsigned long) k);  break;
+      case 1:  powerfree_count(r, n, (uint32_t) k);  break;
+      default: break;
+    }
     XPUSH_MPZ(r);
     mpz_clear(r);
     mpz_clear(n);

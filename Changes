@@ -17,6 +17,12 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_divisible(n,d)        is n exactly divisible by d
     - is_congruent(n,c,d)      is n congruent to c mod d
     - is_qr(a,n)               is n a quadratic residue mod n
+    - is_square_free(n)        1 if n does not have any repeated factors
+    - is_powerfree(n[,k])      1 if n does not have a factor p^k (default k=2)
+    - powerfree_count(n[,k])   count of k-powerfree numbers <= n
+    - nth_powerfree(n[,k])     the nth k-powerfree number
+    - next_powerfree(n[,k])    the next k-powerfree number > n
+    - prev_powerfree(n[,k])    the previous k-powerfree number < n
     - prime_bigomega(n)        number of factors (with multiplicity)
     - prime_omega(n)           number of factors (distinct)
     - powerful_count(n[,k])    count of k-powerful numbers <= n

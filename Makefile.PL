@@ -30,6 +30,7 @@ WriteMakefile1(
                     'isaac.o '          .
                     'random_prime.o '   .
                     'perfect_powers.o ' .
+                    'powerfree.o '      .
                     'XS.o',
     LIBS         => ['-lgmp -lm'],
 
