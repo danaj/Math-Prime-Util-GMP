@@ -10,6 +10,8 @@
 #include <math.h>
 
 #include "ptypes.h"
+#include "prime_iterator.h"
+#include "gmp_main.h"
 
 #define FUNC_ipow 1
 #define FUNC_isqrt 1
@@ -119,4 +121,251 @@ unsigned long modinverse(unsigned long a, unsigned long p)
  }
  if (u1 < 0) u1 += p;
  return u1;
+}
+
+UV next_prime_ui(UV n)
+{
+  mpz_t t;
+  if (n < 13)
+    return (n<3) ? 3 : (n<5) ? 5 : (n<7) ? 7 : (n<11) ? 11 : 13;
+  mpz_init_set_ui(t, n);
+  _GMP_next_prime(t);
+  n = mpz_get_ui(t);
+  mpz_clear(t);
+  return n;
+}
+
+/******************************************************************************/
+
+#define P_GT_LO(f,p,lo)  ( ((f)>=(lo)) ? (f) : (lo)+(((p)-((lo)%(p)))%(p)) )
+
+/* Return a char array with lo-hi+1 elements. mu[k-lo] = µ(k) for k = lo .. hi.
+ * It is the callers responsibility to call Safefree on the result. */
+signed char* range_moebius(UV lo, UV hi)
+{
+  signed char* mu;
+  UV p, i, sqrtn = isqrt(hi), count = hi-lo+1;
+
+  /* Kuznetsov indicates that the Deléglise & Rivat (1996) method can be
+   * modified to work on logs, which allows us to operate with no
+   * intermediate memory at all.  Same time as the D&R method, less memory. */
+  unsigned char logp;
+  UV nextlog, nextlogi;
+
+  if (hi < lo) croak("range_mobius error hi %"UVuf" < lo %"UVuf"\n", hi, lo);
+
+  Newz(0, mu, count, signed char);
+  if (sqrtn*sqrtn != hi && sqrtn < (UVCONST(1)<<(BITS_PER_WORD/2))-1) sqrtn++;
+
+  {
+    PRIME_ITERATOR(iter);
+
+    logp = 1; nextlog = 3; /* 2+1 */
+    for (p = 2; p <= sqrtn; p = prime_iterator_next(&iter)) {
+      UV p2 = p*p;
+      if (p > nextlog) {
+        logp += 2;   /* logp is 1 | ceil(log(p)/log(2)) */
+        nextlog = ((nextlog-1)*4)+1;
+      }
+      for (i = P_GT_LO(p, p, lo); i >= lo && i <= hi; i += p)
+        mu[i-lo] += logp;
+      for (i = P_GT_LO(p2, p2, lo); i >= lo && i <= hi; i += p2)
+        mu[i-lo] = 0x80;
+    }
+    prime_iterator_destroy(&iter);
+  }
+
+  logp = log2_ui(lo);
+  nextlogi = (UVCONST(2) << logp) - lo;
+  for (i = 0; i < count; i++) {
+    unsigned char a = mu[i];
+    if (i >= nextlogi) nextlogi = (UVCONST(2) << ++logp) - lo;
+    if (a & 0x80)       { a = 0; }
+    else if (a >= logp) { a =  1 - 2*(a&1); }
+    else                { a = -1 + 2*(a&1); }
+    mu[i] = a;
+  }
+  if (lo == 0)  mu[0] = 0;
+
+  return mu;
+}
+
+/******************************************************************************/
+
+static short* mertens_array(UV hi)
+{
+  signed char* mu;
+  short* M;
+  UV i;
+
+  /* We could blend this with range_moebius but it seems not worth it. */
+  mu = range_moebius(0, hi);
+  New(0, M, hi+1, short);
+  M[0] = 0;
+  for (i = 1; i <= hi; i++)
+    M[i] = M[i-1] + mu[i];
+  Safefree(mu);
+
+  return M;
+}
+
+typedef struct {
+  UV n;
+  IV sum;
+} mertens_value_t;
+static void _insert_mert_hash(mertens_value_t *H, UV hsize, UV n, IV sum) {
+  UV idx = n % hsize;
+  H[idx].n = n;
+  H[idx].sum = sum;
+}
+static int _get_mert_hash(mertens_value_t *H, UV hsize, UV n, IV *sum) {
+  UV idx = n % hsize;
+  if (H[idx].n == n) {
+    *sum = H[idx].sum;
+    return 1;
+  }
+  return 0;
+}
+
+typedef struct {
+  UV               msize;
+  const short     *M;       /* 16 bits is enough range 32-bit M => 64-bit n */
+  UV               hsize;
+  mertens_value_t *H;       /* cache of calculated values */
+} mertens_t;
+
+void* hmertens_create(UV n)
+{
+  mertens_t *HM;
+  UV j = 2 * icbrt(n);   /* Biased toward a lot of memory */
+  UV maxmu = 1 * j * j;
+  UV hsize = 100 + 8*j;
+
+  /* At large sizes, start clamping memory use. */
+  if (maxmu > 100000000UL) {
+    /* Exponential decay, reduce by factor of 1 to 8 */
+    float rfactor = 1.0 + 7.0 * (1.0 - exp(-(float)maxmu/8000000000.0));
+    maxmu /= rfactor;
+    hsize = hsize * 16;  /* Increase the result cache size */
+  }
+
+  hsize = next_prime_ui(hsize-1);  /* Make hash size a prime */
+
+#if BITS_PER_WORD == 64
+  /* A 16-bit signed short will overflow at maxmu > 7613644883 */
+  if (maxmu > UVCONST(7613644883))  maxmu = UVCONST(7613644883);
+#endif
+
+  New(0, HM, 1, mertens_t);
+  HM->msize = maxmu;
+  HM->M     = mertens_array(maxmu);
+  HM->hsize = hsize;
+  Newz(0, HM->H, hsize, mertens_value_t);
+
+  return HM;
+}
+
+UV hmertens_value(void* ctx, UV n)
+{
+  mertens_t *HM = ctx;
+
+  UV msize = HM->msize,  hsize = HM->hsize;
+  const short* M = HM->M;
+  mertens_value_t *H = HM->H;
+
+  UV s, k, ns, nk, nk1, mk, mnk;
+  IV sum;
+
+  if (n <= msize)
+    return M[n];
+
+  if (_get_mert_hash(H, hsize, n, &sum))
+    return sum;
+
+  s = isqrt(n);
+  ns = n / (s+1);
+  sum = 1;
+
+#if 0
+  for (k = 2; k <= ns; k++)
+    sum -= _rmertens(n/k, msize, M, H, hsize);
+  for (k = 1; k <= s; k++)
+    sum -= M[k] * (n/k - n/(k+1));
+#else
+  /* Take the above: merge the loops and iterate the divides. */
+  if (s != ns && s != ns+1) croak("mertens  s / ns");
+  nk  = n;
+  nk1 = n/2;
+  sum -= (nk - nk1);
+  for (k = 2; k <= ns; k++) {
+    nk = nk1;
+    nk1 = n/(k+1);
+    mnk = (nk <= msize)  ?  M[nk]  :  hmertens_value(ctx, nk);
+    mk  = (k  <= msize)  ?  M[k]   :  hmertens_value(ctx, k);
+    sum -= mnk + mk * (nk-nk1);
+  }
+  if (s > ns)
+    sum -= hmertens_value(ctx, s) * (n/s - n/(s+1));
+#endif
+
+  _insert_mert_hash(H, hsize, n, sum);
+  return sum;
+}
+
+void  hmertens_destroy(void* ctx)
+{
+  mertens_t *HM = ctx;
+  Safefree(HM->H);
+  Safefree(HM->M);
+  Safefree(ctx);
+}
+
+IV mertens_ui(UV n) {
+  void* mctx;
+  IV sum;
+
+  if (n <= 512) {
+    signed char* mu = range_moebius(0,n);
+    UV j;
+    for (j = 0, sum = 0; j <= n; j++)
+      sum += mu[j];
+    Safefree(mu);
+    return sum;
+  }
+
+  mctx = hmertens_create(n);
+  sum = hmertens_value(mctx, n);
+  hmertens_destroy(mctx);
+
+  return sum;
+}
+
+/******************************************************************************/
+
+static const signed char _small_liouville[16] = {-1,1,-1,-1,1,-1,1,-1,-1,1,1,-1,-1,-1,1,1};
+IV sumliouville_ui(UV n) {
+  void* mctx;
+  UV j, k, nk, sqrtn;
+  IV sum;
+
+  if (n <= 15) {
+    for (sum = 0, j = 1; j <= n; j++)
+      sum += _small_liouville[j];
+    return sum;
+  }
+  mctx = hmertens_create(n);
+
+  sqrtn = isqrt(n);
+  sum = hmertens_value(mctx, n);
+  for (k = 2; k <= sqrtn; k++) {
+    nk = n / (k*k);
+    if (nk == 1) break;
+    sum += hmertens_value(mctx, nk);
+  }
+  sum += (sqrtn + 1 - k);  /* all k where n/(k*k) == 1 */
+  /* TODO: find method to get exact number of n/(k*k)==1 .. 4.  Halves k */
+  /*       Ends up with method like Lehmer's g. */
+  hmertens_destroy(mctx);
+
+  return sum;
 }

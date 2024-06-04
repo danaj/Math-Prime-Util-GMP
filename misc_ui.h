@@ -9,6 +9,17 @@ extern UV rootint_ui(UV n, UV k);
 extern UV logint_ui(UV n, UV b);
 extern unsigned int log2_ui(UV n);
 
+extern UV next_prime_ui(UV n);
+
+extern signed char* range_moebius(UV lo, UV hi);
+
+extern void* hmertens_create(UV n);
+extern UV    hmertens_value(void* ctx, UV n);
+extern void  hmertens_destroy(void* ctx);
+extern IV    mertens_ui(UV n);
+
+extern IV sumliouville_ui(UV n);
+
 
 #if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)
 static UV isqrt(UV n) {
