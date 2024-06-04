@@ -2,8 +2,8 @@
 #include "ptypes.h"
 
 #include "perfect_powers.h"
+#include "misc_ui.h"
 #include "utility.h"
-#include "factor.h"
 
 int is_perfect_power(mpz_t n)
 {
@@ -111,8 +111,9 @@ void prev_perfect_power(mpz_t prev, mpz_t n)
 
 void perfect_power_count(mpz_t r, mpz_t n)
 {
+  signed char* mu;
   unsigned long k, log2n;
-  mpz_t t;
+  mpz_t t, count;
 
   if (mpz_cmp_ui(n,1) <= 0) {
     mpz_set(r, n);
@@ -121,18 +122,20 @@ void perfect_power_count(mpz_t r, mpz_t n)
 
   log2n = mpz_sizeinbase(n,2);
   mpz_init(t);
-  mpz_set_ui(r, 1);
+  mpz_init_set_ui(count, 1);
+  mu = range_moebius(0, log2n);
   for (k = 2; k <= log2n; k++) {
-    int m;
-    mpz_set_ui(t,k);
-    m = moebius(t);
+    int m = mu[k];
     if (m != 0) {
       mpz_root(t, n, k);
       mpz_sub_ui(t, t, 1);
-      if (m < 0) mpz_add(r, r, t);
-      else       mpz_sub(r, r, t);
+      if (m < 0) mpz_add(count, count, t);
+      else       mpz_sub(count, count, t);
     }
   }
+  Safefree(mu);
+  mpz_set(r, count);
+  mpz_clear(count);
   mpz_clear(t);
 }
 void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
