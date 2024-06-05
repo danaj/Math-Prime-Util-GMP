@@ -2077,7 +2077,7 @@ This is -1 raised to Ω(n) (the total number of prime factors).
 
   say "$n has ", prime_bigomega($n), " total factors";
 
-Returns Ω(n), the prime omega function returning the total number of
+Returns Ω(|n|), the prime omega function returning the total number of
 prime factors of n including multiplicities.
 The result is identical to C<scalar(factor($n))>.
 
@@ -2088,7 +2088,7 @@ and Mathematica's C<PrimeOmega[n]> function.
 
   say "$n has ", prime_omega($n), " distinct factors";
 
-Returns ω(n), the prime omega function returning the number of
+Returns ω(|n|), the prime omega function returning the number of
 distinct prime factors of n.
 The result is identical to C<scalar(factor_exp($n))>.
 

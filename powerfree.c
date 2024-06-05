@@ -265,6 +265,7 @@ void powerfree_count(mpz_t count, mpz_t n, uint32_t k)
 
 void nth_powerfree(mpz_t nth, mpz_t n, uint32_t k)
 {
+  uint32_t tol = (k>=6) ? 7 : (k==5) ? 10 : (k==4) ? 20 : (k==3) ? 400 : 2000;
   unsigned long prec;
   int cmp;
   mpf_t fzm, fqk, t;
@@ -295,10 +296,10 @@ void nth_powerfree(mpz_t nth, mpz_t n, uint32_t k)
 
   while (1) {
     powerfree_count(count, v, k);
-    if (mpz_sizeinbase(n,10) <= 16) break;
+    if (mpz_sizeinbase(n,2) <= 43) break;
     mpz_sub(diff, n, count);
     /* gmp_printf("qk %Zd  count %Zd  diff %Zd\n", v, count, diff); fflush(stdout); */
-    if (mpz_cmpabs_ui(diff, 40) <= 0) break;
+    if (mpz_cmpabs_ui(diff, tol) <= 0) break;
 
     /* Adjust difference for expected number of k-powerfree values */
     mpf_set_z(fqk,diff);
