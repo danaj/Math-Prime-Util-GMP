@@ -437,11 +437,15 @@ verification.  Proof types used include:
   BLS5
   Small
 
+
 =head2 is_pseudoprime
 
-Takes a positive number C<n> and one or more non-zero positive bases as input.
+Takes an integer C<n> and zero or more positive bases as input.
 Returns C<1> if the input is a probable prime to each base, C<0> if not.
 This is the simple Fermat primality test, checking that C<b^(n-1) = 1 mod n>.
+
+If no bases are given, base 2 is used.  All bases must be 2 or greater.
+
 Removing primes, given base 2 this produces the sequence L<OEIS A001567|http://oeis.org/A001567>.
 
 C<n=2> is always returned as a pseudoprime.  No other restrictions are used,
@@ -449,10 +453,13 @@ so for instance, 4 is a Fermat pseudoprime base 5.
 
 =head2 is_euler_pseudoprime
 
-Takes a positive number C<n> and one or more non-zero positive bases as input.
+Takes an integer C<n> and zero or more non-zero positive bases as input.
 Returns C<1> if the input is an Euler probable prime to each base, C<0> if not.
 This is the Euler test, sometimes called the Euler-Jacobi test,
 checking that C<kronecker(b,n) = b^((n-1)/2) mod n>
+
+If no bases are given, base 2 is used.  All bases must be 2 or greater.
+
 Removing primes, given base 2 this produces the sequence L<OEIS A047713|http://oeis.org/A047713>.
 
 C<n=2> is always returned as an Euler-Jacobi pseudoprime.
@@ -461,12 +468,14 @@ All bases not coprime to C<n> will return 0.
 
 =head2 is_strong_pseudoprime
 
-  my $maybe_prime = is_strong_pseudoprime($n, 2);
+  my $maybe_prime = is_strong_pseudoprime($n);
   my $probably_prime = is_strong_pseudoprime($n, 2, 3, 5, 7, 11, 13, 17);
 
-Takes a positive number C<n> and one or more non-zero positive bases as input.
+Takes an integer C<n> and zero or more non-zero positive bases as input.
 Returns C<1> if the input is a strong probable prime to each base, C<0> if not.
 This is often called the Miller-Rabin test.
+
+If no bases are given, base 2 is used.  All bases must be 2 or greater.
 
 If 0 is returned, then the number really is a composite.  If 1 is
 returned, then it is either a prime or a strong pseudoprime to all
@@ -507,11 +516,11 @@ A 0 result will not be returned for a prime C<n>, regardless of the base.
 
   my $maybe_prime = miller_rabin_random($n, 10); # 10 random bases
 
-Takes a positive number (C<n>) as input and a positive number (C<k>) of bases
-to use.  Performs C<k> Miller-Rabin tests using uniform random bases
-between 2 and C<n-2>.  This is the correct way to perform C<k> Miller-Rabin
-tests, rather than the common but broken method of using the first C<k>
-primes.
+Takes an integer C<n> as input and a positive number C<k> indicating the
+number of bases to use.  Performs C<k> Miller-Rabin tests using uniform
+random bases between 2 and C<n-2>.  This is the correct way to perform
+C<k> Miller-Rabin tests, rather than the common but broken method of using
+the first C<k> primes.
 
 An optional third argument may be given, which is a seed to use.  The seed
 should be a number either in decimal, binary with a leading C<0b>, hex with
@@ -532,7 +541,7 @@ a duplicate with a 65-bit input, and less than 2e-35 with a 128-bit input.
 
 =head2 is_strong_lucas_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input is a standard
+Given an integer C<n>, returns 1 if the input is a standard
 or strong Lucas probable prime.  The Selfridge method of choosing D, P, and
 Q are used (some sources call this a Lucas-Selfridge test).  This is one
 half of the BPSW primality test (the Miller-Rabin strong probable prime test
@@ -552,7 +561,7 @@ recommended by Baillie and Wagstaff in their 1980 paper.
 
 =head2 is_extra_strong_lucas_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input is an
+Given an integer C<n>, returns 1 if the input is an
 extra-strong Lucas probable prime.  This is defined in Grantham (2000),
 and is a slightly more stringent test than the strong Lucas test, though
 because different parameters are used the pseudoprimes are not a subset.
@@ -570,7 +579,7 @@ The parameters are selected using the Baillie-OEIS method:
 
 =head2 is_almost_extra_strong_lucas_pseudoprime
 
-Takes a positive number as input and returns 1 if the input is an "almost"
+Given an integer C<n>, returns 1 if the input is an "almost"
 extra-strong Lucas probable prime.  This is the classic extra-strong Lucas
 test but without calculating the U sequence.  This makes it very fast,
 although as the input increases in size the time converges to the conventional
@@ -595,18 +604,18 @@ counterexamples have been found with any of the Lucas tests described.
 
 =head2 is_euler_plumb_pseudoprime
 
-Takes a positive number C<n> as input and returns 1 if C<n> passes
+Given an integer C<n>, returns 1 if the input passes
 Colin Plumb's Euler Criterion primality test.  Pseudoprimes to this test
 are a subset of the base 2 Fermat and Euler tests, but a superset
 of the base 2 strong pseudoprime (Miller-Rabin) test.
 
-The main reason for this test is that is a bit more efficient
+The main reason for this test is that is very slightly more efficient
 than other probable prime tests.
 
 
 =head2 is_perrin_pseudoprime
 
-Takes a positive number C<n> as input and returns 1 if C<n> divides C<P(n)>
+Given an integer C<n>, returns 1 if C<n> divides C<P(n)>
 where C<P(n)> is the Perrin number of C<n>.  The Perrin sequence is defined by
 C<P(n) = P(n-2) + P(n-3)> with C<P(0) = 3, P(1) = 0, P(2) = 2>.
 
@@ -628,8 +637,8 @@ The minimal restricted pseudoprime sequence is L<OEIS A018187|http://oeis.org/A0
 
 =head2 is_frobenius_pseudoprime
 
-Takes a positive number C<n> as input, and two optional parameters C<a> and
-C<b>, and returns 1 if the C<n> is a Frobenius probable prime with respect
+Given an integer C<n> and two optional integer parameters C<a> and C<b>,
+returns 1 if C<n> is positive and a Frobenius probable prime with respect
 to the polynomial C<x^2 - ax + b>.  Without the parameters, C<b = 2> and
 C<a> is the least positive odd number such that C<(a^2-4b|n) = -1>.
 This selection has no pseudoprimes below C<2^64> and none known.  In any
@@ -637,12 +646,13 @@ case, the discriminant C<a^2-4b> must not be a perfect square.
 
 =head2 is_frobenius_underwood_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input passes the
-efficient Frobenius test of Paul Underwood.  This selects a parameter C<a>
-as the least non-negative integer such that C<(a^2-4|n)=-1>, then verifies that
-C<(x+2)^(n+1) = 2a + 5 mod (x^2-ax+1,n)>.  This combines a Fermat and Lucas
-test at a computational cost of about 2.5x a strong pseudoprime test.  This
-makes it similar to, but faster than, a standard Frobenius test.
+Given an integer C<n>, returns 1 if C<n> is positive and passes the
+efficient Frobenius test of Paul Underwood, and returns 0 otherwise.
+This selects a parameter C<a> as the least non-negative integer such that
+C<(a^2-4|n)=-1>, then verifies that C<(x+2)^(n+1) = 2a + 5 mod (x^2-ax+1,n)>.
+This combines a Fermat and Lucas test at a computational cost of about
+2.5x a strong pseudoprime test.
+This makes it similar to, but faster than, a standard Frobenius test.
 
 This test is deterministic (no randomness is used).  There are no known
 pseudoprimes to this test.  This test also has no overlap with the BPSW
@@ -650,8 +660,9 @@ test, making it a very effective method for adding additional certainty.
 
 =head2 is_frobenius_khashin_pseudoprime
 
-Takes a positive number as input, and returns 1 if the input passes the
-Frobenius test of Sergey Khashin.  This ensures C<n> is not a perfect square,
+Given an integer C<n>, returns 1 if C<n> is positive and
+passes the Frobenius test of Sergey Khashin, and returns 0 otherwise.
+The test verifies C<n> is not a perfect square,
 selects the parameter C<c> as the smallest odd prime such that C<(c|n)=-1>,
 then verifies that C<(1+D)^n = (1-D) mod n> where C<D = sqrt(c) mod n>.
 
@@ -660,7 +671,7 @@ There are no known pseudoprimes to this test.
 
 =head2 is_bpsw_prime
 
-Given a positive number input, returns 0 (composite), 2 (definitely prime),
+Given an integer input, returns 0 (composite), 2 (definitely prime),
 or 1 (probably prime), using the BPSW primality test (extra-strong variant).
 
 This function does the extra-strong BPSW test and nothing more.  That is,

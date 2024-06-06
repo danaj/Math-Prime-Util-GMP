@@ -156,29 +156,35 @@ is_pseudoprime(IN char* strn, ...)
     is_euler_pseudoprime = 1
     is_strong_pseudoprime = 2
   PREINIT:
-    int i;
-    mpz_t n, a;
+    int i, nbases;
+    mpz_t n, *A;
   CODE:
-    if (items < 2) croak("%s: no bases", GvNAME(CvGV(cv)));
-    validate_string_number(cv,"n",strn);
-    for (i = 1; i < items; i++) {
-      const char* strbase = SvPV_nolen(ST(i));
-      validate_string_number(cv, "base", strbase);
-      if (strbase[1] == '\0' && (strbase[0] == '0' || strbase[0] == '1'))
-        croak("Base %s is invalid", strbase);
-    }
-    mpz_init_set_str(n, strn, 10);
-    for (i = 1; i < items; i++) {
-      mpz_init_set_str(a, SvPV_nolen(ST(i)), 10);
-      switch (ix) {
-        case 0:  RETVAL = is_pseudoprime(n, a); break;
-        case 1:  RETVAL = is_euler_pseudoprime(n, a); break;
-        case 2:
-        default: RETVAL = miller_rabin(n, a); break;
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    if (items == 1) {
+      nbases = 1;
+      New(0, A, nbases, mpz_t);
+      mpz_init_set_ui(A[0], 2);
+    } else {
+      nbases = items-1;
+      New(0, A, nbases, mpz_t);
+      for (i = 1; i < items; i++) {
+        VALIDATE_AND_SET(A[i-1], SvPV_nolen(ST(i)));
+        if (mpz_cmp_ui(A[i-1], 2) < 0)
+          croak("Base %s is invalid", SvPV_nolen(ST(i)));
       }
-      mpz_clear(a);
-      if (!RETVAL) break;
     }
+    RETVAL = (mpz_cmp_ui(n,2) >= 0);
+    for (i = 0; RETVAL && i < nbases; i++) {
+      switch (ix) {
+        case 0:  RETVAL = is_pseudoprime(n, A[i]); break;
+        case 1:  RETVAL = is_euler_pseudoprime(n, A[i]); break;
+        case 2:
+        default: RETVAL = miller_rabin(n, A[i]); break;
+      }
+    }
+    for (i = 0; i < nbases; i++)
+      mpz_clear(A[i]);
+    Safefree(A);
     mpz_clear(n);
   OUTPUT:
     RETVAL
@@ -189,7 +195,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
   CODE:
     if (nbases < 0)
       croak("Parameter '%"IVdf"' must be a positive integer\n", nbases);
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
   OUTPUT:
@@ -235,8 +241,6 @@ is_lucas_pseudoprime(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    if ((strn != 0) && (strn[0] == '-') )
-      croak("Parameter '%s' must be a positive integer\n", strn);
     PRIMALITY_START("is_lucas_pseudoprime", 1, 0);
     switch (ix) {
       case 0: RETVAL = _GMP_is_lucas_pseudoprime(n, 0); break;
@@ -256,8 +260,6 @@ is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
   PREINIT:
     mpz_t n;
   CODE:
-    if ((strn != 0) && (strn[0] == '-') )
-      croak("Parameter '%s' must be a positive integer\n", strn);
     if (increment == 0 || increment > 65535)
       croak("Increment parameter must be >0 and < 65536");
     PRIMALITY_START("is_almost_extra_strong_lucas_pseudoprime", 1, 0);
@@ -271,8 +273,6 @@ is_frobenius_pseudoprime(IN char* strn, IN IV P = 0, IN IV Q = 0)
   PREINIT:
     mpz_t n;
   CODE:
-    if ((strn != 0) && (strn[0] == '-') )
-      croak("Parameter '%s' must be a positive integer\n", strn);
     PRIMALITY_START("is_frobenius_pseudoprime", 1, 0);
     RETVAL = is_frobenius_pseudoprime(n, P, Q);
     mpz_clear(n);

@@ -166,7 +166,7 @@ my @perrint = (
 );
 
 
-plan tests => 0 + 9
+plan tests => 0 + 8
                 + 3
                 + 6
                 + $num_pseudoprimes
@@ -189,10 +189,12 @@ plan tests => 0 + 9
                 + 3   # mrr with seed and neg bases
                 + 4  *scalar(@perrint)    # Perrin pseudoprime types
                 + 2   # Test for unusual single digit pseudoprimes
+                + 3   # Implicit base 2
                 + 0;
 
-eval { is_strong_pseudoprime(2047); };
-like($@, qr/no base/i, "is_strong_pseudoprime with no base fails");
+# no base is no implicit 2
+#eval { is_strong_pseudoprime(2047); };
+#like($@, qr/no base/i, "is_strong_pseudoprime with no base fails");
 eval { no warnings; is_strong_pseudoprime(2047, undef); };
 like($@, qr/(defined|empty)/i, "is_strong_pseudoprime with base undef fails");
 eval { is_strong_pseudoprime(2047, ''); };
@@ -207,15 +209,13 @@ eval { no warnings; is_strong_pseudoprime(undef, 2); };
 like($@, qr/(defined|empty)/i, "is_strong_pseudoprime(undef,2) is invalid");
 eval { is_strong_pseudoprime('', 2); };
 like($@, qr/(positive|empty)/i, "is_strong_pseudoprime('',2) is invalid");
-eval { is_strong_pseudoprime(-7, 2); };
-like($@, qr/positive/i, "is_strong_pseudoprime(-7,2) is invalid");
+is(is_strong_pseudoprime(-7), 0, "is_strong_pseudoprime(-7) returns 0");
 
 eval { no warnings; is_strong_lucas_pseudoprime(undef); };
 like($@, qr/empty string/i, "is_strong_lucas_pseudoprime(undef) is invalid");
 eval { is_strong_lucas_pseudoprime(''); };
 like($@, qr/empty string/i, "is_strong_lucas_pseudoprime('') is invalid");
-eval { is_strong_lucas_pseudoprime(-7); };
-like($@, qr/integer/i, "is_strong_lucas_pseudoprime(-7) is invalid");
+is(is_strong_lucas_pseudoprime(-7), 0, "is_strong_lucas_pseudoprime(-7) returns 0");
 
 
 is( is_strong_pseudoprime(0, 2), 0, "spsp(0, 2) shortcut composite");
@@ -466,3 +466,23 @@ for my $pdata (@perrint) {
 ###### Tests for Github #36
 ok( is_pseudoprime(4,5), "4 is a base 5 pseudoprime" );
 ok( is_pseudoprime(8,9), "8 is a base 9 pseudoprime" );
+
+###### Implicit base 2
+{
+  my(@ns) = (2047,3277,121,703,781,1541);
+  my(@carm) = (1729, 2821, 6601, 8911);
+
+  is_deeply( [map { is_pseudoprime($_, 2) } @ns],
+             [map { is_pseudoprime($_)    } @ns],
+             "implicit base 2" );
+
+  my(@bases235) = (2,3,5);
+  is_deeply( [map { is_pseudoprime($_, 2, 3, 5)   } @carm],
+             [map { is_pseudoprime($_, @bases235) } @carm],
+             "is_pseudoprime can take array of bases" );
+
+  my(@basesnull) = ();
+  is_deeply( [map { is_pseudoprime($_, 2)          } @ns],
+             [map { is_pseudoprime($_, @basesnull) } @ns],
+             "empty array of bases is implicit base 2" );
+}
