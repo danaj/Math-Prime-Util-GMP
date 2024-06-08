@@ -804,7 +804,7 @@ void bernvec(IN UV n)
   PPCODE:
     bernvec(&N, &D, n);  /* Cached array, do not destroy */
     if (GIMME_V != G_VOID) {
-      EXTEND(SP, n+1);
+      EXTEND(SP, (long)(n+1));
       for (i = 0; i <= n; i++) {
         AV* av = newAV();
         av_push(av, sv_return_for_mpz(N[i]));
@@ -1010,7 +1010,7 @@ is_square(IN char* strn)
         case 4:  RETVAL = is_practical(n);    break;
         case 5:  RETVAL = is_fundamental(n);  break;
         case 6:  RETVAL = is_perfect_power(n);break;
-        default: break;
+        default: RETVAL = 0; break;
       }
     }
     mpz_clear(n);
@@ -1032,7 +1032,7 @@ prime_omega(IN char* strn)
       case 1:  RETVAL = bigomega(n);       break;
       case 2:  RETVAL = mpz_popcount(n);   break;
       case 3:  RETVAL = is_square_free(n); break;
-      default: break;
+      default: RETVAL = 0; break;
     }
     mpz_clear(n);
   OUTPUT:
@@ -1049,7 +1049,7 @@ is_powerful(IN char* strn, IN UV k = 2)
     switch (ix) {
       case 0:  RETVAL = is_powerful(n, k);  break;
       case 1:  RETVAL = is_powerfree(n,k);  break;
-      default: break;
+      default: RETVAL = 0; break;
     }
     mpz_clear(n);
   OUTPUT:
@@ -1228,16 +1228,15 @@ invmod(IN char* stra, IN char* strb)
 int is_qr(IN char* stra, IN char* strn)
   PREINIT:
     mpz_t a, n;
-    int retval;
-  PPCODE:
+  CODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    retval = is_qr(a, n);
+    RETVAL = is_qr(a, n);
     mpz_clear(n); mpz_clear(a);
-    if (retval == -1)
+    if (RETVAL == -1)
       XSRETURN_UNDEF;
-    else
-      XSRETURN_IV(retval);
+  OUTPUT:
+    RETVAL
 
 void powersum(IN char* stra, IN char* strb)
   ALIAS:
@@ -1881,7 +1880,7 @@ void divisors(IN char* strn, IN char* strk = 0)
   PREINIT:
     mpz_t n, k;
     mpz_t* divs;
-    int ndivisors, i, j;
+    int ndivisors, i;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
     if (strk == 0) {

@@ -2385,14 +2385,14 @@ int tfall1(mpz_t n, UV B, mpz_t* pfactors[])
 
 int tfall2(mpz_t n, UV B, mpz_t* pfactors[])
 {
-  mpz_t t, nred, *factors = 0;
-  int ret = 1, nfactors = 0;
-  UV p, blo = 2, bhi = B;
+  mpz_t nred, *factors = 0;
+  int nfactors = 0;
+  UV p, e, blo = 2, bhi = B;
 
   mpz_init_set(nred, n);
   while (blo <= bhi && (p = _GMP_trial_factor(nred, blo, bhi)) > 0) {
     TF_ADD_FACTOR_UI(p);
-    uint32_t e = mpz_remove(nred, nred, factors[nfactors-1]);
+    e = mpz_remove(nred, nred, factors[nfactors-1]);
     while (e-- > 1)
       TF_ADD_FACTOR_UI(p);
     blo = p+1;
