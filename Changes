@@ -119,6 +119,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - znorder is slightly faster for general inputs, and much faster for n
       with many factors (e.g. a factorial).  Github #38.
 
+    - znprimroot with large powers is much faster.
+
     [OTHER]
 
     - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.

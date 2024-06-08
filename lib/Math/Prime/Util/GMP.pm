@@ -1577,13 +1577,16 @@ C<MultiplicativeOrder[a,n]> function.
 
 Given a positive integer C<n>, returns the smallest primitive root
 of C<(Z/nZ)^*>, or C<undef> if no root exists.  A root exists when
-C<euler_phi($n) == carmichael_lambda($n)>, which will be true for
-all prime C<n> and some composites.
+C<euler_phi($n) == carmichael_lambda($n)>, which will be true only if
+C<n one of {2, 4, p^k, 2p^k}> for odd prime p.
 
 L<OEIS A033948|http://oeis.org/A033948> is a sequence of integers where
 the primitive root exists, while L<OEIS A046145|http://oeis.org/A046145>
 is a list of the smallest primitive roots, which is what this function
 produces.
+
+This is similar to Pari/GP's C<znprimroot>, but always productes the smallest
+root even in the C<2p^k> case.
 
 
 =head2 is_primitive_root

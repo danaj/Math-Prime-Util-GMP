@@ -773,42 +773,126 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
   mpz_clear(t);
 }
 
+static int _znprimroot_prime(mpz_t root, const mpz_t p)
+{
+  mpz_t t, a, phi, *factors;
+  int i, nfactors, *exponents, found;
+
+  if (mpz_cmp_ui(p, 4) <= 0) {
+    if (mpz_cmp_ui(p, 1) < 0)  return 0;
+    mpz_sub_ui(root, p, 1);
+    return 1;
+  }
+  if (mpz_even_p(p) || !_GMP_is_prob_prime(p))  return 0;
+
+  /* p is an odd prime */
+
+  mpz_init(t);
+  mpz_init(a);
+  mpz_init(phi);
+  mpz_sub_ui(phi, p, 1);
+  nfactors = factor(phi, &factors, &exponents);
+
+  /* Replace each factor with phi/factor */
+  for (i = 0; i < nfactors; i++)
+    mpz_divexact(factors[i], phi, factors[i]);
+  mpz_clear(phi);
+
+  for (mpz_set_ui(a,2);  mpz_cmp(a,p) < 0;  mpz_add_ui(a,a,1)) {
+    if (!mpz_cmp_ui(a,4) || !mpz_cmp_ui(a,8) || !mpz_cmp_ui(a,9)) continue;
+    if (mpz_kronecker(a,p) != -1) continue;
+    for (i = 0; i < nfactors; i++) {
+      mpz_powm(t, a, factors[i], p);
+      if (mpz_cmp_ui(t, 1) == 0)
+        break;
+    }
+    if (i == nfactors) break;
+  }
+  found = (mpz_cmp(a,p) < 0);
+  if (found) mpz_set(root,a);
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(a);
+  mpz_clear(t);
+  return found;
+}
+static int _znprimroot_prime_power(mpz_t root, const mpz_t p, unsigned long k)
+{
+  mpz_t g, t, psquared;
+
+  if (k < 1) croak("_znprimroot_prime_power: bad input, k=0");
+  mpz_init(g);
+  if (!_znprimroot_prime(g, p)) { mpz_clear(g); return 0; }
+  if (k == 1) { mpz_set(root, g); mpz_clear(g); return 1; }
+  mpz_init(t);
+  mpz_sub_ui(t, p, 1);
+  mpz_init(psquared);
+  mpz_mul(psquared, p, p);
+  mpz_powm(t, g, t, psquared);
+  mpz_clear(psquared);
+  /* If g^(p-1) != 1 mod p^2, then g is also a primitive root for p^k. */
+  if (mpz_cmp_ui(t,1) != 0) {
+    mpz_set(root, g);
+    mpz_clear(t);
+    mpz_clear(g);
+    return 1;
+  }
+  /* Otherwise (rarely), g+p is a primitive root for p^k */
+  /* TODO: Can we use this to efficiently find the smallest root of p^k? */
+  mpz_clear(t);
+  mpz_clear(g);
+  return -1;
+}
+
 void znprimroot(mpz_t root, const mpz_t n)
 {
-  mpz_t t, phi, a, on, r, *factors;
-  int i, nfactors, *exponents, oddprime, k;
+  mpz_t N, pk, p, a, t, phi, *factors;
+  unsigned long k;
+  int i, nfactors, *exponents, is_oddprime, is_nodd, kr;
 
-  mpz_set_ui(root, 0);
   if (mpz_cmp_ui(n, 4) <= 0) {
-    if (mpz_sgn(n) > 0)
-      mpz_sub_ui(root, n, 1);
+    if (mpz_sgn(n) > 0) mpz_sub_ui(root, n, 1);
+    else                mpz_set_ui(root, 0);
     return;
   }
-  if (mpz_divisible_ui_p(n, 4))
-    return;
-
-  mpz_init(r);
-  mpz_init_set(on, n);
-  if (mpz_even_p(on))
-    mpz_tdiv_q_2exp(on, on, 1);
-  if (!power_factor(on, r))
-    mpz_set(r, on);
-  if (!_GMP_is_prob_prime(r)) {
-    mpz_clear(on);
-    mpz_clear(r);
+  if (mpz_divisible_ui_p(n, 4)) {
+    mpz_set_ui(root, 0);
     return;
   }
 
+  is_nodd = mpz_odd_p(n);
+  mpz_init(pk);
+  mpz_init(p);
+
+  if (is_nodd) mpz_set(pk, n);
+  else         mpz_tdiv_q_2exp(pk, n, 1);
+
+  k = power_factor(pk, p);
+  if (k == 0) { k = 1; mpz_set(p, pk); }
+  is_oddprime = (is_nodd && k == 1);
+
+  kr = _znprimroot_prime_power(root, p, k);
+  /* 0: we couldn't find a root for p.  p is probably not prime. */
+  if (kr == 0)    { mpz_set_ui(root, 0); mpz_clear(p); mpz_clear(pk); return; }
+  /* 1: we found a smallest root for odd n.  Very rare not to find. */
+  else if (kr == 1 && is_nodd)         { mpz_clear(p); mpz_clear(pk); return; }
+  /* 1: we found a root for even n.  It is the smallest if it is odd (~50%). */
+  else if (kr == 1 && mpz_odd_p(root)) { mpz_clear(p); mpz_clear(pk); return; }
+  /* We know a root is a+p (n odd) or a+p^k (n even)t, but that doesn't help. */
+
+  /* We have to find the smallest root mod n.  Lower k to 2 if higher. */
+  if (k > 2) {  /* Lower k to 2.  Primroot is identical. */
+    k = 2;
+    mpz_pow_ui(pk, p, k);
+  }
+  MPUassert( k==1 || k==2, "znprimroot, k should be 1 or 2");
+
+  mpz_init_set(N, pk);
+  if (!is_nodd) mpz_mul_2exp(N, N, 1);
   mpz_init(phi);
-  mpz_sub_ui(phi, r, 1);
-  mpz_divexact(on, on, r);
-  mpz_mul(phi, phi, on);
+  mpz_sub_ui(phi, p, 1);
+  if (k > 1) mpz_mul(phi, phi, p);   /* Because k={1,2} */
 
-  mpz_sub_ui(r,n,1);
-  oddprime = (mpz_cmp(r,phi) == 0);
-
-  mpz_clear(on);
-  mpz_clear(r);
+  mpz_clear(p);  mpz_clear(pk);
 
   mpz_init(t);
   mpz_init(a);
@@ -817,22 +901,26 @@ void znprimroot(mpz_t root, const mpz_t n)
   /* Replace each factor with phi/factor */
   for (i = 0; i < nfactors; i++)
     mpz_divexact(factors[i], phi, factors[i]);
+  mpz_clear(phi);
 
-  for (mpz_set_ui(a,2);  mpz_cmp(a,n) < 0;  mpz_add_ui(a,a,1)) {
+  for (mpz_set_ui(a,2);  mpz_cmp(a,N) < 0;  mpz_add_ui(a,a,1)) {
     if (!mpz_cmp_ui(a,4) || !mpz_cmp_ui(a,8) || !mpz_cmp_ui(a,9)) continue;
-    k = mpz_kronecker(a, n);
-    if ( (oddprime && k != -1) || (!oddprime && k == 0) ) continue;
+    kr = mpz_kronecker(a, N);
+    if (is_oddprime) { if (kr != -1) continue; }  /* N = odd prime */
+    else             { if (kr ==  0) continue; }
     for (i = 0; i < nfactors; i++) {
-      mpz_powm(t, a, factors[i], n);
+      mpz_powm(t, a, factors[i], N);
       if (mpz_cmp_ui(t, 1) == 0)
         break;
     }
-    if (i == nfactors) { mpz_set(root, a); break; }
+    if (i == nfactors) break;
   }
+  if (mpz_cmp(a,N) < 0)  mpz_set(root, a);
+  else                   mpz_set_ui(root, 0);
   clear_factors(nfactors, &factors, &exponents);
   mpz_clear(a);
   mpz_clear(t);
-  mpz_clear(phi);
+  mpz_clear(N);
 }
 
 static const int32_t tau_table[] = {
