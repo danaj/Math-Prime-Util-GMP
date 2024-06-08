@@ -18,7 +18,7 @@ static const unsigned char sprimes[NSMALLPRIMES] = {2,3,5,7,11,13,17,19,23,29,31
 
 
 /* 0 fail, 1 pass, -1 nothing.  Modifies base a */
-static int _preprocess_base(mpz_t n, mpz_t a)
+static int _preprocess_base(const mpz_t n, mpz_t a)
 {
   if (mpz_cmp_ui(a, 1) <= 0)
     croak("Base %ld is invalid", mpz_get_si(a));
@@ -35,7 +35,7 @@ static int _preprocess_base(mpz_t n, mpz_t a)
   return -1;
 }
 
-int is_pseudoprime(mpz_t n, mpz_t a)
+int is_pseudoprime(const mpz_t n, mpz_t a)
 {
   mpz_t nm1;
   int res;
@@ -51,7 +51,7 @@ int is_pseudoprime(mpz_t n, mpz_t a)
   return res;
 }
 
-int is_euler_pseudoprime(mpz_t n, mpz_t a)
+int is_euler_pseudoprime(const mpz_t n, mpz_t a)
 {
   mpz_t nm1, ap;
   int res;
@@ -83,7 +83,7 @@ int is_euler_pseudoprime(mpz_t n, mpz_t a)
   return res;
 }
 
-static int mrx(/*destroyed*/mpz_t x, /*destroyed*/ mpz_t d, mpz_t n, UV s)
+static int mrx(/*destroyed*/mpz_t x, /*destroyed*/ mpz_t d, const mpz_t n, UV s)
 {
   UV r;
   mpz_powm(x, x, d, n);
@@ -101,7 +101,7 @@ static int mrx(/*destroyed*/mpz_t x, /*destroyed*/ mpz_t d, mpz_t n, UV s)
 }
 
 
-int miller_rabin(mpz_t n, mpz_t a)
+int miller_rabin(const mpz_t n, mpz_t a)
 {
   mpz_t d, x;
   int cmpr, rval = 1;
@@ -128,7 +128,7 @@ int miller_rabin(mpz_t n, mpz_t a)
   mpz_clear(x);
   return rval;
 }
-int miller_rabin_ui(mpz_t n, unsigned long a)
+int miller_rabin_ui(const mpz_t n, unsigned long a)
 {
   mpz_t d, x;
   int cmpr, rval = 1;
@@ -155,7 +155,7 @@ int miller_rabin_ui(mpz_t n, unsigned long a)
   return rval;
 }
 
-int is_miller_prime(mpz_t n, int assume_grh)
+int is_miller_prime(const mpz_t n, int assume_grh)
 {
   mpz_t d, x, D;
   UV s, maxa, a;
@@ -209,7 +209,7 @@ int is_miller_prime(mpz_t n, int assume_grh)
   return rval;
 }
 
-int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
+int miller_rabin_random(const mpz_t n, UV numbases, char* seedstr)
 {
   gmp_randstate_t randstate;
   mpz_t t, base;
@@ -259,7 +259,7 @@ int miller_rabin_random(mpz_t n, UV numbases, char* seedstr)
 }
 
 
-int is_euler_plumb_pseudoprime(mpz_t n)
+int is_euler_plumb_pseudoprime(const mpz_t n)
 {
   unsigned int nmod8;
   mpz_t x, two;
@@ -354,7 +354,7 @@ int lucas_lehmer(UV p)
 }
 
 /* Returns:  -1 unknown, 0 composite, 2 definitely prime */
-int llr(mpz_t N)
+int llr(const mpz_t N)
 {
   mpz_t v, k, V, U, Qk, t;
   UV i, n, P;
@@ -414,7 +414,7 @@ DONE_LLR:
   return res;
 }
 /* Returns:  -1 unknown, 0 composite, 2 definitely prime */
-int proth(mpz_t N)
+int proth(const mpz_t N)
 {
   mpz_t v, k, a;
   UV n;
@@ -448,7 +448,7 @@ int proth(mpz_t N)
   }
   return res;
 }
-int is_proth_form(mpz_t N)
+int is_proth_form(const mpz_t N)
 {
   mpz_t v, k;
   UV n;
@@ -465,7 +465,7 @@ int is_proth_form(mpz_t N)
   return res;
 }
 
-static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
+static int lucas_selfridge_params(IV* P, IV* Q, const mpz_t n, mpz_t t)
 {
   IV D = 5;
   UV Dui = (UV) D;
@@ -488,7 +488,7 @@ static int lucas_selfridge_params(IV* P, IV* Q, mpz_t n, mpz_t t)
   return 1;
 }
 
-static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
+static int lucas_extrastrong_params(IV* P, IV* Q, const mpz_t n, mpz_t t, UV inc)
 {
   UV tP = 3;
   if (inc < 1 || inc > 256)
@@ -528,7 +528,7 @@ static int lucas_extrastrong_params(IV* P, IV* Q, mpz_t n, mpz_t t, UV inc)
  * Testing on my x86_64 machine, the strong Lucas code is over 35% faster than
  * T.R. Nicely's implementation, and over 40% faster than David Cleaver's.
  */
-int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
+int _GMP_is_lucas_pseudoprime(const mpz_t n, int strength)
 {
   mpz_t d, U, V, Qk, t;
   IV P, Q;
@@ -617,7 +617,7 @@ int _GMP_is_lucas_pseudoprime(mpz_t n, int strength)
  * Lucas pseudoprimes.  With increment = 2, we produce Pari's results (we've
  * added the necessary GCD with D so we produce somewhat fewer).
  */
-int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
+int _GMP_is_almost_extra_strong_lucas_pseudoprime(const mpz_t n, UV increment)
 {
   mpz_t d, V, W, t;
   UV P, s;
@@ -736,7 +736,7 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(mpz_t n, UV increment)
   return rval;
 }
 
-int is_perrin_pseudoprime(mpz_t n, int restricted)
+int is_perrin_pseudoprime(const mpz_t n, int restricted)
 {
   mpz_t S[6], T[6], T01, T34, T45, t;
   int cmpr, i, j, rval;
@@ -836,7 +836,7 @@ DONE_PERRIN:
   return rval;
 }
 
-int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
+int is_frobenius_pseudoprime(const mpz_t n, IV P, IV Q)
 {
   mpz_t t, Vcomp, d, U, V, Qk;
   IV D;
@@ -917,7 +917,7 @@ int is_frobenius_pseudoprime(mpz_t n, IV P, IV Q)
 }
 
 /* Use Crandall/Pomerance, steps from Loebenberger 2008 */
-int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
+int is_frobenius_cp_pseudoprime(const mpz_t n, UV ntests)
 {
   mpz_t t, a, b, d, w1, wm, wm1, m;
   UV tn;
@@ -1011,7 +1011,7 @@ int is_frobenius_cp_pseudoprime(mpz_t n, UV ntests)
 }
 
 /* New code based on draft paper */
-int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
+int _GMP_is_frobenius_underwood_pseudoprime(const mpz_t n)
 {
   mpz_t temp1, temp2, n_plus_1, s, t;
   unsigned long a, ap2, len;
@@ -1082,7 +1082,7 @@ int _GMP_is_frobenius_underwood_pseudoprime(mpz_t n)
   return rval;
 }
 
-int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
+int _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n)
 {
   mpz_t t, ta, tb, ra, rb, a, b, n_minus_1;
   unsigned long c = 1;
@@ -1153,7 +1153,7 @@ int _GMP_is_frobenius_khashin_pseudoprime(mpz_t n)
 
 
 
-int _GMP_BPSW(mpz_t n)
+int _GMP_BPSW(const mpz_t n)
 {
   if (mpz_cmp_ui(n, 4) < 0)
     return (mpz_cmp_ui(n, 1) <= 0) ? 0 : 2;
@@ -1171,7 +1171,7 @@ int _GMP_BPSW(mpz_t n)
 }
 
 /* Assume n is a BPSW PRP, return 1 (no result), 0 (composite), 2 (prime) */
-int is_deterministic_miller_rabin_prime(mpz_t n)
+int is_deterministic_miller_rabin_prime(const mpz_t n)
 {
   mpz_t t;
   int i, res = 1, maxp = 0;
@@ -1225,7 +1225,7 @@ int is_deterministic_miller_rabin_prime(mpz_t n)
  * find it a composite.
  */
 
-int _GMP_is_prob_prime(mpz_t n)
+int _GMP_is_prob_prime(const mpz_t n)
 {
   /*  Step 1: Look for small divisors.  This is done purely for performance.
    *          It is *not* a requirement for the BPSW test. */
@@ -1238,7 +1238,7 @@ int _GMP_is_prob_prime(mpz_t n)
   return _GMP_BPSW(n);
 }
 
-int is_bpsw_dmr_prime(mpz_t n)
+int is_bpsw_dmr_prime(const mpz_t n)
 {
   int prob_prime = _GMP_BPSW(n);
   if (prob_prime == 1) {
@@ -1248,7 +1248,7 @@ int is_bpsw_dmr_prime(mpz_t n)
   return prob_prime;
 }
 
-int _GMP_is_prime(mpz_t n)
+int _GMP_is_prime(const mpz_t n)
 {
   UV nbits;
   /* Similar to is_prob_prime, but put LLR before BPSW, then do more testing */
@@ -1334,7 +1334,7 @@ int _GMP_is_prime(mpz_t n)
 }
 
 
-int _GMP_is_provable_prime(mpz_t n, char** prooftext)
+int _GMP_is_provable_prime(const mpz_t n, char** prooftext)
 {
   int prob_prime = primality_pretest(n);
   if (prob_prime != 1)  return prob_prime;

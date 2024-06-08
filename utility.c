@@ -111,7 +111,7 @@ void mpz_isaac_urandomb(mpz_t rop, int nbits)
   }
 }
 
-void mpz_isaac_urandomm(mpz_t rop, mpz_t n)
+void mpz_isaac_urandomm(mpz_t rop, const mpz_t n)
 {
   int count = 80;
   unsigned long nbits = mpz_sizeinbase(n,2);
@@ -380,7 +380,7 @@ int  is_qr(mpz_t a, mpz_t n)
 }
 
 
-int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
+int mpz_divmod(mpz_t r, const mpz_t a, const mpz_t b, const mpz_t n, mpz_t t)
 {
   if (mpz_invert(t, b, n)) {
     mpz_mulmod(r, t, a, n, t); /* mpz_mul(t,t,a); mpz_mod(r,t,n); */
@@ -392,7 +392,7 @@ int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t)
 
 /* Smith-Cornacchia: Solve x,y for x^2 + |D|y^2 = p given prime p */
 /* See Cohen 1.5.2 */
-int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
+int cornacchia(mpz_t x, mpz_t y, const mpz_t D, const mpz_t p)
 {
   int result = 0;
   mpz_t a, b, c, d;
@@ -433,7 +433,7 @@ int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
 
 /* Modified Cornacchia, Solve x,y for x^2 + |D|y^2 = 4p given prime p */
 /* See Cohen 1.5.3 */
-int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p)
+int modified_cornacchia(mpz_t x, mpz_t y, const mpz_t D, const mpz_t p)
 {
   int result = 0;
   mpz_t a, b, c, d;
@@ -705,7 +705,7 @@ void mpz_veclcm(mpz_t* A, UV a, UV b) {
 }
 
 /* TODO: possible UV / unsigned long mismatch */
-UV logint(mpz_t n, UV base) {
+UV logint(const mpz_t n, UV base) {
   mpz_t nt;
   double logn, logbn, coreps;
   UV res, nbits;

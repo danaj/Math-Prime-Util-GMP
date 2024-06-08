@@ -134,7 +134,7 @@ static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexp
     } \
   }
 
-int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
+int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
   mpz_t tofac_stack[MAX_FACTORS];
   int ntofac = 0;
@@ -145,6 +145,7 @@ int factor(mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   UV tf, tlim;
 
   mpz_init_set(n, input_n);
+  mpz_abs(n,n);
   mpz_init(f);
   if (mpz_cmp_ui(n, 4) < 0) {
     if (mpz_cmp_ui(n, 1) != 0)    /* 1 should return no results */
@@ -426,12 +427,11 @@ void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
 
 
 /* TODO: Optimize to factor down to the last semiprime. */
-static void _omega(mpz_t n, uint32_t* omega, uint32_t* bigomega)
+static void _omega(const mpz_t n, uint32_t* omega, uint32_t* bigomega)
 {
   mpz_t* factors;
   int i, nfactors, result, *exponents;
 
-  mpz_abs(n,n);
   nfactors = factor(n, &factors, &exponents);
   if (bigomega != 0) {
     for (i = 0, result = 0; i < nfactors; i++)
@@ -443,20 +443,20 @@ static void _omega(mpz_t n, uint32_t* omega, uint32_t* bigomega)
   clear_factors(nfactors, &factors, &exponents);
 }
 
-uint32_t omega(mpz_t n)
+uint32_t omega(const mpz_t n)
 {
   uint32_t o;
   _omega(n, &o, 0);
   return o;
 }
-uint32_t bigomega(mpz_t n)
+uint32_t bigomega(const mpz_t n)
 {
   uint32_t bo;
   _omega(n, 0, &bo);
   return bo;
 }
 
-void sigma(mpz_t res, mpz_t n, unsigned long k)
+void sigma(mpz_t res, const mpz_t n, unsigned long k)
 {
   mpz_t* factors;
   mpz_t pk, pke, fmult;
@@ -519,14 +519,16 @@ void sigma(mpz_t res, mpz_t n, unsigned long k)
 
 static const signed char _smallmoebius[64] = {0,1,-1,-1,0,-1,1,-1,0,0,1,-1,0,-1,1,1,0,-1,0,-1,0,1,1,-1,0,0,1,0,0,-1,-1,-1,0,1,1,1,0,-1,1,1,0,-1,-1,-1,0,0,1,-1,0,0,0,1,0,-1,0,1,0,1,1,-1,0,-1,1,0};
 static const unsigned long _smalldiv[] = {4, 9, 25, 49, 121, 169, 289};
-int moebius(mpz_t n)
+int moebius(const mpz_t n)
 {
   uint32_t i, o, bo;
 
   if (mpz_sgn(n) < 0) {
-    mpz_neg(n,n);
-    o = moebius(n);
-    mpz_neg(n,n);
+    mpz_t t;
+    mpz_init(t);
+    mpz_neg(t,n);
+    o = moebius(t);
+    mpz_clear(t);
     return o;
   }
   if (mpz_cmp_ui(n,64) < 0) return _smallmoebius[mpz_get_ui(n)];
@@ -564,20 +566,20 @@ int is_square_free_ui(unsigned long n)
     return i;
   }
 }
-int is_square_free(mpz_t n)
+int is_square_free(const mpz_t n)
 {
   if (mpz_cmp_ui(n, 1000000U) <= 0)
     return is_square_free_ui(mpz_get_ui(n));
   return moebius(n) != 0;
 }
 
-int liouville(mpz_t n)
+int liouville(const mpz_t n)
 {
   uint32_t result = bigomega(n);
   return (result & 1)  ?  -1  : 1;
 }
 
-void totient(mpz_t tot, mpz_t n_input)
+void totient(mpz_t tot, const mpz_t n_input)
 {
   mpz_t t, n;
   mpz_t* factors;
@@ -771,7 +773,7 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
   mpz_clear(t);
 }
 
-void znprimroot(mpz_t root, mpz_t n)
+void znprimroot(mpz_t root, const mpz_t n)
 {
   mpz_t t, phi, a, on, r, *factors;
   int i, nfactors, *exponents, oddprime, k;
@@ -921,7 +923,7 @@ void ramanujan_tau(mpz_t res, mpz_t n)
   mpz_clear(t4); mpz_clear(t3); mpz_clear(t2); mpz_clear(t1); mpz_clear(t);
 }
 
-int is_semiprime(mpz_t n)
+int is_semiprime(const mpz_t n)
 {
   int ret;
   unsigned long k, div, lim = 6000;
@@ -989,7 +991,7 @@ int is_semiprime(mpz_t n)
 
 /*****************************************************************************/
 
-UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
+UV _GMP_trial_factor(const mpz_t n, UV from_n, UV to_n)
 {
   size_t log2n = mpz_sizeinbase(n, 2);
   UV p = 0;
@@ -1144,7 +1146,7 @@ UV _GMP_trial_factor(mpz_t n, UV from_n, UV to_n)
     if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
   }
 
-int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+int _GMP_prho_factor(const mpz_t n, mpz_t f, UV a, UV rounds)
 {
   mpz_t U, V, oldU, oldV, m;
   int i;
@@ -1192,7 +1194,7 @@ int _GMP_prho_factor(mpz_t n, mpz_t f, UV a, UV rounds)
   return 0;
 }
 
-int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
+int _GMP_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds)
 {
   mpz_t Xi, Xm, saveXi, m, t;
   UV i, r;
@@ -1259,7 +1261,7 @@ int _GMP_pbrent_factor(mpz_t n, mpz_t f, UV a, UV rounds)
  * repeat all the previous work.  ECM is much better for harder factorisations,
  * so we typically want to try a little p-1 then move to ECM (or QS).
  */
-int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
+int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
 {
   mpz_t a, savea, t;
   UV q, saveq, j, sqrtB1;
@@ -1447,7 +1449,7 @@ int _GMP_pminus1_factor(mpz_t n, mpz_t f, UV B1, UV B2)
     return 0;
 }
 
-static void pp1_pow(mpz_t X, mpz_t Y, unsigned long exp, mpz_t n)
+static void pp1_pow(mpz_t X, mpz_t Y, unsigned long exp, const mpz_t n)
 {
   mpz_t x0;
   unsigned long bit;
@@ -1480,7 +1482,7 @@ static void pp1_pow(mpz_t X, mpz_t Y, unsigned long exp, mpz_t n)
   mpz_clear(x0);
 }
 
-int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
+int _GMP_pplus1_factor(const mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
 {
   UV j, q, saveq, sqrtB1;
   mpz_t X, Y, saveX;
@@ -1574,7 +1576,7 @@ int _GMP_pplus1_factor(mpz_t n, mpz_t f, UV P0, UV B1, UV B2)
     return (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0);
 }
 
-int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
+int _GMP_cheb_factor(const mpz_t n, mpz_t f, UV B, UV initx)
 {
   unsigned long p;
   double logB;
@@ -1615,9 +1617,9 @@ int _GMP_cheb_factor(mpz_t n, mpz_t f, UV B, UV initx)
   return (mpz_cmp_ui(f, 1) > 0) && (mpz_cmp(f, n) < 0);
 }
 
-int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
+int _GMP_holf_factor(const mpz_t n, mpz_t f, UV rounds)
 {
-  mpz_t s, m;
+  mpz_t npre, s, m;
   UV i;
 
 #define PREMULT 480   /* 1  2  6  12  480  151200 */
@@ -1628,16 +1630,17 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
     return 1;
   }
 
-  mpz_mul_ui(n, n, PREMULT);
   mpz_init(s);
   mpz_init(m);
+  mpz_init(npre);
+  mpz_mul_ui(npre, n, PREMULT);
+
   for (i = 1; i <= rounds; i++) {
-    mpz_mul_ui(f, n, i);    /* f = n*i */
+    mpz_mul_ui(f, npre, i);    /* f = n*i */
     if (mpz_perfect_square_p(f)) {
       /* s^2 = n*i, so m = s^2 mod n = 0.  Hence f = GCD(n, s) = GCD(n, n*i) */
-      mpz_divexact_ui(n, n, PREMULT);
       mpz_gcd(f, f, n);
-      mpz_clear(s); mpz_clear(m);
+      mpz_clear(npre); mpz_clear(s); mpz_clear(m);
       if (mpz_cmp(f, n) == 0)  return 0;
       return 1;
     }
@@ -1646,22 +1649,20 @@ int _GMP_holf_factor(mpz_t n, mpz_t f, UV rounds)
     mpz_mul(m, s, s);
     mpz_sub(m, m, f);       /* m = s^2 mod n = s^2 - n*i */
     if (mpz_perfect_square_p(m)) {
-      mpz_divexact_ui(n, n, PREMULT);
       mpz_sqrt(f, m);
       mpz_sub(s, s, f);
       mpz_gcd(f, s, n);
-      mpz_clear(s); mpz_clear(m);
+      mpz_clear(npre); mpz_clear(s); mpz_clear(m);
       return (mpz_cmp_ui(f, 1) > 0);
     }
   }
-  mpz_divexact_ui(n, n, PREMULT);
   mpz_set(f, n);
-  mpz_clear(s); mpz_clear(m);
+  mpz_clear(npre); mpz_clear(s); mpz_clear(m);
   return 0;
 }
 
 /* See if n is a perfect power */
-unsigned long power_factor(mpz_t n, mpz_t f)
+unsigned long power_factor(const mpz_t n, mpz_t f)
 {
   unsigned long k = 1, b = 2;
   if (mpz_cmp_ui(n, 1) > 0 && mpz_perfect_power_p(n)) {
@@ -1690,7 +1691,7 @@ unsigned long power_factor(mpz_t n, mpz_t f)
 static int numcmp(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
 
-mpz_t * divisor_list(int *num_divisors, mpz_t n, mpz_t maxd)
+mpz_t * divisor_list(int *num_divisors, const mpz_t n, mpz_t maxd)
 {
   mpz_t *factors, *divs, mult, t;
   int nfactors, ndivisors, i, j, k, count, *exponents;
@@ -1733,7 +1734,7 @@ mpz_t * divisor_list(int *num_divisors, mpz_t n, mpz_t maxd)
   return divs;
 }
 
-int is_smooth(mpz_t n, mpz_t k) {
+int is_smooth(const mpz_t n, const mpz_t k) {
   mpz_t *factors;
   mpz_t N;
   uint32_t khi, res;
@@ -1775,7 +1776,7 @@ int is_smooth(mpz_t n, mpz_t k) {
   return res;
 }
 
-int is_rough(mpz_t n, mpz_t k) {
+int is_rough(const mpz_t n, const mpz_t k) {
   mpz_t *factors;
   mpz_t N, f;
   int i, nfactors, *exponents;
@@ -1846,7 +1847,7 @@ int is_rough(mpz_t n, mpz_t k) {
   return i >= nfactors;
 }
 
-int is_powerful(mpz_t n, uint32_t k) {
+int is_powerful(const mpz_t n, uint32_t k) {
   mpz_t *factors;
   mpz_t N, f;
   int i, nfactors, *exponents;
@@ -1910,26 +1911,33 @@ int is_powerful(mpz_t n, uint32_t k) {
   return i >= nfactors;
 }
 
-int is_almost_prime(uint32_t k, mpz_t n)
+int is_almost_prime(uint32_t k, const mpz_t n)
 {
 #if 0
   if (k == 0)  return (mpz_cmp_ui(n,1) == 0) ? 1 : 0;
   if (k == 1)  return _GMP_is_prime(n) ? 1 : 0;
   if (k == 2)  return is_semiprime(n);
 #endif
-  while (k > 0 && mpz_even_p(n))           { k--; mpz_divexact_ui(n,n,2); }
-  while (k > 0 && mpz_divisible_ui_p(n,3)) { k--; mpz_divexact_ui(n,n,3); }
-  while (k > 0 && mpz_divisible_ui_p(n,5)) { k--; mpz_divexact_ui(n,n,5); }
-  while (k > 0 && mpz_divisible_ui_p(n,7)) { k--; mpz_divexact_ui(n,n,7); }
-  if (k == 0)  return (mpz_cmp_ui(n,1) == 0) ? 1 : 0;
-  if (k == 1)  return _GMP_is_prime(n) ? 1 : 0;
-  if (k == 2)  return is_semiprime(n);
+  mpz_t nr;
+  int res;
+
+  mpz_init_set(nr, n);
+  while (k > 0 && mpz_even_p(nr))           { k--; mpz_divexact_ui(nr,nr,2); }
+  while (k > 0 && mpz_divisible_ui_p(nr,3)) { k--; mpz_divexact_ui(nr,nr,3); }
+  while (k > 0 && mpz_divisible_ui_p(nr,5)) { k--; mpz_divexact_ui(nr,nr,5); }
+  while (k > 0 && mpz_divisible_ui_p(nr,7)) { k--; mpz_divexact_ui(nr,nr,7); }
 
   /* Optimally, we should be factoring one at a time.  This will let us
    * exit early if we find too many factors, and stop when we get a final
-   * semiprime.  This is all rather tedious. */
+   * semiprime.  This is tedious without an efficient factor iterator. */
 
-  return bigomega(n) == k;
+  if      (k == 0)  res = mpz_cmp_ui(nr,1) == 0;
+  else if (k == 1)  res = _GMP_is_prime(nr);
+  else if (k == 2)  res = is_semiprime(nr);
+  else              res = bigomega(nr) == k;
+
+  mpz_clear(nr);
+  return res ? 1 : 0;
 }
 
 /******************************************************************************/
@@ -2029,7 +2037,7 @@ typedef struct {
   uint32_t nfound;
 } tf_iterator_t;
 
-void* trial_factor_iterator_create(mpz_t n, unsigned long B)
+void* trial_factor_iterator_create(const mpz_t n, unsigned long B)
 {
   tf_iterator_t *iter;
   New(0, iter, 1, tf_iterator_t);

@@ -8,12 +8,12 @@ extern void _GMP_init(void);
 extern void _GMP_destroy(void);
 extern void _GMP_memfree(void);
 
-extern int  primality_pretest(mpz_t n);
-extern int  is_trial_prime(mpz_t n);
+extern int  primality_pretest(const mpz_t n);
+extern int  is_trial_prime(const mpz_t n);
 
 extern void _GMP_next_prime(mpz_t n);
 extern void _GMP_prev_prime(mpz_t n);
-extern void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width);
+extern void surround_primes(const mpz_t n, UV* prev, UV* next, UV skip_width);
 
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, UV n);

@@ -67,7 +67,7 @@ typedef struct
 } mult_t;
 
 /* Return 0 or factor */
-static SQUFOF_TYPE squfof_unit(mpz_t n, mult_t* mult_save, mpz_t t)
+static SQUFOF_TYPE squfof_unit(const mpz_t n, mult_t* mult_save, mpz_t t)
 {
   SQUFOF_TYPE imax,i,j,Q0,Qn,bn,b0,P,bbn,Ro,S,So,t1,t2;
 
@@ -191,7 +191,7 @@ static const SQUFOF_TYPE squfof_multipliers[] =
 #endif
 #define NSQUFOF_MULT (sizeof(squfof_multipliers)/sizeof(squfof_multipliers[0]))
 
-int squfof126(mpz_t n, mpz_t f, UV rounds)
+int squfof126(const mpz_t n, mpz_t f, UV rounds)
 {
   mpz_t t, nn64;
   mult_t mult_save[NSQUFOF_MULT];

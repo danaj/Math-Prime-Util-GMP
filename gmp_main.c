@@ -107,7 +107,7 @@ static int is_tiny_prime(uint32_t n) {
   return 2;
 }
 
-int primality_pretest(mpz_t n)
+int primality_pretest(const mpz_t n)
 {
   if (mpz_cmp_ui(n, 100000) < 0)
     return is_tiny_prime((uint32_t)mpz_get_ui(n));
@@ -184,7 +184,7 @@ int primality_pretest(mpz_t n)
  * We basically never want to use this for anything practical,
  * but it is good for testing and comparison.
  */
-int is_trial_prime(mpz_t n)
+int is_trial_prime(const mpz_t n)
 {
   mpz_t sqrtn;
   uint32_t res, p, lim;
@@ -388,7 +388,7 @@ void _GMP_prev_prime(mpz_t n)
   }
 }
 
-void surround_primes(mpz_t n, UV* prev, UV* next, UV skip_width) {
+void surround_primes(const mpz_t n, UV* prev, UV* next, UV skip_width) {
   UV i, j, log2n, log2log2n, width, depth, fprev, fnext, search_merits;
   uint32_t* comp;
   mpz_t t, base;

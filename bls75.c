@@ -120,7 +120,7 @@ static const int maxuibits = (sizeof(unsigned long) > BITS_PER_WORD)
 
 
 
-static int tfe(mpz_t f, mpz_t n, int effort)
+static int tfe(mpz_t f, const mpz_t n, int effort)
 {
   int success = 0;
   UV log2n = mpz_sizeinbase(n, 2);
@@ -277,8 +277,8 @@ static int factor_test_ui(unsigned long f, mpz_t R, mpz_t F, fstack_t* s) {
   return 0;
 }
 
-typedef int (*bls_func_t)(mpz_t, int, char**);
-typedef int (*limit_func_t)(mpz_t, mpz_t, mpz_t, UV, mpz_t,mpz_t,mpz_t,mpz_t);
+typedef int (*bls_func_t)(const mpz_t, int, char**);
+typedef int (*limit_func_t)(const mpz_t, mpz_t, mpz_t, UV, mpz_t,mpz_t,mpz_t,mpz_t);
 
 static void handle_factor(mpz_t f, mpz_t R, mpz_t F,
                           fstack_t* sf, fstack_t* sm,
@@ -318,7 +318,7 @@ static void handle_factor2(mpz_t f, mpz_t R, mpz_t F,
   }
 }
 
-static void trim_factors(mpz_t F, mpz_t R, mpz_t n, mpz_t n_pm_one, UV B, fstack_t* fs, limit_func_t func, mpz_t t, mpz_t m, mpz_t r, mpz_t s) {
+static void trim_factors(mpz_t F, mpz_t R, const mpz_t n, mpz_t n_pm_one, UV B, fstack_t* fs, limit_func_t func, mpz_t t, mpz_t m, mpz_t r, mpz_t s) {
   int i;
   if (ev > 1) gmp_printf("Starting trim with F %Zd R %Zd\n", F, R);
   if (fs->cur > 1) {
@@ -382,7 +382,7 @@ static void fstack_tidy(fstack_t* s, UV B) {
 /******************************************************************************/
 
 
-static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B, UV dummy,
+static int bls_theorem5_limit(const mpz_t n, mpz_t A, mpz_t B, UV dummy,
                               mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
   mpz_mul(t, A, B);
@@ -402,7 +402,7 @@ static int bls_theorem5_limit(mpz_t n, mpz_t A, mpz_t B, UV dummy,
 
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
-static int bls_theorem7_limit(mpz_t n, mpz_t F1, mpz_t R1, UV B1,
+static int bls_theorem7_limit(const mpz_t n, mpz_t F1, mpz_t R1, UV B1,
                               mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
   mpz_mul(t, F1, R1);
@@ -457,7 +457,7 @@ static int bls_theorem17_limit(mpz_t n, mpz_t F2, mpz_t R2, UV dummy,
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
 #endif
-static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
+static int bls_theorem19_limit(const mpz_t n, mpz_t F2, mpz_t R2, UV B2,
                                mpz_t t, mpz_t y, mpz_t r, mpz_t s)
 {
   mpz_mul(t, F2, R2);
@@ -483,7 +483,7 @@ static int bls_theorem19_limit(mpz_t n, mpz_t F2, mpz_t R2, UV B2,
   return (mpz_cmp(n, y) < 0) ? 1 : 0;
 }
 
-static int bls_corollary11_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2, UV B,
+static int bls_corollary11_limit(const mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2, UV B,
                                  mpz_t t, mpz_t g, mpz_t r, mpz_t s)
 {
   if (mpz_cmp(F1,F2) >= 0) {
@@ -500,7 +500,7 @@ static int bls_corollary11_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2, UV B,
   return (mpz_cmp(n, t) < 0);
 }
 
-static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
+static int bls_theorem20_limit(const mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
                                UV B, UV m,
                                mpz_t t, mpz_t g, mpz_t r, mpz_t s)
 {
@@ -551,7 +551,7 @@ static int bls_theorem20_limit(mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
 /* (I) For each prime p_i dividing F1 [N-1 = F1R1] there exists an a_i
  *     such that N is a psp base a_i and gcd(a_i^{(N-1)/p_i}-1,N) = 1.
  */
-static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, char* pspcache)
+static int _verify_cond_I_p(const mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, char* pspcache)
 {
   int a, success = 0;
   PRIME_ITERATOR(iter);
@@ -619,7 +619,7 @@ static int _verify_cond_I_p(mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, ch
  *       [Note: All sequences used must have the same D.]
  */
 
-static int _test_III_D(mpz_t n, mpz_t np1, IV D, IV P, IV Q, fstack_t* qi, mpz_t R2, mpz_t t, mpz_t U, mpz_t t1, mpz_t t2)
+static int _test_III_D(const mpz_t n, mpz_t np1, IV D, IV P, IV Q, fstack_t* qi, mpz_t R2, mpz_t t, mpz_t U, mpz_t t1, mpz_t t2)
 {
   mpz_t t3;
   char *qdone;
@@ -674,7 +674,7 @@ static int _test_III_D(mpz_t n, mpz_t np1, IV D, IV P, IV Q, fstack_t* qi, mpz_t
   return (nqileft == 0)  ?  2 /* Prime */  :  1 /* Not sure */;
 }
 
-static int _test_III_IV(mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
+static int _test_III_IV(const mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
                         mpz_t t, mpz_t m, mpz_t r, mpz_t s)
 {
   PRIME_ITERATOR(iter);
@@ -723,7 +723,7 @@ static int _test_III_IV(mpz_t n, mpz_t np1, mpz_t R2, fstack_t* fstack,
    *    0   no proof.  We can't say anything about n.
    *    2   definitely prime.
    */
-static int _prove_T19(mpz_t n, mpz_t np1, mpz_t F2, mpz_t R2, UV B2,
+static int _prove_T19(const mpz_t n, mpz_t np1, mpz_t F2, mpz_t R2, UV B2,
                       fstack_t* fstack, mpz_t t, mpz_t m, mpz_t r, mpz_t s)
 {
   trim_factors(F2, R2, n, np1, B2, fstack, &bls_theorem19_limit, t, m, r, s);
@@ -745,7 +745,7 @@ static int _prove_T19(mpz_t n, mpz_t np1, mpz_t F2, mpz_t R2, UV B2,
 
 
 
-int BLS_primality_nm1(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality_nm1(const mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, F1, R1, t, m, f, r, s;
   FACTOR_STACK(fstack);
@@ -924,7 +924,7 @@ start_nm1_proof:
 }
 
 
-int BLS_primality_np1(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality_np1(const mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t np1, F2, R2, t, m, f, r, s;
   FACTOR_STACK(fstack);
@@ -1045,7 +1045,7 @@ start_np1_proof:
  *    Comb  Theorem 20
  *    Comb  Corollary 11
  */
-int BLS_primality(mpz_t n, int effort, char** prooftextptr)
+int BLS_primality(const mpz_t n, int effort, char** prooftextptr)
 {
   mpz_t nm1, np1, F1, F2, R1, R2;
   mpz_t r, s, t, u, f, c1, c2;
@@ -1331,7 +1331,7 @@ end_hybrid:
 /******************************************************************************/
 
 /* Given an n where we're factored n-1 down to p, check BLS theorem 3 */
-int BLS_check_T3(mpz_t n, mpz_t p, UV* reta)
+int BLS_check_T3(const mpz_t n, const mpz_t p, UV* reta)
 {
   mpz_t nm1, m, t, t2;
   int rval = 0;
@@ -1385,7 +1385,7 @@ end_bls3:
 }
 
 /* Given an n where we're factored n+1 down to f, check BLS theorem 15 */
-int BLS_check_T15(mpz_t n, mpz_t f, IV* lp, IV* lq)
+int BLS_check_T15(const mpz_t n, const mpz_t f, IV* lp, IV* lq)
 {
   mpz_t np1, m, t, t2;
   int rval = 0;

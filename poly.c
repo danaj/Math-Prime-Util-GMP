@@ -185,7 +185,7 @@ void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, mpz_t mod)
   while (*dn > 0 && mpz_sgn(pres[*dn-1]) == 0)
     *dn -= 1;
 }
-void polyz_mod(mpz_t *pres, mpz_t *pn, long *dn, mpz_t mod)
+void polyz_mod(mpz_t *pres, mpz_t *pn, long *dn, const mpz_t mod)
 {
   long i;
   for (i = 0; i <= *dn; i++) {
@@ -231,7 +231,7 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 }
 #endif
 #if 1
-void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, mpz_t mod)
+void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, const mpz_t mod)
 {
   UV i, bits, r;
   mpz_t p, p2, t;
@@ -274,7 +274,7 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 }
 #endif
 #if 0
-void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, mpz_t mod)
+void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, const mpz_t mod)
 {
   UV i, bytes, r;
   char* s;
@@ -327,7 +327,7 @@ void polyz_mulmod(mpz_t* pr, mpz_t* px, mpz_t *py, long *dr, long dx, long dy, m
 /* Polynomial division modulo N.
  * This is Cohen algorithm 3.1.2 "pseudo-division". */
 void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
-               long *dq, long *dr, long dn, long dd, mpz_t NMOD)
+               long *dq, long *dr, long dn, long dd, mpz_t const NMOD)
 {
   long i, j;
   mpz_t t;
@@ -391,7 +391,7 @@ void polyz_div(mpz_t *pq, mpz_t *pr, mpz_t *pn, mpz_t *pd,
 /* Raise poly pn to the power, modulo poly pmod and coefficient NMOD. */
 void polyz_pow_polymod(mpz_t* pres,  mpz_t* pn,  mpz_t* pmod,
                               long *dres,   long   dn,  long   dmod,
-                              mpz_t power, mpz_t NMOD)
+                              const mpz_t power, const mpz_t NMOD)
 {
   mpz_t mpow;
   long dProd, dQ, dX, maxd, i;
@@ -439,7 +439,7 @@ void polyz_pow_polymod(mpz_t* pres,  mpz_t* pn,  mpz_t* pmod,
   Safefree(pX);
 }
 
-void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, mpz_t MODN)
+void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, const mpz_t MODN)
 {
   long i;
   long dr1, dq, dr, maxd;
@@ -508,14 +508,14 @@ void polyz_gcd(mpz_t* pres, mpz_t* pa, mpz_t* pb, long* dres, long da, long db, 
 
 
 
-void polyz_root_deg1(mpz_t root, mpz_t* pn, mpz_t NMOD)
+void polyz_root_deg1(mpz_t root, mpz_t* pn, const mpz_t NMOD)
 {
   mpz_invert(root, pn[1], NMOD);
   mpz_mul(root, root, pn[0]);
   mpz_neg(root, root);
   mpz_mod(root, root, NMOD);
 }
-void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD)
+void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, const mpz_t NMOD)
 {
   mpz_t e, d, t, t2, t3, t4;
 
@@ -542,7 +542,7 @@ void polyz_root_deg2(mpz_t root1, mpz_t root2, mpz_t* pn, mpz_t NMOD)
  * Step 3/4 of Cohen Algorithm 1.6.1.
  * Uses some hints from Pate Williams (1997-1998) for the poly math */
 static void polyz_roots(mpz_t* roots, long *nroots,
-                        long maxroots, mpz_t* pg, long dg, mpz_t NMOD)
+                        long maxroots, mpz_t* pg, long dg, const mpz_t NMOD)
 {
   long i, ntries, maxtries, maxd, dxa, dt, dh, dq, dup;
   mpz_t t, power;
@@ -657,7 +657,7 @@ static void polyz_roots(mpz_t* roots, long *nroots,
 
 /* Algorithm 1.6.1 from Cohen, minus step 1. */
 void polyz_roots_modp(mpz_t** roots, long *nroots, long maxroots,
-                      mpz_t *pP, long dP, mpz_t NMOD)
+                      mpz_t *pP, long dP, const mpz_t NMOD)
 {
   long i;
 

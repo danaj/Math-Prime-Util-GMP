@@ -5,7 +5,7 @@
 #include "utility.h"
 
 
-void lucasuv(mpz_t Uh, mpz_t Vl, mpz_t P, mpz_t Q, mpz_t k)
+void lucasuv(mpz_t Uh, mpz_t Vl, const mpz_t P, const mpz_t Q, const mpz_t k)
 {
   mpz_t Vh, Ql, Qh, t;
   int j, s, n;
@@ -59,12 +59,11 @@ void lucasuv(mpz_t Uh, mpz_t Vl, mpz_t P, mpz_t Q, mpz_t k)
 }
 
 /* No argument checking is done in this internal function. */
-void internal_lucas_vmod_q1(mpz_t V, mpz_t W, mpz_t P, mpz_t k, mpz_t n)
+void internal_lucas_vmod_q1(mpz_t V, mpz_t W, const mpz_t P, const mpz_t k, const mpz_t n)
 {
   int b = mpz_sizeinbase(k, 2);
 
-  mpz_mod(P, P, n);
-  mpz_set(V, P);
+  mpz_mod(V, P, n);
   mpz_mul(W, P, P);
   mpz_sub_ui(W, W, 2);  /*   V_{k} = V = P,  V_{k+1} = W = P*P-2   */
   mpz_mod(W, W, n);
@@ -83,7 +82,7 @@ void internal_lucas_vmod_q1(mpz_t V, mpz_t W, mpz_t P, mpz_t k, mpz_t n)
 }
 
 
-void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+void lucasuvmod(mpz_t U, mpz_t V, const mpz_t P, const mpz_t Q, const mpz_t k, const mpz_t n, mpz_t t)
 {
 #if 0
   { lucasuv(U, V, P, Q, k);   /* This will be horribly slow with large k */
@@ -306,7 +305,7 @@ void lucasuvmod(mpz_t U, mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
 
 
 /* Returns Lucas sequence  U_k mod n and V_k mod n  defined by P,Q */
-void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
+void lucas_seq(mpz_t U, mpz_t V, const mpz_t n, IV P, IV Q, const mpz_t k,
                mpz_t Qk, mpz_t t)
 {
   mpz_t mP, mQ;
@@ -319,7 +318,7 @@ void lucas_seq(mpz_t U, mpz_t V, mpz_t n, IV P, IV Q, mpz_t k,
 }
 
 #if 1
-void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+void lucasvmod(mpz_t V, const mpz_t P, const mpz_t Q, const mpz_t k, const mpz_t n, mpz_t t)
 {
   mpz_t U, Pmod, Qmod, Dmod;
 
@@ -362,7 +361,7 @@ void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   }
 }
 #else
-void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+void lucasvmod(mpz_t V, const mpz_t P, const mpz_t Q, const mpz_t k, const mpz_t n, mpz_t t)
 {
   mpz_t U;
   mpz_init(U);
@@ -370,7 +369,7 @@ void lucasvmod(mpz_t V, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
   mpz_clear(U);
 }
 #endif
-void lucasumod(mpz_t U, mpz_t P, mpz_t Q, mpz_t k, mpz_t n, mpz_t t)
+void lucasumod(mpz_t U, const mpz_t P, const mpz_t Q, const mpz_t k, const mpz_t n, mpz_t t)
 {
   mpz_t V;
   mpz_init(V);

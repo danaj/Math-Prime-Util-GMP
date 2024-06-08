@@ -4,6 +4,6 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern int squfof126(mpz_t n, mpz_t f, UV rounds);
+extern int squfof126(const mpz_t n, mpz_t f, UV rounds);
 
 #endif

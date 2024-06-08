@@ -118,7 +118,7 @@ void destroy_ecpp_gcds(void) {
  * straight to the base-2 Miller-Rabin test we use in BPSW. */
 #define is_bpsw_prime(n) _GMP_BPSW(n)
 
-static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs, int degree)
+static int check_for_factor(mpz_t f, const mpz_t inputn, const mpz_t fmin, mpz_t n, int stage, mpz_t* sfacs, int* nsfacs, int degree)
 {
   int success, sfaci;
   UV B1;
@@ -267,7 +267,7 @@ static int check_for_factor(mpz_t f, mpz_t inputn, mpz_t fmin, mpz_t n, int stag
  *   (3) Konstantinou, Stamatiou, and Zaroliagis (CHES 2002)
  * This code is performing table 1 of reference 3.
  */
-static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
+static void weber_root_to_hilbert_root(mpz_t r, const mpz_t N, long D)
 {
   mpz_t A, t;
 
@@ -323,7 +323,7 @@ static void weber_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
  *   Konstantinou and Kontogeorgis (2008) https://arxiv.org/abs/0804.1652
  *   http://www.math.leidenuniv.nl/~psh/konto5.pdf
  */
-static void ramanujan_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
+static void ramanujan_root_to_hilbert_root(mpz_t r, const mpz_t N, long D)
 {
   mpz_t A, t;
 
@@ -346,7 +346,7 @@ static void ramanujan_root_to_hilbert_root(mpz_t r, mpz_t N, long D)
 }
 
 
-static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroots)
+static int find_roots(long D, int poly_index, const mpz_t N, mpz_t** roots, int maxroots)
 {
   mpz_t* T;
   UV degree;
@@ -390,7 +390,8 @@ static int find_roots(long D, int poly_index, mpz_t N, mpz_t** roots, int maxroo
 }
 
 static void select_curve_params(mpz_t a, mpz_t b, mpz_t g,
-                                long D, mpz_t *roots, long i, mpz_t N, mpz_t t)
+                                long D, mpz_t *roots, long i, const mpz_t N,
+                                mpz_t t)
 {
   int N_is_not_1_congruent_3;
 
@@ -433,7 +434,7 @@ static void select_curve_params(mpz_t a, mpz_t b, mpz_t g,
     mpz_set_ui(g, 0);
 }
 
-static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
+static void select_point(mpz_t x, mpz_t y, const mpz_t a, const mpz_t b, const mpz_t N,
                          mpz_t t, mpz_t t2)
 {
   mpz_t Q, t3, t4;
@@ -464,7 +465,8 @@ static void select_point(mpz_t x, mpz_t y, mpz_t a, mpz_t b, mpz_t N,
 }
 
 /* Returns 0 (composite), 1 (didn't find a point), 2 (found point) */
-int ecpp_check_point(mpz_t x, mpz_t y, mpz_t m, mpz_t q, mpz_t a, mpz_t N,
+int ecpp_check_point(const mpz_t x, const mpz_t y,
+                     const mpz_t m, const mpz_t q, mpz_t a, const mpz_t N,
                      mpz_t t, mpz_t t2)
 {
   struct ec_affine_point P, P1, P2;
@@ -495,7 +497,7 @@ int ecpp_check_point(mpz_t x, mpz_t y, mpz_t m, mpz_t q, mpz_t a, mpz_t N,
   return result;
 }
 
-static void update_ab(mpz_t a, mpz_t b, long D, mpz_t g, mpz_t N)
+static void update_ab(mpz_t a, mpz_t b, long D, const mpz_t g, const mpz_t N)
 {
   if      (D == -3) { mpz_mul(b, b, g); }
   else if (D == -4) { mpz_mul(a, a, g); }
@@ -515,7 +517,8 @@ static void update_ab(mpz_t a, mpz_t b, long D, mpz_t g, mpz_t N)
  * It's debatable what to do with a 1 return.
  */
 static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
-                      long D, int poly_index, mpz_t m, mpz_t q, mpz_t N, int maxroots)
+                      long D, int poly_index,
+                      const mpz_t m, const mpz_t q, const mpz_t N, int maxroots)
 {
   long nroots, npoints, i, rooti, unity, result;
   mpz_t g, t, t2;
@@ -568,7 +571,8 @@ static int find_curve(mpz_t a, mpz_t b, mpz_t x, mpz_t y,
 }
 
 /* Select the 2, 4, or 6 numbers we will try to factor. */
-static void choose_m(mpz_t* mlist, long D, mpz_t u, mpz_t v, mpz_t N,
+static void choose_m(mpz_t* mlist, long D,
+                     const mpz_t u, const mpz_t v, const mpz_t N,
                      mpz_t t, mpz_t Nplus1)
 {
   int i, j;
@@ -629,7 +633,7 @@ static void choose_m(mpz_t* mlist, long D, mpz_t u, mpz_t v, mpz_t N,
   }
 
 /* Recursive routine to prove via ECPP */
-static int ecpp_down(int i, mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz_t* sfacs, int* nsfacs, char** prooftextptr)
+static int ecpp_down(int i, const mpz_t Ni, int facstage, int *pmaxH, int* dilist, mpz_t* sfacs, int* nsfacs, char** prooftextptr)
 {
   mpz_t a, b, u, v, m, q, minfactor, sqrtn, mD, t, t2;
   mpz_t mlist[6];
@@ -929,7 +933,7 @@ end_down:
 }
 
 /* returns 2 if N is proven prime, 1 if probably prime, 0 if composite */
-int _GMP_ecpp(mpz_t N, char** prooftextptr)
+int _GMP_ecpp(const mpz_t N, char** prooftextptr)
 {
   int* dilist;
   mpz_t* sfacs;

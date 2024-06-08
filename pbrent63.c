@@ -9,14 +9,14 @@
 #define FUNC_gcd_ui 1
 #include "utility.h"
 
-static INLINE UV mpz_getuv(mpz_t n) {
+static INLINE UV mpz_getuv(const mpz_t n) {
   UV v = mpz_getlimbn(n,0);
   if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
     v |= ((UV)mpz_getlimbn(n,1)) << 32;
   return v;
 }
 
-int pbrent63(mpz_t n, mpz_t f, UV rounds) {
+int pbrent63(const mpz_t n, mpz_t f, UV rounds) {
   UV facs[2];
   int nfactors;
 
@@ -155,6 +155,6 @@ int uvpbrent63(UV n, UV *factors, UV rounds, UV a)
 }
 
 #else /* no 64-bit gcc x86-64 */
-int pbrent63(mpz_t n, mpz_t f, UV rounds) { return 0; }
+int pbrent63(const mpz_t n, mpz_t f, UV rounds) { return 0; }
 int uvpbrent63(UV n, UV *factors, UV rounds, UV a) { factors[0] = n; return 1; }
 #endif

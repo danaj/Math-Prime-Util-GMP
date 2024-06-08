@@ -4,7 +4,7 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern int pbrent63(mpz_t n, mpz_t f, UV rounds);
+extern int pbrent63(const mpz_t n, mpz_t f, UV rounds);
 
 extern int uvpbrent63(UV n, UV *factors, UV rounds, UV a);
 

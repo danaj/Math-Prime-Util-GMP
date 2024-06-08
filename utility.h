@@ -12,7 +12,7 @@ extern gmp_randstate_t* get_randstate(void);
 extern void init_randstate(unsigned long seed);
 extern void clear_randstate(void);
 extern void mpz_isaac_urandomb(mpz_t rop, int nbits);
-extern void mpz_isaac_urandomm(mpz_t rop, mpz_t n);
+extern void mpz_isaac_urandomm(mpz_t rop, const mpz_t n);
 extern UV irand64(int nbits);
 extern NV drand64(void);
 
@@ -32,7 +32,7 @@ extern int  is_qr(mpz_t a, mpz_t n);
   do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
 
 #undef mpz_divmod
-extern int mpz_divmod(mpz_t r, mpz_t a, mpz_t b, mpz_t n, mpz_t t);
+extern int mpz_divmod(mpz_t r, const mpz_t a, const mpz_t b, const mpz_t n, mpz_t t);
 
 #if __GNU_MP_VERSION < 5
 /* Older versions left out a normalization step */
@@ -52,9 +52,9 @@ extern void mpz_product_ui(mpz_t prod, unsigned long *v, unsigned long n);
 extern void mpz_veclcm(mpz_t* A, UV a, UV b);
 
 /* Solve x^2 + |D|y^2 = p */
-extern int cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
+extern int cornacchia(mpz_t x, mpz_t y, const mpz_t D, const mpz_t p);
 /* Solve x^2 + |D|y^2 = 4p */
-extern int modified_cornacchia(mpz_t x, mpz_t y, mpz_t D, mpz_t p);
+extern int modified_cornacchia(mpz_t x, mpz_t y, const mpz_t D, const mpz_t p);
 
 #define BITS2DIGS(bits) ceil(bits/3.3219281)
 #define DIGS2BITS(digs) ceil(digs*3.3219281)
@@ -65,10 +65,10 @@ extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);
 extern void mpf_root(mpf_t rootx, mpf_t x, mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
-extern UV logint(mpz_t n, UV base);
+extern UV logint(const mpz_t n, UV base);
 
 #ifdef FUNC_mpz_logn
-static double mpz_logn(mpz_t n)
+static double mpz_logn(const mpz_t n)
 {
   long exp;
   double logn = mpz_get_d_2exp(&exp, n);
@@ -78,7 +78,7 @@ static double mpz_logn(mpz_t n)
 #endif
 
 #ifdef FUNC_mpz_log2
-static double mpz_log2(mpz_t n)
+static double mpz_log2(const mpz_t n)
 {
   long exp;
   double logn = mpz_get_d_2exp(&exp, n);

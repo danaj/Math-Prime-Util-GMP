@@ -11,7 +11,7 @@
 /*                               SQRT(N) MOD M                                */
 /******************************************************************************/
 
-static int _sqrtmod_return(mpz_t r, mpz_t a, mpz_t n, mpz_t t) {
+static int _sqrtmod_return(mpz_t r, const mpz_t a, const mpz_t n, mpz_t t) {
   mpz_sub(t, n, r);
   if (mpz_cmp(t, r) < 0)
     mpz_set(r, t);
@@ -26,7 +26,7 @@ static int _sqrtmod_return(mpz_t r, mpz_t a, mpz_t n, mpz_t t) {
 }
 
 /* No aliasing and 4 temp variables passed in. */
-static int _sqrtmod_prime(mpz_t x, mpz_t a, mpz_t p,
+static int _sqrtmod_prime(mpz_t x, const mpz_t a, const mpz_t p,
                           mpz_t t, mpz_t q, mpz_t b, mpz_t z)
 {
   int r, e, m;
@@ -132,7 +132,7 @@ static int _sqrtmod_prime(mpz_t x, mpz_t a, mpz_t p,
 
 /******************************************************************************/
 
-static int _sqrtmod_prime_power(mpz_t r, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t u, mpz_t v, mpz_t w) {
+static int _sqrtmod_prime_power(mpz_t r, const mpz_t a, const mpz_t p, int e, mpz_t t, mpz_t u, mpz_t v, mpz_t w) {
   mpz_t n, pk, s;
   int ret, ered;
 
@@ -200,7 +200,7 @@ static int _sqrtmod_prime_power(mpz_t r, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
 
 /******************************************************************************/
 
-static int _sqrtmod_composite(mpz_t r, mpz_t a, mpz_t n, mpz_t t, mpz_t u, mpz_t v, mpz_t w) {
+static int _sqrtmod_composite(mpz_t r, const mpz_t a, const mpz_t n, mpz_t t, mpz_t u, mpz_t v, mpz_t w) {
   mpz_t N, s, fe, *fac;
   int i, nfactors, *exp;
 
@@ -239,7 +239,7 @@ static int _sqrtmod_composite(mpz_t r, mpz_t a, mpz_t n, mpz_t t, mpz_t u, mpz_t
 
 /******************************************************************************/
 
-static int sqrtmod_t(mpz_t r, mpz_t a, mpz_t n, int isprime,
+static int sqrtmod_t(mpz_t r, const mpz_t a, const mpz_t n, int isprime,
                      mpz_t t, mpz_t u, mpz_t v, mpz_t w)
 {
   if (mpz_cmp_ui(n,2) <= 0) {
@@ -282,7 +282,7 @@ static char _small[NSMALL-3+1][NSMALL-2+1] = {
 };
 
 /* No temps and r is allowed to alias a */
-static int _sqrtmodi(mpz_t r, mpz_t a, mpz_t n, int isprime) {
+static int _sqrtmodi(mpz_t r, const mpz_t a, const mpz_t n, int isprime) {
   int res;
   mpz_t x, t1, t2, t3, t4;
 
@@ -305,10 +305,10 @@ static int _sqrtmodi(mpz_t r, mpz_t a, mpz_t n, int isprime) {
   return res;
 }
 
-int sqrtmod( mpz_t r, mpz_t a, mpz_t n)  { return _sqrtmodi(r,a,n,0); }
-int sqrtmodp(mpz_t r, mpz_t a, mpz_t n)  { return _sqrtmodi(r,a,n,1); }
+int sqrtmod( mpz_t r, const mpz_t a, const mpz_t n) {return _sqrtmodi(r,a,n,0);}
+int sqrtmodp(mpz_t r, const mpz_t a, const mpz_t n) {return _sqrtmodi(r,a,n,1);}
 
-int sqrtmodp_t(mpz_t r, mpz_t a, mpz_t p,  mpz_t t1,mpz_t t2,mpz_t t3,mpz_t t4)
+int sqrtmodp_t(mpz_t r, const mpz_t a, const mpz_t p,  mpz_t t1,mpz_t t2,mpz_t t3,mpz_t t4)
 { return sqrtmod_t(r, a, p, 1, t1, t2, t3, t4); }
 
 /******************************************************************************/

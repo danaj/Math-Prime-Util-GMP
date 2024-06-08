@@ -11,20 +11,20 @@
 /* These check the theorem conditions for given n and a factor. */
 /* This is NOT a full proof as the factor isn't verified. */
 /* Check BLS75 theorem  3 conditions */
-extern int BLS_check_T3(mpz_t n, mpz_t p, UV* a);
+extern int BLS_check_T3(const mpz_t n, const mpz_t p, UV* a);
 /* Check BLS75 theorem 15 conditions */
-extern int BLS_check_T15(mpz_t n, mpz_t q, IV* lp, IV* lq);
+extern int BLS_check_T15(const mpz_t n, const mpz_t q, IV* lp, IV* lq);
 
 
 /* These construct a complete recursive proof. */
 
 /* BLS75 theorem 5/7 complete proof */
-extern int BLS_primality_nm1(mpz_t n, int effort, char ** prooftextptr);
+extern int BLS_primality_nm1(const mpz_t n, int effort, char ** prooftextptr);
 
 /* BLS75 theorem 17 complete proof (N+1) */
-extern int BLS_primality_np1(mpz_t n, int effort, char** prooftextptr);
+extern int BLS_primality_np1(const mpz_t n, int effort, char** prooftextptr);
 
 /* BLS75 theorem 20 complete proof (N-1 and N+1) */
-extern int BLS_primality(mpz_t n, int effort, char** prooftextptr);
+extern int BLS_primality(const mpz_t n, int effort, char** prooftextptr);
 
 #endif

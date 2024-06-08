@@ -22,9 +22,9 @@
   }
 
 /* P3 = P1 + P2 */
-static void _ec_add_AB(mpz_t n,
-                    struct ec_affine_point P1,
-                    struct ec_affine_point P2,
+static void _ec_add_AB(const mpz_t n,
+                    const struct ec_affine_point P1,
+                    const struct ec_affine_point P2,
                     struct ec_affine_point *P3,
                     mpz_t m,
                     mpz_t t1,
@@ -69,9 +69,9 @@ static void _ec_add_AB(mpz_t n,
 }
 
 /* P3 = 2*P1 */
-static void _ec_add_2A(mpz_t a,
-                    mpz_t n,
-                    struct ec_affine_point P1,
+static void _ec_add_2A(const mpz_t a,
+                    const mpz_t n,
+                    const struct ec_affine_point P1,
                     struct ec_affine_point *P3,
                     mpz_t m,
                     mpz_t t1,
@@ -103,7 +103,8 @@ static void _ec_add_2A(mpz_t a,
   mpz_tdiv_r(P3->y, t1, n);
 }
 
-int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
+/* TODO: Change to k const.  See lucasuv. */
+int ec_affine_multiply(const mpz_t a, mpz_t k, const mpz_t n, const struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
 {
   int found = 0;
   struct ec_affine_point A, B, C;
@@ -160,7 +161,7 @@ int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point P, stru
   return found;
 }
 
-int _GMP_ecm_factor_affine(mpz_t n, mpz_t f, UV B1, UV ncurves)
+int _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV B1, UV ncurves)
 {
   mpz_t a, mk;
   struct ec_affine_point X, Y;
@@ -565,7 +566,7 @@ static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   return (found) ? 2 : 0;
 }
 
-int _GMP_ecm_factor_projective(mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
+int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
 {
   mpz_t sigma, a, x, z;
   UV i, curve, q, k;
