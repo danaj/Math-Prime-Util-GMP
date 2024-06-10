@@ -240,101 +240,140 @@ UV prime_power(mpz_t prime, mpz_t n)
   return k;
 }
 
-int is_primitive_root(mpz_t ina, mpz_t n, int nprime)
+int is_primitive_root(const mpz_t in_a, const mpz_t in_n, int nprime)
 {
-  mpz_t a, s, r, sreduced, t, *factors;
+  mpz_t n, a, t, phi, phireduced, *factors;
   int ret, i, nfactors, *exponents;
 
-  if (mpz_sgn(n) == 0)
-    return 0;
-  if (mpz_sgn(n) < 0)
-    mpz_neg(n,n);
-  if (mpz_cmp_ui(n,1) == 0)
-    return 1;
-  if (mpz_cmp_ui(n,4) <= 0)
-    return (mpz_cmp_ui(ina,4) <= 0) && (mpz_get_ui(ina) == mpz_get_ui(n)-1);
-  if (mpz_divisible_2exp_p(n,2))
-    return 0;
+  if (mpz_sgn(in_n) == 0) return 0;
+  if (mpz_cmp_ui(in_a,0) == 0) return (mpz_cmpabs_ui(in_n,1) == 0);
+  if (mpz_cmp_ui(in_a,1) == 0) return (mpz_cmpabs_ui(in_n,2) <= 0);
 
+  ret = -1;
+  mpz_init(n);
+  mpz_abs(n, in_n);
   mpz_init(a);
-  mpz_mod(a,ina,n);
-  mpz_init(s);
-  mpz_gcd(s, a, n);
+  mpz_mod(a, in_a, n);
 
-  if (mpz_cmp_ui(s,1) != 0) {
-    mpz_clear(s);
+  if (mpz_cmp_ui(n,1) == 0)
+    ret = 1;
+  else if (mpz_cmp_ui(n,4) <= 0)
+    ret = (mpz_cmp_ui(a,4) <= 0) && (mpz_get_ui(a) == mpz_get_ui(n)-1);
+  else if (mpz_divisible_2exp_p(n,2))
+    ret = 0;
+  else if (mpz_even_p(n) && mpz_even_p(a))
+    ret = 0;
+  else if (mpz_perfect_square_p(a))
+    ret = 0;
+
+  if (ret != -1) {
     mpz_clear(a);
-    return 0;
+    mpz_clear(n);
+    return ret;
   }
 
   mpz_init(t);
-  if (nprime) {
-    mpz_sub_ui(s, n, 1);
-  } else { /* totient(s, n); */   /* Fine, but slow. */
-    UV k;
-    mpz_init(r);
-    if (mpz_odd_p(n)) mpz_set(t, n); else mpz_fdiv_q_2exp(t, n, 1);
-    k = prime_power(r, t);
-    if (!k) {  /* Not of form p^a or 2p^a */
-      mpz_clear(r); mpz_clear(t); mpz_clear(s); mpz_clear(a); return 0;
-    }
-    mpz_divexact(t, t, r);
-    mpz_mul(s, t, r);  mpz_sub(s, s, t);
-    mpz_clear(r);
+  mpz_gcd(t, a, n);
+
+  if (mpz_cmp_ui(t,1) != 0) {
+    mpz_clear(t);
+    mpz_clear(a);
+    mpz_clear(n);
+    return 0;
   }
-  mpz_init_set(sreduced, s);
+
+  /* The given root is odd, so must also be a root of p^k */
+  if (mpz_even_p(n))  mpz_fdiv_q_2exp(n, n, 1);
+
+  mpz_init(phi);
+  if (nprime || _GMP_is_prob_prime(n)) {
+    mpz_sub_ui(phi, n, 1);
+  } else {
+    /* n must be p^k to be valid, and k = 1 was handled above */
+    unsigned long k;
+    k = power_factor(n, t);
+    if (k < 2 || !_GMP_is_prob_prime(t)) {  /* Not power of odd prime */
+      mpz_clear(phi); mpz_clear(t); mpz_clear(a); mpz_clear(n); return 0;
+    }
+    mpz_set(n, t);
+    mpz_sub_ui(phi, n, 1);
+    /* Lower from p^k to p.  Check a^(p-1) == 1 mod p^2 */
+    mpz_pow_ui(t, n, 2);
+    mpz_powm(t, a, phi, t);
+    if (mpz_cmp_ui(t, 1) == 0) {
+      mpz_clear(phi); mpz_clear(t); mpz_clear(a); mpz_clear(n); return 0;
+    }
+  }
+  /* At this point, n is always an odd prime, phi = n-1. */
+
+  mpz_init_set(phireduced, phi);
 
   ret = 0;
-  mpz_sub_ui(t, n, 1);
-  if (mpz_cmp(s,t) == 0 && mpz_kronecker(a,n) != -1)
+  if (mpz_kronecker(a,n) != -1)
     goto DONE_IPR;
+
   /* Unclear if this is worth doing.
   i = is_power(a, 0);
-  if (i > 1 && mpz_gcd_ui(NULL, s, i) != 1)
+  if (i > 1 && mpz_gcd_ui(NULL, phi, i) != 1)
     goto DONE_IPR;
   */
 
-#define IPR_TEST_UI(s, p, a, n, t, ret) \
-  mpz_divexact_ui(t, s, p); \
+#define IPR_TEST_UI(phi, p, a, n, t, ret) \
+  mpz_divexact_ui(t, phi, p); \
   mpz_powm(t, a, t, n); \
   if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
 
-#define IPR_TEST(s, p, a, n, t, ret) \
-  mpz_divexact(t, s, p); \
+#define IPR_TEST(phi, p, a, n, t, ret) \
+  mpz_divexact(t, phi, p); \
   mpz_powm(t, a, t, n); \
   if (mpz_cmp_ui(t, 1) == 0) { ret = 0; }
+
+#define IPR_TEST_TINY(pred, p, phi, a, n, t, ret) \
+  if (ret && mpz_cmp_ui(pred,(p)*(p)) >= 0 && mpz_divisible_ui_p(pred,p)) { \
+    IPR_TEST_UI(phi, p, a, n, t, ret); \
+    mpz_set_ui(t,p);  (void) mpz_remove(pred, pred, t); \
+  }
 
   ret = 1;
-  /* Pull out small factors and test */
+
+  /* Remove all factors of 2,3,5 from phireduced and check them. */
+  IPR_TEST_UI(phi, 2, a, n, t, ret);
+  mpz_set_ui(t,2);  (void) mpz_remove(phireduced, phireduced, t);
+  IPR_TEST_TINY(phireduced, 3, phi, a, n, t, ret);
+  IPR_TEST_TINY(phireduced, 5, phi, a, n, t, ret);
+  if (ret == 0 || mpz_cmp_ui(phireduced,1) == 0)
+    goto DONE_IPR;
+
+  /* Check and remove small-ish factors. */
   {
-    void *iter = trial_factor_iterator_create(sreduced, 64000);
+    void *iter = trial_factor_iterator_create(phireduced, 64000);
     unsigned long f;
     uint32_t e;
 
-    while (ret && mpz_cmp_ui(sreduced,1) > 0 && trial_factor_iterator_next(&f, &e, iter)) {
-      IPR_TEST_UI(s, f, a, n, t, ret);
+    while (ret && mpz_cmp_ui(phireduced,1) > 0 && trial_factor_iterator_next(&f, &e, iter)) {
+      IPR_TEST_UI(phi, f, a, n, t, ret);
       while (e-- > 0)
-        mpz_divexact_ui(sreduced,sreduced,f);
+        mpz_divexact_ui(phireduced,phireduced,f);
     }
     trial_factor_iterator_destroy(iter);
   }
-  if (ret == 0 || mpz_cmp_ui(sreduced,1) == 0)
+  if (ret == 0 || mpz_cmp_ui(phireduced,1) == 0)
     goto DONE_IPR;
-  if (_GMP_BPSW(sreduced)) {
-    IPR_TEST(s, sreduced, a, n, t, ret);
+  if (mpz_cmp_ui(phireduced,64007U*64007U) < 0 || _GMP_BPSW(phireduced)) {
+    IPR_TEST(phi, phireduced, a, n, t, ret);
     goto DONE_IPR;
   }
 
-  /* We have a composite and so far it could be a primitive root.  Factor. */
-  nfactors = factor(sreduced, &factors, &exponents);
+  /* We have a composite and so far 'a' could be a primitive root.  Factor. */
+  nfactors = factor(phireduced, &factors, &exponents);
   for (i = 0; ret == 1 && i < nfactors; i++) {
-    IPR_TEST(s, factors[i], a, n, t, ret);
+    IPR_TEST(phi, factors[i], a, n, t, ret);
   }
   clear_factors(nfactors, &factors, &exponents);
 
 DONE_IPR:
-  mpz_clear(sreduced);  mpz_clear(t);
-  mpz_clear(s);  mpz_clear(a);
+  mpz_clear(phireduced);  mpz_clear(t);
+  mpz_clear(phi);  mpz_clear(a);  mpz_clear(n);
   return ret;
 }
 

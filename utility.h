@@ -24,7 +24,7 @@ extern UV   mpz_get_uv(const mpz_t n);
 
 extern UV   is_power(mpz_t n, UV a);
 extern UV   prime_power(mpz_t prime, mpz_t n);
-extern int  is_primitive_root(mpz_t a, mpz_t b, int nprime);
+extern int  is_primitive_root(const mpz_t a, const mpz_t n, int nprime);
 extern int  is_qr(mpz_t a, mpz_t n);
 
 /* tdiv_r is faster, but we'd need to guarantee the input is positive */

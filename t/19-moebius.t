@@ -208,7 +208,7 @@ plan tests => 1
             + scalar(keys %mangoldt)
             + scalar(@mult_orders)
             + scalar(keys %primroots) + 1
-            + 3 # is_primitive_root
+            + 4 # is_primitive_root
             + scalar(keys %rtau)
             + 3     # chinese, chinese2
             + 10;
@@ -269,6 +269,7 @@ while (my($n, $root) = each (%primroots)) {
 }
 is( znprimroot("-100000898"), 31, "znprimroot(\"-100000898\") == 31" );
 ###### is_primitive_root
+is( is_primitive_root(1,0), undef, "is_primitive_root(1,0) returns undef" );
 ok(!is_primitive_root(3,"1000000000000000000000000000057"), "3 is not a primitive root mod 10^30+57");
 ok( is_primitive_root(5,"1000000000000000000000000000057"), "5 is     a primitive root mod 10^30+57");
 ok( is_primitive_root(3,"1000000000000000000000000000066"), "3 is     a primitive root mod 10^30+66");
