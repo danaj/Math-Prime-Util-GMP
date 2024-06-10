@@ -1,4 +1,7 @@
 
+For new functions:
+  .h, .c, XS, export, t/02, doc, test
+
 - prime_count - needs the pc(#) option as well as pc(#,#)
 
 - Do a GMP version of LMO prime_count.  Possible versions:
@@ -89,12 +92,11 @@
   certs possible.
 
 - consider probabilistic is_primitive_root for large inputs
+  [2024:  what does this mean?]
 
 - Verify speed and memory use of GMP's two binomials for various versions
   and compare.  Looks like Luschny sent his changes after 5.0.0.
   https://gmplib.org/list-archives/gmp-discuss/2010-February/004036.html
-
-- faster znprimroot
 
 - Identify places where 32-bit GMP on 64-bit Perl will trip us up.
 
@@ -171,16 +173,13 @@
 
 - make is_carmichael deterministic test go faster
 
-- export is_square_free
-
 - have trial factor use treesieve static function.
 
-- powerfree count
-- is_powerfree
+- the 2021 BPSW test
+  https://arxiv.org/pdf/2006.14425
+  https://community.wolfram.com/groups/-/m/t/2344199?p_p_auth=UZ0BHnEu
 
 =============== MUST DO BEFORE RELEASE
-
-- change is_{,euler,strong)_pseudoprime to use default base 2
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
 
@@ -191,3 +190,9 @@
   prime_iterator_next64 to get 64 values.
 
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
+
+- remove tfall1 tfall2 from XS.xs
+
+- docs for is_ functions with positive vs. integer inputs
+
+- more const mpz_t
