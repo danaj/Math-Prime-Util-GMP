@@ -1150,7 +1150,8 @@ invmod(IN char* stra, IN char* strb)
       case 5: mpz_abs(b, b);
               retundef = !sqrtmod(a, a, b);
               break;
-      case 6: mpz_set_si(a, is_primitive_root(a, b, 0) );
+      case 6: if (mpz_sgn(b) == 0) retundef = 1;
+              else mpz_set_si(a, is_primitive_root(a, b, 0) );
               break;
       case 7: if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
               polygonal_nth(a, a, b);

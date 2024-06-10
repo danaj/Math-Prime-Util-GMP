@@ -50,7 +50,7 @@ int is_powerfree(mpz_t n, uint32_t k)
 
     nfactors = factor(n, &factors, &exponents);
     for (i = 0; ret == 1 && i < nfactors; i++)
-      if (exponents[i] >= k)
+      if ((uint32_t)exponents[i] >= k)
         ret = 0;
     clear_factors(nfactors, &factors, &exponents);
     return ret;
@@ -92,11 +92,10 @@ static UV squarefree_count_ui(UV n)
 {
   signed char* mu;
   IV *M, *Mx, Mxisum, mert;
-  UV sqrtn, I, D, i, j, S1 = 0, S2 = 0;
+  UV I, D, i, j, S1 = 0, S2 = 0;
 
   if (n < 4) return n;
 
-  sqrtn = isqrt(n);
   I = rootint_ui(n, 5);   /* times loglogn ^ (4/5) */
   D = isqrt(n / I);
   mu = range_moebius(0, D);
