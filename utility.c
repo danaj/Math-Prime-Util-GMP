@@ -337,8 +337,8 @@ int is_primitive_root(const mpz_t in_a, const mpz_t in_n, int nprime)
   ret = 1;
 
   /* Remove all factors of 2,3,5 from phireduced and check them. */
-  IPR_TEST_UI(phi, 2, a, n, t, ret);
-  mpz_set_ui(t,2);  (void) mpz_remove(phireduced, phireduced, t);
+  /* The kronecker test already checked phi/2. */
+  mpz_fdiv_q_2exp(phireduced, phireduced, mpz_scan0(phireduced,0));
   IPR_TEST_TINY(phireduced, 3, phi, a, n, t, ret);
   IPR_TEST_TINY(phireduced, 5, phi, a, n, t, ret);
   if (ret == 0 || mpz_cmp_ui(phireduced,1) == 0)
