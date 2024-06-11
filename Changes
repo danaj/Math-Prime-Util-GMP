@@ -107,6 +107,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - addmod etc. use |n| as the modulus for negative n instead of error.
 
+    - binomial with first argument large enough to overflow unsigned long
+      could sometimes use a truncated argument.
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

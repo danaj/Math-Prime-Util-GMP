@@ -167,7 +167,7 @@ plan tests => scalar(@gcds)
             + scalar(@kroneckers)
             + scalar(@valuations)
             + 5
-            + 3 + scalar(@binomials)
+            + 3 + 3 + scalar(@binomials)
             + scalar(@gcdexts)
             + scalar(@vecsums)
             + scalar(@vecprods)
@@ -216,6 +216,9 @@ is_deeply( [map { binomial(-10, $_) } -15 .. 15],
   my $binlarge = binomial(50001, 1001);
   like($binlarge, qr/^496707638141717196412227681583240\d{2063}777168293276436675967388577715200$/, "binomial(50001,1001) = 2129 digits, looks correct");
 }
+is(binomial("36893488147419103231", 1), "36893488147419103231", "binomial(n,1) = n with bigint n");
+is(binomial("36893488147419103231", 2), "680564733841876926871408982642407768065", "binomial(n,2) = (n,k) with bigint n");
+is(binomial("36893488147419103231", 3), "8369468980515574350419923096593134701017280224495241527295", "binomial(n,3) = (n,k) with bigint n");
 
 foreach my $garg (@gcdexts) {
   my($aref, $eref) = @$garg;

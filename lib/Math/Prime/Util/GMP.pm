@@ -1371,6 +1371,8 @@ arguments use the L<Kronenburg extensions|http://arxiv.org/abs/1105.3689/>.
 This corresponds to Mathematica's C<Binomial[n,k]> function, Pari's
 C<binomial(n,k)> function, and GMP's C<mpz_bin_ui> function.
 
+The second argument C<k> must fit in an unsigned long.
+
 For negative arguments, this matches Mathematica.  Pari does not implement
 the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
 case.  GMP's API does not allow negative C<k> but otherwise matches.
@@ -1577,7 +1579,7 @@ C<MultiplicativeOrder[a,n]> function.
 
 Given a positive integer C<n>, returns the smallest primitive root
 of C<(Z/nZ)^*>, or C<undef> if no root exists.  A root exists when
-C<euler_phi($n) == carmichael_lambda($n)>, which will be true only if
+C<euler_phi($n) == carmichael_lambda($n)>, which is true only if
 C<n one of {2, 4, p^k, 2p^k}> for odd prime p.
 
 L<OEIS A033948|http://oeis.org/A033948> is a sequence of integers where
@@ -1585,8 +1587,8 @@ the primitive root exists, while L<OEIS A046145|http://oeis.org/A046145>
 is a list of the smallest primitive roots, which is what this function
 produces.
 
-This is similar to Pari/GP's C<znprimroot>, but always productes the smallest
-root even in the C<2p^k> case.
+This is similar to Pari/GP's C<znprimroot>, but our function always
+returns the smallest root.  Pari/GP does not if C<n = 2p^k>.
 
 
 =head2 is_primitive_root

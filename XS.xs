@@ -1122,7 +1122,7 @@ invmod(IN char* stra, IN char* strb)
                }
                n = mpz_get_ui(a);
                k = mpz_get_ui(b);
-               if (k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
+               if (!mpz_fits_ulong_p(a) || k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
                  mpz_bin_ui(a, a, k);
                } else {
                  if (k > n/2) k = n-k;
