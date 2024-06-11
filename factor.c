@@ -789,7 +789,7 @@ static int _znprimroot_prime(mpz_t root, const mpz_t p,
   nfactors = factor(phi, &factors, &exponents);
 
   /* Replace each factor with phi/factor */
-  for (i = 0; i < nfactors; i++)
+  for (i = 1; i < nfactors; i++)
     mpz_divexact(factors[i], phi, factors[i]);
 
   if (ispow) {
@@ -801,7 +801,7 @@ static int _znprimroot_prime(mpz_t root, const mpz_t p,
     if (only_odd_root && mpz_even_p(a)) continue;
     if (!mpz_cmp_ui(a,4) || !mpz_cmp_ui(a,8) || !mpz_cmp_ui(a,9)) continue;
     if (mpz_kronecker(a,p) != -1) continue;
-    for (i = 0; i < nfactors; i++) {
+    for (i = 1; i < nfactors; i++) {
       mpz_powm(t, a, factors[i], p);
       if (mpz_cmp_ui(t, 1) == 0)
         break;
