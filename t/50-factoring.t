@@ -24,7 +24,9 @@ my %sigmas = (
   2394823486 => [8,"3918802104","7228222133779519700","15463194466651766947470799224"],
 );
 
-my @omega = ([0,1,1], [1,0,0], [2,1,1], [36,4,2], [102,3,3], [8593952,7,3]);
+my @omegai = (qw/0 1 2 36 102 392 8593952 18505662216305663679/);
+my @omegao = (qw/1 0 1 2  3   2   3       5/);
+my @omegab = (qw/1 0 1 4  3   5   7       7/);
 
 plan tests => 0 + 57
                 + 24
@@ -37,7 +39,7 @@ plan tests => 0 + 57
                 + scalar(keys %sigmas)
                 + 9    # divisors
                 + 2    # is_semiprime
-                + 2*scalar(@omega)
+                + 4    # omega and bigomega
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -249,8 +251,7 @@ is_deeply( [ [divisors( 0,0)], [divisors( 0,1)],
 }
 
 ######
-for my $ov (@omega) {
-  my($n,$bo,$o) = @$ov;
-  is( prime_bigomega($n), $bo, "prime_bigomega($n) = $bo" );
-  is( prime_omega($n), $o, "prime_omega($n) = $o" );
-}
+is_deeply([map { prime_omega($_)     } @omegai],\@omegao,"prime_omega(n)");
+is_deeply([map { prime_bigomega($_)  } @omegai],\@omegab,"prime_bigomega(n)");
+is_deeply([map {prime_omega('-'.$_)  } @omegai],\@omegao,"prime_omega(-n)");
+is_deeply([map {prime_bigomega('-'.$_)}@omegai],\@omegab,"prime_bigomega(-n)");
