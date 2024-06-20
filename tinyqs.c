@@ -1804,7 +1804,7 @@ static tiny_qs_config static_config[] = {
 };
 
 /***********************************/
-unsigned int tinyqs(mpz_t n, mpz_t factor)
+unsigned int tinyqs(const mpz_t n, mpz_t factor)
 /***********************************
 Main driver for MPQS factorization
 Returns 1 and sets factor if

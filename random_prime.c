@@ -58,7 +58,7 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
 
 /* PRIMEINC: pick random value, select next prime. */
 /* Fast but bad distribution. */
-static int _random_prime_primeinc(mpz_t p, mpz_t lo, mpz_t hi)
+static int _random_prime_primeinc(mpz_t p, const mpz_t lo, const mpz_t hi)
 {
   mpz_t r, t;
   mpz_init(t);
@@ -84,7 +84,7 @@ static int _random_prime_primeinc(mpz_t p, mpz_t lo, mpz_t hi)
 
 /* TRIVIAL: pick random values until one is prime */
 /* Perfect distribution. */
-static int _random_prime_trivial(mpz_t p, mpz_t lo_in, mpz_t hi_in)
+static int _random_prime_trivial(mpz_t p, const mpz_t lo_in, const mpz_t hi_in)
 {
   mpz_t r, t, lo, hi;
   int res = 0, tries = 10000;
@@ -144,7 +144,7 @@ static int _random_prime_trivial(mpz_t p, mpz_t lo_in, mpz_t hi_in)
 }
 
 /* Set p to a random prime between lo and hi inclusive */
-int mpz_random_prime(mpz_t p, mpz_t lo, mpz_t hi)
+int mpz_random_prime(mpz_t p, const mpz_t lo, const mpz_t hi)
 {
   return _random_prime_trivial(p,lo,hi);
 }

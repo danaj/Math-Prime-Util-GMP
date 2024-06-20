@@ -199,7 +199,7 @@ UV mpz_get_uv(const mpz_t n)
 
 
 /* a=0, return power.  a>1, return bool if an a-th power */
-UV is_power(mpz_t n, UV a)
+UV is_power(const mpz_t n, UV a)
 {
   if (mpz_cmp_ui(n,3) <= 0 && a == 0)
     return 0;
@@ -219,7 +219,7 @@ UV is_power(mpz_t n, UV a)
   }
 }
 
-UV prime_power(mpz_t prime, mpz_t n)
+UV prime_power(mpz_t prime, const mpz_t n)
 {
   UV k;
   if (mpz_even_p(n)) {
@@ -377,42 +377,53 @@ DONE_IPR:
   return ret;
 }
 
-int  is_qr(mpz_t a, mpz_t n)
+int  is_qr(const mpz_t a, const mpz_t n)
 {
-  if (mpz_sgn(n) == 0) return -1;
-  if (mpz_sgn(n) < 0) mpz_abs(n,n);
-  if (mpz_cmp_ui(n,2) <= 0) return 1;
-  if (mpz_cmp(a,n) > 0) mpz_mod(a,a,n);
-  if (mpz_cmp_ui(a,1) <= 0) return 1;
+  mpz_t N, A;
 
-  if (_GMP_is_prime(n))
-    return (mpz_kronecker(a,n) == 1);
+  if (mpz_sgn(n) == 0)         return -1;
+  if (mpz_cmpabs_ui(n,2) <= 0) return 1;
+
+  mpz_init(N);
+  mpz_init(A);
+  mpz_abs(N, n);
+  mpz_mod(A, a, N);
+
+  if (mpz_cmp_ui(A,1) <= 0)    { mpz_clear(A); mpz_clear(N); return 1; }
+
+  if (_GMP_is_prime(N)) {
+    int ret = (mpz_kronecker(A,N) == 1);
+    mpz_clear(A); mpz_clear(N);
+    return ret;
+  }
 
 #if 0
-  return sqrtmod(a,a,n);
+  return sqrtmod(A,A,N);
 #else
   {
     mpz_t r, *fac;
     int ret, i, nfactors, *exp;
 
     mpz_init(r);
-    nfactors = factor(n, &fac, &exp);
+    nfactors = factor(N, &fac, &exp);
     for (i = 0, ret = 1; ret && i < nfactors; i++) {
       int gcd_is_1, fac_is_2;
-      mpz_gcd(r, a,fac[i]);
+      mpz_gcd(r, A, fac[i]);
       gcd_is_1 = mpz_cmp_ui(r,1) == 0;
       fac_is_2 = mpz_cmp_ui(fac[i],2) == 0;
       if      (exp[i] == 1 && (fac_is_2 || !gcd_is_1))
         ret = 1;
       else if (exp[i] == 1 || (!fac_is_2 && gcd_is_1))
-        ret = mpz_kronecker(a,fac[i]) == 1;
+        ret = mpz_kronecker(A,fac[i]) == 1;
       else {
         mpz_pow_ui(fac[i], fac[i], exp[i]);
-        ret = sqrtmod(r, a, fac[i]);
+        ret = sqrtmod(r, A, fac[i]);
       }
     }
     clear_factors(nfactors, &fac, &exp);
     mpz_clear(r);
+    mpz_clear(A);
+    mpz_clear(N);
     return ret;
   }
 #endif
@@ -571,7 +582,7 @@ extern void gcdext(mpz_t g, mpz_t s, mpz_t t, const mpz_t ia, const mpz_t ib)
 }
 #endif
 
-int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
+int chinese(mpz_t ret, mpz_t lcm, const mpz_t *a, const mpz_t *m, int items)
 {
   mpz_t sum, gcd, u, v, s, t, temp1, temp2;
   int i, rval = 1;
@@ -611,9 +622,8 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
   }
 #endif
 
-  /* Avoid dividing by zero and use absolute value of modulus */
+  /* Avoid dividing by zero */
   for (i = 0; i < items; i++) {
-    mpz_abs(m[i],m[i]);
     if (mpz_sgn(m[i]) == 0)
       return 0;
   }
@@ -623,11 +633,12 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
   mpz_init(s); mpz_init(t);
   mpz_init(u); mpz_init(v);
 
-  mpz_set(lcm, m[0]);
-  mpz_mod(sum, a[0], m[0]);
+  mpz_abs(lcm, m[0]);
+  mpz_mod(sum, a[0], lcm);
   for (i = 1; i < items; i++) {
-    mpz_gcdext(gcd, u, v, lcm, m[i]);
-    mpz_divexact(s, m[i], gcd);
+    mpz_abs(t, m[i]);
+    mpz_gcdext(gcd, u, v, lcm, t);
+    mpz_divexact(s, t, gcd);
     mpz_divexact(t, lcm, gcd);
     if (mpz_cmp_ui(gcd,1) != 0) {
       mpz_mod(temp1, sum, gcd);
@@ -658,7 +669,7 @@ int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items)
 }
 
 
-UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit) {
+UV mpz_order_ui(unsigned long r, const mpz_t n, unsigned long limit) {
   unsigned long j;
   mpz_t t;
 
@@ -676,7 +687,7 @@ UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit) {
   return j;
 }
 
-void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
+void mpz_arctan(mpz_t r, unsigned long base, const mpz_t pow, mpz_t t1, mpz_t t2)
 {
   unsigned long i = 1;
   mpz_tdiv_q_ui(r, pow, base);
@@ -688,7 +699,7 @@ void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
     if (i++ & 1) mpz_sub(r, r, t2); else mpz_add(r, r, t2);
   } while (mpz_sgn(t2));
 }
-void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2)
+void mpz_arctanh(mpz_t r, unsigned long base, const mpz_t pow, mpz_t t1, mpz_t t2)
 {
   unsigned long i = 1;
   mpz_tdiv_q_ui(r, pow, base);
@@ -836,7 +847,7 @@ extern void const_pi(mpf_t pi, unsigned long prec);
 extern void const_log2(mpf_t logn, unsigned long prec);
 
 /* Log using Brent's second AGM algorithm (Sasaki and Kanada theta) */
-void mpf_log(mpf_t logn, mpf_t n)
+void mpf_log(mpf_t logn, const mpf_t n)
 {
   mpf_t N, t, q, theta2, theta3, logdn;
   unsigned long k, bits = mpf_get_prec(logn);
@@ -907,7 +918,7 @@ void mpf_log(mpf_t logn, mpf_t n)
 }
 
 /* x should be 0 < x < 1 */
-static void _exp_sinh(mpf_t expx, mpf_t x, unsigned long bits)
+static void _exp_sinh(mpf_t expx, const mpf_t x, unsigned long bits)
 {
   unsigned long k;
   mpf_t t, s, N, D, X;
@@ -971,7 +982,7 @@ static void _exp_lift(mpf_t expx, mpf_t x, unsigned long bits)
   mpf_clear(t2); mpf_clear(t1); mpf_clear(s);
 }
 
-void mpf_exp(mpf_t expn, mpf_t x)
+void mpf_exp(mpf_t expn, const mpf_t x)
 {
   mpf_t t;
   unsigned long k, r, rbits, bits = mpf_get_prec(expn);
@@ -1018,7 +1029,7 @@ void mpf_exp(mpf_t expn, mpf_t x)
 /* Negative b with non-int x usually gives a complex result.
  * We try to at least give a consistent result. */
 
-void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
+void mpf_pow(mpf_t powx, const mpf_t b, const mpf_t x)
 {
   mpf_t t;
   int neg = (mpf_sgn(b) < 0);
@@ -1034,16 +1045,16 @@ void mpf_pow(mpf_t powx, mpf_t b, mpf_t x)
     return;
   }
 
-  if (neg) mpf_neg(b,b);
   mpf_init2(t, mpf_get_prec(powx));
-  mpf_log(t, b);
+  if (neg) mpf_neg(t,b); else mpf_set(t,b);
+  mpf_log(t, t);
   mpf_mul(t, t, x);
   mpf_exp(powx, t);
   if (neg) mpf_neg(powx,powx);
   mpf_clear(t);
 }
 
-void mpf_root(mpf_t rootx, mpf_t x, mpf_t n)
+void mpf_root(mpf_t rootx, const mpf_t x, const mpf_t n)
 {
   if (mpf_sgn(n) == 0) {
     mpf_set_ui(rootx, 0);

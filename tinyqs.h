@@ -4,6 +4,6 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-unsigned int tinyqs(mpz_t n, mpz_t factor);
+unsigned int tinyqs(const mpz_t n, mpz_t factor);
 
 #endif /* !MPU_COFACTORIZE_H_ */

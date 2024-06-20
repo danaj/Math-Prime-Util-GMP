@@ -53,7 +53,7 @@
 #include "poly.h"
 
 
-static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
+static int test_anr(UV a, const mpz_t n, UV r, mpz_t* px, mpz_t* py)
 {
   int retval = 1;
   UV i, n_mod_r;
@@ -82,7 +82,7 @@ static int test_anr(UV a, mpz_t n, UV r, mpz_t* px, mpz_t* py)
 }
 
 #if AKS_VARIANT != AKS_VARIANT_V6
-static int is_primitive_root_uiprime(mpz_t n, UV r)
+static int is_primitive_root_uiprime(const mpz_t n, UV r)
 {
   int res;
   mpz_t zr;
@@ -106,7 +106,7 @@ static UV largest_factor(UV n) {
 }
 #endif
 #if AKS_VARIANT == AKS_VARIANT_BERN41
-int bern41_acceptable(mpz_t n, UV r, UV s, mpz_t t1, mpz_t t2)
+int bern41_acceptable(const mpz_t n, UV r, UV s, mpz_t t1, mpz_t t2)
 {
   double scmp = ceil(sqrt( (r-1)/3.0 )) * mpz_log2(n);
   UV d = (UV) (0.5 * (r-1));
@@ -127,7 +127,7 @@ int bern41_acceptable(mpz_t n, UV r, UV s, mpz_t t1, mpz_t t2)
 
 
 
-int is_aks_prime(mpz_t n)
+int is_aks_prime(const mpz_t n)
 {
   mpz_t *px, *py;
   int retval;

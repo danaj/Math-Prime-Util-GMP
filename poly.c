@@ -64,7 +64,7 @@ void poly_mod_sqr(mpz_t* px, mpz_t* ptmp, UV r, mpz_t mod)
  * Faster than twiddling bits, but not nearly as fast as import/export.
  * mpz_import and mpz_export were added in GMP 4.1 released in 2002.
  */
-void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
+void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, const mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
 {
   UV i, d, bits;
   UV degree = r-1;
@@ -107,7 +107,7 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
 /* Binary segmentation, using import/export method for processing p.
  * Thanks to Dan Bernstein's 2007 Quartic paper.
  */
-void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
+void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, const mpz_t mod, mpz_t p, mpz_t p2, mpz_t t)
 {
   UV i, bytes;
   char* s;
@@ -155,7 +155,7 @@ void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t p, mpz_t p2, mpz_
 }
 #endif
 
-void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod)
+void poly_mod_pow(mpz_t *pres, mpz_t *pn, const mpz_t power, UV r, const mpz_t mod)
 {
   UV i;
   mpz_t mpow, t1, t2, t3;
@@ -176,7 +176,7 @@ void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod)
   mpz_clear(mpow);
 }
 
-void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, mpz_t mod)
+void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, const mpz_t mod)
 {
   UV i;
   for (i = 0; i < *dn; i++) {

@@ -9,7 +9,7 @@
 #define FUNC_ipow 1
 #include "misc_ui.h"
 
-int is_powerfree(mpz_t n, uint32_t k)
+int is_powerfree(const mpz_t n, uint32_t k)
 {
   int ret = 1;
 
@@ -57,7 +57,7 @@ int is_powerfree(mpz_t n, uint32_t k)
   }
 }
 
-void next_powerfree(mpz_t next, mpz_t n, uint32_t k)
+void next_powerfree(mpz_t next, const mpz_t n, uint32_t k)
 {
   mpz_t N;
 
@@ -71,7 +71,7 @@ void next_powerfree(mpz_t next, mpz_t n, uint32_t k)
   mpz_set(next, N);
   mpz_clear(N);
 }
-void prev_powerfree(mpz_t prev, mpz_t n, uint32_t k)
+void prev_powerfree(mpz_t prev, const mpz_t n, uint32_t k)
 {
   mpz_t N;
 
@@ -155,7 +155,7 @@ static UV powerfree_count_ui(UV n, uint32_t k)
   return count;
 }
 
-void powerfree_count(mpz_t count, mpz_t n, uint32_t k)
+void powerfree_count(mpz_t count, const mpz_t n, uint32_t k)
 {
   mpz_t t, i, c, c1, nk;
   static const int PERF_MM = 4;  /* Larger = more moebius, less mertens */
@@ -262,7 +262,7 @@ void powerfree_count(mpz_t count, mpz_t n, uint32_t k)
 
 
 
-void nth_powerfree(mpz_t nth, mpz_t n, uint32_t k)
+void nth_powerfree(mpz_t nth, const mpz_t n, uint32_t k)
 {
   uint32_t tol = (k>=6) ? 7 : (k==5) ? 10 : (k==4) ? 20 : (k==3) ? 400 : 2000;
   unsigned long prec;

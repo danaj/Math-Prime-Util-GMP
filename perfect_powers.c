@@ -5,22 +5,24 @@
 #include "misc_ui.h"
 #include "utility.h"
 
-int is_perfect_power(mpz_t n)
+int is_perfect_power(const mpz_t n)
 {
   const unsigned char smallres[10] = {0,1,0,0,1,0,0,0,1,1};
   UV res;
   if (mpz_sgn(n) < 0) {
+    mpz_t N;
     if (mpz_cmp_si(n,-1) == 0) return 1;
-    mpz_neg(n,n);
-    res = is_power(n,0);
-    mpz_neg(n,n);
+    mpz_init(N);
+    mpz_neg(N,n);
+    res = is_power(N,0);
+    mpz_clear(N);
     return (res > 2 && ((res & (res-1)) != 0));
   }
   if (mpz_cmp_ui(n,9) <= 0)  return smallres[mpz_get_ui(n)];
   return (is_power(n,0) > 1);
 }
 
-void next_perfect_power(mpz_t next, mpz_t n)
+void next_perfect_power(mpz_t next, const mpz_t n)
 {
   UV power, log2n, k;
   mpz_t N, best, r;
@@ -60,7 +62,7 @@ void next_perfect_power(mpz_t next, mpz_t n)
   mpz_clear(best);
   mpz_clear(r);
 }
-void prev_perfect_power(mpz_t prev, mpz_t n)
+void prev_perfect_power(mpz_t prev, const mpz_t n)
 {
   UV power, log2n, k;
   mpz_t N, best, r, c;
@@ -109,7 +111,7 @@ void prev_perfect_power(mpz_t prev, mpz_t n)
 
 
 
-void perfect_power_count(mpz_t r, mpz_t n)
+void perfect_power_count(mpz_t r, const mpz_t n)
 {
   signed char* mu;
   unsigned long k, log2n;
@@ -138,7 +140,7 @@ void perfect_power_count(mpz_t r, mpz_t n)
   mpz_clear(count);
   mpz_clear(t);
 }
-void perfect_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
+void perfect_power_count_range(mpz_t r, const mpz_t lo, const mpz_t hi) {
   if (mpz_cmp(lo, hi) > 0 || mpz_cmp_ui(hi,1) < 0) {
     mpz_set_ui(r, 0);
     return;
@@ -169,7 +171,7 @@ static void mpf_mul_d_pow_d(mpf_t r, double m, mpf_t b, double e,  mpf_t t)
   mpf_mul(r, r, t);
 }
 
-void nth_perfect_power_approx(mpz_t nth, mpz_t n)
+void nth_perfect_power_approx(mpz_t nth, const mpz_t n)
 {
   mpf_t nf, pp, t, u;
 
@@ -216,7 +218,7 @@ void nth_perfect_power_approx(mpz_t nth, mpz_t n)
   mpf_clear(u);  mpf_clear(t);  mpf_clear(pp);  mpf_clear(nf);
 }
 
-void nth_perfect_power(mpz_t nth, mpz_t n)
+void nth_perfect_power(mpz_t nth, const mpz_t n)
 {
   const unsigned char smallres[10] = {0, 1, 4, 8, 9, 16, 25, 27, 32, 36};
   mpz_t g, c, apn, diff, t;

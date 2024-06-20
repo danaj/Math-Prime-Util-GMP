@@ -1717,7 +1717,7 @@ unsigned long power_factor(const mpz_t n, mpz_t f)
 static int numcmp(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
 
-mpz_t * divisor_list(int *num_divisors, const mpz_t n, mpz_t maxd)
+mpz_t * divisor_list(int *num_divisors, const mpz_t n, const mpz_t maxd)
 {
   mpz_t *factors, *divs, mult, t;
   int nfactors, ndivisors, i, j, k, count, *exponents;

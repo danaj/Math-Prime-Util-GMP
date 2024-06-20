@@ -5,10 +5,10 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, mpz_t mod, mpz_t t1, mpz_t t2, mpz_t t3);
-extern void poly_mod_pow(mpz_t *pres, mpz_t *pn, mpz_t power, UV r, mpz_t mod);
+extern void poly_mod_mul(mpz_t* px, mpz_t* py, UV r, const mpz_t mod, mpz_t t1, mpz_t t2, mpz_t t3);
+extern void poly_mod_pow(mpz_t *pres, mpz_t *pn, const mpz_t power, UV r, const mpz_t mod);
 
-extern void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, mpz_t mod);
+extern void poly_mod(mpz_t *pres, mpz_t *pn, UV *dn, const mpz_t mod);
 
 
 extern void polyz_mod(mpz_t *pres, mpz_t *pn, long *dn, const mpz_t mod);

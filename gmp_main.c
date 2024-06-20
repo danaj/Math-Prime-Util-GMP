@@ -896,7 +896,7 @@ void partitions(mpz_t npart, UV n)
   Safefree(pent);
 }
 
-void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
+void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
 {
   const mpz_t *N, *D;
   mpz_t t, nj, num, den;
@@ -987,7 +987,7 @@ void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
 }
 
 
-static void _powerful_count_recurse(mpz_t sum, mpz_t n, unsigned long k,
+static void _powerful_count_recurse(mpz_t sum, const mpz_t n, unsigned long k,
                                    mpz_t m, unsigned long r, mpz_t t)
 {
   mpz_t i, lim, newm;
@@ -1044,7 +1044,7 @@ static void _powerful_count_recurse(mpz_t sum, mpz_t n, unsigned long k,
   mpz_clear(lim);
 }
 
-void powerful_count(mpz_t r, mpz_t n, unsigned long k)
+void powerful_count(mpz_t r, const mpz_t n, unsigned long k)
 {
   mpz_t m, t;
 
@@ -1063,7 +1063,7 @@ void powerful_count(mpz_t r, mpz_t n, unsigned long k)
 }
 
 
-void prime_power_count(mpz_t r, mpz_t n)
+void prime_power_count(mpz_t r, const mpz_t n)
 {
   unsigned long k, log2n;
   mpz_t t1, t2;
@@ -1086,7 +1086,7 @@ void prime_power_count(mpz_t r, mpz_t n)
   }
   mpz_clear(t2);  mpz_clear(t1);
 }
-void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi) {
+void prime_power_count_range(mpz_t r, const mpz_t lo, const mpz_t hi) {
   if (mpz_cmp(lo, hi) > 0 || mpz_cmp_ui(hi,2) < 0) {
     mpz_set_ui(r, 0);
     return;
@@ -1148,13 +1148,13 @@ void consecutive_integer_lcm(mpz_t m, unsigned long B)
 }
 
 
-void exp_mangoldt(mpz_t res, mpz_t n)
+void exp_mangoldt(mpz_t res, const mpz_t n)
 {
   if (prime_power(res, n) < 1)
     mpz_set_ui(res, 1);
 }
 
-int is_carmichael(mpz_t n)
+int is_carmichael(const mpz_t n)
 {
   mpz_t nm1, base, t, *factors;
   int i, j, res, nfactors, *exponents;
@@ -1230,12 +1230,8 @@ int is_carmichael(mpz_t n)
   return res;
 }
 
-int is_fundamental(mpz_t n)
-{
-  int r, neg = (mpz_sgn(n) < 0), ret = 0;
-  if (neg) mpz_neg(n,n);
-
-  r = mpz_fdiv_ui(n,16);
+static int _is_fundamental(const mpz_t n, int neg) {
+  int ret = 0, r = mpz_fdiv_ui(n,16);
   if (r != 0) {
     int r4 = r & 3;
     if (!neg && r4 == 1 && is_square_free(n)) ret = 1;
@@ -1249,11 +1245,24 @@ int is_fundamental(mpz_t n)
       mpz_clear(t);
     }
   }
-  if (neg) mpz_neg(n,n);
   return ret;
 }
 
-int is_practical(mpz_t n)
+int is_fundamental(const mpz_t n)
+{
+  if (mpz_sgn(n) < 0) {
+    int ret;
+    mpz_t N;
+    mpz_init(N);
+    mpz_abs(N,n);
+    ret = _is_fundamental(N, 1);
+    mpz_clear(N);
+    return ret;
+  }
+  return _is_fundamental(n, 0);
+}
+
+int is_practical(const mpz_t n)
 {
   mpz_t pke, fmult, prod, *factors;
   int i, j, nfactors, *exponents;
@@ -1294,7 +1303,7 @@ int is_practical(mpz_t n)
   return (i >= nfactors);
 }
 
-int _totpred(mpz_t n, mpz_t maxd)
+int _totpred(const mpz_t n, const mpz_t maxd)
 {
     int i, res, ndivisors;
     mpz_t N, r, d, p, *D;
@@ -1337,14 +1346,14 @@ int _totpred(mpz_t n, mpz_t maxd)
     return res;
 }
 
-int is_totient(mpz_t n)
+int is_totient(const mpz_t n)
 {
   if (mpz_sgn(n) == 0 || mpz_odd_p(n))
     return !mpz_cmp_ui(n,1) ? 1 : 0;
   return _totpred(n, n);
 }
 
-void polygonal_nth(mpz_t r, mpz_t n, mpz_t k)
+void polygonal_nth(mpz_t r, const mpz_t n, const mpz_t k)
 {
   mpz_t D, t;
   uint32_t ksmall = mpz_fits_uint_p(k) ? mpz_get_ui(k) : 0xFFFFFFFFU;
@@ -1528,7 +1537,7 @@ static unsigned short small_prime_count(unsigned short n)
   return i;
 }
 
-void prime_count_lower(mpz_t pc, mpz_t n)
+void prime_count_lower(mpz_t pc, const mpz_t n)
 {
   mpf_t x, logx, logx2, t, s;
   unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
@@ -1640,7 +1649,7 @@ void prime_count_lower(mpz_t pc, mpz_t n)
   mpz_set_f(pc,x);
   mpf_clear(logx2); mpf_clear(logx); mpf_clear(x); mpf_clear(t); mpf_clear(s);
 }
-void prime_count_upper(mpz_t pc, mpz_t n)
+void prime_count_upper(mpz_t pc, const mpz_t n)
 {
   mpf_t x, logx, logx2, t, s;
   unsigned long bits = 7 + DIGS2BITS(mpz_sizeinbase(n,10));
@@ -1742,7 +1751,7 @@ void prime_count_upper(mpz_t pc, mpz_t n)
 }
 /*****************************************************************************/
 
-void prime_count_range(mpz_t count, mpz_t ilo, mpz_t ihi)
+void prime_count_range(mpz_t count, const mpz_t ilo, const mpz_t ihi)
 {
   uint32_t* comp;
   UV i, cnt, hbits, depth, width;
@@ -1822,7 +1831,7 @@ void prime_count_range(mpz_t count, mpz_t ilo, mpz_t ihi)
   mpz_clear(t); mpz_clear(lo); mpz_clear(hi);
 }
 
-void prime_count(mpz_t count, mpz_t hi)
+void prime_count(mpz_t count, const mpz_t hi)
 {
   mpz_t lo;
   mpz_init_set_ui(lo, 0);
@@ -1856,17 +1865,19 @@ typedef struct {
             t_ = n1;  n1 = n2;  n2 = t_; \
             t_ = m1;  m1 = m2;  m2 = t_; }
 
-UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
-  mpz_t t, low;
+UV* sieve_primes(const mpz_t inlow, const mpz_t high, UV k, UV *rn) {
+  mpz_t t, low, highodd;
   int test_primality = 0, k_primality = 0, force_full = 0, width2, hbits;
   uint32_t* comp;
   vlist retlist;
 
-  if (mpz_cmp_ui(inlow, 2) < 0) mpz_set_ui(inlow, 2);
-  if (mpz_cmp(inlow, high) > 0) { *rn = 0; return 0; }
+  mpz_init_set(low, inlow);
+  if (mpz_cmp_ui(low, 2) < 0) mpz_set_ui(low, 2);
+
+  if (mpz_cmp(low, high) > 0) { mpz_clear(low); *rn = 0; return 0; }
 
   mpz_init(t);
-  mpz_sub(t, high, inlow);
+  mpz_sub(t, high, low);
   width2 = mpz_sizeinbase(t,2);
   hbits = mpz_sizeinbase(high,2);
 
@@ -1913,12 +1924,12 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
       }
       Safefree(primes);
       mpz_clear(t);
+      mpz_clear(low);
       *rn = retlist.nsize;
       return retlist.list;
     }
   }
 
-  mpz_init_set(low, inlow);
   if (k < 2) k = 2;   /* Should have been handled by quick return */
 
   /* Include all primes up to k, since they will get filtered */
@@ -1933,15 +1944,19 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
     Safefree(primes);
   }
 
+  mpz_init_set(highodd, high);
   if (mpz_even_p(low))           mpz_add_ui(low, low, 1);
-  if (mpz_even_p(high))          mpz_sub_ui(high, high, 1);
+  if (mpz_even_p(highodd))       mpz_sub_ui(highodd, highodd, 1);
 
-  if (mpz_cmp(low, high) <= 0) {
+  if (mpz_cmp(low, highodd) <= 0) {
     UV i, length, offset;
-    mpz_sub(t, high, low); length = mpz_get_ui(t) + 1;
+    mpz_sub(t, highodd, low); length = mpz_get_ui(t) + 1;
     /* Get bit array of odds marked with composites(k) marked with 1 */
     comp = partial_sieve(low, length, k);
-    mpz_sub(t, low, inlow); offset = mpz_get_ui(t);
+    if (mpz_cmp_ui(inlow,2) <= 0) mpz_sub_ui(t, low, 2);
+    else                          mpz_sub(t, low, inlow);
+    offset = mpz_get_ui(t);
+    gmp_printf("  inlow %Zd  low %Zd  offset %lu\n", inlow, low, offset);
     for (i = 1; i <= length; i += 2) {
       if (!TSTAVAL(comp, i)) {
         if (!test_primality || (mpz_add_ui(t,low,i),_GMP_BPSW(t)))
@@ -1951,13 +1966,14 @@ UV* sieve_primes(mpz_t inlow, mpz_t high, UV k, UV *rn) {
     Safefree(comp);
   }
 
-  mpz_clear(low);
+  mpz_clear(highodd);
   mpz_clear(t);
+  mpz_clear(low);
   *rn = retlist.nsize;
   return retlist.list;
 }
 
-void next_twin_prime(mpz_t res, mpz_t n) {
+void next_twin_prime(mpz_t res, const mpz_t n) {
   mpz_t low, t;
 
   mpz_init(t);
@@ -2354,7 +2370,7 @@ static uint32_t* _todigits32(uint32_t *ndigits, uint32_t n, uint32_t base) {
   *ndigits = d;
   return digits;
 }
-static uint32_t* _todigits_base2(uint32_t *ndigits, mpz_t n) {
+static uint32_t* _todigits_base2(uint32_t *ndigits, const mpz_t n) {
   uint32_t *digits, d, bits = mpz_sizeinbase(n, 2);
   New(0, digits, bits, uint32_t);
   for (d = 0; d < bits; d++)
@@ -2363,7 +2379,7 @@ static uint32_t* _todigits_base2(uint32_t *ndigits, mpz_t n) {
   return digits;
 }
 /* Algorithm 1.26 FastIntegerOutput from MCA v0.5.9 */
-uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base) {
+uint32_t* todigits(uint32_t *ndigits, const mpz_t n, uint32_t base) {
   uint32_t* digits, *rdigits, *qdigits;
   uint32_t  k, nlen, rlen, qlen, zlen, i, j;
   mpz_t Q, R;

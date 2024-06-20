@@ -790,7 +790,7 @@ static void _harmonic(mpz_t a, mpz_t b, mpz_t t) {
   }
 }
 
-void harmfrac(mpz_t num, mpz_t den, mpz_t zn)
+void harmfrac(mpz_t num, mpz_t den, const mpz_t zn)
 {
   mpz_t t;
   mpz_init(t);
@@ -1045,7 +1045,7 @@ static void _bernfrac_zeta(mpz_t num, mpz_t den, unsigned long n, mpz_t t)
 }
 
 
-void bernfrac(mpz_t num, mpz_t den, mpz_t zn)
+void bernfrac(mpz_t num, mpz_t den, const mpz_t zn)
 {
   unsigned long n = mpz_get_ui(zn);
   mpz_t t;

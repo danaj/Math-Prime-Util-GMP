@@ -28,35 +28,35 @@ extern void subfactorial(mpz_t r, unsigned long n);
 extern void rising_factorial(mpz_t r, unsigned long x, unsigned long n);
 extern void falling_factorial(mpz_t r, unsigned long x, unsigned long n);
 
-extern void faulhaber_sum(mpz_t sum, mpz_t zn, unsigned long p);
+extern void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p);
 
-extern void powerful_count(mpz_t r, mpz_t n, unsigned long k);
+extern void powerful_count(mpz_t r, const mpz_t n, unsigned long k);
 
-extern int  is_carmichael(mpz_t n);
-extern int  is_fundamental(mpz_t n);
-extern int  is_practical(mpz_t n);
-extern int  is_totient(mpz_t n);
-extern void polygonal_nth(mpz_t r, mpz_t n, mpz_t k);
+extern int  is_carmichael(const mpz_t n);
+extern int  is_fundamental(const mpz_t n);
+extern int  is_practical(const mpz_t n);
+extern int  is_totient(const mpz_t n);
+extern void polygonal_nth(mpz_t r, const mpz_t n, const mpz_t k);
 
-extern void exp_mangoldt(mpz_t res, mpz_t n);
+extern void exp_mangoldt(mpz_t res, const mpz_t n);
 
 extern uint32_t* partial_sieve(mpz_t start, UV length, UV maxprime);
 
-extern void prime_count_lower(mpz_t pc, mpz_t n);
-extern void prime_count_upper(mpz_t pc, mpz_t n);
-extern UV* sieve_primes(mpz_t low, mpz_t high, UV k, UV *rn);
+extern void prime_count_lower(mpz_t pc, const mpz_t n);
+extern void prime_count_upper(mpz_t pc, const mpz_t n);
+extern UV* sieve_primes(const mpz_t low, const mpz_t high, UV k, UV *rn);
 extern UV* sieve_twin_primes(mpz_t low, mpz_t high, UV twin, UV *rn);
 extern UV* sieve_cluster(mpz_t low, mpz_t high, uint32_t* cl, UV nc, UV *rn);
 
-extern void prime_count(mpz_t count, mpz_t hi);
-extern void prime_count_range(mpz_t count, mpz_t lo, mpz_t hi);
+extern void prime_count(mpz_t count, const mpz_t hi);
+extern void prime_count_range(mpz_t count, const mpz_t lo, const mpz_t hi);
 
-extern void prime_power_count(mpz_t r, mpz_t n);
-extern void prime_power_count_range(mpz_t r, mpz_t lo, mpz_t hi);
+extern void prime_power_count(mpz_t r, const mpz_t n);
+extern void prime_power_count_range(mpz_t r, const mpz_t lo, const mpz_t hi);
 
-extern void next_twin_prime(mpz_t res, mpz_t n);
+extern void next_twin_prime(mpz_t res, const mpz_t n);
 
-extern uint32_t* todigits(uint32_t *ndigits, mpz_t n, uint32_t base);
+extern uint32_t* todigits(uint32_t *ndigits, const mpz_t n, uint32_t base);
 extern void fromdigits(mpz_t n, uint32_t *d, uint32_t len, uint32_t base);
 extern void fromdigits_str(mpz_t n, const char* s, uint32_t base);
 

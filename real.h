@@ -4,8 +4,8 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-extern void bernfrac(mpz_t num, mpz_t den, mpz_t n);
-extern void harmfrac(mpz_t num, mpz_t den, mpz_t n);
+extern void bernfrac(mpz_t num, mpz_t den, const mpz_t n);
+extern void harmfrac(mpz_t num, mpz_t den, const mpz_t n);
 extern void li(mpf_t li, mpf_t x, unsigned long prec);
 extern void ei(mpf_t li, mpf_t x, unsigned long prec);
 

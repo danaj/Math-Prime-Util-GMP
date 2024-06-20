@@ -22,10 +22,10 @@ extern void mpz_set_iv(mpz_t n, IV v);
 extern UV   mpz_get_uv(const mpz_t n);
 /* TODO: cmp_uv, cmp_iv, mul_iv, mul_uv, etc. */
 
-extern UV   is_power(mpz_t n, UV a);
-extern UV   prime_power(mpz_t prime, mpz_t n);
+extern UV   is_power(const mpz_t n, UV a);
+extern UV   prime_power(mpz_t prime, const mpz_t n);
 extern int  is_primitive_root(const mpz_t a, const mpz_t n, int nprime);
-extern int  is_qr(mpz_t a, mpz_t n);
+extern int  is_qr(const mpz_t a, const mpz_t n);
 
 /* tdiv_r is faster, but we'd need to guarantee the input is positive */
 #define mpz_mulmod(r, a, b, n, t)  \
@@ -41,12 +41,12 @@ extern void gcdext(mpz_t g, mpz_t s, mpz_t t, const mpz_t a, const mpz_t b);
 #define gcdext(g,s,t,a,b) mpz_gcdext(g,s,t,a,b)
 #endif
 
-extern int chinese(mpz_t ret, mpz_t lcm, mpz_t *a, mpz_t *m, int items);
+extern int chinese(mpz_t ret, mpz_t lcm, const mpz_t *a, const mpz_t *m, int items);
 
-extern UV mpz_order_ui(unsigned long r, mpz_t n, unsigned long limit);
+extern UV mpz_order_ui(unsigned long r, const mpz_t n, unsigned long limit);
 
-extern void mpz_arctan(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
-extern void mpz_arctanh(mpz_t r, unsigned long base, mpz_t pow, mpz_t t1, mpz_t t2);
+extern void mpz_arctan(mpz_t r, unsigned long base, const mpz_t pow, mpz_t t1, mpz_t t2);
+extern void mpz_arctanh(mpz_t r, unsigned long base, const mpz_t pow, mpz_t t1, mpz_t t2);
 extern void mpz_product(mpz_t* A, UV a, UV b);
 extern void mpz_product_ui(mpz_t prod, unsigned long *v, unsigned long n);
 extern void mpz_veclcm(mpz_t* A, UV a, UV b);
@@ -59,10 +59,10 @@ extern int modified_cornacchia(mpz_t x, mpz_t y, const mpz_t D, const mpz_t p);
 #define BITS2DIGS(bits) ceil(bits/3.3219281)
 #define DIGS2BITS(digs) ceil(digs*3.3219281)
 
-extern void mpf_log(mpf_t logx, mpf_t x);
-extern void mpf_exp(mpf_t expx, mpf_t x);
-extern void mpf_pow(mpf_t powx, mpf_t b, mpf_t x);
-extern void mpf_root(mpf_t rootx, mpf_t x, mpf_t n);
+extern void mpf_log(mpf_t logx, const mpf_t x);
+extern void mpf_exp(mpf_t expx, const mpf_t x);
+extern void mpf_pow(mpf_t powx, const mpf_t b, const mpf_t x);
+extern void mpf_root(mpf_t rootx, const mpf_t x, const mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
 extern UV logint(const mpz_t n, UV base);
