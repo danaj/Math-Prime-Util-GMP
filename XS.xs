@@ -1633,7 +1633,6 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
       mpz_add_ui(seghigh, low, maxseg - 1);
       if (mpz_cmp(seghigh, high) > 0)
         mpz_set(seghigh, high);
-      mpz_set(t, seghigh);  /* Save in case it is modified */
       if (ix == 1) {
         UV k = (nc <= 1) ? 0 : SvUV(ST(2));
         list = sieve_primes(low, seghigh, k, &nprimes);
@@ -1653,7 +1652,6 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
         list = sieve_cluster(low, seghigh, cl, nc, &nprimes);
         Safefree(cl);
       }
-      mpz_set(seghigh, t);  /* Restore the value we used */
 
       if (list != 0) {
         for (i = 0; i < nprimes; i++) {
