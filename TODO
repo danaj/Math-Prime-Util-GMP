@@ -194,5 +194,3 @@ For new functions:
 - remove tfall1 tfall2 from XS.xs
 
 - docs for is_ functions with positive vs. integer inputs
-
-- more const mpz_t

@@ -612,7 +612,7 @@ void totient(mpz_t tot, const mpz_t n_input)
   mpz_clear(n);
 }
 
-void jordan_totient(mpz_t tot, mpz_t n, unsigned long k)
+void jordan_totient(mpz_t tot, const mpz_t n, unsigned long k)
 {
   if (k == 0) {
     mpz_set_ui(tot, (mpz_cmp_ui(n, 1) == 0) ? 1 : 0);
@@ -641,7 +641,7 @@ void jordan_totient(mpz_t tot, mpz_t n, unsigned long k)
   }
 }
 
-void carmichael_lambda(mpz_t lambda, mpz_t n)
+void carmichael_lambda(mpz_t lambda, const mpz_t n)
 {
   if (mpz_cmp_ui(n, 8) < 0) {
     totient(lambda, n);
@@ -682,7 +682,7 @@ static const unsigned char _zn16[14] = {0,4,0,4,0,2,0,2,0,4,0,4,0,2};
 static const unsigned char _zn17[15] = {8,16,4,16,16,16,8,8,16,16,16,4,16,8,2};
 
 /* Do not alias any of the arguments */
-static void _znorder1(mpz_t order, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t n)
+static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t n)
 {
   mpz_t phi, *factors;
   int* exponents;
@@ -733,21 +733,24 @@ static void _znorder1(mpz_t order, mpz_t a, mpz_t p, int e, mpz_t t, mpz_t n)
   clear_factors(nfactors, &factors, &exponents);
 }
 
-void znorder(mpz_t res, mpz_t a, mpz_t n)
+void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
 {
-  mpz_t t, order;
+  mpz_t a, n, t, order;
 
-  /* TODO: Usually we don't want to modify their inputs */
-  mpz_abs(n,n);
-  if (mpz_cmp_ui(n, 1) <= 0) { mpz_set(res, n); return; }
-  mpz_mod(a, a, n);
-  if (mpz_cmp_ui(a, 1) <= 0) { mpz_set(res, a); return; }
+  mpz_init(n);
+  mpz_abs(n, inn);
+  if (mpz_cmp_ui(n, 1) <= 0) { mpz_set(res, n); mpz_clear(n); return; }
+  mpz_init(a);
+  mpz_mod(a, ina, n);
+  if (mpz_cmp_ui(a, 1) <= 0) { mpz_set(res, a); mpz_clear(a); mpz_clear(n); return; }
 
   mpz_init(t);
   mpz_gcd(t, a, n);
   if (mpz_cmp_ui(t, 1) != 0) {
     mpz_set_ui(res, 0);
     mpz_clear(t);
+    mpz_clear(a);
+    mpz_clear(n);
     return;
   }
   mpz_init_set_ui(order, 1);
@@ -771,6 +774,8 @@ void znorder(mpz_t res, mpz_t a, mpz_t n)
   mpz_set(res, order);
   mpz_clear(order);
   mpz_clear(t);
+  mpz_clear(a);
+  mpz_clear(n);
 }
 
 static int _znprimroot_prime(mpz_t root, const mpz_t p,
@@ -865,7 +870,7 @@ static const int32_t tau_table[] = {
   0,1,-24,252,-1472,4830,-6048,-16744,84480,-113643,-115920,534612,-370944,-577738,401856,1217160,987136,-6905934,2727432,10661420,-7109760,-4219488,-12830688,18643272,21288960,-25499225,13865712,-73279080,24647168,128406630,-29211840,-52843168,-196706304,134722224,165742416,-80873520,167282496,-182213314,-255874080,-145589976,408038400,308120442,101267712,-17125708,-786948864,-548895690,-447438528
 };
 #define NTAU (sizeof(tau_table)/sizeof(tau_table[0]))
-void ramanujan_tau(mpz_t res, mpz_t n)
+void ramanujan_tau(mpz_t res, const mpz_t n)
 {
   mpz_t t, t1, t2, t3, t4, *factors;
   int i, nfactors, *exponents;

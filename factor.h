@@ -18,11 +18,11 @@ extern int is_square_free(const mpz_t n);
 extern int liouville(const mpz_t n);
 extern int is_semiprime(const mpz_t n);
 extern void totient(mpz_t totient, const mpz_t n);
-extern void jordan_totient(mpz_t tot, mpz_t n, unsigned long k);
-extern void carmichael_lambda(mpz_t lambda, mpz_t n);
-extern void znorder(mpz_t res, mpz_t a, mpz_t n);
+extern void jordan_totient(mpz_t tot, const mpz_t n, unsigned long k);
+extern void carmichael_lambda(mpz_t lambda, const mpz_t n);
+extern void znorder(mpz_t res, const mpz_t a, const mpz_t n);
 extern void znprimroot(mpz_t root, const mpz_t n);
-extern void ramanujan_tau(mpz_t res, mpz_t n);
+extern void ramanujan_tau(mpz_t res, const mpz_t n);
 
 extern UV   _GMP_trial_factor(const mpz_t n, UV from_n, UV to_n);
 extern int  _GMP_prho_factor(const mpz_t n, mpz_t f, UV a, UV rounds);
