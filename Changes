@@ -124,6 +124,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - znprimroot with large powers is much faster.
 
+    - Faster ramanujan_tau(n).
+
     [OTHER]
 
     - valuation(n,k) now will error if k < 2.  This follows Pari and SAGE.

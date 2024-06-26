@@ -590,7 +590,7 @@ totient(IN char* strn)
                  XSRETURN_UNDEF;
                }
                break;
-      case 6:  ramanujan_tau(res, n);  break;
+      case 6:  rtau(res, n);  break;
       case 7:  mpz_sqrt(res, n);  break;
       case 8:  mpz_set_uv(res, prime_power(res, n)); break;
       case 9:  prime_count_lower(res, n); break;

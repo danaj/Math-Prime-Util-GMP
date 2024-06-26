@@ -80,9 +80,6 @@ For new functions:
   About 3 minutes vs. 7-8 just by using gmp_printf.
   Using sieve_range doesn't help, as the issue is the massive return array.
 
-- More efficient version of ramanujan_tau?  MPU has an hclassno implementation
-  now.  FLINT does an interesting method as well.
-
 - Consider ranged ramanujan_tau.  See:
   https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
   Where we could compute a number of hclassno values, then generate the
@@ -179,6 +176,8 @@ For new functions:
   https://arxiv.org/pdf/2006.14425
   https://community.wolfram.com/groups/-/m/t/2344199?p_p_auth=UZ0BHnEu
 
+- Look into FLINT's poly ramanujan tau method by Fredrik Johansson.
+
 =============== MUST DO BEFORE RELEASE
 
 - consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
@@ -194,3 +193,5 @@ For new functions:
 - remove tfall1 tfall2 from XS.xs
 
 - docs for is_ functions with positive vs. integer inputs
+
+- better hclassno

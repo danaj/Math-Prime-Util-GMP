@@ -866,6 +866,7 @@ void znprimroot(mpz_t root, const mpz_t n)
   mpz_clear(p);
 }
 
+#if 0  /* Replaced by rtau(res,n) in gmp_main.c. */
 static const int32_t tau_table[] = {
   0,1,-24,252,-1472,4830,-6048,-16744,84480,-113643,-115920,534612,-370944,-577738,401856,1217160,987136,-6905934,2727432,10661420,-7109760,-4219488,-12830688,18643272,21288960,-25499225,13865712,-73279080,24647168,128406630,-29211840,-52843168,-196706304,134722224,165742416,-80873520,167282496,-182213314,-255874080,-145589976,408038400,308120442,101267712,-17125708,-786948864,-548895690,-447438528
 };
@@ -953,6 +954,7 @@ void ramanujan_tau(mpz_t res, const mpz_t n)
   clear_factors(nfactors, &factors, &exponents);
   mpz_clear(t4); mpz_clear(t3); mpz_clear(t2); mpz_clear(t1); mpz_clear(t);
 }
+#endif
 
 int is_semiprime(const mpz_t n)
 {
