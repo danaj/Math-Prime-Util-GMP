@@ -985,6 +985,113 @@ void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
   mpz_clear(t);
 }
 
+/*
+ * https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
+ *
+ * Not clear if this is better than Cohen's method, but a little simpler.
+ */
+static void _tau_prime(mpz_t res, const mpz_t p) {
+  UV imax, i, p4;
+  mpz_t t, s10, sum;
+
+  if (mpz_cmp_ui(p,2) == 0) { mpz_set_si(res,  -24); return; }
+  if (mpz_cmp_ui(p,3) == 0) { mpz_set_si(res,  252); return; }
+  if (mpz_cmp_ui(p,5) == 0) { mpz_set_si(res, 4830); return; }
+
+  mpz_init(t);
+  mpz_init(s10);
+
+  if (!mpz_fits_uv_p(p)) croak("overflow in tau_prime");
+  p4 = mpz_get_uv(p);
+  if (p4 > (UV_MAX >> 2)) croak("overflow in tau_prime");
+  p4 <<= 2;
+  imax = isqrt(p4);
+
+  for (i = 1; i <= imax; i++) {
+    mpz_ui_pow_ui(t, i, 10);
+    mpz_mul_ui(t, t, hclassno_ui(p4-i*i));
+    mpz_add(s10, s10, t);
+  }
+  mpz_divexact_ui(s10, s10, 12);
+  mpz_init(sum);
+  mpz_pow_ui(t, p, 5); mpz_mul_ui(t, t, 42); mpz_set(sum, t);
+  mpz_pow_ui(t, p, 4); mpz_mul_ui(t, t, 42); mpz_sub(sum, sum, t);
+  mpz_pow_ui(t, p, 3); mpz_mul_ui(t, t, 48); mpz_sub(sum, sum, t);
+  mpz_pow_ui(t, p, 2); mpz_mul_ui(t, t, 27); mpz_sub(sum, sum, t);
+                       mpz_mul_ui(t, p,  8); mpz_sub(sum, sum, t);
+                                             mpz_sub_ui(sum,sum,1 );
+  mpz_add_ui(t, p, 1);
+  mpz_mul(sum, sum, t);
+  mpz_sub(sum, sum, s10);
+  mpz_set(res, sum);
+  mpz_clear(sum);  mpz_clear(s10);  mpz_clear(t);
+}
+
+static void _tau_power(mpz_t res, const mpz_t p, int e) {
+  mpz_t t, tp, p11;
+
+  if (e <= 0) { mpz_set_ui(res,1); return; }
+  if (e == 1) { _tau_prime(res,p); return; }
+
+  mpz_init(t);  mpz_init(tp);  mpz_init(p11);
+
+  _tau_prime(tp, p);
+  mpz_pow_ui(p11, p, 11);
+
+  if (e == 2) {
+    mpz_pow_ui(res, tp, 2);
+    mpz_sub(res, res, p11);
+  } else if (e == 3) {
+    mpz_pow_ui(res, tp, 3);
+    mpz_mul(t, tp, p11);
+    mpz_mul_ui(t, t, 2);
+    mpz_sub(res, res, t);
+  } else if (e == 4) {
+    mpz_pow_ui(res, tp, 4);
+    mpz_pow_ui(t, tp, 2);
+    mpz_mul_ui(t, t, 3);
+    mpz_mul(t, t, p11);
+    mpz_sub(res, res, t);
+    mpz_pow_ui(t, p11, 2);
+    mpz_add(res, res, t);
+  } else {
+    /* Recurse */
+    mpz_pow_ui(res, tp, 3);
+    mpz_mul(t, tp, p11);
+    mpz_mul_ui(t, t, 2);
+    mpz_sub(res, res, t);
+    _tau_power(t, p, e-3);
+    mpz_mul(res, res, t);
+
+    mpz_pow_ui(t, tp, 2);
+    mpz_mul(t, t, p11);
+    mpz_pow_ui(p11, p11, 2);
+    mpz_sub(p11, p11, t);    /* p11 = p11^2 - p11 * tp^2 */
+    _tau_power(t, p, e-4);
+    mpz_mul(t, t, p11);
+
+    mpz_add(res, res, t);
+  }
+  mpz_clear(p11);  mpz_clear(tp);  mpz_clear(t);
+}
+
+void rtau(mpz_t res, const mpz_t n) {
+  mpz_t t, *factors;
+  int i, nfactors, *exponents;
+
+  if (mpz_cmp_ui(n, 0) <= 0) { mpz_set_ui(res,0); return; }
+
+  mpz_init(t);
+  nfactors = factor(n, &factors, &exponents);
+  mpz_set_ui(res,1);
+  for (i = 0; i < nfactors; i++) {
+    _tau_power(t, factors[i], exponents[i]);
+    mpz_mul(res, res, t);
+  }
+  clear_factors(nfactors, &factors, &exponents);
+  mpz_clear(t);
+}
+
 
 static void _powerful_count_recurse(mpz_t sum, const mpz_t n, unsigned long k,
                                    mpz_t m, unsigned long r, mpz_t t)
