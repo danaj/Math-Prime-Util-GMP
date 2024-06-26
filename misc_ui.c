@@ -16,6 +16,7 @@
 #define FUNC_ipow 1
 #define FUNC_isqrt 1
 #define FUNC_icbrt 1
+#define FUNC_is_perfect_square
 #include "misc_ui.h"
 
 
@@ -368,4 +369,50 @@ IV sumliouville_ui(UV n) {
   hmertens_destroy(mctx);
 
   return sum;
+}
+
+/******************************************************************************/
+
+/* This method that doesn't get the divisors of n is just as good under 1e6.
+ * Above that it is much slower.
+ */
+
+IV hclassno_ui(UV n) {
+  UV h, b, b2, i, lim;
+  int square;
+
+  if (n == 0) return -1;
+  if ((n % 4) == 1 || (n % 4) == 2) return 0;
+
+  h = 0;
+  square = 0;
+  b = n & 1;
+  b2 = (n+1) >> 2;
+
+  if (b == 0) {
+    lim = isqrt(b2);
+    if (lim*lim == b2) {
+      square = 1;
+      lim--;
+    }
+    for (i = 1; i <= lim; i++)
+      if ((b2 % i) == 0)
+        h++;
+    b = 2;
+    b2 = (n+4) >> 2;
+  }
+  while (b2*3 < n) {
+    if ((b2 % b) == 0)  h++;
+    lim = isqrt(b2);
+    if (lim*lim == b2) {
+      h++;
+      lim--;
+    }
+    for (i = b+1; i <= lim; i++)
+      if ((b2 % i) == 0)
+        h += 2;
+    b += 2;
+    b2 = (n+b*b) >> 2;
+  }
+  return 2 * ((b2*3 == n)  ?  2*(3*h+1)  :  (square  ?  3*(2*h+1)  :  6*h));
 }

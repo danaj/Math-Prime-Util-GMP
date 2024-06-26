@@ -20,6 +20,8 @@ extern IV    mertens_ui(UV n);
 
 extern IV sumliouville_ui(UV n);
 
+extern IV hclassno_ui(UV n);
+
 
 #if defined(FUNC_isqrt) || defined(FUNC_is_perfect_square)
 static UV isqrt(UV n) {
