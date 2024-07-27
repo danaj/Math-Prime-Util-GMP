@@ -25,11 +25,12 @@ extern void factorialmod(mpz_t r, UV n, const mpz_t m);
 extern void multifactorial(mpz_t r, unsigned long n, unsigned long k);
 extern void factorial_sum(mpz_t r, unsigned long n);
 extern void subfactorial(mpz_t r, unsigned long n);
-extern void rising_factorial(mpz_t r, unsigned long x, unsigned long n);
-extern void falling_factorial(mpz_t r, unsigned long x, unsigned long n);
+extern void rising_factorial(mpz_t r, mpz_t x, mpz_t n);
+extern void falling_factorial(mpz_t r, mpz_t x, mpz_t n);
 
 extern void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p);
 
+extern void hclassno(mpz_t res, const mpz_t n);
 extern void rtau(mpz_t res, const mpz_t n);
 
 extern void powerful_count(mpz_t r, const mpz_t n, unsigned long k);

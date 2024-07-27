@@ -1226,6 +1226,23 @@ invmod(IN char* stra, IN char* strb)
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
 
+void
+falling_factorial(IN char* strx, IN char* strn)
+  ALIAS:
+    rising_factorial = 1
+  PREINIT:
+    mpz_t x, n, r;
+  PPCODE:
+    validate_and_set_signed(cv, x, "x", strx, VSETNEG_OK);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    mpz_init(r);
+    if (ix == 0)  falling_factorial(r, x, n);
+    else          rising_factorial(r, x, n);
+    mpz_clear(x);
+    mpz_clear(n);
+    XPUSH_MPZ(r);
+    mpz_clear(r);
+
 int is_qr(IN char* stra, IN char* strn)
   PREINIT:
     mpz_t a, n;

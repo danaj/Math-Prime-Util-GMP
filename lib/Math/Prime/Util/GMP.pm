@@ -71,6 +71,7 @@ our @EXPORT_OK = qw(
                      primorial
                      pn_primorial
                      factorial subfactorial multifactorial factorial_sum
+                     falling_factorial rising_factorial
                      factorialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
@@ -1292,6 +1293,24 @@ factorial.
 
 This is L<OEIS series A000166|http://oeis.org/A000166>.
 This corresponds to Mathematica's C<Subfactorial[n]> function.
+
+=head2 falling_factorial
+
+Given two integers C<x> and C<n>, with C<n> non-negative, returns the
+falling factorial of C<n>.
+
+  falling_factorial(x,n) = x * (x-1) * (x-2) * ... * (x-(n-1))
+
+This corresponds to Mathematica's C<FactorialPower[x,n]> function.
+
+=head2 rising_factorial
+
+Given two integers C<x> and C<n>, with C<n> non-negative, returns the
+rising factorial of C<n>.
+
+  rising_factorial(x,n) = x * (x+1) * (x+2) * ... * (x+(n-1))
+
+This corresponds to Mathematica's C<Pochhammer[x,n]> function.
 
 =head2 gcd
 

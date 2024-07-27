@@ -1,6 +1,6 @@
 
 For new functions:
-  .h, .c, XS, export, t/02, doc, test
+  .h, .c, XS, export, t/02, Changes, doc, test
 
 - prime_count - needs the pc(#) option as well as pc(#,#)
 
@@ -133,8 +133,6 @@ For new functions:
 
 - tinyqs needs a destroy to clear all the init vars
 
-- maybe export rising_factorial and falling_factorial.
-
 - clean up dependencies links.  We now have to include *every* C file to
   compile SIMPQS standalone.  Completely unnecessary, but some utility
   functions are pulling in other things.
@@ -177,6 +175,11 @@ For new functions:
   https://community.wolfram.com/groups/-/m/t/2344199?p_p_auth=UZ0BHnEu
 
 - Look into FLINT's poly ramanujan tau method by Fredrik Johansson.
+
+- Fubini
+
+- subfactorial for large enough n should use floor((n!+1)/e).  See Sidef.
+
 
 =============== MUST DO BEFORE RELEASE
 

@@ -743,18 +743,28 @@ void subfactorial(mpz_t r, unsigned long n)
   }
 }
 
-void falling_factorial(mpz_t r, unsigned long x, unsigned long n)
+void falling_factorial(mpz_t r, mpz_t x, mpz_t n)
 {
   mpz_t t;
-  if (n == 0) { mpz_set_ui(r,1); return; }
+  unsigned long nui;
+  if (mpz_sgn(n) < 0) { mpz_set_ui(r,0); return; }
+  if (mpz_cmp_ui(n,0) == 0) { mpz_set_ui(r,1); return; }
+  if (mpz_cmp_ui(n,1) == 0) { mpz_set(r,x); return; }
+  MPUassert(mpz_fits_ulong_p(n), "falling_factorial n too large" );
+  nui = mpz_get_ui(n);
   mpz_init(t);
-  mpz_bin_uiui(t, x, n);
-  mpz_fac_ui(r, n);
+  mpz_bin_ui(t, x, nui);
+  mpz_fac_ui(r, nui);
   mpz_mul(r, r, t);
   mpz_clear(t);
 }
-void rising_factorial(mpz_t r, unsigned long x, unsigned long n) {
-  falling_factorial(r, x+n-1, n);
+void rising_factorial(mpz_t r, mpz_t x, mpz_t n) {
+  mpz_t t;
+  mpz_init(t);
+  mpz_add(t,x,n);
+  mpz_sub_ui(t,t,1);
+  falling_factorial(r, t, n);
+  mpz_clear(t);
 }
 
 
@@ -984,6 +994,19 @@ void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
   mpz_clear(num);
   mpz_clear(t);
 }
+
+void hclassno(mpz_t res, const mpz_t n)
+{
+  uint32_t nmod4 = mpz_fdiv_ui(n,4);
+
+  if (mpz_sgn(n)  < 0) { mpz_set_ui(res,0); return; }
+  if (mpz_sgn(n) == 0) { mpz_set_ui(res,-1); return; }
+  if (nmod4 == 1 || nmod4 == 2) { mpz_set_ui(res,0); return; }
+  if (mpz_cmp_ui(n,3) == 0) { mpz_set_ui(res,4); return; }
+
+  /* TODO: implement the rest of this */
+}
+
 
 /*
  * https://cs.uwaterloo.ca/journals/JIS/VOL13/Lygeros/lygeros5.pdf
