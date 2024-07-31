@@ -8,6 +8,7 @@
 
 #define FUNC_gcd_ui 1
 #include "utility.h"
+#include "misc_ui.h"
 
 static INLINE UV mpz_getuv(const mpz_t n) {
   UV v = mpz_getlimbn(n,0);
