@@ -54,6 +54,7 @@ void _GMP_init(void)
 
 void _GMP_destroy(void)
 {
+  _destroy_factor();
   _GMP_memfree();
   prime_iterator_global_shutdown();
   clear_randstate();
