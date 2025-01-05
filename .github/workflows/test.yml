@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        perl: [
+          '5.8',
+          '5.10', '5.12', '5.14', '5.16', '5.18',
+          '5.20', '5.22', '5.24', '5.26', '5.28',
+          '5.30', '5.32', '5.34', '5.36', '5.38',
+          '5.40',
+        ]
+
+    runs-on: ubuntu-22.04
+
+    name: Perl ${{ matrix.perl }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
+
+      # HTML::Tagset 3.22+ requires Perl 5.10+ so install an older copy.
+      - if: ${{ matrix.perl == '5.8' }}
+        run: cpm install --show-build-log-on-failure --without-test HTML::Tagset@3.20
+
+      - run: cpm install --show-build-log-on-failure --no-prebuilt
+
+      - run: perl Makefile.PL
+
+      - run: make test
