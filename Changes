@@ -138,6 +138,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - divisors(0) returns an empty list, sigma(0) returns 0.
 
+    - Use PERL_NO_GET_CONTEXT for smaller size and better performance.
+
 0.52 2020-06-22
 
     [ADDED]

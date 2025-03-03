@@ -1,3 +1,4 @@
+#define PERL_NO_GET_CONTEXT 1 /* Define at top for more efficiency. */
 
 #include "EXTERN.h"
 #include "perl.h"
@@ -34,20 +35,15 @@
  * crude but seems to work pretty well.
  */
 
-static void validate_string_number(CV* cv, const char* var, const char* s)
-{
-  const char* p;
-  if (s == 0)
-    croak("%s (%s): null string pointer as input", GvNAME(CvGV(cv)),var);
-  if (*s == 0)
-    croak("%s (%s): empty string as input", GvNAME(CvGV(cv)),var);
-  p = s;
-  while (*p != 0) {
-    if (!isdigit(*p))
-      croak("%s (%s): input '%s' must be a positive integer", GvNAME(CvGV(cv)), var, s);
-    p++;
-  }
-}
+#define validate_string_number(cv,var,s) \
+  do { \
+    const char* p; \
+    if ((s) == 0)  croak("%s (%s): null string pointer as input", GvNAME(CvGV(cv)),var); \
+    if (*(s) == 0) croak("%s (%s): empty string as input", GvNAME(CvGV(cv)),var); \
+    for (p = s;  *p != 0; p++) \
+      if (!isdigit(*p)) \
+        croak("%s (%s): input '%s' must be a positive integer", GvNAME(CvGV(cv)), var, s); \
+  } while (0)
 
 #define VALIDATE_AND_SET(var, str) \
   do { \
@@ -60,13 +56,15 @@ static void validate_string_number(CV* cv, const char* var, const char* s)
 #define VSETNEG_ERR 0
 #define VSETNEG_POS 1
 #define VSETNEG_OK  2
-static int validate_and_set_signed(CV* cv, mpz_t v, const char* vname, const char* s, int negflag) {
+static int validate_and_set_signed_static(pTHX_ CV* cv, mpz_t v, const char* vname, const char* s, int negflag) {
   int neg = (s && *s == '-');
   if (s && *s == '+') s++;
   validate_string_number(cv, vname, (neg && negflag != VSETNEG_ERR) ? s+1 : s);
   mpz_init_set_str(v, (neg && negflag == VSETNEG_POS) ? s+1 : s, 10);
   return neg;
 }
+#define validate_and_set_signed(cv, var, varname, str, flag) \
+  validate_and_set_signed_static(aTHX_ cv, var, varname, str, flag)
 
 static char* cert_with_header(char* proof, mpz_t n) {
   char *str, *strptr;
@@ -83,7 +81,7 @@ static char* cert_with_header(char* proof, mpz_t n) {
   return str;
 }
 
-static SV* sv_return_for_mpz(const mpz_t n) {
+static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
   SV* sv = 0;
   UV v = mpz_get_ui(n);
   if (!mpz_cmp_ui(n, v)) {  /* Try to use a scalar */
@@ -100,7 +98,7 @@ static SV* sv_return_for_mpz(const mpz_t n) {
 }
 
 #define XPUSH_MPZ(n) \
-  XPUSHs(sv_2mortal( sv_return_for_mpz(n) ))
+  XPUSHs(sv_2mortal( sv_return_for_mpz(aTHX_ n) ))
 #define XPUSH_INT(n) \
   XPUSHs(sv_2mortal( newSViv(n) ))
 #define XPUSH_UINT(n) \
@@ -807,8 +805,8 @@ void bernvec(IN UV n)
       EXTEND(SP, (long)(n+1));
       for (i = 0; i <= n; i++) {
         AV* av = newAV();
-        av_push(av, sv_return_for_mpz(N[i]));
-        av_push(av, sv_return_for_mpz(D[i]));
+        av_push(av, sv_return_for_mpz(aTHX_ N[i]));
+        av_push(av, sv_return_for_mpz(aTHX_ D[i]));
         PUSHs( sv_2mortal(newRV_noinc( (SV*) av )) );
       }
     }
