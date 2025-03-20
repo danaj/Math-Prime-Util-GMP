@@ -45,7 +45,7 @@ static INLINE uint64_t mont_inverse(const uint64_t n) {
 }
 /* MULREDC asm from Ben Buhrow */
 static INLINE uint64_t _mulredc63(uint64_t a, uint64_t b, uint64_t n, uint64_t npi) {
-    asm("mulq %2 \n\t"
+    __asm__("mulq %2 \n\t"
         "movq %%rax, %%r10 \n\t"
         "movq %%rdx, %%r11 \n\t"
         "mulq %3 \n\t"
@@ -62,14 +62,14 @@ static INLINE uint64_t _mulredc63(uint64_t a, uint64_t b, uint64_t n, uint64_t n
   return a;
 }
 static INLINE uint64_t _u64div(uint64_t c, uint64_t n) {
-  asm("divq %4"
+  __asm__("divq %4"
       : "=a"(c), "=d"(n)
       : "1"(c), "0"(0), "r"(n));
   return n;
 }
 static INLINE UV mulmod(UV a, UV b, UV n) {
   UV d, dummy;                    /* d will get a*b mod c */
-  asm ("mulq %3\n\t"              /* mul a*b -> rdx:rax */
+  __asm__ ("mulq %3\n\t"              /* mul a*b -> rdx:rax */
        "divq %4\n\t"              /* (a*b)/c -> quot in rax remainder in rdx */
        :"=a"(dummy), "=&d"(d)     /* output */
        :"a"(a), "r"(b), "r"(n)    /* input */
@@ -80,7 +80,7 @@ static INLINE UV mulmod(UV a, UV b, UV n) {
 static INLINE UV addmod(UV a, UV b, UV n) {
   UV t = a-n;
   a += b;
-  asm ("add %2, %1\n\t"    /* t := t + b */
+  __asm__ ("add %2, %1\n\t"    /* t := t + b */
        "cmovc %1, %0\n\t"  /* if (carry) a := t */
        :"+r" (a), "+&r" (t)
        :"r" (b)
