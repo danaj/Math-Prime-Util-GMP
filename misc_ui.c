@@ -16,7 +16,6 @@
 #define FUNC_ipow 1
 #define FUNC_isqrt 1
 #define FUNC_icbrt 1
-#define FUNC_is_perfect_square
 #include "misc_ui.h"
 
 

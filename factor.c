@@ -24,7 +24,7 @@ static mpz_t _gcd_32k;
 static mpz_t _gcd_64k;
 void _init_factor(void) {
   uint32_t pn;
-  UV nprimes, *pr;
+  unsigned long nprimes, *pr;
 
   mpz_init_set_ui(_gcd_1k, 1);
   mpz_init_set_ui(_gcd_4k, 1);
@@ -32,12 +32,23 @@ void _init_factor(void) {
   mpz_init_set_ui(_gcd_32k, 1);
   mpz_init_set_ui(_gcd_64k, 1);
 
-  pr = sieve_to_n(65063, &nprimes);
+  {
+    UV nprimesuv, *pruv;
+    pruv = sieve_to_n(65063, &nprimesuv);
+    nprimes = nprimesuv;
+    New(0, pr, nprimes, unsigned long);
+    for (pn = 0; pn < nprimes; pn++)
+      pr[pn] = pruv[pn];
+    Safefree(pruv);
+  }
+
+  /* fill in small primes static */
   MPUassert(nprimes >= NPRIMES_SMALL, "Not enough primes generated in GMP init_factor");
   primes_small[0] = 0;
   for (pn = 1; pn < NPRIMES_SMALL; pn++)
     primes_small[pn] = pr[pn-1];
 
+  /* Construct products for use with gcd to do bulk divisibility testing. */
   mpz_product_ui( _gcd_1k, pr +    1,  167);
   mpz_product_ui( _gcd_4k, pr +  168,  550 -  168);
   mpz_product_ui(_gcd_16k, pr +  550, 1862 -  550);
@@ -54,7 +65,6 @@ void _init_factor(void) {
     if (p >= 32000 && p <= 64000 && !mpz_divisible_ui_p(_gcd_64k,p)) croak("64k");
   }
 #endif
-
   Safefree(pr);
 }
 

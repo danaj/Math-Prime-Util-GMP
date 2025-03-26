@@ -180,6 +180,13 @@ For new functions:
 
 - subfactorial for large enough n should use floor((n!+1)/e).  See Sidef.
 
+- factorial_valuation.  See MPU's util.c and
+  https://github.com/trizen/sidef/commit/e25e9b8429837fb32642bb77275592700f577829
+
+- Look at Sidef's factor_upto(n,limit)
+
+- should sieve_to_n use unsigned long?
+
 
 =============== MUST DO BEFORE RELEASE
 
@@ -198,3 +205,6 @@ For new functions:
 - docs for is_ functions with positive vs. integer inputs
 
 - better hclassno
+
+- sieve_prime_cluster(3,6,8)
+  https://github.com/danaj/Math-Prime-Util-GMP/issues/51
