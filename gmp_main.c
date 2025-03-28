@@ -2198,6 +2198,9 @@ UV* sieve_twin_primes(const mpz_t inlow, const mpz_t inhigh, UV twin, UV *rn) {
   mpz_sqrt(t, high);
   if (mpz_cmp_ui(t, k) < 0)
     k = mpz_get_ui(t);
+  /* We must make sure we look at 3 or we'll miss it. */
+  if (k < 3 && mpz_cmp_ui(inlow,3) <= 0)
+    k = 3;
 
   /* Handle small primes that will get sieved out */
   if (mpz_cmp_ui(low, k) <= 0) {

@@ -51,7 +51,7 @@ my @high_check = (
 #[4,6,10,16,18,24,28,30,34,40,46,48,54,58,60,66);   # A257375
 #[6,12,16,18,22,28,30,36,40,42,46,48);   # A214947
 
-plan tests => scalar(@tests) + 2 + 2 * scalar(@patterns) + scalar(@high_check);
+plan tests => scalar(@tests) + 3 + 2 * scalar(@patterns) + scalar(@high_check);
 
 for my $t (@tests) {
   my($what, $tuple, $range, $expect) = @$t;
@@ -60,6 +60,7 @@ for my $t (@tests) {
   is_deeply( \@res, $expect, "$what @$range" );
 }
 
+is_deeply( [sieve_prime_cluster(3,6,8)], [3,5], "sieve cluster (3,6,8) returns both 3 and 5");
 is_deeply( [sieve_prime_cluster(1,1e10,2,4)], [3], "Inadmissible pattern (0,2,4) finds (3,5,7)");
 is_deeply( [sieve_prime_cluster(1,1e10,2,8,14,26)], [3,5], "Inadmissible pattern (0,2,8,14,26) finds (3,5,11,17,29) and (5,7,13,19,31)");
 
