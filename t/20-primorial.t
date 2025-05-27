@@ -96,7 +96,8 @@ my @factorials = (qw/
 /);
 
 my @facmods = (
-  [37,0,0],
+  [32,-73,50],
+  #[37,0,undef],
   [37,1,0],
   [37,31,0],
   [17,503,73],
@@ -112,7 +113,7 @@ if ($extra) {
 
 plan tests =>   1    # factorial
               + 1    # factorialmod
-              + scalar(@facmods)
+              + scalar(@facmods) + 1
               + 2    # primorial and pn_primorial
               + 2    # extra primorial tests
               + 1    # subfactorial
@@ -134,6 +135,7 @@ for my $d (@facmods) {
   my($n, $m, $expect) = @$d;
   is( factorialmod($n, $m), $expect, "factorialmod($n,$m) = $expect" );
 }
+is( factorialmod(37,0), undef, "factorialmod(37,0) = undef" );
 
 {
   my @prim   = map { primorial(nth_prime($_)) }  0 .. $#pn_primorials;

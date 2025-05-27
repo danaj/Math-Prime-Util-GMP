@@ -1183,22 +1183,22 @@ Lucas sequence defined by C<P>,C<Q>.
 
 =head2 lucasumod
 
-Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
-integer C<n>, computes C<U_k> modulo C<n> for the Lucas sequence defined
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the
+integer C<n>, computes C<U_k> modulo C<|n|> for the Lucas sequence defined
 by C<P>,C<Q>.
 
 =head2 lucasvmod
 
-Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
-integer C<n>, computes C<V_k> modulo C<n> for the Lucas sequence defined
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the
+integer C<n>, computes C<V_k> modulo C<|n|> for the Lucas sequence defined
 by C<P>,C<Q>.
 
 This can be particularly efficient, especially if C<Q=1>.
 
 =head2 lucasuvmod
 
-Given integers C<P>, C<Q>, the non-negative integer C<k>, and the positive
-integer C<n>, returns (C<U_k> modulo C<n>, C<V_k> modulo C<n>) for the
+Given integers C<P>, C<Q>, the non-negative integer C<k>, and the
+integer C<n>, returns (C<U_k> modulo C<|n|>, C<V_k> modulo C<|n|>) for the
 Lucas sequence defined by C<P>,C<Q>.
 
 
@@ -1265,7 +1265,7 @@ Also see L<Peter Luschny's excellent writeup|http://oeis.org/wiki/User:Peter_Lus
 
 =head2 factorialmod
 
-Given two positive integer arguments C<n> and C<m>, returns C<n! mod m>.
+Given positive integer C<n> and integer C<m>, returns C<n! mod |m|>.
 This is much faster than computing the large C<factorial(n)> followed
 by a mod operation.
 

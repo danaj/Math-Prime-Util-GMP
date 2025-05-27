@@ -955,7 +955,14 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
     validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
     validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
     VALIDATE_AND_SET(k, strk);
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "N", strn, VSETNEG_POS);
+    if (mpz_cmpabs_ui(n,1) <= 0) {
+      int retundef = (mpz_sgn(n) == 0);
+      mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
+      if (retundef)     XSRETURN_UNDEF;
+      else if (ix != 2) XSRETURN_UV(0);
+      else              { XPUSH_UINT(0); XPUSH_UINT(0); XSRETURN(2); }
+    }
     mpz_init(t);
     if (ix == 0 || ix == 2) mpz_init(u);
     if (ix == 1 || ix == 2) mpz_init(v);
@@ -1110,7 +1117,7 @@ invmod(IN char* stra, IN char* strb)
     switch (ix) {
                /* undef if a|b = 0, 0 if b is 1, else result of mpz_invert */
       case 0:{ if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
-               else if (!mpz_cmp_ui(b,1))       mpz_set_ui(a,0);
+               else if (!mpz_cmpabs_ui(b,1))    mpz_set_ui(a,0);
                else                             retundef = !mpz_invert(a,a,b);
              } break;
       case 1:{ unsigned long n, k;
@@ -1211,8 +1218,9 @@ invmod(IN char* stra, IN char* strb)
               XPUSH_MPZ(t);
               mpz_clear(t);
               break;
-      case 22:if (mpz_sgn(b) < 0) retundef = 1;
-              else                factorialmod(a, mpz_get_ui(a), b);
+      case 22:mpz_abs(b,b);
+              if (mpz_sgn(b) == 0) retundef = 1;
+              else                 factorialmod(a, mpz_get_ui(a), b);
               break;
       case 23:
       default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
@@ -1921,24 +1929,6 @@ void divisors(IN char* strn, IN char* strk = 0)
       Safefree(divs);
     }
     mpz_clear(k);
-    mpz_clear(n);
-
-void tfall1(IN char* strn, IN UV B)
-  ALIAS:
-    tfall2 = 1
-  PREINIT:
-    mpz_t n;
-    mpz_t* factors;
-    int nfactors, i;
-  PPCODE:
-    VALIDATE_AND_SET(n, strn);
-    switch (ix) {
-      case 0: nfactors = tfall1(n, B, &factors); break;
-      case 1: nfactors = tfall2(n, B, &factors); break;
-    }
-    for (i = 0; i < nfactors; i++)
-      XPUSH_MPZ(factors[i]);
-    clear_factors(nfactors, &factors, 0);
     mpz_clear(n);
 
 void

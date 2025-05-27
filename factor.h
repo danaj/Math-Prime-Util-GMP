@@ -48,8 +48,4 @@ extern int   trial_factor_iterator_next(unsigned long *f, uint32_t *e, void* ctx
 extern void  trial_factor_iterator_n(mpz_t n, void* ctx);
 extern void  trial_factor_iterator_destroy(void* ctx);
 
-/* mostly for testing, these do trial factoring of n up to B. */
-extern int tfall1(mpz_t n, UV B, mpz_t* pfactors[]);
-extern int tfall2(mpz_t n, UV B, mpz_t* pfactors[]);
-
 #endif

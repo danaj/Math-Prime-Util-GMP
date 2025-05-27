@@ -112,6 +112,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - binomial with first argument large enough to overflow unsigned long
       could sometimes use a truncated argument.
 
+    - factorialmod(n,0) returns undef, factorialmod(n,-m) uses abs(m).
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached
