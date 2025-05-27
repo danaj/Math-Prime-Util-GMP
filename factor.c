@@ -32,15 +32,7 @@ void _init_factor(void) {
   mpz_init_set_ui(_gcd_32k, 1);
   mpz_init_set_ui(_gcd_64k, 1);
 
-  {
-    UV nprimesuv, *pruv;
-    pruv = sieve_to_n(65063, &nprimesuv);
-    nprimes = nprimesuv;
-    New(0, pr, nprimes, unsigned long);
-    for (pn = 0; pn < nprimes; pn++)
-      pr[pn] = pruv[pn];
-    Safefree(pruv);
-  }
+  pr = sieve_to_n_ui(65063, &nprimes);
 
   /* fill in small primes static */
   MPUassert(nprimes >= NPRIMES_SMALL, "Not enough primes generated in GMP init_factor");

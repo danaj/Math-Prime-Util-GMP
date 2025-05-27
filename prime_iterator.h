@@ -22,5 +22,6 @@ extern void prime_iterator_setprime(prime_iterator *iter, UV n);
 extern int prime_iterator_isprime(prime_iterator *iter, UV n);
 
 extern UV* sieve_to_n(UV n, UV* count);
+extern unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count);
 
 #endif

@@ -563,3 +563,24 @@ UV* sieve_to_n(UV n, UV* count)
   if (count != 0) *count = pi;
   return primes;
 }
+
+unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count)
+{
+  UV nprimesuv, *parruv;
+  unsigned long i, *parr;
+
+  if (sizeof(unsigned long int) == sizeof(UV))
+    return (unsigned long*) sieve_to_n(n, (UV*)count);
+
+  /* If UV is smaller than n then we have a problem. */
+  if (n > (unsigned long) UV_MAX)
+    croak("UV is smaller than unsigned long, too many primes");
+
+  parruv = sieve_to_n(n, &nprimesuv);
+  *count = nprimesuv;
+  New(0, parr, nprimesuv, unsigned long);
+  for (i = 0; i < *count; i++)
+    parr[i] = parruv[i];
+  Safefree(parruv);
+  return parr;
+}

@@ -185,8 +185,6 @@ For new functions:
 
 - Look at Sidef's factor_upto(n,limit)
 
-- should sieve_to_n use unsigned long?
-
 
 =============== MUST DO BEFORE RELEASE
 
@@ -206,5 +204,4 @@ For new functions:
 
 - better hclassno
 
-- sieve_prime_cluster(3,6,8)
-  https://github.com/danaj/Math-Prime-Util-GMP/issues/51
+- many files cache small primes.  Do it once.  primes under 64k.
