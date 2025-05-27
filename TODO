@@ -185,23 +185,19 @@ For new functions:
 
 - Look at Sidef's factor_upto(n,limit)
 
-
-=============== MUST DO BEFORE RELEASE
-
-- consistant mod behavior.  n=>|n|, n=0 => undef  n=1 => 0.
-
-- finish looking at all mp*_ui functions to check for UV/IV vs long use.
+- better hclassno
 
 - consider exporting a sieve segment or sieve from/to routine.  Then our
   trial iterator can sieve segments, vecprod them, do gcd.  Maybe a
   prime_iterator_next64 to get 64 values.
 
-- check overflow in prime iterator / trial division for 32-bit unsigned long.
+- many files cache small primes.  Do it once.  primes under 64k.
 
-- remove tfall1 tfall2 from XS.xs
+=============== MUST DO BEFORE RELEASE
+
+- finish looking at all mp*_ui functions to check for UV/IV vs long use.
+
+- check overflow in prime iterator / trial division for 32-bit unsigned long.
 
 - docs for is_ functions with positive vs. integer inputs
 
-- better hclassno
-
-- many files cache small primes.  Do it once.  primes under 64k.
