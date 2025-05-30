@@ -18,9 +18,11 @@ my @A001597 = (1, 4, 8, 9, 16, 25, 27, 32, 36, 49, 64, 81, 100, 121, 125, 128, 1
 $#A069623 = 40;
 $#A070428 = 10;
 
+my @pp100 = (qw/-64 -32 -27 -8 -1 0 1 4 8 9 16 25 27 32 36 49 64 81 100/);
+
 plan tests => 0
             + 4    # is_perfect_power
-            + 9    # next / prev
+            + 8    # next / prev
             + 4    # count  basic tests
             + 1    # count  large value
             + 2    # count  ranges
@@ -30,11 +32,10 @@ plan tests => 0
 
 ######  is_perfect_power
 
-is_deeply( [map { is_perfect_power($_) } 0..10], [0,1,0,0,1,0,0,0,1,1,0], "is_perfect_power(0 .. 10)" );
-is_deeply( [grep { is_perfect_power($_) } -100..100], [qw/-64 -32 -27 -8 -1 1 4 8 9 16 25 27 32 36 49 64 81 100/] , "is_perfect_power(-100 .. 100)" );
+is_deeply( [map { is_perfect_power($_) } 0..10], [1,1,0,0,1,0,0,0,1,1,0], "is_perfect_power(0 .. 10)" );
+is_deeply( [grep { is_perfect_power($_) } -100..100], \@pp100, "is_perfect_power(-100 .. 100)" );
 is( is_perfect_power("18446744065119617025"), 1, "is_perfect_power(18446744065119617025)" );
 is( is_perfect_power("18446744073709551616"), 1, "is_perfect_power(18446744073709551616)" );
-
 
 ######  next / prev
 
@@ -42,21 +43,24 @@ is_deeply( [map { next_perfect_power($_) } 0..20],
            [1,4,4,4,8,8,8,8,9,16,16,16,16,16,16,16,25,25,25,25,25],
            "next perfect power with small inputs" );
 is_deeply( [map { prev_perfect_power($_) } 0..20],
-           [-1,-1,1,1,1,4,4,4,4,8,9,9,9,9,9,9,9,16,16,16,16],
+           [-1,0,1,1,1,4,4,4,4,8,9,9,9,9,9,9,9,16,16,16,16],
            "prev perfect power with small inputs" );
 is( next_perfect_power("18446744065119617025"), "18446744073709551616", "next_perfect_power(18446744065119617025)" );
 is( prev_perfect_power("18446744073709551616"), "18446744065119617025", "prev_perfect_power(18446744073709551616)" );
 
 is_deeply( [map { next_perfect_power($_) } -9 .. 9],
-           [-8,-1,-1,-1,-1,-1,-1,-1,1,1,4,4,4,8,8,8,8,9,16],
+           [-8,-1,-1,-1,-1,-1,-1,-1,0,1,4,4,4,8,8,8,8,9,16],
            "next perfect power with small inputs around zero" );
 is_deeply( [map { prev_perfect_power($_) } -9 .. 9],
-           [-27,-27,-8,-8,-8,-8,-8,-8,-8,-1,-1,1,1,1,4,4,4,4,8],
+           [-27,-27,-8,-8,-8,-8,-8,-8,-8,-1,0,1,1,1,4,4,4,4,8],
            "prev perfect power with small inputs around zero" );
-is( prev_perfect_power(-8), -27, "prev_perfect_power(-8) = -27" );
-is( next_perfect_power(-64), -32, "prev_perfect_power(-64) = -32" );
-is( prev_perfect_power(-64), -125, "prev_perfect_power(-64) = -125" );
 
+is_deeply( [map { next_perfect_power($_) } @pp100],
+           [@pp100[1..$#pp100], 121],
+           "next_perfect_power on perfect powers -100 to 100" );
+is_deeply( [map { prev_perfect_power($_) } @pp100],
+           [-125, @pp100[0..$#pp100-1]],
+           "prev_perfect_power on perfect powers -100 to 100" );
 
 ######  perfect_power_count
 is(perfect_power_count(0), 0, "perfect_power_count(0) = 0");

@@ -7,19 +7,11 @@
 
 int is_perfect_power(const mpz_t n)
 {
-  const unsigned char smallres[10] = {0,1,0,0,1,0,0,0,1,1};
-  UV res;
-  if (mpz_sgn(n) < 0) {
-    mpz_t N;
-    if (mpz_cmp_si(n,-1) == 0) return 1;
-    mpz_init(N);
-    mpz_neg(N,n);
-    res = is_power(N,0);
-    mpz_clear(N);
-    return (res > 2 && ((res & (res-1)) != 0));
-  }
-  if (mpz_cmp_ui(n,9) <= 0)  return smallres[mpz_get_ui(n)];
-  return (is_power(n,0) > 1);
+  /* Small table purely for performance */
+  const unsigned char smallres[9] = {0,0,0,1,1,1,0,0,1}; /* -4 .. 4 */
+  if (mpz_cmpabs_ui(n, 4) <= 0)
+    return smallres[4 + mpz_get_si(n)];
+  return mpz_perfect_power_p(n);
 }
 
 void next_perfect_power(mpz_t next, const mpz_t n)
@@ -28,20 +20,19 @@ void next_perfect_power(mpz_t next, const mpz_t n)
   mpz_t N, best, r;
 
   if (mpz_sgn(n) < 0) {
-    if (mpz_cmp_si(n,-1) == 0) { mpz_set_ui(next,1);  return; }
+    if (mpz_cmp_si(n,-1) == 0) { mpz_set_ui(next,0);  return; }
     mpz_init(N);
     mpz_neg(N, n);
     do {
       prev_perfect_power(N, N);
-      power = is_power(N, 0);
-    } while (mpz_cmp_ui(N,1) > 0 && (power <= 2 || (power & (power-1)) == 0));
-    mpz_neg(next, N);
+      mpz_neg(next,N);
+    } while (mpz_cmp_ui(N,1) > 0 && !mpz_perfect_power_p(next));
     mpz_clear(N);
     return;
   }
 
   if (mpz_sgn(n) == 0) { mpz_set_ui(next, 1); return; }
-  if (mpz_cmp_ui(n,1) == 0) { mpz_set_ui(next,4); return; }
+  if (mpz_cmp_ui(n,4) < 0) { mpz_set_ui(next,4); return; }
 
   mpz_init(r);
   mpz_init(best);
@@ -72,15 +63,15 @@ void prev_perfect_power(mpz_t prev, const mpz_t n)
     mpz_neg(N, n);
     do {
       next_perfect_power(N, N);
-      power = is_power(N, 0);
-    } while (mpz_cmp_ui(N,1) > 0 && (power <= 2 || (power & (power-1)) == 0));
-    mpz_neg(prev, N);
+      mpz_neg(prev,N);
+    } while (!mpz_perfect_power_p(prev));
     mpz_clear(N);
     return;
   }
 
   if (mpz_cmp_ui(n,4) <= 0) {
-    mpz_set_si(prev, (mpz_cmp_ui(n,1) > 0) ? 1 : -1);
+    k = mpz_get_ui(n);
+    mpz_set_si(prev, (k > 1) - (k == 0));
     return;
   }
 

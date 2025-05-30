@@ -1753,17 +1753,20 @@ If C<k> is omitted or zero, C<k=2> is used.
 =head2 is_perfect_power
 
 Given an integer C<n>, returns C<1> if C<n> is a perfect power,
-and C<0> otherwise.  That is, if C<n = c^k> for some non-zero
-integer C<c> with C<k> greater than 1.
+and C<0> otherwise.  That is, if C<n = c^k> for some integers C<c>
+and C<k> with C<k> greater than 1.
 
-This is L<OEIS series A001597|http://oeis.org/A001597>.
+The results match the C<mpz_perfect_power_p(n)> function of GMP 4.0+.
+Following GMP, SAGE, and FLINT, we treat -1, 0, and 1 as perfect powers.
+
+For positive integers, this is L<OEIS series A001597|http://oeis.org/A001597>.
 
 =head2 next_perfect_power
 
 Given an integer C<n>, returns the smallest perfect power greater
 than C<n>.  Similar in API to L</next_prime>, but returns the next
 perfect power with exponent greater than 1.
-Hence the sequence C<1,4,8,9,16,25,...>.
+Starting from C<0>, this gives the sequence C<1,4,8,9,16,25,...>.
 
 Negative inputs are supported, with the result being the nearest value
 greater than C<n> where C<is_perfect_power> returns true.
@@ -1783,7 +1786,7 @@ Returns the number of perfect powers up to C<n> (single argument)
 or between C<lo> and C<hi> (two arguments).  The values are inclusive,
 and must be non-negative.
 
-By convention, 1 is included here even though L</is_power(1) = 0>.
+By convention, numbers less than 1 are not counted.
 This is L<OEIS series A069623|http://oeis.org/A069623>.
 
 =head2 nth_perfect_power
@@ -1793,6 +1796,10 @@ Given a non-negative integer C<n>, returns the C<n>-th perfect power.
 Since the perfect power count can be calculated quite quickly, we use
 successive approximations with corrections provided by the count to
 calculate the C<n>-th perfect power quite rapidly.
+
+Similar to L</perfect_power_count>, the convention is to
+exclude all integers less than 1.
+Hence C<n=0> returns undef and C<n=1> returns 1.
 
 =head2 nth_perfect_power_approx
 
@@ -1804,7 +1811,6 @@ good estimate of the C<n>-th perfect power.
 Returns the number of positive prime powers up to C<n> (single argument)
 or between C<lo> and C<hi> (two arguments).  The values are inclusive.
 
-By convention, 1 is included even though L</is_prime_power(1) = 0>.
 This is L<OEIS series A025528|http://oeis.org/A025528>.
 
 =head2 powersum
