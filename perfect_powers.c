@@ -31,8 +31,10 @@ void next_perfect_power(mpz_t next, const mpz_t n)
     return;
   }
 
-  if (mpz_sgn(n) == 0) { mpz_set_ui(next, 1); return; }
-  if (mpz_cmp_ui(n,4) < 0) { mpz_set_ui(next,4); return; }
+  if (mpz_cmp_ui(n,4) < 0) {
+    mpz_set_ui(next, mpz_sgn(n) == 0 ? 1 : 4);
+    return;
+  }
 
   mpz_init(r);
   mpz_init(best);

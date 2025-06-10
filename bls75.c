@@ -551,7 +551,7 @@ static int bls_theorem20_limit(const mpz_t n, mpz_t R1, mpz_t F1, mpz_t F2,
 /* (I) For each prime p_i dividing F1 [N-1 = F1R1] there exists an a_i
  *     such that N is a psp base a_i and gcd(a_i^{(N-1)/p_i}-1,N) = 1.
  */
-static int _verify_cond_I_p(const mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, char* pspcache)
+static int _verify_cond_I_p(const mpz_t n, mpz_t pi, mpz_t ap, mpz_t t, int alimit, signed char* pspcache)
 {
   int a, success = 0;
   PRIME_ITERATOR(iter);
@@ -848,7 +848,7 @@ start_nm1_proof:
   if (success > 0) {
     int pcount, a;
     int const alimit = (effort <= 2) ? 200 : 10000;
-    char afermat[10000+1];
+    signed char afermat[10000+1];
     mpz_t p, ap;
 
     mpz_init(p);

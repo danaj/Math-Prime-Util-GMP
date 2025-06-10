@@ -1766,7 +1766,7 @@ For positive integers, this is L<OEIS series A001597|http://oeis.org/A001597>.
 Given an integer C<n>, returns the smallest perfect power greater
 than C<n>.  Similar in API to L</next_prime>, but returns the next
 perfect power with exponent greater than 1.
-Starting from C<0>, this gives the sequence C<1,4,8,9,16,25,...>.
+Starting from C<0> this gives the sequence C<1,4,8,9,16,25,...>.
 
 Negative inputs are supported, with the result being the nearest value
 greater than C<n> where C<is_perfect_power> returns true.
@@ -1787,6 +1787,7 @@ or between C<lo> and C<hi> (two arguments).  The values are inclusive,
 and must be non-negative.
 
 By convention, numbers less than 1 are not counted.
+
 This is L<OEIS series A069623|http://oeis.org/A069623>.
 
 =head2 nth_perfect_power
