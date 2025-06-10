@@ -2321,8 +2321,10 @@ Given integer C<n>, return C<-n>.
 
 =head2 signint
 
-Given integer C<n>, return a positive value if C<a> is greater than C<0>,
-zero if C<a> is equal to C<0>, and a negative value if C<a> is less than C<0>.
+Given integer C<n>, return one if C<a> is greater than C<0>,
+zero if C<a> is equal to C<0>, and negative one if C<a> is less than C<0>.
+This is different than the comparison routines which only guarantee
+a positive, zero, or negative result.  Here it is always in C<{-1,0,1}>.
 
 =head2 cmpint
 
