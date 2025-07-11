@@ -155,6 +155,13 @@ int mpz_fits_uv_p(const mpz_t n)
   else
     return (mpz_sgn(n) >= 0 && mpz_sizeinbase(n,2) <= BITS_PER_WORD);
 }
+int mpz_fits_iv_p(const mpz_t n)
+{
+  if (sizeof(IV) == sizeof(signed long int))
+    return mpz_fits_slong_p(n);
+  else
+    return (mpz_sizeinbase(n,2) <= BITS_PER_WORD-1);
+}
 
 void mpz_set_uv(mpz_t n, UV v)
 {
@@ -194,6 +201,17 @@ UV mpz_get_uv(const mpz_t n)
   if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
     v |= ((UV)mpz_getlimbn(n,1)) << 32;
   return v;
+#endif
+}
+IV mpz_get_iv(const mpz_t n)
+{
+#if BITS_PER_WORD == 32
+  return mpz_get_si(n);
+#else
+  UV ui = mpz_getlimbn(n,0);
+  if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(UV))
+    ui |= ((UV)mpz_getlimbn(n,1)) << 32;
+  return mpz_sgn(n) < 0 ? -(IV)ui : ui;
 #endif
 }
 

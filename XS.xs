@@ -82,19 +82,20 @@ static char* cert_with_header(char* proof, mpz_t n) {
 }
 
 static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
-  SV* sv = 0;
-  UV v = mpz_get_ui(n);
-  if (!mpz_cmp_ui(n, v)) {  /* Try to use a scalar */
-    sv = newSVuv(v);
+  if (mpz_fits_uv_p(n)) {
+    return newSVuv(mpz_get_uv(n));
+  } else if (mpz_fits_iv_p(n)) {
+    return newSViv(mpz_get_iv(n));
   } else {
+    SV* sv;
     char* str;
     int nsize = mpz_sizeinbase(n, 10) + 2;
     New(0, str, nsize, char);
     mpz_get_str(str, 10, n);
     sv = newSVpv(str, 0);
     Safefree(str);
+    return sv;
   }
-  return sv;
 }
 
 #define XPUSH_MPZ(n) \
@@ -637,6 +638,10 @@ void cmpint(IN char* stra, IN char* strb)
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     res = (ix == 0) ? mpz_cmp(a, b) : mpz_cmpabs(a, b);
+    /* GMP 6.2 changed to only return -1,0,1 */
+    /* Enforce -1, 0, 1 as our only return values. */
+    if (res < 0) res = -1;
+    if (res > 0) res = 1;
     mpz_clear(a);
     mpz_clear(b);
     XSRETURN_IV(res);

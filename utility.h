@@ -17,9 +17,11 @@ extern UV irand64(int nbits);
 extern NV drand64(void);
 
 extern int  mpz_fits_uv_p(const mpz_t n);
+extern int  mpz_fits_iv_p(const mpz_t n);
 extern void mpz_set_uv(mpz_t n, UV v);
 extern void mpz_set_iv(mpz_t n, IV v);
 extern UV   mpz_get_uv(const mpz_t n);
+extern IV   mpz_get_iv(const mpz_t n);
 /* TODO: cmp_uv, cmp_iv, mul_iv, mul_uv, etc. */
 
 extern UV   is_power(const mpz_t n, UV a);
