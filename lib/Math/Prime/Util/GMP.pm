@@ -1598,7 +1598,7 @@ C<MultiplicativeOrder[a,n]> function.
 
 Given a positive integer C<n>, returns the smallest primitive root
 of C<(Z/nZ)^*>, or C<undef> if no root exists.  A root exists when
-C<euler_phi($n) == carmichael_lambda($n)>, which is true only if
+C<totient($n) == carmichael_lambda($n)>, which is true only if
 C<n one of {2, 4, p^k, 2p^k}> for odd prime p.
 
 L<OEIS A033948|http://oeis.org/A033948> is a sequence of integers where
@@ -1614,7 +1614,7 @@ returns the smallest root.  Pari/GP does not if C<n = 2p^k>.
 
 Given two non-negative numbers C<a> and C<n>, returns C<1> if C<a> is a
 primitive root modulo C<n>, and C<0> if not.  If C<a> is a primitive root,
-then C<euler_phi(n)> is the smallest C<e> for which C<a^e = 1 mod n>.
+then C<totient(n)> is the smallest C<e> for which C<a^e = 1 mod n>.
 
 =head2 is_semiprime
 
@@ -1688,7 +1688,7 @@ discriminant, 0 otherwise.
 =head2 is_totient
 
 Given an integer C<n>, returns 1 if there exists an integer C<x> where
-C<euler_phi(x) == n>.
+C<totient(x) == n>.
 
 =head2 is_polygonal
 
@@ -2321,15 +2321,13 @@ Given integer C<n>, return C<-n>.
 
 =head2 signint
 
-Given integer C<n>, return one if C<a> is greater than C<0>,
-zero if C<a> is equal to C<0>, and negative one if C<a> is less than C<0>.
-This is different than the comparison routines which only guarantee
-a positive, zero, or negative result.  Here it is always in C<{-1,0,1}>.
+Given an integer C<n>, returns the sign of C<n>.
+Returns -1, 0, or 1 if C<n> is negative, zero, or positive respectively.
 
 =head2 cmpint
 
-Given integer C<n>, return a positive value if C<a> is greater than C<b>,
-zero if C<a> is equal to C<b>, and a negative value if C<a> is less than C<b>.
+Given integers C<a> and C<b>, returns -1, 0, or 1 if C<a> is respectively
+less than, equal to, or greater than C<b>.
 
 =head2 cmpabsint
 
