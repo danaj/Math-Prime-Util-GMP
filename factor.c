@@ -1956,6 +1956,8 @@ int is_almost_prime(uint32_t k, const mpz_t n)
   mpz_t nr;
   int res;
 
+  if (mpz_sgn(n) <= 0) return 0;
+
   mpz_init_set(nr, n);
   while (k > 0 && mpz_even_p(nr))           { k--; mpz_divexact_ui(nr,nr,2); }
   while (k > 0 && mpz_divisible_ui_p(nr,3)) { k--; mpz_divexact_ui(nr,nr,3); }

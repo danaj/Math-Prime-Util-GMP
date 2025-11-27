@@ -378,7 +378,7 @@ is_almost_prime(IN unsigned int k, IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     RETVAL = is_almost_prime(k, n);
     mpz_clear(n);
   OUTPUT:
