@@ -1613,7 +1613,7 @@ returns the smallest root.  Pari/GP does not if C<n = 2p^k>.
 =head2 is_primitive_root
 
 Given two non-negative numbers C<a> and C<n>, returns C<1> if C<a> is a
-primitive root modulo C<n>, and C<0> if not.  If C<a> is a primitive root,
+primitive root modulo C<|n|>, and C<0> if not.  If C<a> is a primitive root,
 then C<totient(n)> is the smallest C<e> for which C<a^e = 1 mod n>.
 
 =head2 is_semiprime
@@ -2906,7 +2906,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2024 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2025 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 

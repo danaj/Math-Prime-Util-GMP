@@ -13,8 +13,17 @@ int is_powerfree(const mpz_t n, uint32_t k)
 {
   int ret = 1;
 
-  if (k < 2 || mpz_cmp_ui(n, 1) <= 0)
-    return (mpz_cmp_ui(n,1) == 0);
+  if (k < 2 || mpz_cmpabs_ui(n, 1) <= 0)
+    return (mpz_cmpabs_ui(n,1) == 0);
+
+  if (mpz_sgn(n) < 0) {
+    mpz_t N;
+    mpz_init(N);
+    mpz_abs(N,n);
+    ret = is_powerfree(N, k);
+    mpz_clear(N);
+    return ret;
+  }
 
   if (mpz_sizeinbase(n,2) < k) return 1;  /* Too small */
   if (mpz_scan1(n,0) >= k) return 0;      /* n = 2^k * N */

@@ -1057,7 +1057,7 @@ is_powerful(IN char* strn, IN UV k = 2)
   CODE:
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     switch (ix) {
-      case 0:  RETVAL = is_powerful(n, k);  break;
+      case 0:  RETVAL = is_powerful(n,k);   break;
       case 1:  RETVAL = is_powerfree(n,k);  break;
       default: RETVAL = 0; break;
     }
