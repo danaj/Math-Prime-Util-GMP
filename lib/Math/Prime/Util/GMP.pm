@@ -1636,14 +1636,14 @@ With C<k=2>, this is the same as L</is_semiprime>.
 =head2 is_smooth
 
 Given two non-negative integer inputs C<n> and C<k>,
-returns C<1> if C<n> is C<k>-smooth, and C<0> otherwise.
+returns C<1> if C<|n|> is C<k>-smooth, and C<0> otherwise.
 This uses the OEIS definition: Returns true if no prime factors
 of C<n> are larger than C<k>.
 
 =head2 is_rough
 
 Given two non-negative integer inputs C<n> and C<k>,
-returns C<1> if C<n> is C<k>-rough, and C<0> otherwise.
+returns C<1> if C<|n|> is C<k>-rough, and C<0> otherwise.
 This uses the OEIS definition: Returns true if no prime factors
 of C<n> are smaller than C<k>.
 
