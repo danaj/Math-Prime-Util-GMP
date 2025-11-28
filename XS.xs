@@ -316,27 +316,33 @@ is_prime(IN char* strn)
   OUTPUT:
     RETVAL
 
+int is_perrin_pseudoprime(IN char* strn, IN int type = 0)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_perrin_pseudoprime", 1, 0);
+    RETVAL = is_perrin_pseudoprime(n, type);  /* Restricted or not */
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
+int is_miller_prime(IN char* strn, IN int assumegrh = 0)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    PRIMALITY_START("is_miller_prime", 2, 1);
+    RETVAL = is_miller_prime(n, assumegrh);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
 
 void
 _is_provable_prime(IN char* strn, IN int wantproof = 0)
-  ALIAS:
-    is_miller_prime = 1
-    is_perrin_pseudoprime = 2
   PREINIT:
     int result;
     mpz_t n;
   PPCODE:
-    PRIMALITY_START("is_provable_prime", 2, ix != 2);
-    if (ix == 1) {
-      result = is_miller_prime(n, wantproof);  /* Assume GRH or not */
-      mpz_clear(n);
-      XSRETURN_IV(result);
-    }
-    if (ix == 2) {
-      result = is_perrin_pseudoprime(n, wantproof);  /* Restricted or not */
-      mpz_clear(n);
-      XSRETURN_IV(result);
-    }
+    PRIMALITY_START("is_provable_prime", 2, 1);
     if (wantproof == 0) {
       result = _GMP_is_provable_prime(n, 0);
       XPUSH_INT(result);

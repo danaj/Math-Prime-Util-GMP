@@ -833,7 +833,7 @@ DONE_PERRIN:
   for (i=0; i < 6; i++)
     mpz_clear(S[i]);
   mpz_clear(t);
-  return rval;
+  return rval ? 1 : 0;
 }
 
 int is_frobenius_pseudoprime(const mpz_t n, IV P, IV Q)
