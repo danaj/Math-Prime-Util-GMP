@@ -6,7 +6,7 @@ use Math::Prime::Util::GMP;
 use Bytes::Random::XS;
 use Bytes::Random;
 use Bytes::Random::Secure;
-use Math::Random::MTwist;
+#use Math::Random::MTwist;
 use Data::Entropy::Algorithms;
 use Crypt::PRNG;
 use Crypt::Random;
@@ -18,7 +18,7 @@ cmpthese(-5,{
   "BRXS"     => sub { Bytes::Random::XS::random_bytes(8); },
   "BR"       => sub { Bytes::Random::random_bytes(8); },
   "BRS"      => sub { Bytes::Random::Secure::random_bytes(8); },
-  "MRMT"     => sub { Math::Random::MTwist::_randstr(8); },
+#  "MRMT"     => sub { Math::Random::MTwist::_randstr(8); },
   "DEA"      => sub { Data::Entropy::Algorithms::rand_bits(8*8); },
   "Crypt::PRNG"   => sub { Crypt::PRNG::random_bytes(8); },
   "rand"     => sub { pack('C*', map { int(rand 256) } 1..8); },
@@ -30,7 +30,7 @@ cmpthese(-5,{
   "BRXS"     => sub { Bytes::Random::XS::random_bytes(256); },
   "BR"       => sub { Bytes::Random::random_bytes(256); },
   "BRS"      => sub { Bytes::Random::Secure::random_bytes(256); },
-  "MRMT"     => sub { Math::Random::MTwist::_randstr(256); },
+#  "MRMT"     => sub { Math::Random::MTwist::_randstr(256); },
   "DEA"      => sub { Data::Entropy::Algorithms::rand_bits(8*256); },
   "CryptX"   => sub { Crypt::PRNG::random_bytes(256); },
   "rand"     => sub { pack('C*', map { int(rand 256) } 1..256); },
@@ -42,7 +42,7 @@ cmpthese(-5,{
   "BRXS"     => sub { Bytes::Random::XS::random_bytes(16384); },
   "BR"       => sub { Bytes::Random::random_bytes(16384); },
   "BRS"      => sub { Bytes::Random::Secure::random_bytes(16384); },
-  "MRMT"     => sub { Math::Random::MTwist::_randstr(16384); },
+#  "MRMT"     => sub { Math::Random::MTwist::_randstr(16384); },
   "DEA"      => sub { Data::Entropy::Algorithms::rand_bits(8*16384); },
   "CryptX"   => sub { Crypt::PRNG::random_bytes(16384); },
   "rand"     => sub { pack('C*', map { int(rand 256) } 1..16384); },
