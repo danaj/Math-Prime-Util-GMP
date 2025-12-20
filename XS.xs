@@ -1126,10 +1126,11 @@ invmod(IN char* stra, IN char* strb)
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     retundef = 0;
     switch (ix) {
-               /* undef if a|b = 0, 0 if b is 1, else result of mpz_invert */
-      case 0:{ if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
-               else if (!mpz_cmpabs_ui(b,1))    mpz_set_ui(a,0);
-               else                             retundef = !mpz_invert(a,a,b);
+               /* 0 if b is 1, else undef if a|b = 0, else mpz_invert */
+      case 0:{
+               if      (!mpz_cmpabs_ui(b,1))         mpz_set_ui(a,0);
+               else if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
+               else                              retundef = !mpz_invert(a,a,b);
              } break;
       case 1:{ unsigned long n, k;
                if (mpz_sgn(b) < 0) {   /* Handle negative k */
