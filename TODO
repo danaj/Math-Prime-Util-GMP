@@ -197,11 +197,6 @@ For new functions:
 
 - addmod, mulmod, powmod, divmod -- work with GMP version 36 if n > 0
 
-=============== MUST DO BEFORE RELEASE
-
 - finish looking at all mp*_ui functions to check for UV/IV vs long use.
 
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
-
-- docs for is_ functions with positive vs. integer inputs
-
