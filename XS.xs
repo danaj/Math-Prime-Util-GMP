@@ -409,13 +409,19 @@ UV is_power(IN char* strn, IN UV a = 0)
   OUTPUT:
     RETVAL
 
-int is_divisible(IN char* strn, IN char* strd)
+int is_divisible(IN char* strn, IN char* strd, ...)
   PREINIT:
     mpz_t n, d;
+    size_t i;
   CODE:
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     validate_and_set_signed(cv, d, "d", strd, VSETNEG_OK);
     RETVAL = !!mpz_divisible_p(n, d);
+    for (i = 2; i < (size_t)items && RETVAL == 0; i++) {
+      mpz_clear(d);
+      validate_and_set_signed(cv, d, "d", SvPV_nolen(ST(i)), VSETNEG_OK);
+      RETVAL = !!mpz_divisible_p(n, d);
+    }
     mpz_clear(d);  mpz_clear(n);
   OUTPUT:
     RETVAL

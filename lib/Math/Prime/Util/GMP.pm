@@ -2145,6 +2145,11 @@ and 0 otherwise.
 This corresponds to the GMP function C<mpz_divisible_p>.
 This includes its semantics with C<d=0> which returns 0 unless C<n=0>.
 
+More than one divisor can be given, e.g. C<is_divisible(1001,2,3,5,7)>,
+allowing one to test multiple divisors with one call.  The result is 1
+if C<n> is exactly divisible by any of the C<d> values, and 0 if it
+is divisible by none of them.
+
 =head2 is_congruent
 
 Given integers C<n>, C<c>, and C<d>, returns 1 if C<n> is congruent to C<c>
@@ -2906,7 +2911,7 @@ ECM implementation, as well as the many papers by Brent and Montgomery.
 
 =head1 COPYRIGHT
 
-Copyright 2011-2025 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
+Copyright 2011-2026 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
