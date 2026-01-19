@@ -114,6 +114,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - factorialmod(n,0) returns undef, factorialmod(n,-m) uses abs(m).
 
+    - trial_factor(1) returns () insted of (1), to match factor (and MPU).
+
     [PERFORMANCE]
 
     - The first 100 Bernoulli numbers are cached, and more will be cached

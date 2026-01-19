@@ -793,6 +793,11 @@ static void _harmonic(mpz_t a, mpz_t b, mpz_t t) {
 void harmfrac(mpz_t num, mpz_t den, const mpz_t zn)
 {
   mpz_t t;
+  if (mpz_sgn(zn) <= 0) {  /* Explicit return of 0 for zn <= 0 */
+    mpz_set_ui(num, 0);
+    mpz_set_ui(den, 1);
+    return;
+  }
   mpz_init(t);
   mpz_add_ui(den, zn, 1);
   mpz_set_ui(num, 1);

@@ -1811,7 +1811,8 @@ trial_factor(IN char* strn, ...)
       int cmpr = mpz_cmp_ui(n,1);
       if (cmpr <= 0) {
         mpz_clear(n);
-        XSRETURN_IV( (cmpr < 0)  ?  0  :  1 );
+        if (cmpr < 0) XSRETURN_IV(0);
+        XSRETURN_EMPTY;
       }
     }
     arg1 = default_arg1[ix];
