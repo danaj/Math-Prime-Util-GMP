@@ -190,7 +190,7 @@ sub extra_factor_test {
   my $fsub = shift;
 
   is_deeply( [ sort {$a<=>$b} $fsub->(0)   ], [0],       "$fname(0)" );
-  is_deeply( [ sort {$a<=>$b} $fsub->(1)   ], [1],       "$fname(1)" );
+  is_deeply( [ sort {$a<=>$b} $fsub->(1)   ], [],        "$fname(1)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(2)   ], [2],       "$fname(2)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(13)  ], [13],      "$fname(13)" );
   is_deeply( [ sort {$a<=>$b} $fsub->(403) ], [13, 31],  "$fname(403)" );
