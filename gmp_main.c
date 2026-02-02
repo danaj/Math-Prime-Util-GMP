@@ -2051,7 +2051,7 @@ UV* sieve_primes(const mpz_t inlow, const mpz_t high, UV k, UV *rn) {
   /* If we want small primes, do it quickly */
   if ( (k_primality || test_primality) && mpz_cmp_ui(high,2000000000U) <= 0 ) {
     UV ulow = mpz_get_ui(inlow), uhigh = mpz_get_ui(high);
-    if (uhigh < 1000000U || uhigh/ulow >= 4) {
+    if (uhigh < 1000000U || ulow <= 2 || uhigh/ulow >= 4) {
       UV n, Pi, *primes;
       primes = sieve_to_n(mpz_get_ui(high), &Pi);
       RESIZE_VLIST(retlist, Pi);
