@@ -677,7 +677,7 @@ void setbit(IN char* strn, IN UV k)
     }
     if (ix != 3) XPUSH_MPZ(n);
     mpz_clear(n);
-    if (ix == 3) XSRETURN_UV(res);
+    if (ix == 3) XSRETURN_IV(res);
 
 void bitand(IN char* stra, IN char* strb)
   ALIAS:
@@ -977,7 +977,7 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
       int retundef = (mpz_sgn(n) == 0);
       mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
       if (retundef)     XSRETURN_UNDEF;
-      else if (ix != 2) XSRETURN_UV(0);
+      else if (ix != 2) XSRETURN_IV(0);
       else              { XPUSH_UINT(0); XPUSH_UINT(0); XSRETURN(2); }
     }
     mpz_init(t);
@@ -1267,7 +1267,7 @@ binomialmod(IN char* strn, IN char* strk, IN char* strm)
          (mpz_sgn(n) >= 0 && (mpz_sgn(k) < 0 || mpz_cmp(k,n) > 0)) ||
          (mpz_sgn(n) <  0 && (mpz_sgn(k) < 0 && mpz_cmp(k,n) > 0)) ) {
       mpz_clear(n); mpz_clear(k); mpz_clear(m);
-      XSRETURN_UV(0);
+      XSRETURN_IV(0);
     }
     if (mpz_sgn(k) < 0)  /* Only here with n < 0 and k <= n */
       mpz_sub(k,n,k);    /* So k always positive after this */
@@ -1570,7 +1570,7 @@ void chinese(...)
     mpz_t ret, lcm;
   PPCODE:
     if (items == 0) {
-      if (ix == 0)  XSRETURN_UV(0);
+      if (ix == 0)  XSRETURN_IV(0);
       XPUSH_UINT(0);
       XPUSH_UINT(0);
       XSRETURN(2);
