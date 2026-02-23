@@ -2,7 +2,20 @@ use ExtUtils::MakeMaker;
 use lib 'inc'; # load our bundled version of Devel::CheckLib
 use Devel::CheckLib;
 
-check_lib_or_exit(lib => 'gmp', header => 'gmp.h');
+# We used to use Devel::CheckLib's "check_lib_or_exit" here.
+#
+# If both CC and D::CL find the GMP header/library, then everything works,
+# but using D::CL didn't help us in any way.
+#
+# If both CC and D::CL can't find GMP, then we get a slightly nicer message.
+#
+# If CC can compile GMP but Devel::CheckLib isn't finding either the header
+# or library then we have pointlessly obstructed the user.
+
+if (!check_lib(lib => 'gmp', header => 'gmp.h')) {
+  warn "\n  It looks like you don't have the GMP library.\n\n";
+  warn "  Going to try to compile anyway.  Expect failure.\n";
+}
 
 WriteMakefile1(
     NAME         => 'Math::Prime::Util::GMP',
