@@ -10,7 +10,8 @@ cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] real.[ch] standalone/
 cp -p factor.[ch] squfof126.[ch] pbrent63.[ch] tinyqs.[ch] standalone/
 cp -p utility.[ch] isaac.[ch] random_prime.[ch] standalone/
-cp -p primality.[ch] standalone/
+cp -p primality.[ch] rootmod.[ch] misc_ui.[ch] lucas_seq.[ch] standalone/
+cp -p poly.[ch] standalone
 cp -p xt/expr.[ch] xt/expr-impl.h standalone/
 cp -p xt/proof-text-format.txt standalone/
 cp -p examples/verify-cert.pl standalone/
@@ -31,7 +32,7 @@ cat << 'EOSIMPQSH' > standalone/simpqs.h
 #ifndef MPU_SIMPQS_H
 #define MPU_SIMPQS_H
 #include <gmp.h>
-static int _GMP_simpqs(mpz_t n, mpz_t* farray) { return 0; }
+static int _GMP_simpqs(const mpz_t n, mpz_t* farray) { return 0; }
 #endif
 EOSIMPQSH
 
@@ -46,7 +47,8 @@ LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
       factor.o squfof126.o pbrent63.o tinyqs.o \
-      real.o isaac.o random_prime.o utility.o expr.o
+      real.o isaac.o random_prime.o utility.o expr.o \
+      rootmod.o lucas_seq.o misc_ui.o poly.o
 HEADERS = ptypes.h class_poly_data.h
 
 .PHONY: default all clean
