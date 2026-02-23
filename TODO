@@ -200,3 +200,7 @@ For new functions:
 - finish looking at all mp*_ui functions to check for UV/IV vs long use.
 
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
+
+- binomialmod better using factorialmod:
+  factorial_valuation and _binoval, then use factorialmod
+  also maybe better factorialmod

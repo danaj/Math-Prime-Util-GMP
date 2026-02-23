@@ -72,7 +72,7 @@ our @EXPORT_OK = qw(
                      pn_primorial
                      factorial subfactorial multifactorial factorial_sum
                      falling_factorial rising_factorial
-                     factorialmod
+                     factorialmod binomialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      bernvec powersum faulhaber_sum
@@ -1393,10 +1393,21 @@ C<binomial(n,k)> function, and GMP's C<mpz_bin_ui> function.
 The second argument C<k> must fit in an unsigned long.
 
 For negative arguments, this matches Mathematica.  Pari does not implement
-the C<n E<lt> 0, k E<lt>= n> extension and instead returns C<0> for this
+the C<< n < 0, k <= n >> extension and instead returns C<0> for this
 case.  GMP's API does not allow negative C<k> but otherwise matches.
-L<Math::BigInt> does not implement any extensions and the results for
-C<n E<lt> 0, k E<gt> 0> are undefined.
+C<Math::BigInt> version 1.999816 and later supports negative arguments
+with similar semantics.  Prior to this, C<< n < 0, k > 0 >> was undefined.
+
+=head2 binomialmod
+
+Given integer arguments C<n>, C<k>, and C<m>, returns C<binomial(n,k) mod m>
+efficiently.
+
+All requirements for L<binomial> must be met including the size of k and
+the treatment of negative C<n> and C<k>.
+
+The current implementation is not optimized, but can greatly reduce the
+overhead associated with the very large intermediate.
 
 =head2 addreal
 =head2 subreal

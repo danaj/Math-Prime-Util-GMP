@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.53 2021-?
+0.53 2026-?
 
     [ADDED]
 
@@ -65,6 +65,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - cheb_factor              Unexported, factoring smooth p-1/p+1
     - falling_factorial(x,n)   Factorial of x to the n falling
     - rising_factorial(x,n)    Factorial of x to the n rising
+    - binomialmod(n,k,m)       Binomial(n,k) mod m
 
     [FIXES]
 

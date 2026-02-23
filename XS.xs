@@ -54,13 +54,13 @@
   } while (0)
 
 #define VSETNEG_ERR 0
-#define VSETNEG_POS 1
+#define VSETNEG_ABS 1
 #define VSETNEG_OK  2
 static int validate_and_set_signed_static(pTHX_ CV* cv, mpz_t v, const char* vname, const char* s, int negflag) {
   int neg = (s && *s == '-');
   if (s && *s == '+') s++;
   validate_string_number(cv, vname, (neg && negflag != VSETNEG_ERR) ? s+1 : s);
-  mpz_init_set_str(v, (neg && negflag == VSETNEG_POS) ? s+1 : s, 10);
+  mpz_init_set_str(v, (neg && negflag == VSETNEG_ABS) ? s+1 : s, 10);
   return neg;
 }
 #define validate_and_set_signed(cv, var, varname, str, flag) \
@@ -395,7 +395,7 @@ UV is_power(IN char* strn, IN UV a = 0)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
     RETVAL = 0;
     if (!isneg || (a == 0 || a & 1)) {
       RETVAL = is_power(n, a);
@@ -840,7 +840,7 @@ gcd(...)
     mpz_t ret, n;
   PPCODE:
     if (items == 0) XSRETURN_IV( (ix == 1 || ix == 3) ? 1 : 0);
-    negflag = (ix <= 1) ? VSETNEG_POS : VSETNEG_OK;
+    negflag = (ix <= 1) ? VSETNEG_ABS : VSETNEG_OK;
     if (ix == 1 || ix == 3) {
       mpz_t* list;
       New(0, list, items, mpz_t);
@@ -972,7 +972,7 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
     validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
     validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
     VALIDATE_AND_SET(k, strk);
-    validate_and_set_signed(cv, n, "N", strn, VSETNEG_POS);
+    validate_and_set_signed(cv, n, "N", strn, VSETNEG_ABS);
     if (mpz_cmpabs_ui(n,1) <= 0) {
       int retundef = (mpz_sgn(n) == 0);
       mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
@@ -1048,7 +1048,7 @@ prime_omega(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
     switch (ix) {
       case 0:  RETVAL = omega(n);          break;
       case 1:  RETVAL = bigomega(n);       break;
@@ -1251,6 +1251,44 @@ invmod(IN char* stra, IN char* strb)
     if (retundef) XSRETURN_UNDEF;
 
 void
+binomialmod(IN char* strn, IN char* strk, IN char* strm)
+  PREINIT:
+    mpz_t n, k, m, r;
+    unsigned long nu, ku;
+  PPCODE:
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set_signed(cv, k, "k", strk, VSETNEG_OK);
+    validate_and_set_signed(cv, m, "m", strm, VSETNEG_ABS);
+    if (mpz_sgn(m) == 0) {
+      mpz_clear(n); mpz_clear(k); mpz_clear(m);
+      XSRETURN_UNDEF;
+    }
+    if ( mpz_cmp_ui(m,1) <= 0 ||
+         (mpz_sgn(n) >= 0 && (mpz_sgn(k) < 0 || mpz_cmp(k,n) > 0)) ||
+         (mpz_sgn(n) <  0 && (mpz_sgn(k) < 0 && mpz_cmp(k,n) > 0)) ) {
+      mpz_clear(n); mpz_clear(k); mpz_clear(m);
+      XSRETURN_UV(0);
+    }
+    if (mpz_sgn(k) < 0)  /* Only here with n < 0 and k <= n */
+      mpz_sub(k,n,k);    /* So k always positive after this */
+    if (!mpz_fits_ulong_p(k)) croak("binomialmod: k too large");
+    nu = mpz_get_ui(n);
+    ku = mpz_get_ui(k);
+    mpz_init(r);
+    if (!mpz_fits_ulong_p(n) || mpz_sgn(n) < 0 || ku == 0 || ku >= nu) {
+      mpz_bin_ui(r, n, ku);
+    } else {
+      if (ku > nu/2) ku = nu-ku;
+      mpz_bin_uiui(r, nu, ku);
+    }
+    mpz_fdiv_r(r, r, m);
+    mpz_clear(n);
+    mpz_clear(k);
+    mpz_clear(m);
+    XPUSH_MPZ(r);
+    mpz_clear(r);
+
+void
 falling_factorial(IN char* strx, IN char* strn)
   ALIAS:
     rising_factorial = 1
@@ -1258,7 +1296,7 @@ falling_factorial(IN char* strx, IN char* strn)
     mpz_t x, n, r;
   PPCODE:
     validate_and_set_signed(cv, x, "x", strx, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
     mpz_init(r);
     if (ix == 0)  falling_factorial(r, x, n);
     else          rising_factorial(r, x, n);
@@ -1359,7 +1397,7 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
   PPCODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 4) {
       if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
@@ -1401,7 +1439,7 @@ void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
     validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_POS);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
     if (mpz_sgn(n) <= 0) {
       mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
       XSRETURN_UNDEF;

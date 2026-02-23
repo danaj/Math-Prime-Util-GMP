@@ -6,7 +6,7 @@ use Test::More;
 use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight invmod
                               is_qr
                               is_power is_prime_power is_square
-                              binomial gcdext vecsum vecprod/;
+                              binomial binomialmod gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @gcds = (
@@ -186,6 +186,7 @@ plan tests => 1      # gcd
             + 1      # hammingweight
             + 1      # binomial
             + 6      # ... more binomial
+            + 4      # binomialmod
             + 1      # gcdext
             + 1      # vecsum
             + 1      # vecprod
@@ -221,6 +222,20 @@ is_deeply( [map { binomial(-10, $_) } -15 .. 15],
 is(binomial("36893488147419103231", 1), "36893488147419103231", "binomial(n,1) = n with bigint n");
 is(binomial("36893488147419103231", 2), "680564733841876926871408982642407768065", "binomial(n,2) = (n,k) with bigint n");
 is(binomial("36893488147419103231", 3), "8369468980515574350419923096593134701017280224495241527295", "binomial(n,3) = (n,k) with bigint n");
+
+
+is(binomialmod(29,13,31), 17, "binomialmod(29,13,31) = 17");
+is(binomialmod(-18,13,257), 94, "binomialmod(-18,13,257) = 94");
+is(binomialmod(-18,-23,257), 137, "binomialmod(-18,-23,257) = 137");
+
+is_deeply([binomialmod(400,343,1777),
+           binomialmod(-400,343,1777),
+           binomialmod(-14,343,1777),
+           binomialmod(400,-343,1777),
+           binomialmod(-400,-343,1777),
+           binomialmod(-14,-343,1777)],
+          [977, 251, 421, 0, 0, 647], "binomialmod with negative");
+
 
 is_deeply( [map { [gcdext($_->[0],$_->[1])] } @gcdexts],
            [map { $_->[2]                   } @gcdexts], "gcdext(x,y)");

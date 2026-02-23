@@ -16,7 +16,7 @@ int is_perfect_power(const mpz_t n)
 
 void next_perfect_power(mpz_t next, const mpz_t n)
 {
-  UV power, log2n, k;
+  UV log2n, k;
   mpz_t N, best, r;
 
   if (mpz_sgn(n) < 0) {
@@ -57,7 +57,7 @@ void next_perfect_power(mpz_t next, const mpz_t n)
 }
 void prev_perfect_power(mpz_t prev, const mpz_t n)
 {
-  UV power, log2n, k;
+  UV log2n, k;
   mpz_t N, best, r, c;
 
   if (mpz_sgn(n) < 0) {

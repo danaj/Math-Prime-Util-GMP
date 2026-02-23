@@ -66,7 +66,7 @@ my @functions = qw(
                      pn_primorial
                      factorial subfactorial multifactorial factorial_sum
                      falling_factorial rising_factorial
-                     factorialmod
+                     factorialmod binomialmod
                      consecutive_integer_lcm
                      partitions bernfrac bernreal harmfrac harmreal stirling
                      bernvec powersum faulhaber_sum
