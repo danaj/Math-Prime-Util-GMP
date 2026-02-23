@@ -14,7 +14,7 @@ extern UV next_prime_ui(UV n);
 extern signed char* range_moebius(UV lo, UV hi);
 
 extern void* hmertens_create(UV n);
-extern UV    hmertens_value(void* ctx, UV n);
+extern IV    hmertens_value(void* ctx, UV n);
 extern void  hmertens_destroy(void* ctx);
 extern IV    mertens_ui(UV n);
 

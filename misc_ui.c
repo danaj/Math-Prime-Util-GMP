@@ -265,16 +265,14 @@ void* hmertens_create(UV n)
   return HM;
 }
 
-UV hmertens_value(void* ctx, UV n)
+IV hmertens_value(void* ctx, UV n)
 {
   mertens_t *HM = ctx;
-
-  UV msize = HM->msize,  hsize = HM->hsize;
   const short* M = HM->M;
   mertens_value_t *H = HM->H;
-
-  UV s, k, ns, nk, nk1, mk, mnk;
-  IV sum;
+  UV msize = HM->msize,  hsize = HM->hsize;
+  UV s, k, ns, nk, nk1;
+  IV sum, mk, mnk;
 
   if (n <= msize)
     return M[n];
