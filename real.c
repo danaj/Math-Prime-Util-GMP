@@ -1132,11 +1132,44 @@ static double _lambertw_approx(double x) {
   return w;
 }
 
+/* Iteration (5) from https://arxiv.org/pdf/2008.06122. */
+static void _mpf_lambertw_approx(mpf_t w, mpf_t x) {
+  double dapprox;
+  mpf_t T1, T2;
+  const int apbits = 117;   /* 35 digits */
+  int i, loops;
+
+  mpf_init2(T1, apbits);
+  mpf_init2(T2, apbits);
+
+  loops = 2;
+  dapprox = _lambertw_approx(mpf_get_d(x));
+  if (dapprox < 800.0) {
+    mpf_set_d(T1, dapprox);
+  } else {
+    /* Init using equation 21 */
+    mpf_log(T1, x);
+    mpf_log(T2, T1);
+    mpf_sub(T1, T1, T2);    /* T1 = Beta0 = log(x)-log(log(x)) */
+    loops = 3;
+  }
+
+  for (i = 0; i < loops; i++) {
+    mpf_add_ui(T2, T1, 1);
+    mpf_div(T2, T1, T2);    /* T2 = Bn/(1+Bn) */
+    mpf_div(T1, x, T1);
+    mpf_log(T1, T1);
+    mpf_add_ui(T1,T1,1);    /* T1 = 1 + log(x/Bn) */
+    mpf_mul(T1, T1, T2);    /* T1 = Beta_{n+1} */
+  }
+  mpf_set(w, T1);
+  mpf_clear(T2); mpf_clear(T1);
+}
 
 static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
 {
   int i;
-  unsigned long bits = 96+mpf_get_prec(r);  /* More bits for intermediate */
+  unsigned long bits = 96 + DIGS2BITS(prec);
   mpf_t w, t, tol, w1, zn, qn, en;
 
   if (mpf_cmp_d(x, -0.36787944117145) < 0)
@@ -1153,14 +1186,10 @@ static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
   mpf_init2(qn,  bits);
   mpf_init2(en,  bits);
 
-  {
-    long expbits;
-    mpf_get_d_2exp(&expbits, x);
-    if (expbits > 1023) mpf_set_d(w, 0.6931 * expbits);
-    else                mpf_set_d(w, _lambertw_approx(mpf_get_d(x)));
-  }
+  /* Get a 30 or so digit initial value. */
+  _mpf_lambertw_approx(w, x);
 
-  /* Divide prec by 2 since t should be have 4x number of zeros each round */
+  /* Divide prec by 2 since t should have 4x number of zeros each round */
   mpf_set_ui(tol, 10);
   mpf_pow_ui(tol, tol, (mpf_cmp_d(x, -.36) < 0) ? prec : prec/2);
   mpf_ui_div(tol,1,tol);
