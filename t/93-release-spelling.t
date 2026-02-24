@@ -20,7 +20,7 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  subfactorial multifactorials
                  gcd lcm kronecker invmod exp
                  irand irand64 drand drand64 urandomm urandomb
-                 factorialmod hammingweight numtoperm permtonum
+                 factorialmod binomialmod hammingweight numtoperm permtonum
                  semiprime semiprimes coprime k-tuples
                  precalculated premultiplier multipoint
                  pseudoprime pseudoprimes compositeness

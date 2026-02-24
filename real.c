@@ -1077,6 +1077,9 @@ void bernfrac(mpz_t num, mpz_t den, const mpz_t zn)
 static double _lambertw_approx(double x) {
   double w, k1, k2, k3;
 
+  if (isinf(x) || isnan(x))
+    return 1000.0;
+
   if (x < -0.312) {
     /* Near the branch point.  See Fukushima (2013) section 2.5. */
     k2 = 2.0 * (1.0 + 2.71828182845904523536 * x);
@@ -1150,8 +1153,12 @@ static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
   mpf_init2(qn,  bits);
   mpf_init2(en,  bits);
 
-  /* Initial estimate done in FP instead of mpf. */
-  mpf_set_d(w, _lambertw_approx(mpf_get_d(x)));
+  {
+    long expbits;
+    mpf_get_d_2exp(&expbits, x);
+    if (expbits > 1023) mpf_set_d(w, 0.6931 * expbits);
+    else                mpf_set_d(w, _lambertw_approx(mpf_get_d(x)));
+  }
 
   /* Divide prec by 2 since t should be have 4x number of zeros each round */
   mpf_set_ui(tol, 10);

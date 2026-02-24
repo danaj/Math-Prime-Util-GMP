@@ -1,6 +1,6 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
-0.53 2026-?
+0.53 2026-02-25
 
     [ADDED]
 
@@ -116,6 +116,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - factorialmod(n,0) returns undef, factorialmod(n,-m) uses abs(m).
 
     - trial_factor(1) returns () insted of (1), to match factor (and MPU).
+
+    - lambertw(x) with x > 10^308 would return -1.  Fixed.
 
     [PERFORMANCE]
 
