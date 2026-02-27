@@ -1623,7 +1623,7 @@ int _GMP_cheb_factor(const mpz_t n, mpz_t f, UV B, UV initx)
   TEST_FOR_2357(n, f);
   if (B < 7) return 0;
 
-  logB = logl(B);
+  logB = log(B);
   mpz_init_set_ui(inv, 2);
   mpz_invert(inv, inv, n);   /* multiplying by this will divide by two */
   mpz_init_set_ui(x, (initx == 0) ? 72 : initx);
@@ -1634,7 +1634,7 @@ int _GMP_cheb_factor(const mpz_t n, mpz_t f, UV B, UV initx)
 
   mpz_set_ui(f, 1);
   for (p = 2; p <= B && mpz_cmp_ui(f,1) <= 0; p = prime_iterator_next(&iter)) {
-    unsigned long lgbp = (unsigned long) (logB / logl(p));   /* Alternately logint(mpzB,p) */
+    unsigned long lgbp = (unsigned long) (logB / log(p));   /* Alternately logint(mpzB,p) */
     if (lgbp > 1)  mpz_ui_pow_ui(k, p, lgbp);
     else           mpz_set_uv(k, p);
     mpz_mul_2exp(P, x, 1);
