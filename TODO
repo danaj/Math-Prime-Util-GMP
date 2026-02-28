@@ -116,8 +116,6 @@ For new functions:
   https://www.researchgate.net/publication/272039164_A_new_fast_asymptotic_series_for_the_gamma_function
   https://arxiv.org/pdf/2301.09699.pdf
 
-- lambertw should use increasing precision.
-
 - Euler using:
    = binary splitting
    = B3 from Brent/McMillan (1980)
@@ -204,3 +202,5 @@ For new functions:
 - binomialmod better using factorialmod:
   factorial_valuation and _binoval, then use factorialmod
   also maybe better factorialmod
+
+- real functions should have a settable default precision
