@@ -204,7 +204,7 @@ int is_trial_prime(const mpz_t n)
 
     prime_iterator_setprime(&iter, 256);
     p = prime_iterator_next(&iter);
-    lim = (mpz_cmp_ui(sqrtn, 4294967279) >= 0) ? 4294967279 : mpz_get_ui(sqrtn);
+    lim = (mpz_cmp_ui(sqrtn, 4294967279U) >= 0) ? 4294967279U : mpz_get_ui(sqrtn);
     if (_verbose >= 3) gmp_printf("    ... using mpz_ui and prime iterator to %lu\n", lim);
     while (p <= lim) {
       if (mpz_divisible_ui_p(n, p))

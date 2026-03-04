@@ -546,7 +546,7 @@ int moebius(const mpz_t n)
 }
 
 /* mpu 'for (0..256) { next if moebius($_) == 0; $b[$_ >> 5] |= (1 << ($_%32)); } say join ",",@b;' */
-static const uint32_t _isf[8] = {3840601326,1856556782,3941394158,2362371810,3970362990,3471729898,4008603310,3938642668};
+static const uint32_t _isf[8] = {3840601326U,1856556782U,3941394158U,2362371810U,3970362990U,3471729898U,4008603310U,3938642668U};
 int is_square_free_ui(unsigned long n)
 {
   uint32_t i, p, psq;

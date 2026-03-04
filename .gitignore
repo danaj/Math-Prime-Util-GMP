@@ -10,3 +10,5 @@ XS.c
 *.dSYM
 blib*
 pm_to_blib
+standalone
+s2

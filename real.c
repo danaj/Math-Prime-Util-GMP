@@ -947,8 +947,8 @@ static int _get_bern_cache(mpz_t num, mpz_t den, unsigned long n) {
 /* Return first n even Bernoulli numbers: B[0], B[2], ... B[2n] as READ ONLY */
 void bernvec(const mpz_t **N, const mpz_t **D, unsigned long n) {
   _fill_bern_cache(n);
-  *N = _bern_cache_NUM;
-  *D = _bern_cache_DEN;
+  *N = (const mpz_t *)_bern_cache_NUM;
+  *D = (const mpz_t *)_bern_cache_DEN;
 }
 
 
