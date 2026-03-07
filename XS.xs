@@ -1333,15 +1333,21 @@ void powersum(IN char* stra, IN char* strb)
     mpz_clear(b); mpz_clear(a);
 
 void
-lshiftint(IN char* strn, IN unsigned long k = 1)
+lshiftint(IN char* strn, IN long k = 1)
   ALIAS:
     rshiftint = 1
     rashiftint = 2
   PREINIT:
     mpz_t n;
+    int nix;
   PPCODE:
     validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    switch (ix) {
+    nix = ix;
+    if (k < 0) {
+      k = -k;
+      nix = !nix;  /* left => right, right or arith_right => left */
+    }
+    switch (nix) {
       case 0:  mpz_mul_2exp(n, n, k);      break;
       case 1:  mpz_tdiv_q_2exp(n, n, k);   break;
       case 2:

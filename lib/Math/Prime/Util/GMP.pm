@@ -2295,7 +2295,7 @@ the ceiling quotient and the ceiling remainder.
 
 =head2 lshiftint
 
-Given an integer C<n> and an optional unsigned integer number of bits C<k>,
+Given an integer C<n> and an optional signed integer number of bits C<k>,
 perform a left shift of C<n> by C<k> bits.
 If the second argument is not provided, it is assumed to be 1.
 This is equivalent to multiplying by C<2^k>.
@@ -2305,7 +2305,7 @@ of bits, and Mathematica's C<BitShiftLeft> function.
 
 =head2 rshiftint
 
-Given an integer C<n> and an optional unsigned integer number of bits C<k>,
+Given an integer C<n> and an optional signed integer number of bits C<k>,
 perform a right shift of C<n> by C<k> bits.
 If the second argument is not provided, it is assumed to be 1.
 This is equivalent to truncated division by C<2^k>.
@@ -2317,7 +2317,7 @@ to dividing by the power of 2 using L</tdivrem> or GMP's C<mpz_tdiv_q_2exp>.
 
 =head2 rashiftint
 
-Given an integer C<n> and an optional unsigned integer number of bits C<k>,
+Given an integer C<n> and an optional signed integer number of bits C<k>,
 perform a signed arithmetic right shift of C<n> by C<k> bits.
 If the second argument is not provided, it is assumed to be 1.
 This is equivalent to floor division by C<2^k>.

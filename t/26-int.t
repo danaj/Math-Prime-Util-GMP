@@ -73,7 +73,7 @@ plan tests => 0
             + 2                              # fdivrem
             + 2                              # cdivrem
             + 7 * scalar(@quotients)         # signed bigint division
-            + 4 + 3*scalar(@negshifts)       # shiftint
+            + 7 + 3*scalar(@negshifts)       # shiftint
             + 1                              # absint
             + 1                              # negint
             + 7                              # cmpint
@@ -226,6 +226,10 @@ for my $d (@negshifts) {
   is( rshiftint($n,$k), $rs, "rshiftint($n,$k) = $rs" );
   is( rashiftint($n,$k), $ras, "rashiftint($n,$k) = $ras" );
 }
+
+is(lshiftint(5000,-2),  1250, "lshiftint(n,-2)  => rshiftint(n,2)");
+is(rshiftint(5000,-2), 20000, "rshiftint(n,-2)  => lshiftint(n,2)");
+is(rashiftint(5000,-2),20000, "rashiftint(n,-2) => lshiftint(n,2)");
 
 ###### absint
 is_deeply([map { absint($_) } -9..9], [map { abs($_) } -9..9], "absint(-9..9)");
