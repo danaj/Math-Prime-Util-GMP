@@ -653,6 +653,10 @@ void li(mpf_t r, mpf_t n, unsigned long prec)
   mpf_t logn, sum, inner_sum, term, p, q, tol;
   unsigned long j, k, bits = precbits(r, prec, 10);
 
+  if (mpz_sgn(n) <= 0) {
+    mpf_set_ui(r, 0);
+    return;
+  }
   mpf_init2(logn,      bits);
   mpf_log(logn, n);
 
