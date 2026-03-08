@@ -683,7 +683,7 @@ as testing results that have been sieved.
 
 =head2 is_trial_prime
 
-Takes a positive number as input, and returns 1 if the input has not
+Takes a positive number as input, and returns 1 if the input is not
 divisible by any prime less than or equal to the square root of the input.
 This is simple trial division by primes.
 There is little practical use as we have much more efficient primality
@@ -759,7 +759,7 @@ Miller-Rabin test) while giving a certain answer.
 
 Given two integers C<a> and C<b> as input, returns 0 (definitely composite),
 1 (probably prime), or 2 (definitely prime) to indicate whether the
-complex number C<a+bi> is a Guassian prime.  The L</is_prime> function is
+complex number C<a+bi> is a Gaussian prime.  The L</is_prime> function is
 used internally to make the determination.
 
 
@@ -1494,7 +1494,7 @@ Returns the Bernoulli number C<B_n> for an integer argument C<n>, as a
 string floating point.  An optional second argument indicates the number
 of significant digits to be used, with the result rounded.  The default
 is 40 digits.
-This corresponds to Pari's C<bernreal> function and.
+This corresponds to Pari's C<bernreal> function.
 
 =head2 bernvec
 
@@ -1565,7 +1565,7 @@ Given a positive integer or float C<n>, returns the real Logarithmic Integral
 as a string floating point.  An optional second argument indicates the number
 of significant digits (default 40) with the result rounded.
 
-The implementation uses Ramanjan's series.
+The implementation uses Ramanujan's series.
 This corresponds to Mathematica's C<Li> function.
 
 =head2 ei
@@ -1719,7 +1719,7 @@ Given integer C<n>, returns 1 if C<|n|> has no repeated factor.
 =head2 is_powerfree
 
 Given an integer C<n> and an optional non-negative integer C<k>, returns
-1 is C<|n|> has no divisor C<d^k>, and returns 0 otherwise.
+1 if C<|n|> has no divisor C<d^k>, and returns 0 otherwise.
 This determines if C<|n|> has any C<k>-th (or higher) powers in the prime
 factorization.
 C<k> defaults to 2.
@@ -2260,7 +2260,7 @@ Given integers C<a> and C<b>, returns the modulo C<a % b>.
     C<r = a - b * floor(a / b)>
 
 Floor division is used, so q is rounded towards -inf and r has
-the same sign as the divisor C<b>..
+the same sign as the divisor C<b>.
 This is the same as modern L<Math::BigInt/bmod> and the GMP C<fdiv> functions,
 but not the same as Pari/GP's C<%> operator.
 
