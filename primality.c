@@ -1314,11 +1314,14 @@ int _GMP_is_prime(const mpz_t n)
    * We can also perform random sampling to get empirical data, which shows
    * a probability of less than 1e-12 at 65 bits, and lowering as the number
    * of bits increases.  One extra test is all that is necessary.
+   *
+   * Recall that to get here with prob_prime=1 means n is 83+ bits, has no
+   * factors under 1009, passed a SPSP-2 test, and an extra-strong Lucas test.
    */
 
   if (prob_prime == 1) {
-    UV ntests = 1;
-    prob_prime = miller_rabin_random(n, ntests, 0);
+    UV n_extra_tests = 1;
+    prob_prime = miller_rabin_random(n, n_extra_tests, 0);
     /* prob_prime = _GMP_is_frobenius_underwood_pseudoprime(n); */
     /* prob_prime = _GMP_is_frobenius_khashin_pseudoprime(n); */
   }
