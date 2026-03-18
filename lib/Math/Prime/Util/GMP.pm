@@ -43,7 +43,7 @@ our @EXPORT_OK = qw(
                      is_gaussian_prime
                      lucas_sequence  lucasuv  lucasu  lucasv
                      lucasuvmod  lucasumod  lucasvmod
-                     fibonacci lucas_number
+                     fibonacci lucas_number catalan_number
                      primes
                      sieve_primes
                      sieve_twin_primes
@@ -219,7 +219,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -2029,6 +2029,16 @@ integers from 1 to C<n>.  This can be done by manipulation of the primes up
 to C<n>, resulting in much faster and memory-friendly results than using
 factorials.
 
+
+=head2 catalan_number
+
+Given a non-negative integer C<n>, returns the Catalan number C<C(n)>.
+This is given by C<binomial(2*n, n) / (n+1)>.
+
+This corresponds to Mathematica's C<CatalanNumber[n]> function,
+Sage's C<catalan_number(n)> function, and SymPy's C<catalan(n)> function.
+
+This is L<OEIS A000108|http://oeis.org/A000108>.
 
 =head2 partitions
 

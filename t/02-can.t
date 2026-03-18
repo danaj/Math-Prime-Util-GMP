@@ -37,7 +37,7 @@ my @functions = qw(
                      is_gaussian_prime
                      lucas_sequence  lucasuv  lucasu  lucasv
                      lucasuvmod  lucasumod  lucasvmod
-                     fibonacci lucas_number
+                     fibonacci lucas_number catalan_number
                      primes
                      sieve_primes
                      sieve_twin_primes

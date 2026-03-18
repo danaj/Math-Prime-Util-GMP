@@ -996,6 +996,25 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
     mpz_clear(t);
     mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
 
+void catalan_number(IN char* strn)
+  PREINIT:
+    mpz_t n;
+    unsigned long un;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    if (!mpz_fits_ulong_p(n))
+      croak("catalan_number: argument too large");
+    un = mpz_get_ui(n);
+    if (un <= 1) {
+      mpz_set_ui(n, 1);
+    } else {
+      mpz_mul_2exp(n, n, 1);        /* n = 2*un as mpz */
+      mpz_bin_ui(n, n, un);         /* C(2un, un) */
+      mpz_divexact_ui(n, n, un+1);  /* / (un+1) */
+    }
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
 void fibonacci(IN char* strk)
   ALIAS:
     lucas_number = 1

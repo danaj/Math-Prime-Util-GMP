@@ -8,6 +8,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - submulint(a,b,c)         returns a-b*c
     - fibonacci(k)             the k-th Fibonacci number
     - lucas_number(k)          the k-th Lucas number
+    - catalan_number(n)        the n-th Catalan number
 
 
 0.53 2026-03-11

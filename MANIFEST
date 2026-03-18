@@ -69,6 +69,7 @@ t/22-partitions.t
 t/23-gcd.t
 t/24-bernfrac.t
 t/26-bit.t
+t/26-catalan.t
 t/25-const-euler.t
 t/25-const-pi.t
 t/26-combinatorial.t
