@@ -9,6 +9,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - fibonacci(k)             the k-th Fibonacci number
     - lucas_number(k)          the k-th Lucas number
     - catalan_number(n)        the n-th Catalan number
+    - bell_number(n)           the n-th Bell number
 
 
 0.53 2026-03-11

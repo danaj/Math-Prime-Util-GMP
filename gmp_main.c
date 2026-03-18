@@ -867,6 +867,31 @@ void factorialmod(mpz_t r, UV N, const mpz_t m)
   }
 }
 
+void bell_number(mpz_t r, unsigned long n)
+{
+  unsigned long i, j;
+  mpz_t *cur, *nxt, *tmp;
+
+  if (n <= 1) { mpz_set_ui(r, 1); return; }
+
+  New(0, cur, n+1, mpz_t);
+  New(0, nxt, n+1, mpz_t);
+  for (i = 0; i <= n; i++) { mpz_init(cur[i]); mpz_init(nxt[i]); }
+
+  mpz_set_ui(cur[0], 1);
+
+  for (i = 1; i <= n; i++) {
+    mpz_set(nxt[0], cur[i-1]);           /* new row starts with last of old */
+    for (j = 0; j < i; j++)
+      mpz_add(nxt[j+1], nxt[j], cur[j]); /* running prefix sum */
+    tmp = cur; cur = nxt; nxt = tmp;     /* swap row pointers */
+  }
+
+  mpz_set(r, cur[0]);
+  for (i = 0; i <= n; i++) { mpz_clear(cur[i]); mpz_clear(nxt[i]); }
+  Safefree(cur); Safefree(nxt);
+}
+
 void partitions(mpz_t npart, UV n)
 {
   mpz_t psum, *part;

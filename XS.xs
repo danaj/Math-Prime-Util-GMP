@@ -1015,6 +1015,19 @@ void catalan_number(IN char* strn)
     XPUSH_MPZ(n);
     mpz_clear(n);
 
+void bell_number(IN char* strn)
+  PREINIT:
+    mpz_t n;
+    unsigned long un;
+  PPCODE:
+    VALIDATE_AND_SET(n, strn);
+    if (!mpz_fits_ulong_p(n))
+      croak("bell_number: argument too large");
+    un = mpz_get_ui(n);
+    bell_number(n, un);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
 void fibonacci(IN char* strk)
   ALIAS:
     lucas_number = 1

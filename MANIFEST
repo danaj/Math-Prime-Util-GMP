@@ -68,6 +68,7 @@ t/21-conseq-lcm.t
 t/22-partitions.t
 t/23-gcd.t
 t/24-bernfrac.t
+t/26-bell.t
 t/26-bit.t
 t/26-catalan.t
 t/25-const-euler.t
