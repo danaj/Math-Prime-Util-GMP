@@ -83,7 +83,7 @@ WriteMakefile1(
                },
                provides => {
                  'Math::Prime::Util::GMP' => {
-                    version => '0.53',
+                    version => '0.54',
                     file => 'lib/Math/Prime/Util/GMP.pm',
                  },
                },
