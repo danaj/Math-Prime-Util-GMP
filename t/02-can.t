@@ -85,6 +85,7 @@ my @functions = qw(
                      carmichael_lambda
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
+                     muladdint mulsubint addmulint submulint
                      divint modint cdivint divrem tdivrem fdivrem cdivrem
                      add1int sub1int
                      negint absint signint cmpint cmpabsint

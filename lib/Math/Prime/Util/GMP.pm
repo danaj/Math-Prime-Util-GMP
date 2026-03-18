@@ -91,6 +91,7 @@ our @EXPORT_OK = qw(
                      carmichael_lambda
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
+                     muladdint mulsubint addmulint submulint
                      divint modint cdivint divrem tdivrem fdivrem cdivrem
                      add1int sub1int
                      negint absint signint cmpint cmpabsint
@@ -217,7 +218,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -2237,6 +2238,22 @@ Given integers C<a> and C<b>, returns C<a + b>.
 =head2 subint
 
 Given integers C<a> and C<b>, returns C<a - b>.
+
+=head2 muladdint
+
+Given integers C<a>, C<b>, and C<c>, returns C<a * b + c>.
+
+=head2 mulsubint
+
+Given integers C<a>, C<b>, and C<c>, returns C<a * b - c>.
+
+=head2 addmulint
+
+Given integers C<a>, C<b>, and C<c>, returns C<a + b * c>.
+
+=head2 submulint
+
+Given integers C<a>, C<b>, and C<c>, returns C<a - b * c>.
 
 =head2 divint
 

@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/powint mulint addint subint add1int sub1int divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint cmpint cmpabsint signint/;
+use Math::Prime::Util::GMP qw/powint mulint addint subint add1int sub1int divint modint cdivint divrem tdivrem fdivrem cdivrem absint negint lshiftint rshiftint rashiftint cmpint cmpabsint signint muladdint mulsubint addmulint submulint/;
 use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 my $use64 = (~0 > 4294967296 && 18446744073709550592 != ~0);
@@ -79,6 +79,7 @@ plan tests => 0
             + 7                              # cmpint
             + 9                              # cmpabsint
             + 7                              # signint
+            + 4 + 4                          # muladdint mulsubint addmulint submulint
             + 0;
 
 ###### powint
@@ -268,3 +269,29 @@ is(signint("-18446744073709551615"), -1, "signint(-(2^64-1)) = -1");
 is(signint("-18446744073709551616"), -1, "signint(-2^64) = -1");
 is(signint("18446744073709551615"), 1, "signint(2^64-1) = 1");
 is(signint("18446744073709551616"), 1, "signint(2^64) = 1");
+
+###### muladdint / mulsubint / addmulint / submulint
+{ my @v = (-3..3);
+  my @triples = map { my $a=$_; map { my $b=$_; map { [$a,$b,$_] } @v } @v } @v;
+  is_deeply([map { muladdint($_->[0],$_->[1],$_->[2]) } @triples],
+            [map { $_->[0]*$_->[1]+$_->[2] } @triples],
+            "muladdint(-3..3,-3..3,-3..3)");
+  is_deeply([map { mulsubint($_->[0],$_->[1],$_->[2]) } @triples],
+            [map { $_->[0]*$_->[1]-$_->[2] } @triples],
+            "mulsubint(-3..3,-3..3,-3..3)");
+  is_deeply([map { addmulint($_->[0],$_->[1],$_->[2]) } @triples],
+            [map { $_->[0]+$_->[1]*$_->[2] } @triples],
+            "addmulint(-3..3,-3..3,-3..3)");
+  is_deeply([map { submulint($_->[0],$_->[1],$_->[2]) } @triples],
+            [map { $_->[0]-$_->[1]*$_->[2] } @triples],
+            "submulint(-3..3,-3..3,-3..3)");
+}
+
+my $p = "13282407956253574712";
+my $q = "14991082624209354397";
+my $pq = "199117675120653046511338473800925208664";  # p*q
+my $r = "999999999999999999";
+is( muladdint($p,$q,$r), "199117675120653046512338473800925208663", "muladdint(p,q,r)" );
+is( mulsubint($p,$q,$r), "199117675120653046510338473800925208665", "mulsubint(p,q,r)" );
+is( addmulint($r,$p,$q), "199117675120653046512338473800925208663", "addmulint(r,p,q)" );
+is( submulint($r,$p,$q), "-199117675120653046510338473800925208665", "submulint(r,p,q)" );

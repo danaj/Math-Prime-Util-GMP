@@ -1250,6 +1250,24 @@ invmod(IN char* stra, IN char* strb)
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
 
+void muladdint(IN char* stra, IN char* strb, IN char* strc)
+  ALIAS:
+    mulsubint = 1
+    addmulint = 2
+    submulint = 3
+  PREINIT:
+    mpz_t a, b, c;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
+    if      (ix == 0) { mpz_mul(a, a, b); mpz_add(a, a, c); } /* a * b + c */
+    else if (ix == 1) { mpz_mul(a, a, b); mpz_sub(a, a, c); } /* a * b - c */
+    else if (ix == 2) { mpz_addmul(a, b, c); }                /* a + b * c */
+    else              { mpz_submul(a, b, c); }                /* a - b * c */
+    XPUSH_MPZ(a);
+    mpz_clear(c);  mpz_clear(b);  mpz_clear(a);
+
 void
 binomialmod(IN char* strn, IN char* strk, IN char* strm)
   PREINIT:
