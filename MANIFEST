@@ -80,6 +80,7 @@ t/26-isdivisible.t
 t/26-ismisc.t
 t/26-lambertw.t
 t/26-logs.t
+t/26-lucas.t
 t/26-mersenne.t
 t/26-mod.t
 t/26-perfectpowers.t

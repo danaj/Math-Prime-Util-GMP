@@ -996,6 +996,28 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
     mpz_clear(t);
     mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
 
+void fibonacci(IN char* strk)
+  ALIAS:
+    lucas_number = 1
+  PREINIT:
+    mpz_t r, k;
+    unsigned long uk;
+    int isneg;
+  PPCODE:
+    isneg = validate_and_set_signed(cv, k, "k", strk, VSETNEG_ABS);
+    if (!mpz_fits_ulong_p(k))
+      croak("%s: argument too large", GvNAME(CvGV(cv)));
+    uk = mpz_get_ui(k);
+    if (ix == 0) {
+      mpz_fib_ui(k, uk);
+      if (isneg && (uk & 1) == 0) mpz_neg(k, k);  /* F(-n) = -F(n) if n even */
+    } else {
+      mpz_lucnum_ui(k, uk);
+      if (isneg && (uk & 1) == 1) mpz_neg(k, k);  /* L(-n) = -L(n) if n odd */
+    }
+    XPUSH_MPZ(k);
+    mpz_clear(k);
+
 int
 liouville(IN char* strn)
   PREINIT:

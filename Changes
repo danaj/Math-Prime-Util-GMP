@@ -6,6 +6,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - mulsubint(a,b,c)         returns a*b-c
     - addmulint(a,b,c)         returns a+b*c
     - submulint(a,b,c)         returns a-b*c
+    - fibonacci(k)             the k-th Fibonacci number
+    - lucas_number(k)          the k-th Lucas number
 
 
 0.53 2026-03-11

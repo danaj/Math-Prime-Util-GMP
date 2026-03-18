@@ -43,6 +43,7 @@ our @EXPORT_OK = qw(
                      is_gaussian_prime
                      lucas_sequence  lucasuv  lucasu  lucasv
                      lucasuvmod  lucasumod  lucasvmod
+                     fibonacci lucas_number
                      primes
                      sieve_primes
                      sieve_twin_primes
@@ -218,7 +219,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -1151,6 +1152,31 @@ Like L</random_maurer_prime> but also returns a string certificate.
 
 Like L</random_shawe_taylor_prime> but also returns a string certificate.
 
+
+=head2 fibonacci
+
+  say fibonacci($_) for 0..20;  # 0,1,1,2,3,5,8,13,21,34,55,...
+
+Given an integer C<k>, returns C<F(k)>, the C<k>-th Fibonacci number.
+The sequence begins C<F(0)=0>, C<F(1)=1>, with each subsequent term the
+sum of the two preceding terms.  Negative C<k> is supported.
+
+This is equivalent to C<lucasu(1,-1,k)>.
+
+This is L<OEIS A000045|http://oeis.org/A000045>.
+
+=head2 lucas_number
+
+  say lucas_number($_) for 0..10;  # 2,1,3,4,7,11,18,29,47,76,123,...
+
+Given an integer C<k>, returns C<L(k)>, the C<k>-th Lucas number.
+The sequence begins C<L(0)=2>, C<L(1)=1>, with each subsequent term the
+sum of the two preceding terms.  Negative C<k> is supported.
+
+Lucas numbers satisfy C<L(k) = F(k-1) + F(k+1)> and are equivalent to
+C<lucasv(1,-1,k)>.
+
+This is L<OEIS A000032|http://oeis.org/A000032>.
 
 =head2 lucasu
 
