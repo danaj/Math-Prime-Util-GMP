@@ -204,3 +204,23 @@ For new functions:
   also maybe better factorialmod
 
 - real functions should have a settable default precision
+
+- need to change is_frobenius_pseudoprime to allow arbitrary P,Q
+- also lucas_sequence arbitrary P,Q
+
+- new functions:
+  - is_safe_prime
+  - aliquot_sum
+  - prime_signature
+  - sopfr
+  - sopf
+  - abundance
+  - vecprefixsum
+  - dedekind_psi
+
+  - fubini
+  - partitionsq
+  - legendre phi?
+  - dedekind_psi
+  - euler_phi
+  - urandomr negative inputs

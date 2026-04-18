@@ -67,6 +67,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - cdivint(a,b)             integer a/b quotient  (ceiling)
     - fdivrem(a,b)             integer a/b quo + rem (floor)
     - cdivrem(a,b)             integer a/b quo + rem (ceiling)
+    - negmod(a,n)              (-a) % n
     - submod(a,b,n)            (a - b) % n
     - muladdmod(a, b, c, n)    (a * b + c) % n
     - mulsubmod(a, b, c, n)    (a * b - c) % n

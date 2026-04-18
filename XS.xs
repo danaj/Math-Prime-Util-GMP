@@ -1241,8 +1241,8 @@ invmod(IN char* stra, IN char* strb)
               if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
               mpz_root(a, a, mpz_get_ui(b));
               break;
-      case 10:if (mpz_cmp_ui(b,2) < 0) croak("rootint: base must be > 1");
-              if (mpz_sgn(a) <=  0) croak("rootint: n must be > 0");
+      case 10:if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be > 1");
+              if (mpz_sgn(a) <=  0) croak("logint: n must be > 0");
               mpz_set_uv(a, logint(a, mpz_get_uv(b)));
               break;
       case 11:if (mpz_sgn(b) < 0) croak("powint: exponent must be >= 0");
