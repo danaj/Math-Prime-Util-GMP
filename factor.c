@@ -691,7 +691,6 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
   int* exponents;
   int i, j, nfactors;
 
-  mpz_set_ui(order, 1);
   mpz_pow_ui(n, p, e);
 
   /* Remove some simple cases */
@@ -706,30 +705,6 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
     if (nn == 13)  { mpz_set_ui(order, _zn13[aa-2]); return; }
     if (nn == 16)  { mpz_set_ui(order, _zn16[aa-2]); return; }
     if (nn == 17)  { mpz_set_ui(order, _zn17[aa-2]); return; }
-  }
-
-  /* Abhijit Das, algorithm 1.7.  This is best for prime moduli. */
-  if (e == 1) {
-    mpz_init(phi);
-    mpz_sub_ui(phi, p, 1);
-    nfactors = factor(phi, &factors, &exponents);
-    for (i = 0; i < nfactors; i++) {
-      mpz_divexact(t, phi, factors[i]);
-      for (j = 1; j < exponents[i]; j++)
-        mpz_divexact(t, t, factors[i]);
-      mpz_powm(t, a, t, n);
-      for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
-        if (j++ >= exponents[i]) {
-          mpz_set_ui(order, 0);
-          break;
-        }
-        mpz_mul(order, order, factors[i]);
-      }
-      if (j > exponents[i]) break;
-    }
-    mpz_clear(phi);
-    clear_factors(nfactors, &factors, &exponents);
-    return;
   }
 
   /* For 2^e, use the explicit structure of (Z/2^eZ)*. */
@@ -752,36 +727,61 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
     return;
   }
 
-  /* For odd p^e, compute ord_p(a), then lift using LTE:
-   * ord_{p^e}(a) = ord_p(a) * p^max(0, e - v_p(a^ord_p(a)-1)).
-   * This avoids factoring (p-1)*p^(e-1) and repeated powm modulo p^e. */
+  /* p is odd.  Compute and factor p-1. */
   mpz_init(phi);
   mpz_sub_ui(phi, p, 1);
   nfactors = factor(phi, &factors, &exponents);
-  mpz_set(order, phi);
-  for (i = 0; i < nfactors; i++) {
-    for (j = 0; j < exponents[i] && mpz_divisible_p(order, factors[i]); j++) {
-      mpz_divexact(phi, order, factors[i]);
-      mpz_powm(t, a, phi, p);
-      if (mpz_cmp_ui(t, 1) != 0)
-        break;
-      mpz_set(order, phi);
+
+  if (e == 1) {
+
+    /* Abhijit Das, algorithm 1.7.  This is best for prime moduli. */
+    mpz_set_ui(order, 1);
+    for (i = 0; i < nfactors; i++) {
+      mpz_divexact(t, phi, factors[i]);
+      for (j = 1; j < exponents[i]; j++)
+        mpz_divexact(t, t, factors[i]);
+      mpz_powm(t, a, t, n);
+      for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
+        if (j++ >= exponents[i]) {
+          mpz_set_ui(order, 0);
+          break;
+        }
+        mpz_mul(order, order, factors[i]);
+      }
+      if (j > exponents[i]) break;
     }
+
+  } else {
+
+    /* For odd p^e, compute ord_p(a), then lift using LTE:
+     * ord_{p^e}(a) = ord_p(a) * p^max(0, e - v_p(a^ord_p(a)-1)).
+     * This avoids factoring (p-1)*p^(e-1) and repeated powm modulo p^e. */
+    mpz_set(order, phi);
+    for (i = 0; i < nfactors; i++) {
+      for (j = 0; j < exponents[i] && mpz_divisible_p(order, factors[i]); j++) {
+        mpz_divexact(phi, order, factors[i]);
+        mpz_powm(t, a, phi, p);
+        if (mpz_cmp_ui(t, 1) != 0)
+          break;
+        mpz_set(order, phi);
+      }
+    }
+    mpz_powm(t, a, order, n);
+    if (mpz_cmp_ui(t, 1) == 0) {
+      s = e;
+    } else {
+      mpz_sub_ui(t, t, 1);
+      s = mpz_remove(t, t, p);
+    }
+    if ((unsigned long)e > s) {
+      mpz_pow_ui(t, p, (unsigned long)e - s);
+      mpz_mul(order, order, t);
+    }
+
   }
+
   mpz_clear(phi);
   clear_factors(nfactors, &factors, &exponents);
-
-  mpz_powm(t, a, order, n);
-  if (mpz_cmp_ui(t, 1) == 0) {
-    s = e;
-  } else {
-    mpz_sub_ui(t, t, 1);
-    s = mpz_remove(t, t, p);
-  }
-  if ((unsigned long)e > s) {
-    mpz_pow_ui(t, p, (unsigned long)e - s);
-    mpz_mul(order, order, t);
-  }
 }
 
 void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
