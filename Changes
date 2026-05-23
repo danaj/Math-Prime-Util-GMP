@@ -2,6 +2,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.54 2026-?
 
+    [ADDED]
+
     - muladdint(a,b,c)         returns a*b+c
     - mulsubint(a,b,c)         returns a*b-c
     - addmulint(a,b,c)         returns a+b*c
@@ -10,6 +12,10 @@ Revision history for Perl module Math::Prime::Util::GMP
     - lucas_number(k)          the k-th Lucas number
     - catalan_number(n)        the n-th Catalan number
     - bell_number(n)           the n-th Bell number
+
+    [PERFORMANCE]
+
+    - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)
 
 
 0.53 2026-03-11

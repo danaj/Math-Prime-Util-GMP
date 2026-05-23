@@ -687,6 +687,7 @@ static const unsigned char _zn17[15] = {8,16,4,16,16,16,8,8,16,16,16,4,16,8,2};
 static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t n)
 {
   mpz_t phi, *factors;
+  unsigned long s;
   int* exponents;
   int i, j, nfactors;
 
@@ -707,32 +708,80 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
     if (nn == 17)  { mpz_set_ui(order, _zn17[aa-2]); return; }
   }
 
-  /* Abhijit Das, algorithm 1.7 */
-  /* This could be further simplified / optimized */
+  /* Abhijit Das, algorithm 1.7.  This is best for prime moduli. */
+  if (e == 1) {
+    mpz_init(phi);
+    mpz_sub_ui(phi, p, 1);
+    nfactors = factor(phi, &factors, &exponents);
+    for (i = 0; i < nfactors; i++) {
+      mpz_divexact(t, phi, factors[i]);
+      for (j = 1; j < exponents[i]; j++)
+        mpz_divexact(t, t, factors[i]);
+      mpz_powm(t, a, t, n);
+      for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
+        if (j++ >= exponents[i]) {
+          mpz_set_ui(order, 0);
+          break;
+        }
+        mpz_mul(order, order, factors[i]);
+      }
+      if (j > exponents[i]) break;
+    }
+    mpz_clear(phi);
+    clear_factors(nfactors, &factors, &exponents);
+    return;
+  }
+
+  /* For 2^e, use the explicit structure of (Z/2^eZ)*. */
+  if (mpz_cmp_ui(p, 2) == 0) {
+    if (e <= 1) {
+      mpz_set_ui(order, 1);
+    } else if (e == 2) {
+      mpz_set_ui(order, (mpz_fdiv_ui(t, 4) == 1) ? 1 : 2);
+    } else if (mpz_fdiv_ui(t, 4) == 1) {
+      mpz_sub_ui(t, t, 1);
+      s = mpz_scan1(t, 0);
+      mpz_set_ui(order, 1);
+      if ((unsigned long)e > s) mpz_mul_2exp(order, order, (unsigned long)e - s);
+    } else {
+      mpz_add_ui(t, t, 1);
+      s = mpz_scan1(t, 0);
+      mpz_set_ui(order, 2);
+      if ((unsigned long)e > s) mpz_mul_2exp(order, order, (unsigned long)e - s - 1);
+    }
+    return;
+  }
+
+  /* For odd p^e, compute ord_p(a), then lift using LTE:
+   * ord_{p^e}(a) = ord_p(a) * p^max(0, e - v_p(a^ord_p(a)-1)).
+   * This avoids factoring (p-1)*p^(e-1) and repeated powm modulo p^e. */
   mpz_init(phi);
   mpz_sub_ui(phi, p, 1);
   nfactors = factor(phi, &factors, &exponents);
-  if (e > 1) {
-    mpz_pow_ui(t, p, e-1);
-    mpz_mul(phi, phi, t);
-    ADD_FACTORS(p, e-1);
-  }
+  mpz_set(order, phi);
   for (i = 0; i < nfactors; i++) {
-    mpz_divexact(t, phi, factors[i]);
-    for (j = 1; j < exponents[i]; j++)
-      mpz_divexact(t, t, factors[i]);
-    mpz_powm(t, a, t, n);
-    for (j = 0;  mpz_cmp_ui(t, 1) != 0;  mpz_powm(t, t, factors[i], n)) {
-      if (j++ >= exponents[i]) {
-        mpz_set_ui(order, 0);
+    for (j = 0; j < exponents[i] && mpz_divisible_p(order, factors[i]); j++) {
+      mpz_divexact(phi, order, factors[i]);
+      mpz_powm(t, a, phi, p);
+      if (mpz_cmp_ui(t, 1) != 0)
         break;
-      }
-      mpz_mul(order, order, factors[i]);
+      mpz_set(order, phi);
     }
-    if (j > exponents[i]) break;
   }
   mpz_clear(phi);
   clear_factors(nfactors, &factors, &exponents);
+
+  mpz_powm(t, a, order, n);
+  if (mpz_cmp_ui(t, 1) == 0) {
+    s = e;
+  } else {
+    mpz_sub_ui(t, t, 1);
+    s = mpz_remove(t, t, p);
+  }
+  if ((unsigned long)e > s) {
+    mpz_pow_ui(t, p, (unsigned long)e - s);
+    mpz_mul(order, order, t);
+  }
 }
 
 void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)

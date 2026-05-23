@@ -6,6 +6,7 @@ use Test::More;
 use Math::Prime::Util::GMP qw/moebius liouville totient jordan_totient
                               exp_mangoldt carmichael_lambda
                               znorder znprimroot is_primitive_root
+                              powint mulint
                               chinese chinese2 ramanujan_tau/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
@@ -97,6 +98,10 @@ my @mult_orders = (
   [7410,2147475467,39409],
   [31407,2147475467,266],
   [2, "2405286912458753", 1073741824],  # Pari #1031
+  [10000019, powint(3,123), mulint(2,powint(3,122))],
+  ["314159265358979323", powint(2,123), powint(2,121)],
+  ["314159265358979323", powint(4,123), powint(2,244)],
+  ["314159265358979323", powint(5,123), mulint(4,powint(5,122))],
 );
 
 my %primroots = (
