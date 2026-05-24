@@ -118,7 +118,7 @@ plan tests =>   1    # factorial
               + 2    # extra primorial tests
               + 1    # subfactorial
               + 1    # factorial_sum
-              + 4    # multifactorial
+              + 7    # multifactorial
               + 2    # falling_factorial
               + 2;   # rising_factorial
 
@@ -184,6 +184,13 @@ is_deeply( [ map { multifactorial($_,2) } 0..26 ],
 is_deeply( [ map { multifactorial($_,3) } 0..29 ],
            [qw/1 1 2 3 4 10 18 28 80 162 280 880 1944 3640 12320 29160 58240 209440 524880 1106560 4188800 11022480 24344320 96342400 264539520 608608000 2504902400 7142567040 17041024000 72642169600/],
            "multifactorial(n,3) for 0..29" );
+
+{
+  my $n = "1000000000000000000000000";
+  is( multifactorial($n, "999999999999999999999998"), "2000000000000000000000000", "multifactorial with two large factors" );
+  is( multifactorial($n, "1000000000000000000000001"), $n, "multifactorial with large k > n" );
+  ok( !eval { multifactorial("18446744073709551617", 1); 1 }, "multifactorial with too many terms croaks" );
+}
 
 ###### falling_factorial
 {

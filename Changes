@@ -7,6 +7,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - lucas_sequence and is_frobenius_pseudoprime take any integer P,Q
       instead of only native.
 
+    - multifactorial supports large integer n,k.
+
     [ADDED]
 
     - muladdint(a,b,c)         returns a*b+c

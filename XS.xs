@@ -1326,7 +1326,7 @@ void multifactorial(IN char* stra, IN char* strb)
   PPCODE:
     validate_and_set_signed(cv, a, "a", stra, VSETNEG_ERR);
     validate_and_set_signed(cv, b, "b", strb, VSETNEG_ERR);
-    multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
+    mpz_mfac(a, a, b);
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
 

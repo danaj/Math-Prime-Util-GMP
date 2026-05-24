@@ -697,7 +697,7 @@ void binomial(mpz_t r, UV n, UV k)
   Safefree(mprimes);
 }
 
-void multifactorial(mpz_t r, unsigned long n, unsigned long k)
+static void multifactorial(mpz_t r, unsigned long n, unsigned long k)
 {
   if (k == 0) {  mpz_set_ui(r, 1); return;  }
   if (k == 1) {  mpz_fac_ui(r, n); return;  }
@@ -712,6 +712,40 @@ void multifactorial(mpz_t r, unsigned long n, unsigned long k)
     mpz_mul_ui(r, r, n);
   }
 #endif
+}
+
+void mpz_mfac(mpz_t r, const mpz_t n, const mpz_t k)
+{
+  mpz_t t;
+  unsigned long Q, i;
+
+  if (mpz_sgn(n) < 0 || mpz_sgn(k) < 0)
+    croak("mpz_mfac: inputs must be non-negative");
+  if (mpz_cmp_ui(n,1) <= 0 || mpz_sgn(k) == 0)
+    { mpz_set_ui(r, 1); return; }
+  if (mpz_fits_ulong_p(n) && mpz_fits_ulong_p(k))
+    { multifactorial(r, mpz_get_ui(n), mpz_get_ui(k)); return; }
+
+  if (mpz_cmp(k, n) >= 0)
+    { mpz_set(r, n); return; }
+
+  /* We will iterate i from 0 to q */
+  mpz_init(t);
+  mpz_sub_ui(t, n, 1);
+  mpz_fdiv_q(t, t, k);
+  if (!mpz_fits_ulong_p(t)) {
+    mpz_clear(t);
+    croak("mpz_mfac: arguments too large");
+  }
+  Q = mpz_get_ui(t);
+
+  mpz_set(t, n);
+  mpz_set(r, t);
+  for (i = 0; i < Q; i++) {  /* loop 1 .. Q */
+    mpz_sub(t, t, k);
+    mpz_mul(r, r, t);
+  }
+  mpz_clear(t);
 }
 
 void factorial_sum(mpz_t r, unsigned long n)
