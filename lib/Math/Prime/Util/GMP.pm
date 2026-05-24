@@ -1238,8 +1238,7 @@ C<P>,C<Q>, modulo C<n>.  The modular Lucas sequence is used in a
 number of primality tests and proofs.
 
 C<k> must be non-negative, and C<n> must be greater than zero.
-C<P> and C<Q> are restricted to native signed integers.
-The newer function L</lucasuvmod> accepts bigint values.
+C<P> and C<Q> may be arbitrary integer values.
 
 
 =head2 primorial

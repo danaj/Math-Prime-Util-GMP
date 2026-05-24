@@ -178,7 +178,8 @@ plan tests => 0 + 8
                 + 2*scalar(keys %lucas_sequences)
                 + 7  # lucasuv
                 + 7  # lucasu lucasv
-                + 8  # lucasumod lucasvmod lucasuvmod
+                + 9  # lucasumod lucasvmod lucasuvmod lucas_sequence
+                + 2  # is_frobenius_pseudoprime with large P,Q
               # skipping these:
               # + $num_large_pseudoprime_tests
                 + 18*$extra  # Large Carmichael numbers
@@ -353,10 +354,12 @@ is_deeply([lucasuv(1,-1,27)], [qw/196418 439204/], "lucasuv(1,-1,27)");
   my $n = '93284902384902384902389999977';
   my $expU = '25334869115319721344893191735';
   my $expV = '69387036616346396045108433732';
+  my $expQk = '29855628541538459829687890237';
 
   is(lucasumod($P, $Q, $k, $n), $expU, 'lucasumod with large P and Q');
   is(lucasvmod($P, $Q, $k, $n), $expV, 'lucasvmod with large P and Q');
   is_deeply([lucasuvmod($P, $Q, $k, $n)], [$expU,$expV], 'lucasuvmod with large P and Q');
+  is_deeply([lucas_sequence($n, $P, $Q, $k)], [$expU,$expV,$expQk], 'lucas_sequence with large P and Q');
 
   # If we use modint(value,$n) on these, we get $expU and $expV.
   is(lucasu($P, $Q, $k), '638982808433522085545526796419139574565194569084879688961370201789461273036864463739989850080992114905246599468477822532880603380773729456663882472537224263398682230515459999540010010351118370161596871', "lucasu for large P and Q");
@@ -441,6 +444,13 @@ for my $p (@comp128) {
 # Frobenius has some issues.  Test
 for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
   is( is_frobenius_pseudoprime($p,37,-13), 1, "prime $p is a Frobenius (37,-13) pseudoprime" );
+}
+
+{
+  my $prime = $primes128[0];
+  my $comp = $comp128[0];
+  is( is_frobenius_pseudoprime($prime, $prime . "37", "-" . $prime . "13"), 1, "prime passes Frobenius test with large P and Q" );
+  is( is_frobenius_pseudoprime($comp, $comp . "37", "-" . $comp . "13"), 0, "composite fails Frobenius test with large P and Q" );
 }
 
 # Test miller_rabin_random with a passed in seed value

@@ -836,82 +836,100 @@ DONE_PERRIN:
   return rval ? 1 : 0;
 }
 
-int is_frobenius_pseudoprime(const mpz_t n, IV P, IV Q)
+int is_frobenius_pseudoprime(const mpz_t n)
 {
-  mpz_t t, Vcomp, d, U, V, Qk;
-  IV D;
-  int k = 0;
-  int rval;
+  mpz_t Ps, Qs, D;
+  int k, rval;
 
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is not prime */
-    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-  }
+  if (mpz_cmp_ui(n, 7) < 0)
+    return (mpz_cmp_ui(n,2) == 0 || mpz_cmp_ui(n,3) == 0 || mpz_cmp_ui(n,5) == 0);
+  if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+
+  mpz_init_set_si(Ps, -1);
+  mpz_init_set_ui(Qs, 2);
+  mpz_init(D);
+  if (mpz_cmp_ui(n, 7) == 0)
+    mpz_set_ui(Ps, 1);  /* So we don't test jacobi(-7,7) */
+
+  do {
+    mpz_add_ui(Ps, Ps, 2);
+    if (mpz_cmp_ui(Ps, 3) == 0)
+      mpz_set_ui(Ps, 5);  /* P=3,Q=2 -> D=9-8=1 => k=1, so skip */
+    mpz_mul(D, Ps, Ps);
+    mpz_submul_ui(D, Qs, 4);
+    k = mpz_jacobi(D, n);
+    if (mpz_cmp_ui(Ps, 10001) == 0 && mpz_perfect_square_p(n))
+      k = 0;
+  } while (k == 1);
+
+  if (k == 0)
+    rval = 0;
+  else
+    rval = is_frobenius_pseudoprime_pq(n, Ps, Qs);
+  mpz_clear(D);  mpz_clear(Qs);  mpz_clear(Ps);
+  return rval;
+}
+
+
+int is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t P, const mpz_t Q)
+{
+  mpz_t t, Vcomp, d, U, V, D, Dabs, Pmod, Qmod;
+  int k, rval;
+
+  if (mpz_cmp_ui(n, 7) < 0)
+    return (mpz_cmp_ui(n,2) == 0 || mpz_cmp_ui(n,3) == 0 || mpz_cmp_ui(n,5) == 0);
+  if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
+
+  mpz_init(D);
+  mpz_init(Dabs);
+  mpz_init(Pmod);
+  mpz_init(Qmod);
   mpz_init(t);
-  if (P == 0 && Q == 0) {
-    P = 1;  Q = 2;
-    do {
-      P += 2;
-      if (P == 3) P = 5;  /* P=3,Q=2 -> D=9-8=1 => k=1, so skip */
-      if (P == 21 && mpz_perfect_square_p(n))
-        { mpz_clear(t); return 0; }
-      D = P*P-4*Q;
-      if (mpz_cmp_ui(n, P >= 0 ? P : -P) <= 0) break;
-      if (mpz_cmp_ui(n, D >= 0 ? D : -D) <= 0) break;
-      mpz_set_si(t, D);
-      k = mpz_jacobi(t, n);
-    } while (k == 1);
-  } else {
-    D = P*P-4*Q;
-    if (is_perfect_square( D >= 0 ? D : -D ))
-      croak("Frobenius invalid P,Q: (%"IVdf",%"IVdf")", P, Q);
-    mpz_set_si(t, D);
-    k = mpz_jacobi(t, n);
+
+  mpz_mul(D, P, P);
+  mpz_submul_ui(D, Q, 4);
+  mpz_abs(Dabs, D);
+  if (mpz_perfect_square_p(Dabs)) {
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+    croak("is_frobenius_pseudoprime: invalid P,Q");
   }
 
-  /* Check initial conditions */
-  {
-    UV Pu = P >= 0 ? P : -P;
-    UV Qu = Q >= 0 ? Q : -Q;
-    UV Du = D >= 0 ? D : -D;
+  mpz_mod(Pmod, P, n);
+  mpz_mod(Qmod, Q, n);
 
-    /* If abs(P) or abs(Q) or abs(D) >= n, exit early. */
-    if (mpz_cmp_ui(n, Pu) <= 0 || mpz_cmp_ui(n, Qu) <= 0 || mpz_cmp_ui(n, Du) <= 0) {
-      mpz_clear(t);
-      return _GMP_trial_factor(n, 2, Du+Pu+Qu) ? 0 : 1;
-    }
-    /* If k = 0, then D divides n */
-    if (k == 0) {
-      mpz_clear(t);
-      return 0;
-    }
-    /* If n is not coprime to P*Q*D then we found a factor */
-    if (mpz_gcd_ui(NULL, n, Du*Pu*Qu) > 1) {
-      mpz_clear(t);
-      return 0;
-    }
+  mpz_gcd(t, n, Pmod);
+  if (mpz_cmp_ui(t,1) == 0) mpz_gcd(t, n, Qmod);
+  if (mpz_cmp_ui(t,1) == 0) mpz_gcd(t, n, D);
+  if (mpz_cmp_ui(t,1) != 0) {
+    rval = (mpz_cmp(t, n) == 0) ? (_GMP_is_prob_prime(n) > 0) : 0;
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+    return rval;
+  }
+
+  k = mpz_jacobi(D, n);
+  if (k == 0) {
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+    return 0;
   }
 
   mpz_init(Vcomp);
   if (k == 1) {
     mpz_set_si(Vcomp, 2);
   } else {
-    mpz_set_iv(Vcomp, Q);
-    mpz_mul_ui(Vcomp, Vcomp, 2);
+    mpz_mul_ui(Vcomp, Qmod, 2);
     mpz_mod(Vcomp, Vcomp, n);
   }
 
-  mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(d);
+  mpz_init(U);  mpz_init(V);  mpz_init(d);
   if (k == 1) mpz_sub_ui(d, n, 1);
   else        mpz_add_ui(d, n, 1);
 
-  lucas_seq(U, V, n, P, Q, d, Qk, t);
+  lucasuvmod(U, V, Pmod, Qmod, d, n, t);
   rval = ( mpz_sgn(U) == 0 && mpz_cmp(V, Vcomp) == 0 );
 
-  mpz_clear(d); mpz_clear(Qk); mpz_clear(V); mpz_clear(U);
-  mpz_clear(Vcomp); mpz_clear(t);
+  mpz_clear(d); mpz_clear(V); mpz_clear(U);
+  mpz_clear(Vcomp);
+  mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
 
   return rval;
 }

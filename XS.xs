@@ -268,12 +268,24 @@ is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
     RETVAL
 
 int
-is_frobenius_pseudoprime(IN char* strn, IN IV P = 0, IN IV Q = 0)
+is_frobenius_pseudoprime(IN char* strn, IN char* strP = 0, IN char* strQ = 0)
   PREINIT:
-    mpz_t n;
+    mpz_t n, P, Q;
   CODE:
-    PRIMALITY_START("is_frobenius_pseudoprime", 1, 0);
-    RETVAL = is_frobenius_pseudoprime(n, P, Q);
+    if (items != 1 && items != 3)
+      croak("is_frobenius_pseudoprime: expected 1 or 3 arguments");
+    /* Don't do primality_start, we want to check P and Q */
+    if ((strn != 0) && strn[0] == '-')
+      XSRETURN_IV(0);
+    VALIDATE_AND_SET(n, strn);
+    if (items == 1) {
+      RETVAL = is_frobenius_pseudoprime(n);
+    } else {
+      validate_and_set_signed(cv, P, "P", strP, VSETNEG_OK);
+      validate_and_set_signed(cv, Q, "Q", strQ, VSETNEG_OK);
+      RETVAL = is_frobenius_pseudoprime_pq(n, P, Q);
+      mpz_clear(Q); mpz_clear(P);
+    }
     mpz_clear(n);
   OUTPUT:
     RETVAL
@@ -1877,19 +1889,21 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
     mpz_clear(low);
 
 void
-lucas_sequence(IN char* strn, IN IV P, IN IV Q, IN char* strk)
+lucas_sequence(IN char* strn, IN char* strP, IN char* strQ, IN char* strk)
   PREINIT:
-    mpz_t U, V, Qk, n, k, t;
+    mpz_t U, V, Qk, n, P, Q, k, t;
   PPCODE:
     VALIDATE_AND_SET(n, strn);
+    validate_and_set_signed(cv, P, "P", strP, VSETNEG_OK);
+    validate_and_set_signed(cv, Q, "Q", strQ, VSETNEG_OK);
     VALIDATE_AND_SET(k, strk);
     mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(t);
-    lucas_seq(U, V, n, P, Q, k, Qk, t);
+    lucasuvmod(U, V, P, Q, k, n, t);
+    mpz_powm(Qk, Q, k, n);
     XPUSH_MPZ(U);
     XPUSH_MPZ(V);
     XPUSH_MPZ(Qk);
-
-    mpz_clear(n);  mpz_clear(k);
+    mpz_clear(n);  mpz_clear(P);  mpz_clear(Q);  mpz_clear(k);
     mpz_clear(U);  mpz_clear(V);  mpz_clear(Qk);  mpz_clear(t);
 
 

@@ -17,7 +17,8 @@ extern int  _GMP_is_frobenius_underwood_pseudoprime(const mpz_t n);
 extern int  _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n);
 extern int  is_perrin_pseudoprime(const mpz_t n, int restricted);
 extern int  is_euler_plumb_pseudoprime(const mpz_t n);
-extern int  is_frobenius_pseudoprime(const mpz_t n, IV P, IV Q);
+extern int  is_frobenius_pseudoprime(const mpz_t n);
+extern int  is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t p, const mpz_t q);
 extern int  is_frobenius_cp_pseudoprime(const mpz_t n, UV ntests);
 
 extern int lucas_lehmer(UV p);
