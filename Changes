@@ -18,6 +18,11 @@ Revision history for Perl module Math::Prime::Util::GMP
     - catalan_number(n)        the n-th Catalan number
     - bell_number(n)           the n-th Bell number
 
+    [FIXES]
+
+    - factorialmod takes large (a,m) instead of silently reducing a to UL.
+      We guard against values that would result in excessive time.
+
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)

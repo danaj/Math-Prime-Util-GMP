@@ -767,34 +767,61 @@ void rising_factorial(mpz_t r, mpz_t x, mpz_t n) {
   mpz_clear(t);
 }
 
+#if BITS_PER_WORD == 32
+#define FACTORIALMOD_MAX_D UV_MAX
+#else
+#define FACTORIALMOD_MAX_D UVCONST(500000000000)
+#endif
 
-void factorialmod(mpz_t r, UV N, const mpz_t m)
+void factorialmod(mpz_t r, const mpz_t n, const mpz_t m)
 {
-  int m_is_prime;
-  mpz_t t, t2;
-  UV D = N, i, p;
+  mpz_t D, t, t2;
+  UV du, i, p;
+  int m_is_prime = -1, use_wilson = 0, check_for_zero = 0;
 
-  if (mpz_cmp_ui(m,N) <= 0 || mpz_cmp_ui(m,1) <= 0) {
+  if (mpz_sgn(n) < 0)
+    croak("factorialmod: n must be >= 0");
+
+  if (mpz_cmp_ui(m,1) <= 0 || mpz_cmp(n,m) >= 0) {
     mpz_set_ui(r,0);
     return;
   }
 
-  m_is_prime = _GMP_is_prime(m);
+  mpz_init_set(D, n);
   mpz_init(t);
   mpz_tdiv_q_2exp(t, m, 1);
-  if (mpz_cmp_ui(t, N) < 0 && m_is_prime)
-    D = mpz_get_ui(m) - N - 1;
+  if (mpz_cmp(t, n) < 0) {
+    m_is_prime = _GMP_is_prime(m);
+    if (m_is_prime) {
+      mpz_sub(D, m, n);
+      mpz_sub_ui(D, D, 1);
+      use_wilson = 1;
+    }
+  }
 
-  if (D < 2 && N > D) {
-    if (D == 0) mpz_sub_ui(r, m, 1);
-    else        mpz_set_ui(r, 1);
-    mpz_clear(t);
+  if (mpz_cmp_ui(D, 2) < 0) {
+    if (use_wilson && mpz_sgn(D) == 0) mpz_sub_ui(r, m, 1);
+    else                               mpz_set_ui(r, 1);
+    mpz_clear(t); mpz_clear(D);
     return;
   }
 
-  if (D > 500 && !m_is_prime) {
+  if (!mpz_fits_uv_p(D)) {
+    mpz_clear(t); mpz_clear(D);
+    croak("factorialmod: argument too large");
+  }
+  du = mpz_get_uv(D);
+
+  /* For large D, check for zero if m is composite and not too big. */
+  if (du > 500) {
+    if (m_is_prime < 0) m_is_prime = _GMP_is_prime(m);
+    if (!m_is_prime && mpz_sizeinbase(m, 2) <= 150)
+      check_for_zero = 1;
+  }
+  if (check_for_zero) {
     mpz_t *factors;
     int j, nfactors, *exponents, reszero;
+
     nfactors = factor(m, &factors, &exponents);
     /* Find max factor */
     mpz_set_ui(t, 0);
@@ -809,29 +836,33 @@ void factorialmod(mpz_t r, UV N, const mpz_t m)
      * n! mod m will be zero at that value or higher.  We could calculate
      * the exact value of S(m), then we would know there are no zero results
      * for the larger case. */
-    reszero = (mpz_cmp_ui(t, N) <= 0);
+    reszero = (mpz_cmp(t, n) <= 0);
     clear_factors(nfactors, &factors, &exponents);
-    if (reszero) { mpz_clear(t); mpz_set_ui(r,0); return; }
+    if (reszero) { mpz_clear(t); mpz_clear(D); mpz_set_ui(r,0); return; }
+  }
+  if (du >= FACTORIALMOD_MAX_D) {  /* Don't go into near infinite loop. */
+    mpz_clear(t); mpz_clear(D);
+    croak("factorialmod: reduced n too large for processing");
   }
 
   /* Accumulate into t, then mod into r at the end. */
   mpz_set_ui(t,1);
 
   /* For small D, naive method. */
-  if (D <= 1000) {
-    for (i = 2; i <= D && mpz_sgn(t); i++) {
+  if (du <= 1000) {
+    for (i = 2; i <= du && mpz_sgn(t); i++) {
       mpz_mul_ui(t, t, i);
       if ((i & 15) == 0) mpz_mod(t, t, m);
     }
   } else {
-    UV j, sd = isqrt(D);
+    UV j, sd = isqrt(du);
     PRIME_ITERATOR(iter);
 
     mpz_init(t2);
     mpz_set_ui(t,1);
     /* Group into powers of primes */
-    for (p = 2, i = 0; p <= D/sd; p = prime_iterator_next(&iter)) {
-      UV td = D/p,  e = td;
+    for (p = 2, i = 0; p <= du/sd; p = prime_iterator_next(&iter)) {
+      UV td = du/p,  e = td;
       do { td /= p; e += td; } while (td > 0);
       mpz_set_ui(t2, p);
       mpz_powm_ui(t2, t2, e, m);
@@ -843,7 +874,7 @@ void factorialmod(mpz_t r, UV N, const mpz_t m)
     }
     /* Further group by primes with the same power. */
     for (j = sd-1; j >= 1 && mpz_sgn(t); j--) {
-      UV lo = D / (j+1)+1,  hi = D / j;
+      UV lo = du / (j+1)+1,  hi = du / j;
       MPUassert(p >= lo, "factorialmod prime loop p should be in range");
       /* while (p < lo) p = prime_iterator_next(&iter); */
       for (mpz_set_ui(t2,1), i=0;  p <= hi;  p = prime_iterator_next(&iter)) {
@@ -861,10 +892,11 @@ void factorialmod(mpz_t r, UV N, const mpz_t m)
   mpz_clear(t);
 
   /* If we used Wilson's theorem, turn the result for D! into N! */
-  if (D != N && mpz_sgn(r)) {
-    if (!(D&1)) mpz_sub(r, m, r);
+  if (use_wilson && mpz_sgn(r)) {
+    if (!(du&1)) mpz_sub(r, m, r);
     mpz_invert(r, r, m);
   }
+  mpz_clear(D);
 }
 
 void bell_number(mpz_t r, unsigned long n)

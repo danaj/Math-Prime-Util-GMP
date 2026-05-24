@@ -113,7 +113,7 @@ if ($extra) {
 
 plan tests =>   1    # factorial
               + 1    # factorialmod
-              + scalar(@facmods) + 1
+              + scalar(@facmods) + 7
               + 2    # primorial and pn_primorial
               + 2    # extra primorial tests
               + 1    # subfactorial
@@ -136,6 +136,15 @@ for my $d (@facmods) {
   is( factorialmod($n, $m), $expect, "factorialmod($n,$m) = $expect" );
 }
 is( factorialmod(37,0), undef, "factorialmod(37,0) = undef" );
+{
+  my $p = "216807359884357411648908138950271200947";
+  is( factorialmod("216807359884357411648908138950271200946", $p), "216807359884357411648908138950271200946", "factorialmod(p-1,p) with large p" );
+  is( factorialmod("216807359884357411648908138950271200945", $p), 1, "factorialmod(p-2,p) with large p" );
+  is( factorialmod("216807359884357411648908138950271200944", $p), "108403679942178705824454069475135600473", "factorialmod(p-3,p) with large p" );
+  is( factorialmod("36893488147432436565", "18446744073709551629"), 0, "factorialmod(n,m) with large n >= m" );
+  ok( !eval { factorialmod(-1,101); 1 }, "factorialmod with negative n croaks" );
+  ok( !eval { factorialmod("1000000000001",$p); 1 }, "factorialmod with excessive work size croaks" );
+}
 
 {
   my @prim   = map { primorial(nth_prime($_)) }  0 .. $#pn_primorials;

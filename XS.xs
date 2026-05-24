@@ -1188,8 +1188,6 @@ invmod(IN char* stra, IN char* strb)
     fdivrem = 19
     cdivrem = 20
     divrem = 21
-    factorialmod = 22
-    multifactorial = 23
   PREINIT:
     mpz_t a, b, t;
     int retundef;
@@ -1302,19 +1300,35 @@ invmod(IN char* stra, IN char* strb)
               XPUSH_MPZ(t);
               mpz_clear(t);
               break;
-      case 22:mpz_abs(b,b);
-              if (mpz_sgn(b) == 0) retundef = 1;
-              else                 factorialmod(a, mpz_get_ui(a), b);
-              break;
-      case 23:
-      default:if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) retundef = 1;
-              else                multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
-              break;
-
+      default:break;
     }
     if (!retundef) XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
     if (retundef) XSRETURN_UNDEF;
+
+void factorialmod(IN char* stra, IN char* strb)
+  PREINIT:
+    mpz_t a, b;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_ERR);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_ABS);
+    if (mpz_sgn(b) == 0) {
+      mpz_clear(b); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    factorialmod(a, a, b);
+    XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
+
+void multifactorial(IN char* stra, IN char* strb)
+  PREINIT:
+    mpz_t a, b;
+  PPCODE:
+    validate_and_set_signed(cv, a, "a", stra, VSETNEG_ERR);
+    validate_and_set_signed(cv, b, "b", strb, VSETNEG_ERR);
+    multifactorial(a, mpz_get_ui(a), mpz_get_ui(b));
+    XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
 
 void muladdint(IN char* stra, IN char* strb, IN char* strc)
   ALIAS:
