@@ -1253,7 +1253,7 @@ invmod(IN char* stra, IN char* strb)
               break;
       case 10:if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be > 1");
               if (mpz_sgn(a) <=  0) croak("logint: n must be > 0");
-              mpz_set_uv(a, logint(a, mpz_get_uv(b)));
+              mpz_log(a, a, b);
               break;
       case 11:if (mpz_sgn(b) < 0) croak("powint: exponent must be >= 0");
               mpz_pow_ui(a, a, mpz_get_ui(b));

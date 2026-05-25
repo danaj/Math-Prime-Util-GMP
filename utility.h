@@ -68,6 +68,7 @@ extern void mpf_root(mpf_t rootx, const mpf_t x, const mpf_t n);
 extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 
 extern UV logint(const mpz_t n, UV base);
+extern void mpz_log(mpz_t r, const mpz_t n, const mpz_t b);
 
 #ifdef FUNC_mpz_logn
 static double mpz_logn(const mpz_t n)

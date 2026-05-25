@@ -848,6 +848,43 @@ UV logint(const mpz_t n, UV base) {
   return res;
 }
 
+void mpz_log(mpz_t r, const mpz_t n, const mpz_t b)
+{
+  mpz_t p, e;
+  size_t nbits, bbits;
+  unsigned long e0;
+
+  if (mpz_cmp_ui(n,0) <= 0 || mpz_cmp_ui(b,1) <= 0)
+    croak("mpz_log: bad input\n");
+
+  if (mpz_cmp(n,b) < 0) {
+    mpz_set_ui(r,0);
+    return;
+  }
+
+  if (mpz_fits_uv_p(b)) {
+    mpz_set_uv(r, logint(n, mpz_get_uv(b)));
+    return;
+  }
+
+  /* Linear count, with simple bit-size initial value. */
+  nbits = mpz_sizeinbase(n,2);
+  bbits = mpz_sizeinbase(b,2);
+  e0 = (unsigned long)((nbits - 1) / bbits);
+
+  mpz_init_set_ui(e, e0);
+  mpz_init(p);
+  mpz_pow_ui(p, b, e0);
+
+  while (mpz_cmp(p, n) <= 0) {
+    mpz_add_ui(e, e, 1);
+    mpz_mul(p, p, b);
+  }
+  mpz_sub_ui(r, e, 1);
+  mpz_clear(p);
+  mpz_clear(e);
+}
+
 /******************************************************************************/
 /*
  * Floating point routines.
