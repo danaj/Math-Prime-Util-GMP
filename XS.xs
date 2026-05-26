@@ -45,14 +45,6 @@
         croak("%s (%s): input '%s' must be a positive integer", GvNAME(CvGV(cv)), var, s); \
   } while (0)
 
-#define VALIDATE_AND_SET(var, str) \
-  do { \
-    const char* s = str; \
-    if (*s == '+') s++; \
-    validate_string_number(cv,#var,s); \
-    mpz_init_set_str(var, s, 10); \
-  } while (0)
-
 #define VSETNEG_ERR 0
 #define VSETNEG_ABS 1
 #define VSETNEG_OK  2
@@ -65,6 +57,9 @@ static int validate_and_set_signed_static(pTHX_ CV* cv, mpz_t v, const char* vna
 }
 #define validate_and_set_signed(cv, var, varname, str, flag) \
   validate_and_set_signed_static(aTHX_ cv, var, varname, str, flag)
+
+#define validate_and_set(var, flag) \
+  validate_and_set_signed_static(aTHX_ cv, var, #var, str ## var, flag)
 
 static char* cert_with_header(char* proof, mpz_t n) {
   char *str, *strptr;
@@ -80,6 +75,9 @@ static char* cert_with_header(char* proof, mpz_t n) {
   }
   return str;
 }
+
+static const char* _subname(pTHX_ const CV *cv) { return GvNAME(CvGV(cv)); }
+#define SUBNAME _subname(aTHX_ cv)
 
 static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
   if (mpz_fits_uv_p(n)) {
@@ -158,7 +156,7 @@ is_pseudoprime(IN char* strn, ...)
     int i, nbases;
     mpz_t n, *A;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     if (items == 1) {
       nbases = 1;
       New(0, A, nbases, mpz_t);
@@ -167,7 +165,7 @@ is_pseudoprime(IN char* strn, ...)
       nbases = items-1;
       New(0, A, nbases, mpz_t);
       for (i = 1; i < items; i++) {
-        VALIDATE_AND_SET(A[i-1], SvPV_nolen(ST(i)));
+        validate_and_set_signed(cv, A[i-1], "base", SvPV_nolen(ST(i)), VSETNEG_ERR);
         if (mpz_cmp_ui(A[i-1], 2) < 0)
           croak("Base %s is invalid", SvPV_nolen(ST(i)));
       }
@@ -194,7 +192,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
   CODE:
     if (nbases < 0)
       croak("Parameter '%"IVdf"' must be a positive integer\n", nbases);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
   OUTPUT:
@@ -277,12 +275,12 @@ is_frobenius_pseudoprime(IN char* strn, IN char* strP = 0, IN char* strQ = 0)
     /* Don't do primality_start, we want to check P and Q */
     if ((strn != 0) && strn[0] == '-')
       XSRETURN_IV(0);
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (items == 1) {
       RETVAL = is_frobenius_pseudoprime(n);
     } else {
-      validate_and_set_signed(cv, P, "P", strP, VSETNEG_OK);
-      validate_and_set_signed(cv, Q, "Q", strQ, VSETNEG_OK);
+      validate_and_set(P, VSETNEG_OK);
+      validate_and_set(Q, VSETNEG_OK);
       RETVAL = is_frobenius_pseudoprime_pq(n, P, Q);
       mpz_clear(Q); mpz_clear(P);
     }
@@ -376,13 +374,13 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
   PREINIT:
     mpz_t a, b, n, px, py, m, q, t1, t2;
   CODE:
-    VALIDATE_AND_SET(a, stra);
-    VALIDATE_AND_SET(b, strb);  /* Unused */
-    VALIDATE_AND_SET(n, strn);
-    VALIDATE_AND_SET(px, strpx);
-    VALIDATE_AND_SET(py, strpy);
-    VALIDATE_AND_SET(m, strm);
-    VALIDATE_AND_SET(q, strq);
+    validate_and_set(a, VSETNEG_ERR);
+    validate_and_set(b, VSETNEG_ERR);  /* Unused */
+    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(px,VSETNEG_ERR);
+    validate_and_set(py,VSETNEG_ERR);
+    validate_and_set(m, VSETNEG_ERR);
+    validate_and_set(q, VSETNEG_ERR);
     mpz_init(t1);  mpz_init(t2);
     RETVAL = (ecpp_check_point(px, py, m, q, a, n, t1, t2) == 2) ? 1 : 0;
     mpz_clear(t1); mpz_clear(t2);
@@ -396,7 +394,7 @@ is_almost_prime(IN unsigned int k, IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     RETVAL = is_almost_prime(k, n);
     mpz_clear(n);
   OUTPUT:
@@ -407,7 +405,7 @@ UV is_power(IN char* strn, IN UV a = 0)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
+    isneg = validate_and_set(n, VSETNEG_ABS);
     RETVAL = 0;
     if (!isneg || (a == 0 || a & 1)) {
       RETVAL = is_power(n, a);
@@ -426,8 +424,8 @@ int is_divisible(IN char* strn, IN char* strd, ...)
     mpz_t n, d;
     size_t i;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    validate_and_set_signed(cv, d, "d", strd, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(d, VSETNEG_OK);
     RETVAL = !!mpz_divisible_p(n, d);
     for (i = 2; i < (size_t)items && RETVAL == 0; i++) {
       mpz_clear(d);
@@ -442,9 +440,9 @@ int is_congruent(IN char* strn, IN char* strc, IN char* strd)
   PREINIT:
     mpz_t n, c, d;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
-    validate_and_set_signed(cv, d, "d", strd, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(c, VSETNEG_OK);
+    validate_and_set(d, VSETNEG_OK);
     RETVAL = !!mpz_congruent_p(n, c, d);
     mpz_clear(d);  mpz_clear(c);  mpz_clear(n);
   OUTPUT:
@@ -458,7 +456,7 @@ next_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (ix == 1 && mpz_cmp_ui(n,3) < 0) { mpz_clear(n); XSRETURN_UNDEF; }
     if      (ix == 0) _GMP_next_prime(n);
     else if (ix == 1) _GMP_prev_prime(n);
@@ -475,16 +473,13 @@ random_prime(IN char* strlo, IN char* strhi = 0)
     mpz_t lo, hi, res;
     int retundef;
   PPCODE:
-    if (strhi == 0) {
-      mpz_init_set_ui(lo, 0);
-      VALIDATE_AND_SET(hi, strlo);
+    if (items == 1) {
+      validate_and_set(lo, VSETNEG_ERR);
+      mpz_init_set(hi, lo);
+      mpz_set_ui(lo,0);
     } else {
-      if (*strlo == '+')  strlo++;
-      if (*strhi == '+')  strhi++;
-      validate_string_number(cv, "lo", strlo);
-      validate_string_number(cv, "hi", strhi);
-      mpz_init_set_str(lo, strlo, 10);
-      mpz_init_set_str(hi, strhi, 10);
+      validate_and_set(lo, VSETNEG_ERR);
+      validate_and_set(hi, VSETNEG_ERR);
     }
     if (ix == 1 && mpz_sizeinbase(hi,2) <= 32) {
       uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
@@ -518,21 +513,21 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
     prime_power_count = 1
     perfect_power_count = 2
   PREINIT:
-    mpz_t n, lo, hi, res;
+    mpz_t lo, hi, res;
   PPCODE:
     mpz_init(res);
-    if (strhi == 0) {
-      VALIDATE_AND_SET(n, strlo);
+    if (items == 1) {
+      validate_and_set(lo, VSETNEG_ERR);
       switch (ix) {
-        case  0: prime_count(res, n); break;
-        case  1: prime_power_count(res, n); break;
-        case  2: perfect_power_count(res, n); break;
+        case  0: prime_count(res, lo); break;
+        case  1: prime_power_count(res, lo); break;
+        case  2: perfect_power_count(res, lo); break;
         default: break;
       }
-      mpz_clear(n);
+      mpz_clear(lo);
     } else {
-      VALIDATE_AND_SET(lo, strlo);
-      VALIDATE_AND_SET(hi, strhi);
+      validate_and_set(lo, VSETNEG_ERR);
+      validate_and_set(hi, VSETNEG_ERR);
       switch (ix) {
         case  0: prime_count_range(res, lo, hi); break;
         case  1: prime_power_count_range(res, lo, hi); break;
@@ -543,6 +538,7 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
       mpz_clear(hi);
     }
     XPUSH_MPZ(res);
+    mpz_clear(res);
 
 void nth_perfect_power(IN char* strn)
   ALIAS:
@@ -550,12 +546,13 @@ void nth_perfect_power(IN char* strn)
   PREINIT:
     mpz_t n, res;
   PPCODE:
+    validate_and_set(n, VSETNEG_ERR);
     mpz_init(res);
-    VALIDATE_AND_SET(n, strn);
     if (ix == 0) nth_perfect_power(res, n);
     else         nth_perfect_power_approx(res, n);
-    mpz_clear(n);
     XPUSH_MPZ(res);
+    mpz_clear(n);
+    mpz_clear(res);
 
 void next_perfect_power(IN char* strn)
   ALIAS:
@@ -563,12 +560,13 @@ void next_perfect_power(IN char* strn)
   PREINIT:
     mpz_t n, res;
   PPCODE:
+    validate_and_set(n, VSETNEG_OK);
     mpz_init(res);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
     if (ix == 0) next_perfect_power(res, n);
     else         prev_perfect_power(res, n);
-    mpz_clear(n);
     XPUSH_MPZ(res);
+    mpz_clear(n);
+    mpz_clear(res);
 
 void
 totient(IN char* strn)
@@ -594,8 +592,7 @@ totient(IN char* strn)
       if (ix == 5)  strn++;            /* znprimroot flip sign */
       if (ix == 8)  XSRETURN_IV(0);    /* is_prime_power return 0 */
     }
-    validate_and_set_signed(cv, n, "n", strn,
-                            (ix==14 || ix==15) ? VSETNEG_OK : VSETNEG_ERR);
+    validate_and_set(n, ix==14 || ix==15 ? VSETNEG_OK : VSETNEG_ERR);
     mpz_init(res);
     switch (ix) {
       case 0:  totient(res, n);  break;
@@ -631,23 +628,20 @@ void absint(IN char* strn)
   ALIAS:
     negint = 1
   PREINIT:
-    mpz_t res;
+    mpz_t n;
+    int isneg;
   PPCODE:
-    if (strn != 0 && strn[0] == '-') {
-      VALIDATE_AND_SET(res, strn+1);
-    } else {
-      VALIDATE_AND_SET(res, strn);
-      if (ix == 1) mpz_neg(res, res);
-    }
-    XPUSH_MPZ(res);
-    mpz_clear(res);
+    isneg = validate_and_set(n, VSETNEG_ABS);
+    if (ix == 1 && !isneg)  mpz_neg(n, n);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
 
 void signint(IN char* strn)
   PREINIT:
     mpz_t n;
     int res;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     res = mpz_sgn(n);
     mpz_clear(n);
     XSRETURN_IV(res);
@@ -659,8 +653,8 @@ void cmpint(IN char* stra, IN char* strb)
     mpz_t a, b;
     int res;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
     res = (ix == 0) ? mpz_cmp(a, b) : mpz_cmpabs(a, b);
     /* GMP 6.2 changed to only return -1,0,1 */
     /* Enforce -1, 0, 1 as our only return values. */
@@ -679,7 +673,7 @@ void setbit(IN char* strn, IN UV k)
     mpz_t n;
     int res;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     switch (ix) {
       case 0:  mpz_setbit(n, k); break;
       case 1:  mpz_clrbit(n, k); break;
@@ -698,8 +692,8 @@ void bitand(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
     switch (ix) {
       case 0:  mpz_and(a, a, b); break;
       case 1:  mpz_ior(a, a, b); break;
@@ -714,7 +708,7 @@ void bitnot(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     mpz_com(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);
@@ -737,7 +731,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
   PPCODE:
     if (ix == 9) {  /* surround_primes */
       UV prev, next;
-      VALIDATE_AND_SET(n, strn);
+      validate_and_set(n, VSETNEG_ERR);
       next = 1 + (mpz_sgn(n)==0);
       if (mpz_cmp_ui(n,2) > 0) {
         surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
@@ -748,7 +742,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
       XPUSHs(sv_2mortal(newSVuv(next)));
       mpz_clear(n);
     } else if (ix <= 1) {
-      VALIDATE_AND_SET(n, strn);
+      validate_and_set(n, VSETNEG_ERR);
       res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
       mpz_clear(n);
       XPUSHs(sv_2mortal(newSVpv(res, 0)));
@@ -893,8 +887,8 @@ kronecker(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   CODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
     if (ix != 0) {
       mpz_abs(a,a);
       mpz_abs(b,b);
@@ -933,18 +927,18 @@ kronecker(IN char* stra, IN char* strb)
     RETVAL
 
 void
-moebius(IN char* strn, IN char* stro = 0)
+moebius(IN char* strn, IN char* strnhi = 0)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    if (stro == 0) {
+    validate_and_set(n, VSETNEG_OK);
+    if (strnhi == 0) {
       int result = moebius(n);
       mpz_clear(n);
       XSRETURN_IV(result);
     } else {   /* Ranged result */
       mpz_t nhi;
-      validate_and_set_signed(cv, nhi, "nhi", stro, VSETNEG_OK);
+      validate_and_set(nhi, VSETNEG_OK);
       while (mpz_cmp(n, nhi) <= 0) {
         XPUSH_INT( moebius(n) );
         mpz_add_ui(n, n, 1);
@@ -960,9 +954,9 @@ void lucasu(IN char* strp, IN char* strq, IN char* strk)
   PREINIT:
     mpz_t u, v, p, q, k;
   PPCODE:
-    validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
-    validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
-    VALIDATE_AND_SET(k, strk);
+    validate_and_set(p, VSETNEG_OK);
+    validate_and_set(q, VSETNEG_OK);
+    validate_and_set(k, VSETNEG_ERR);
     mpz_init(u);  mpz_init(v);
     lucasuv(u, v, p, q, k);
     switch (ix) {
@@ -981,10 +975,10 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
   PREINIT:
     mpz_t u, v, t, p, q, k, n;
   PPCODE:
-    validate_and_set_signed(cv, p, "P", strp, VSETNEG_OK);
-    validate_and_set_signed(cv, q, "Q", strq, VSETNEG_OK);
-    VALIDATE_AND_SET(k, strk);
-    validate_and_set_signed(cv, n, "N", strn, VSETNEG_ABS);
+    validate_and_set(p, VSETNEG_OK);
+    validate_and_set(q, VSETNEG_OK);
+    validate_and_set(k, VSETNEG_ERR);
+    validate_and_set(n, VSETNEG_ABS);
     if (mpz_cmpabs_ui(n,1) <= 0) {
       int retundef = (mpz_sgn(n) == 0);
       mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
@@ -1013,7 +1007,7 @@ void catalan_number(IN char* strn)
     mpz_t n;
     unsigned long un;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (!mpz_fits_ulong_p(n))
       croak("catalan_number: argument too large");
     un = mpz_get_ui(n);
@@ -1032,7 +1026,7 @@ void bell_number(IN char* strn)
     mpz_t n;
     unsigned long un;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (!mpz_fits_ulong_p(n))
       croak("bell_number: argument too large");
     un = mpz_get_ui(n);
@@ -1048,7 +1042,7 @@ void fibonacci(IN char* strk)
     unsigned long uk;
     int isneg;
   PPCODE:
-    isneg = validate_and_set_signed(cv, k, "k", strk, VSETNEG_ABS);
+    isneg = validate_and_set(k, VSETNEG_ABS);
     if (!mpz_fits_ulong_p(k))
       croak("%s: argument too large", GvNAME(CvGV(cv)));
     uk = mpz_get_ui(k);
@@ -1067,7 +1061,7 @@ liouville(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     RETVAL = liouville(n);
     mpz_clear(n);
   OUTPUT:
@@ -1086,7 +1080,7 @@ is_square(IN char* strn)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    isneg = validate_and_set(n, VSETNEG_OK);
     if (isneg && ix <= 4) {
       RETVAL = 0;
     } else {
@@ -1114,7 +1108,7 @@ prime_omega(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
+    validate_and_set(n, VSETNEG_ABS);
     switch (ix) {
       case 0:  RETVAL = omega(n);          break;
       case 1:  RETVAL = bigomega(n);       break;
@@ -1133,7 +1127,7 @@ is_powerful(IN char* strn, IN UV k = 2)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     switch (ix) {
       case 0:  RETVAL = is_powerful(n,k);   break;
       case 1:  RETVAL = is_powerfree(n,k);  break;
@@ -1152,7 +1146,7 @@ next_powerfree(IN char* strn, IN UV k = 2)
     mpz_t n;
     int retundef;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     switch (ix) {
       case 0:  next_powerfree(n,n,k);  break;
       case 1:  prev_powerfree(n,n,k);  break;
@@ -1164,171 +1158,196 @@ next_powerfree(IN char* strn, IN UV k = 2)
     mpz_clear(n);
     if (retundef) XSRETURN_UNDEF;
 
-void
-invmod(IN char* stra, IN char* strb)
+void addint(IN char* stra, IN char* strb)
   ALIAS:
-    binomial = 1
-    gcdext = 2
-    jordan_totient = 3
-    znorder = 4
-    sqrtmod = 5
-    is_primitive_root = 6
-    is_polygonal = 7
-    polygonal_nth = 8
-    rootint = 9
-    logint = 10
-    powint = 11
-    mulint = 12
-    addint = 13
-    subint = 14
-    divint = 15
-    modint = 16
-    cdivint = 17
-    tdivrem = 18
-    fdivrem = 19
-    cdivrem = 20
-    divrem = 21
+    subint = 1
+    mulint = 2
+    powint = 3
+    divint = 4
+    modint = 5
+    cdivint = 6
+    divrem = 7
+    tdivrem = 8
+    fdivrem = 9
+    cdivrem = 10
   PREINIT:
     mpz_t a, b, t;
-    int retundef;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    retundef = 0;
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    if (ix >= 4 && mpz_sgn(b) == 0)
+      croak("%s: divide by zero", SUBNAME);
     switch (ix) {
-               /* 0 if b is 1, else undef if a|b = 0, else mpz_invert */
-      case 0:{
-               if      (!mpz_cmpabs_ui(b,1))         mpz_set_ui(a,0);
-               else if (!mpz_sgn(b) || !mpz_sgn(a))  retundef = 1;
-               else                              retundef = !mpz_invert(a,a,b);
-             } break;
-      case 1:{ unsigned long n, k;
-               if (mpz_sgn(b) < 0) {   /* Handle negative k */
-                 if (mpz_sgn(a) >= 0 || mpz_cmp(b,a) > 0)  mpz_set_ui(a, 0);
-                 else                                      mpz_sub(b, a, b);
-               }
-               n = mpz_get_ui(a);
-               k = mpz_get_ui(b);
-               if (!mpz_fits_ulong_p(a) || k > n || k == 0 || k == n || mpz_sgn(a) < 0) {
-                 mpz_bin_ui(a, a, k);
-               } else {
-                 if (k > n/2) k = n-k;
-                 /* Note: mpz_bin_uiui is *much* faster than mpz_bin_ui.
-                  * It is a bit faster than our code for small values, and
-                  * a tiny bit slower for larger values. */
-                 if (n > 50000 && k > 1000)  binomial(a, n, k);
-                 else                        mpz_bin_uiui(a, n, k);
-               }
-             } break;
-      case 2:{ mpz_init(t);
-               if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
-                 mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
-               } else {
-                 gcdext(a, t, b, a, b);
-               }
-               XPUSH_MPZ(t);  XPUSH_MPZ(b);
-               mpz_clear(t);
-             } break;
-      case 3: jordan_totient(a, b, mpz_get_ui(a));
-              break;
-      case 4: znorder(a, a, b);
-              if (!mpz_sgn(a)) retundef = 1;
-              break;
-      case 5: mpz_abs(b, b);
-              retundef = !sqrtmod(a, a, b);
-              break;
-      case 6: if (mpz_sgn(b) == 0) retundef = 1;
-              else mpz_set_si(a, is_primitive_root(a, b, 0) );
-              break;
-      case 7: if (mpz_cmp_ui(b,3) < 0) croak("is_polygonal: k must be >= 3");
-              polygonal_nth(a, a, b);
-              mpz_set_si(a, mpz_sgn(a));
-              break;
-      case 8: if (mpz_cmp_ui(b,3) < 0) croak("polygonal_nth: k must be >= 3");
-              polygonal_nth(a, a, b);
-              break;
-      case 9: if (mpz_sgn(b) <= 0) croak("rootint: k must be > 0");
-              if (mpz_sgn(a) <  0) croak("rootint: n must be >= 0");
-              mpz_root(a, a, mpz_get_ui(b));
-              break;
-      case 10:if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be > 1");
-              if (mpz_sgn(a) <=  0) croak("logint: n must be > 0");
-              mpz_log(a, a, b);
-              break;
-      case 11:if (mpz_sgn(b) < 0) croak("powint: exponent must be >= 0");
+      case 0: mpz_add(a, a, b); break;
+      case 1: mpz_sub(a, a, b); break;
+      case 2: mpz_mul(a, a, b); break;
+      case 3: if (mpz_sgn(b) < 0 || !mpz_fits_ulong_p(b))
+                croak("powint: exponent must be >= 0 and <= ULONG_MAX");
               mpz_pow_ui(a, a, mpz_get_ui(b));
               break;
-      case 12:mpz_mul(a, a, b);
-              break;
-      case 13:mpz_add(a, a, b);
-              break;
-      case 14:mpz_sub(a, a, b);
-              break;
-      case 15:if (mpz_sgn(b) == 0) croak("divint: divide by zero");
-              mpz_fdiv_q(a, a, b);
-              break;
-      case 16:if (mpz_sgn(b) == 0) croak("modint: divide by zero");
-              mpz_fdiv_r(a, a, b);
-              break;
-      case 17:if (mpz_sgn(b) == 0) croak("cdivint: divide by zero");
-              mpz_cdiv_q(a, a, b);
-              break;
-      case 18:if (mpz_sgn(b) == 0) croak("tdivrem: divide by zero");
-              mpz_tdiv_qr(b, a, a, b);  /* t is t-quotient, a is t-remainder */
-              XPUSH_MPZ(b);
-              break;
-      case 19:if (mpz_sgn(b) == 0) croak("fdivrem: divide by zero");
-              mpz_fdiv_qr(b, a, a, b);  /* t is f-quotient, a is f-remainder */
-              XPUSH_MPZ(b);
-              break;
-      case 20:if (mpz_sgn(b) == 0) croak("cdivrem: divide by zero");
-              mpz_cdiv_qr(b, a, a, b);  /* t is c-quotient, a is c-remainder */
-              XPUSH_MPZ(b);
-              break;
-      case 21:mpz_init_set(t, b);
-              if (mpz_sgn(b) == 0) croak("divrem: divide by zero");
-              mpz_tdiv_qr(t, a, a, b);  /* t is t-quotient, a is t-remainder */
-              if (mpz_sgn(a) < 0) {  /* Change from trunc to Euclidean */
-                if (mpz_sgn(b) > 0) {
-                  mpz_sub_ui(t, t, 1);
-                  mpz_add(a, a, b);
-                } else {
-                  mpz_add_ui(t, t, 1);
-                  mpz_sub(a, a, b);
-                }
-              }
-              XPUSH_MPZ(t);
-              mpz_clear(t);
-              break;
+      case 4: mpz_fdiv_q(a, a, b); break;
+      case 5: mpz_fdiv_r(a, a, b); break;
+      case 6: mpz_cdiv_q(a, a, b); break;
+      case 7: mpz_ediv_qr(b, a, a, b); break;
+      case 8: mpz_tdiv_qr(b, a, a, b); break;
+      case 9: mpz_fdiv_qr(b, a, a, b); break;
+      case 10:mpz_cdiv_qr(b, a, a, b); break;
       default:break;
     }
-    if (!retundef) XPUSH_MPZ(a);
+    if (ix >= 7)  XPUSH_MPZ(b);
+    XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
-    if (retundef) XSRETURN_UNDEF;
 
-void factorialmod(IN char* stra, IN char* strb)
+void
+rootint(IN char* stra, IN char* strb)
+  ALIAS:
+    logint = 1
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_ERR);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_ABS);
-    if (mpz_sgn(b) == 0) {
-      mpz_clear(b); mpz_clear(a);
-      XSRETURN_UNDEF;
+    validate_and_set(a, VSETNEG_ERR);
+    validate_and_set(b, VSETNEG_ERR);
+    if (ix == 0) {
+      if (mpz_sgn(b) <= 0) croak("rootint: k must be at least 1");
+      mpz_rootint(a, a, b);
+    } else {
+      if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be at least 2");
+      if (mpz_sgn(a) <= 0) croak("logint: n must be at least 1");
+      mpz_logint(a, a, b);
     }
-    factorialmod(a, a, b);
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
+
+void invmod(IN char* stra, IN char* strn)
+  ALIAS:
+    negmod = 1
+    sqrtmod = 2
+    factorialmod = 3
+    znorder = 4
+    is_qr = 5
+    is_primitive_root = 6
+  PREINIT:
+    mpz_t a, n;
+    int retundef;
+  PPCODE:
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_ABS);
+    if (mpz_sgn(n) == 0) {
+      mpz_clear(n); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    if (mpz_cmp_ui(n,1) == 0) {
+      mpz_clear(n); mpz_clear(a);
+      XSRETURN_UV(ix >= 4 ? 1 : 0);
+    }
+    retundef = 0;
+    switch (ix) {
+      case 0:  if (!mpz_sgn(a))  retundef = 1;
+               else              retundef = !mpz_invert(a, a, n);  break;
+      case 1:  mpz_neg(a,a);  mpz_mod(a,a,n);  break;
+      case 2:  retundef = !sqrtmod(a, a, n);   break;
+      case 3:  factorialmod(a, a, n);          break;
+      case 4:  retundef = !znorder(a, a, n);   break;
+      case 5:  mpz_set_ui(a, is_qr(a,n));      break;
+      case 6:
+      default: mpz_set_ui(a, is_primitive_root(a,n,0));  break;
+    }
+    if (retundef) {
+      mpz_clear(n); mpz_clear(a);
+      XSRETURN_UNDEF;
+    }
+    XPUSH_MPZ(a);
+    mpz_clear(n); mpz_clear(a);
 
 void multifactorial(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_ERR);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_ERR);
+    validate_and_set(a, VSETNEG_ERR);
+    validate_and_set(b, VSETNEG_ERR);
     mpz_mfac(a, a, b);
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
+
+void is_polygonal(IN char* stra, IN char* strb)
+  ALIAS:
+    polygonal_nth = 1
+  PREINIT:
+    mpz_t a, b;
+  PPCODE:
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_ERR);
+    if (mpz_cmp_ui(b,3) < 0) croak("%s: k must be >= 3",SUBNAME);
+    polygonal_nth(a, a, b);
+    if (ix == 0) {
+      int ret = mpz_sgn(a) > 0;
+      mpz_clear(b); mpz_clear(a);
+      XSRETURN_IV(ret);
+    }
+    XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
+
+void binomial(IN char* stra, IN char* strb)
+  PREINIT:
+    mpz_t a, b;
+    unsigned long n, k;
+  PPCODE:
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    if (mpz_sgn(a) >= 0) {
+      int reflect = 0;
+      if (mpz_sgn(b) < 0 || mpz_cmp(b,a) > 0)
+        { mpz_clear(a); mpz_clear(b); XSRETURN_IV(0); }
+      /* Check reflection to possibly reduce b */
+      mpz_mul_2exp(b,b,1);
+      reflect = mpz_cmp(b,a) > 0;
+      mpz_tdiv_q_2exp(b,b,1);
+      if (reflect)
+        mpz_sub(b, a, b);
+    } else {
+      if (mpz_sgn(b) < 0) {
+        if (mpz_cmp(b,a) > 0) { mpz_clear(a); mpz_clear(b); XSRETURN_IV(0); }
+        mpz_sub(b, a, b);
+      }
+    }
+    if (mpz_sgn(b) < 0)
+      croak("binomial internal error: k should be non-negative here");
+
+    if (mpz_sgn(b) == 0) { mpz_clear(a); mpz_clear(b); XSRETURN_IV(1); }
+
+    if (!mpz_fits_ulong_p(b))
+      croak("binomial: k must fit in native unsigned long");
+    k = mpz_get_ui(b);
+
+    if (k == 1 || !mpz_cmp_ui(a,k-1)) {
+      /* result = a */
+    } else if (mpz_sgn(a) >= 0 && mpz_fits_ulong_p(a)) {
+      n = mpz_get_ui(a);
+      /* Note: mpz_bin_uiui is *much* faster than mpz_bin_ui.
+       * It is a bit faster than our code for small values, and
+       * a tiny bit slower for larger values. */
+      if (n > 50000 && k > 1000)  binomial(a, n, k);
+      else                        mpz_bin_uiui(a, n, k);
+    } else {
+      mpz_bin_ui(a, a, k);
+    }
+    XPUSH_MPZ(a);
+    mpz_clear(b); mpz_clear(a);
+
+void gcdext(IN char* stra, IN char* strb)
+  PREINIT:
+    mpz_t a, b, t;
+  PPCODE:
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    mpz_init(t);
+    if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
+      mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
+    } else {
+      gcdext(a, t, b, a, b);
+    }
+    XPUSH_MPZ(t);  XPUSH_MPZ(b);  XPUSH_MPZ(a);
+    mpz_clear(t); mpz_clear(b); mpz_clear(a);
 
 void muladdint(IN char* stra, IN char* strb, IN char* strc)
   ALIAS:
@@ -1338,9 +1357,9 @@ void muladdint(IN char* stra, IN char* strb, IN char* strc)
   PREINIT:
     mpz_t a, b, c;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(c, VSETNEG_OK);
     if      (ix == 0) { mpz_mul(a, a, b); mpz_add(a, a, c); } /* a * b + c */
     else if (ix == 1) { mpz_mul(a, a, b); mpz_sub(a, a, c); } /* a * b - c */
     else if (ix == 2) { mpz_addmul(a, b, c); }                /* a + b * c */
@@ -1354,9 +1373,9 @@ binomialmod(IN char* strn, IN char* strk, IN char* strm)
     mpz_t n, k, m, r;
     unsigned long nu, ku;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    validate_and_set_signed(cv, k, "k", strk, VSETNEG_OK);
-    validate_and_set_signed(cv, m, "m", strm, VSETNEG_ABS);
+    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(k, VSETNEG_OK);
+    validate_and_set(m, VSETNEG_ABS);
     if (mpz_sgn(m) == 0) {
       mpz_clear(n); mpz_clear(k); mpz_clear(m);
       XSRETURN_UNDEF;
@@ -1393,8 +1412,8 @@ falling_factorial(IN char* strx, IN char* strn)
   PREINIT:
     mpz_t x, n, r;
   PPCODE:
-    validate_and_set_signed(cv, x, "x", strx, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
+    validate_and_set(x, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_ERR);
     mpz_init(r);
     if (ix == 0)  falling_factorial(r, x, n);
     else          rising_factorial(r, x, n);
@@ -1403,30 +1422,22 @@ falling_factorial(IN char* strx, IN char* strn)
     XPUSH_MPZ(r);
     mpz_clear(r);
 
-int is_qr(IN char* stra, IN char* strn)
-  PREINIT:
-    mpz_t a, n;
-  CODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    RETVAL = is_qr(a, n);
-    mpz_clear(n); mpz_clear(a);
-    if (RETVAL == -1)
-      XSRETURN_UNDEF;
-  OUTPUT:
-    RETVAL
-
 void powersum(IN char* stra, IN char* strb)
   ALIAS:
     faulhaber_sum = 1
+    jordan_totient = 2
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    if (mpz_sgn(a) < 0 || mpz_sgn(b) < 0) croak("powersum: negative argument");
-    if (ix == 0 || ix == 1)
+    validate_and_set(a, VSETNEG_ERR);
+    validate_and_set(b, VSETNEG_ERR);
+    if (ix == 0 || ix == 1) {
+      if (!mpz_fits_ulong_p(b)) croak("%s: power too large", SUBNAME);
       faulhaber_sum(a, a, mpz_get_ui(b));
+    } else {
+      if (!mpz_fits_ulong_p(a)) croak("%s: power too large", SUBNAME);
+      jordan_totient(a, b, mpz_get_ui(a));
+    }
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
 
@@ -1439,7 +1450,7 @@ lshiftint(IN char* strn, IN long k = 1)
     mpz_t n;
     int nix;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     nix = ix;
     if (k < 0) {
       k = -k;
@@ -1461,7 +1472,7 @@ powerful_count(IN char* strn, IN int k = 2)
   PREINIT:
     mpz_t n, r;
   PPCODE:
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_OK);
     mpz_init(r);
     switch (ix) {
       case 0:  powerful_count(r, n, (unsigned long) k);  break;
@@ -1471,22 +1482,6 @@ powerful_count(IN char* strn, IN int k = 2)
     XPUSH_MPZ(r);
     mpz_clear(r);
     mpz_clear(n);
-
-void negmod(IN char* stra, IN char* strn)
-  PREINIT:
-    mpz_t a, n;
-  PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_OK);
-    if (mpz_sgn(n) == 0) {
-      mpz_clear(n); mpz_clear(a);
-      XSRETURN_UNDEF;
-    }
-    mpz_abs(n, n);
-    mpz_neg(a, a);
-    mpz_mod(a, a, n);
-    XPUSH_MPZ(a);
-    mpz_clear(n); mpz_clear(a);
 
 void
 addmod(IN char* stra, IN char* strb, IN char* strn)
@@ -1499,9 +1494,9 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     mpz_t a, b, n;
     int retundef;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_ABS);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 4) {
       if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
@@ -1540,10 +1535,10 @@ void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
   PREINIT:
     mpz_t a, b, c, n;
   PPCODE:
-    validate_and_set_signed(cv, a, "a", stra, VSETNEG_OK);
-    validate_and_set_signed(cv, b, "b", strb, VSETNEG_OK);
-    validate_and_set_signed(cv, c, "c", strc, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
+    validate_and_set(a, VSETNEG_OK);
+    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(c, VSETNEG_OK);
+    validate_and_set(n, VSETNEG_ABS);
     if (mpz_sgn(n) <= 0) {
       mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
       XSRETURN_UNDEF;
@@ -1772,7 +1767,7 @@ void numtoperm(IN UV n, IN char* strk)
   PPCODE:
     if (n == 0)
       XSRETURN_EMPTY;
-    validate_and_set_signed(cv, k, "k", strk, VSETNEG_OK);
+    validate_and_set(k, VSETNEG_OK);
     mpz_init(f);  mpz_init(p);
     New(0, perm, n, UV);
     for (i = 0; i < n; i++)
@@ -1803,8 +1798,8 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     mpz_t low, seghigh, high, t;
     UV i, nc, nprimes, maxseg, *list;
   PPCODE:
-    VALIDATE_AND_SET(low, strlow);
-    VALIDATE_AND_SET(high, strhigh);
+    validate_and_set(low, VSETNEG_ERR);
+    validate_and_set(high, VSETNEG_ERR);
     mpz_init(seghigh);
     mpz_init(t);
 
@@ -1851,7 +1846,7 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     mpz_clear(low);
 
 void
-sieve_range(IN char* strn, IN UV width, IN UV depth)
+sieve_range(IN char* strlow, IN UV width, IN UV depth)
   PREINIT:
     mpz_t low, seghigh, high, t;
     UV i, nprimes, maxseg, offset, *list;
@@ -1859,7 +1854,7 @@ sieve_range(IN char* strn, IN UV width, IN UV depth)
     if (width == 0) XSRETURN(0);
     if (depth == 0) depth = 1;
 
-    VALIDATE_AND_SET(low, strn);
+    validate_and_set(low, VSETNEG_ERR);
     mpz_init(high);
     mpz_add_ui(high, low, width-1);
     mpz_init(seghigh);
@@ -1907,10 +1902,10 @@ lucas_sequence(IN char* strn, IN char* strP, IN char* strQ, IN char* strk)
   PREINIT:
     mpz_t U, V, Qk, n, P, Q, k, t;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
-    validate_and_set_signed(cv, P, "P", strP, VSETNEG_OK);
-    validate_and_set_signed(cv, Q, "Q", strQ, VSETNEG_OK);
-    VALIDATE_AND_SET(k, strk);
+    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(P, VSETNEG_OK);
+    validate_and_set(Q, VSETNEG_OK);
+    validate_and_set(k, VSETNEG_ERR);
     mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(t);
     lucasuvmod(U, V, P, Q, k, n, t);
     mpz_powm(Qk, Q, k, n);
@@ -1950,7 +1945,7 @@ trial_factor(IN char* strn, ...)
       {0,   64000000,64000000,5000000,5000000,0,256000000,100000000,0,  0  };
     /*Trial,Rho,     Brent,   P-1,    P+1,    Cheb, HOLF, SQUFOF,   ECM,QS */
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     {
       int cmpr = mpz_cmp_ui(n,1);
       if (cmpr <= 0) {
@@ -2043,7 +2038,7 @@ factor(IN char* strn)
     int* exponents;
     int nfactors, i, j;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (GIMME_V != G_VOID) {
       nfactors = factor(n, &factors, &exponents);
       if (GIMME_V == G_SCALAR) {
@@ -2067,11 +2062,11 @@ void divisors(IN char* strn, IN char* strk = 0)
     mpz_t* divs;
     int ndivisors, i;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     if (strk == 0) {
       mpz_init_set(k, n);
     } else {
-      VALIDATE_AND_SET(k, strk);
+      validate_and_set(k, VSETNEG_ERR);
     }
     if (GIMME_V == G_VOID) {
       /* Nothing */
@@ -2099,7 +2094,7 @@ sigma(IN char* strn, IN UV k = 1)
   PREINIT:
     mpz_t n;
   PPCODE:
-    VALIDATE_AND_SET(n, strn);
+    validate_and_set(n, VSETNEG_ERR);
     sigma(n, n, k);
     XPUSH_MPZ(n);
     mpz_clear(n);

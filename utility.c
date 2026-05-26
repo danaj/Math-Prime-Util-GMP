@@ -457,6 +457,30 @@ int mpz_divmod(mpz_t r, const mpz_t a, const mpz_t b, const mpz_t n, mpz_t t)
   return 0;  /* Cannot invert */
 }
 
+int mpz_ediv_qr(mpz_t q, mpz_t r, const mpz_t a, const mpz_t b)
+{
+  if (mpz_sgn(b) == 0)
+    return 0;
+  if (mpz_sgn(a) >= 0) {
+    mpz_tdiv_qr(q, r, a, b);
+  } else {
+    mpz_t Q, R;
+    mpz_init(Q); mpz_init(R);
+    mpz_tdiv_qr(Q, R, a, b);  /* q is t-quotient, r is t-remainder */
+    if (mpz_sgn(R) < 0) {
+      if (mpz_sgn(b) > 0) {
+        mpz_sub_ui(Q, Q, 1);
+        mpz_add(R, R, b);
+      } else {
+        mpz_add_ui(Q, Q, 1);
+        mpz_sub(R, R, b);
+      }
+    }
+    mpz_set(q, Q); mpz_set(r, R);
+    mpz_clear(Q); mpz_clear(R);
+  }
+  return 1;
+}
 
 /* Smith-Cornacchia: Solve x,y for x^2 + |D|y^2 = p given prime p */
 /* See Cohen 1.5.2 */
@@ -848,7 +872,7 @@ UV logint(const mpz_t n, UV base) {
   return res;
 }
 
-void mpz_log(mpz_t r, const mpz_t n, const mpz_t b)
+void mpz_logint(mpz_t r, const mpz_t n, const mpz_t b)
 {
   mpz_t p, e;
   size_t nbits, bbits;
@@ -883,6 +907,35 @@ void mpz_log(mpz_t r, const mpz_t n, const mpz_t b)
   mpz_sub_ui(r, e, 1);
   mpz_clear(p);
   mpz_clear(e);
+}
+
+void mpz_rootint(mpz_t r, const mpz_t x, const mpz_t n)
+{
+  if (mpz_sgn(x) < 0 || mpz_sgn(n) <= 0)
+    croak("mpz_rootint: x must be non-negative, n must be positive");
+
+  if (mpz_sgn(x) == 0)
+    mpz_set_ui(r,0);
+  else if (mpz_cmp_ui(x,1) == 0)
+    mpz_set_ui(r,1);
+  else if (mpz_fits_ulong_p(n))
+    mpz_root(r, x, mpz_get_ui(n));
+  else if (sizeof(size_t) <= sizeof(unsigned long))
+    mpz_set_ui(r,1);
+  else if (sizeof(size_t) != 8 || sizeof(unsigned long) != 4)
+    croak("rootint: root too large");
+  else {
+    size_t xbits = mpz_sizeinbase(x, 2);
+    mpz_t zbits;
+    mpz_init_set_ui(zbits, xbits >> 32);
+    mpz_mul_2exp(zbits, zbits, 32);
+    mpz_add_ui(zbits, zbits, xbits & 0xFFFFFFFFUL);
+    if (mpz_cmp(n, zbits) >= 0)
+      mpz_set_ui(r, 1);
+    else
+      croak("rootint: root too large");
+    mpz_clear(zbits);
+  }
 }
 
 /******************************************************************************/

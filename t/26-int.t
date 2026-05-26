@@ -38,6 +38,18 @@ my @quotients = (  # trunc, floor, ceil, euclidian
   ["L - -", "-39458349850349850394853049583049", "-85889",  "459410982202026457344398579",  "459410982202026457344398579",  "459410982202026457344398580",  "459410982202026457344398580"],
 );
 
+my @divrem_sign_cases = (
+  # n,  m,  divrem,    tdivrem,   fdivrem,   cdivrem
+  [ -5, -2, [  3, 1], [  2,-1], [  2,-1], [  3, 1] ],
+  [ -5,  2, [ -3, 1], [ -2,-1], [ -3, 1], [ -2,-1] ],
+  [ -4, -2, [  2, 0], [  2, 0], [  2, 0], [  2, 0] ],
+  [ -4,  2, [ -2, 0], [ -2, 0], [ -2, 0], [ -2, 0] ],
+  [  4, -2, [ -2, 0], [ -2, 0], [ -2, 0], [ -2, 0] ],
+  [  4,  2, [  2, 0], [  2, 0], [  2, 0], [  2, 0] ],
+  [  5, -2, [ -2, 1], [ -2, 1], [ -3,-1], [ -2, 1] ],
+  [  5,  2, [  2, 1], [  2, 1], [  2, 1], [  3,-1] ],
+);
+
 my @negshifts = (
   # n, k,  >>, >>arith
   [ 0, 1,  0, 0],
@@ -72,6 +84,7 @@ plan tests => 0
             + 2                              # tdivrem
             + 2                              # fdivrem
             + 2                              # cdivrem
+            + 4                              # signed native divrem variants
             + 7 * scalar(@quotients)         # signed bigint division
             + 7 + 3*scalar(@negshifts)       # shiftint
             + 1                              # absint
@@ -198,6 +211,19 @@ ok(!eval { fdivrem(1,0); }, "fdivrem(1,0)");
 ###### cdivrem
 ok(!eval { cdivrem(0,0); }, "cdivrem(0,0)");
 ok(!eval { cdivrem(1,0); }, "cdivrem(1,0)");
+
+is_deeply( [map { [divrem( $_->[0], $_->[1])] } @divrem_sign_cases],
+           [map { $_->[2] } @divrem_sign_cases],
+           "divrem with all signs and exact divisions" );
+is_deeply( [map { [tdivrem($_->[0], $_->[1])] } @divrem_sign_cases],
+           [map { $_->[3] } @divrem_sign_cases],
+           "tdivrem with all signs and exact divisions" );
+is_deeply( [map { [fdivrem($_->[0], $_->[1])] } @divrem_sign_cases],
+           [map { $_->[4] } @divrem_sign_cases],
+           "fdivrem with all signs and exact divisions" );
+is_deeply( [map { [cdivrem($_->[0], $_->[1])] } @divrem_sign_cases],
+           [map { $_->[5] } @divrem_sign_cases],
+           "cdivrem with all signs and exact divisions" );
 
 ###### large values through divint, cdivint, modint,
 ######                      divrem, tdivrem, fdivrem, cdivrem

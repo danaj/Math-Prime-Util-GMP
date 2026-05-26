@@ -784,16 +784,19 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
   clear_factors(nfactors, &factors, &exponents);
 }
 
-void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
+int znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
 {
   mpz_t a, n, t, order;
 
   mpz_init(n);
   mpz_abs(n, inn);
-  if (mpz_cmp_ui(n, 1) <= 0) { mpz_set(res, n); mpz_clear(n); return; }
+  if (mpz_cmp_ui(n, 1) <= 0)
+    { mpz_set(res, n); mpz_clear(n); return mpz_sgn(res); }
+
   mpz_init(a);
   mpz_mod(a, ina, n);
-  if (mpz_cmp_ui(a, 1) <= 0) { mpz_set(res, a); mpz_clear(a); mpz_clear(n); return; }
+  if (mpz_cmp_ui(a, 1) <= 0)
+    { mpz_set(res, a); mpz_clear(a); mpz_clear(n); return mpz_sgn(res); }
 
   mpz_init(t);
   mpz_gcd(t, a, n);
@@ -802,7 +805,7 @@ void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
     mpz_clear(t);
     mpz_clear(a);
     mpz_clear(n);
-    return;
+    return 0;
   }
   mpz_init_set_ui(order, 1);
 
@@ -827,6 +830,7 @@ void znorder(mpz_t res, const mpz_t ina, const mpz_t inn)
   mpz_clear(t);
   mpz_clear(a);
   mpz_clear(n);
+  return mpz_sgn(res);
 }
 
 static int _znprimroot_prime(mpz_t root, const mpz_t p,

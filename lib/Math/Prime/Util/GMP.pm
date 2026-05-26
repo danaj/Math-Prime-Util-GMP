@@ -1624,7 +1624,7 @@ function and Mathematica's C<ProductLog> / C<LambertW> function.
   $order = znorder(17, "100000000000000000000000065");
 
 Given two positive integers C<a> and C<n>, returns the multiplicative order
-of C<a> modulo C<n>.  This is the smallest positive integer C<k> such that
+of C<a> modulo C<|n|>.  This is the smallest positive integer C<k> such that
 C<a^k ≡ 1 mod n>.  Returns 1 if C<a = 1>.  Returns undef if C<a = 0> or if
 C<a> and C<n> are not coprime, since no value will result in 1 mod n.
 This corresponds to Pari's C<znorder(Mod(a,n))> function and Mathematica's
@@ -1952,7 +1952,7 @@ from low to high inclusive.
 
   say "The inverse of 42 mod 2017 = ", invmod(42,2017);
 
-Given two integers C<a> and C<n>, return the inverse of C<a> modulo C<n>.
+Given two integers C<a> and C<n>, return the inverse of C<a> modulo C<|n|>.
 If not defined, undef is returned.  If defined, then the return value
 multiplied by C<a> equals C<1> modulo C<n>.
 
