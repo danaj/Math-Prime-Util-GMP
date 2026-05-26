@@ -1394,7 +1394,7 @@ falling_factorial(IN char* strx, IN char* strn)
     mpz_t x, n, r;
   PPCODE:
     validate_and_set_signed(cv, x, "x", strx, VSETNEG_OK);
-    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ABS);
+    validate_and_set_signed(cv, n, "n", strn, VSETNEG_ERR);
     mpz_init(r);
     if (ix == 0)  falling_factorial(r, x, n);
     else          rising_factorial(r, x, n);

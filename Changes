@@ -9,8 +9,6 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - multifactorial supports large integer n,k.
 
-    - logint accepts large bases.
-
     [ADDED]
 
     - muladdint(a,b,c)         returns a*b+c
@@ -26,6 +24,11 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - factorialmod takes large (a,m) instead of silently reducing a to UL.
       We guard against values that would result in excessive time.
+
+    - logint accepts large bases.
+
+    - rising_factorial, falling_factorial don't accept a negative second arg.
+
 
     [PERFORMANCE]
 

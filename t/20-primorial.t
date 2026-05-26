@@ -120,7 +120,8 @@ plan tests =>   1    # factorial
               + 1    # factorial_sum
               + 7    # multifactorial
               + 2    # falling_factorial
-              + 2;   # rising_factorial
+              + 2    # rising_factorial
+              + 2;   # Check rising/falling negative croaks
 
 {
   my @fact = map { factorial($_) }  0 .. $#factorials;
@@ -215,3 +216,7 @@ is_deeply( [map { falling_factorial($_->[0],$_->[1]) } ([515,7],[516,7],[568,7],
 is_deeply( [map { rising_factorial($_->[0],$_->[1]) } ([509,7],[510,7],[562,7],[80,10],[103,101])],
            [qw/9222879462222182400 9349716704335257600 18378924259448108160 18452514066426316800 6760937240727169751346751449031021029092236987417146776093364751481076175432048515956305908925637116481562056123160956910787676051553407749205364947724300581490631820332063331242347041889126973440000000000000000000000000/],
            "rising_factorial selected values");
+
+# Check that we don't accept negative second arguments
+ok(!eval { falling_factorial(5,-2); 1 }, "falling_factorial negative k croaks");
+ok(!eval { rising_factorial(5,-2); 1 }, "rising_factorial negative k croaks");

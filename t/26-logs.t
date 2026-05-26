@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/logint powint addint subint/;
 
-plan tests => 3 + 3 + 1;
+plan tests => 3 + 3 + 2;
 
 ###### logint
 is_deeply( [map { logint($_,2) } 1..200], [map { int(log($_)/log(2)+1e-10) } 1..200], "logint base 2: 0 .. 200" );
@@ -25,5 +25,5 @@ is( logint("12841630529324618690287110381024741207371090179054523401854513591767
   }
   is_deeply( \@got, [0,1,1, 1,2,2, 2,3,3, 9,10,10], "logint with large base near exact powers" );
 
-  is( logint(powint(3,1000),$b), 198, "logint(3^1000,10^24+3) = 198" );
+  is( logint(powint(3,10000),$b), 198, "logint(3^1000,10^24+3) = 198" );
 }
