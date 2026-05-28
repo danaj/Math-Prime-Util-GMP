@@ -2743,8 +2743,8 @@ Alternately, takes a string of digits in base C<b> instead of the
 the array reference, with both lower and upper case denoting digits
 11 through 36.
 
-Each input digit must be an unsigned int.
-The base must be at least 2.
+Each array entry must be an integer coefficient; values may be negative or
+larger than the base.  The base must be an integer at least 2.
 
 =head2 seed_csprng
 

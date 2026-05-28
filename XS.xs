@@ -124,6 +124,22 @@ static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
 #define XPUSH_UINT(n) \
   XPUSHs(sv_2mortal( newSVuv(n) ))
 
+static int _sv_is_math_object(pTHX_ SV* sv)
+{
+  const char *stashname;
+
+  if (!SvROK(sv) || !sv_isobject(sv))
+    return 0;
+  stashname = HvNAME(SvSTASH(SvRV(sv)));
+  return stashname != 0 && strnEQ(stashname, "Math::", 6);
+}
+
+static void _croak_invalid_fromdigits_digit(pTHX_ const mpz_t base)
+{
+  SV *basesv = sv_2mortal(sv_return_for_mpz(aTHX_ base));
+  croak("fromdigits: invalid digit for base %s", SvPV_nolen(basesv));
+}
+
 static char* cert_with_header(char* proof, mpz_t n) {
   char *str, *strptr;
   if (proof == 0) {
@@ -2170,32 +2186,63 @@ todigits(IN char* strn, unsigned int base=10, int length=-1)
     Safefree(digits);
 
 void
-fromdigits(IN SV* svp, unsigned int base=10)
+fromdigits(IN SV* svp, IN SV* svbase = 0)
   PREINIT:
     AV *av;
+    const char *ds;
     int i, plen;
-    uint32_t *digits;
-    mpz_t n;
+    size_t j, len;
+    mpz_t n, base, *digits;
   PPCODE:
-    if (base < 2 || base > 0xFFFFFFFFU) croak("invalid base: %u\n", base);
-    mpz_init(n);
-    if (!SvROK(svp)) { /* string */
-      fromdigits_str(n, SvPV_nolen(svp), base);
+    if (!SvOK(svp)) croak("Parameter must be defined");
+    if (items > 1 && SvOK(svbase)) {
+      set_integer_string(base, "base", SvPV_nolen(svbase), IFLAG_NONNEG);
     } else {
-      if (SvTYPE(SvRV(svp)) != SVt_PVAV)
-        croak("fromdigits argument must be a string or array reference");
+      mpz_init_set_ui(base, 10);
+    }
+    if (mpz_cmp_ui(base, 2) < 0) {
+      SV *basesv = sv_2mortal(sv_return_for_mpz(aTHX_ base));
+      mpz_clear(base);
+      croak("fromdigits: invalid base: %s", SvPV_nolen(basesv));
+    }
+    mpz_init(n);
+    if (SvROK(svp) && SvTYPE(SvRV(svp)) == SVt_PVAV) {
       av = (AV*) SvRV(svp);
       plen = av_len(av);
-      if (plen < 0) XSRETURN_IV(0);
-      New(0, digits, plen+1, uint32_t);
-      for (i = 0; i <= plen; i++) {
-        SV **iv = av_fetch(av, i, 0);
-        if (iv == 0) break;
-        digits[plen-i] = SvUV(*iv); /* TODO: anything other than 32-bit */
+      if (plen < 0) {
+        mpz_set_ui(n, 0);
+      } else {
+        len = (size_t) plen + 1;
+        New(0, digits, len, mpz_t);
+        for (j = 0; j < len; j++)
+          mpz_init_set_ui(digits[j], 0);
+        for (i = 0; i <= plen; i++) {
+          SV **iv = av_fetch(av, i, 0);
+          if (iv == 0 || !SvOK(*iv)) {
+            for (j = 0; j < len; j++)
+              mpz_clear(digits[j]);
+            Safefree(digits);
+            mpz_clear(n);
+            mpz_clear(base);
+            croak("Parameter must be defined");
+          }
+          ds = SvPV_nolen(*iv);
+          validate_integer_string("digit", ds, IFLAG_ANY);
+          mpz_set_str(digits[plen-i], ds + (*ds == '+'), 10);
+        }
+        mpz_fromdigits(n, digits, len, base);
+        for (j = 0; j < len; j++)
+          mpz_clear(digits[j]);
+        Safefree(digits);
       }
-      if (i >= plen)
-        fromdigits(n, digits, plen+1, base);
-      Safefree(digits);
+    } else if (!SvROK(svp) || _sv_is_math_object(aTHX_ svp)) { /* string */
+      if (!mpz_fromdigits_str(n, SvPV_nolen(svp), base))
+        _croak_invalid_fromdigits_digit(aTHX_ base);
+    } else {
+      mpz_clear(n);
+      mpz_clear(base);
+      croak("fromdigits: first argument must be a string or array reference");
     }
     XPUSH_MPZ(n);
     mpz_clear(n);
+    mpz_clear(base);

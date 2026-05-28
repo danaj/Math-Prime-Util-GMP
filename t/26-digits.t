@@ -8,7 +8,7 @@ use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 plan tests =>  0
             + 13 + 1      # todigits
-            +  6 + 4      # fromdigits
+            +  6 + 4 + 19 # fromdigits
             +  1          # combined
             +  0;
 
@@ -41,6 +41,40 @@ is(fromdigits(""), 0, "fromdigits empty string returns 0");
 is(fromdigits("1f",16), 31, "fromdigits hex string");
 is(fromdigits("24"), 24, "fromdigits decimal");
 is(fromdigits("zzzyzzzyzzzyzzzy",36), "7958656371562241451187966", "fromdigits with Large base 36 number");
+is(fromdigits("101", undef), 101, "fromdigits with undef base defaults to 10");
+is(fromdigits([7,999,44],5), 5214, "fromdigits array entries can exceed base");
+is(fromdigits([1,-2,3],10), 83, "fromdigits array entries can be negative");
+is(fromdigits([-1,2],10), -8, "fromdigits array result can be negative");
+is("".fromdigits(["18446744073709551616",3],10), "184467440737095516163", "fromdigits bigint array entry");
+{
+  my $bigbase = Math::BigInt->new("18446744073709551616");
+  my $expect = $bigbase->copy->bmul($bigbase)
+               ->badd($bigbase->copy->bmul(2))
+               ->badd(3);
+  is("".fromdigits([1,2,3], "$bigbase"), "$expect", "fromdigits bigint base string");
+  is("".fromdigits([1,2,3], $bigbase), "$expect", "fromdigits bigint base object");
+}
+is(fromdigits(Math::BigInt->new(123),10), 123, "fromdigits bigint object as digit string");
+my @bad_fromdigits = (
+  [ sub { fromdigits(undef) },          qr/Parameter must be defined/, "undef input" ],
+  [ sub { fromdigits({}) },             qr/string or array reference/, "hash ref input" ],
+  [ sub { fromdigits([1,undef,2],10) }, qr/Parameter must be defined/, "undef array entry" ],
+  [ sub { my @d = (1,2,3); delete $d[1]; fromdigits(\@d,10) },
+                                            qr/Parameter must be defined/, "sparse array entry" ],
+  [ sub { fromdigits([1,"foo",2],10) }, qr/must be an integer/,       "non-integer array entry" ],
+  [ sub { fromdigits("-101",2) },       qr/invalid digit/,            "negative string" ],
+  [ sub { fromdigits("+101",2) },       qr/invalid digit/,            "positive string" ],
+  [ sub { fromdigits("1!",1000) },      qr/invalid digit/,            "punctuation in high base" ],
+  [ sub { fromdigits("2",2) },          qr/invalid digit/,            "digit equal to base" ],
+  [ sub { fromdigits("101",1) },        qr/invalid base/,             "base one" ],
+  [ sub { fromdigits("101",-2) },       qr/non-negative/,             "negative base" ],
+);
+foreach my $t (@bad_fromdigits) {
+  my ($sub, $err, $name) = @$t;
+  my $ok = eval { $sub->(); 1 };
+  like($@, $err, "fromdigits croaks on $name") if !$ok;
+  fail("fromdigits croaks on $name") if $ok;
+}
 
 ###### more from/to
 is(fromdigits([todigits(56,2,8)],2), 56, "fromdigits of previous");

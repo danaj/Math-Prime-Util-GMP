@@ -68,6 +68,60 @@ void init_randstate(unsigned long seed) {
 }
 void clear_randstate(void) {  gmp_randclear(_randstate);  }
 
+static int _fromdigits_char_value(unsigned char c)
+{
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'A' && c <= 'Z') return c - 'A' + 10;
+  if (c >= 'a' && c <= 'z') return c - 'a' + 10;
+  return -1;
+}
+
+int mpz_fromdigits_str(mpz_t n, const char* s, const mpz_t base)
+{
+  mpz_set_ui(n, 0);
+  while (*s == '0')
+    s++;
+  for (; *s != 0; s++) {
+    int d = _fromdigits_char_value((unsigned char)*s);
+    if (d < 0 || mpz_cmp_ui(base, d) <= 0)
+      return 0;
+    mpz_mul(n, n, base);
+    mpz_add_ui(n, n, d);
+  }
+  return 1;
+}
+
+void mpz_fromdigits(mpz_t n, mpz_t *d, size_t len, const mpz_t base)
+{
+  if (len == 0) {
+    mpz_set_ui(n, 0);
+  } else if (len == 1) {
+    mpz_set(n, d[0]);
+  } else {
+    mpz_t *l, b;
+    size_t i, k = len;
+    mpz_init_set(b, base);
+    New(0, l, len, mpz_t);
+    for (i = 0; i < len; i++)
+      mpz_init_set(l[i], d[i]);
+    while (k > 1) {
+      for (i = 0; i < k-1; i += 2) {
+        mpz_mul(l[i+1], l[i+1], b);
+        mpz_add(l[i>>1], l[i], l[i+1]);
+      }
+      if (k & 1)
+        mpz_set(l[k>>1], l[k-1]);
+      k = (k+1) >> 1;
+      mpz_mul(b, b, b);
+    }
+    mpz_set(n, l[0]);
+    for (i = 0; i < len; i++)
+      mpz_clear(l[i]);
+    Safefree(l);
+    mpz_clear(b);
+  }
+}
+
 UV irand64(int nbits)
 {
   if (nbits ==  0) return 0;

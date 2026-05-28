@@ -73,6 +73,8 @@ extern void mpf_agm(mpf_t r, mpf_t a, mpf_t b);
 extern UV logint(const mpz_t n, UV base);
 extern void mpz_logint(mpz_t r, const mpz_t n, const mpz_t b);
 extern void mpz_rootint(mpz_t r, const mpz_t x, const mpz_t n);
+extern void mpz_fromdigits(mpz_t n, mpz_t *d, size_t len, const mpz_t base);
+extern int  mpz_fromdigits_str(mpz_t n, const char* s, const mpz_t base);
 
 #ifdef FUNC_mpz_logn
 static double mpz_logn(const mpz_t n)

@@ -32,6 +32,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - logint accepts large bases.  rootint accepts large roots.
 
+    - fromdigits accepts large bases and digit coefficients without
+      truncation, and validates string digits consistently.
+
     - rising_factorial, falling_factorial don't accept a negative second arg.
 
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and
