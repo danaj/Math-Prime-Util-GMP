@@ -113,4 +113,12 @@ typedef __int8 int8_t;
   #define INLINE
 #endif
 
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__INTEL_COMPILER)
+  #define ISCONSTFUNC __attribute__((const))
+  #define NOINLINE __attribute__((noinline))
+#else
+  #define ISCONSTFUNC
+  #define NOINLINE
+#endif
+
 #endif
