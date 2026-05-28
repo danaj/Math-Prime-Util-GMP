@@ -23,8 +23,8 @@ plan tests => 0
             + scalar(@nbit_check)
             + scalar(@large_nbit)
             + scalar(keys %nbit_range)
+            + 7
             + 4
-            + 5
             + 4
             + 3;
 
@@ -45,14 +45,16 @@ check_range(100,110);
 check_range(128,255);
 check_range(2**24, 2**25-1);
 check_range(Math::BigInt->new(10)**24, Math::BigInt->new(10)**25-1);
+check_range(-10,10);
+check_range(-100,-90);
+check_range(-(Math::BigInt->new(10)**25), -(Math::BigInt->new(10)**24));
 
 ########
 
-ok(!eval { urandomr(-10,100); }, "urandomr(-10,x)");
-ok(!eval { urandomr(100,-10); }, "urandomr(x,-10)");
-ok(!eval { urandomr(-1,-1); }, "urandomr(-1,-1)");
+is(urandomr(-1,-1), -1, "urandomr(-1,-1)=-1");
 is(urandomr(123456,123456), 123456, "urandomr(x,x)=x");
 is(urandomr(123457,123456), undef, "urandomr(x,y)=undef if x > y");
+is(urandomr(100,-10), undef, "urandomr(pos,neg)=undef if lo > hi");
 
 ########
 

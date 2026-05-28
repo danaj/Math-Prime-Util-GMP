@@ -513,8 +513,6 @@ next_prime(IN char* strn)
 
 void
 random_prime(IN char* strlo, IN char* strhi = 0)
-  ALIAS:
-    urandomr = 1
   PREINIT:
     mpz_t lo, hi, res;
     int retundef;
@@ -527,32 +525,37 @@ random_prime(IN char* strlo, IN char* strhi = 0)
       validate_and_set(lo, IFLAG_NONNEG);
       validate_and_set(hi, IFLAG_NONNEG);
     }
-    if (ix == 1 && mpz_sizeinbase(hi,2) <= 32) {
-      uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
-      if (ulo <= uhi) {
-        mpz_clear(lo); mpz_clear(hi);
-        XSRETURN_IV( ulo + isaac_rand(uhi-ulo+1) );
-      }
-    }
-    retundef = 0;
     mpz_init(res);
-    if (ix == 0) {
-      retundef = !mpz_random_prime(res, lo, hi);
-    } else {
-      if (mpz_cmp(lo,hi) > 0) {
-        retundef = 1;
-      } else {
-        mpz_sub(hi,hi,lo);
-        mpz_add_ui(hi,hi,1);
-        mpz_isaac_urandomm(res, hi);
-        mpz_add(res,res,lo);
+    retundef = !mpz_random_prime(res, lo, hi);
+    if (!retundef) XPUSH_MPZ(res);
+    mpz_clear(res); mpz_clear(hi); mpz_clear(lo);
+    if (retundef) XSRETURN_UNDEF;
+
+void
+urandomr(IN char* strlo, IN char* strhi)
+  PREINIT:
+    mpz_t lo, hi, res;
+  PPCODE:
+    validate_and_set(lo, IFLAG_ANY);
+    validate_and_set(hi, IFLAG_ANY);
+    if (mpz_cmp(lo,hi) > 0) {
+      mpz_clear(lo); mpz_clear(hi);
+      XSRETURN_UNDEF;
+    }
+    if (mpz_sgn(lo) >= 0 && mpz_sgn(hi) >= 0 && mpz_sizeinbase(hi,2) <= 32) {
+      uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
+      if (uhi - ulo < UINT32_MAX) {
+        mpz_clear(lo); mpz_clear(hi);
+        XSRETURN_UV( ulo + isaac_rand(uhi-ulo+1) );
       }
     }
-    if (!retundef) XPUSH_MPZ(res);
-    mpz_clear(res);
-    mpz_clear(hi);
-    mpz_clear(lo);
-    if (retundef) XSRETURN_UNDEF;
+    mpz_init(res);
+    mpz_sub(hi,hi,lo);
+    mpz_add_ui(hi,hi,1);
+    mpz_isaac_urandomm(res, hi);
+    mpz_add(res,res,lo);
+    XPUSH_MPZ(res);
+    mpz_clear(res); mpz_clear(hi); mpz_clear(lo);
 
 void prime_count(IN char* strlo, IN char* strhi = 0)
   ALIAS:

@@ -2792,8 +2792,8 @@ This is similar to the GMP function C<mpz_urandomm>.
   $nb = urandomr(2**24,2**25-1);   # Random 25-bit number
   $nd = urandomr(10**24,10**25-1); # Random 25-digit number
 
-Given values C<low> and C<high>, returns a uniform random unsigned integer
-in the range C<[low,high]>.  Both inputs must be non-negative.
+Given values C<low> and C<high>, returns a uniform random integer
+in the range C<[low,high]>.
 If C<low E<gt> high> then function will return C<undef>.
 Note that the range is inclusive, so C<low>, C<high>, and each integer
 between them have an equal probability of appearing.

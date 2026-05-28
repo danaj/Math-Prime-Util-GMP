@@ -35,6 +35,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - fromdigits accepts large bases and digit coefficients without
       truncation, and validates string digits consistently.
 
+    - urandomr accepts signed ranges.
+
     - rising_factorial, falling_factorial don't accept a negative second arg.
 
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and
