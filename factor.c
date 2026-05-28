@@ -756,22 +756,26 @@ static void _znorder1(mpz_t order, const mpz_t a, mpz_t p, int e, mpz_t t, mpz_t
     /* For odd p^e, compute ord_p(a), then lift using LTE:
      * ord_{p^e}(a) = ord_p(a) * p^max(0, e - v_p(a^ord_p(a)-1)).
      * This avoids factoring (p-1)*p^(e-1) and repeated powm modulo p^e. */
+    mpz_mod(n, t, p);
     mpz_set(order, phi);
     for (i = 0; i < nfactors; i++) {
-      for (j = 0; j < exponents[i] && mpz_divisible_p(order, factors[i]); j++) {
+      for (j = 0; j < exponents[i]; j++) {
         mpz_divexact(phi, order, factors[i]);
-        mpz_powm(t, a, phi, p);
+        mpz_powm(t, n, phi, p);
         if (mpz_cmp_ui(t, 1) != 0)
           break;
         mpz_set(order, phi);
       }
     }
-    mpz_powm(t, a, order, n);
-    if (mpz_cmp_ui(t, 1) == 0) {
-      s = e;
-    } else {
-      mpz_sub_ui(t, t, 1);
-      s = mpz_remove(t, t, p);
+    s = 1;
+    mpz_mul(n, p, p);
+    while (s < (unsigned long)e) {
+      mpz_powm(t, a, order, n);
+      if (mpz_cmp_ui(t, 1) != 0)
+        break;
+      s++;
+      if (s < (unsigned long)e)
+        mpz_mul(n, n, p);
     }
     if ((unsigned long)e > s) {
       mpz_pow_ui(t, p, (unsigned long)e - s);

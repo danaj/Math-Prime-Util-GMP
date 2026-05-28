@@ -217,7 +217,7 @@ plan tests => 1
             + 1 # Small Carmichael Lambda
             + scalar(@liouville_pos) + scalar(@liouville_neg)
             + scalar(keys %mangoldt)
-            + scalar(@mult_orders)
+            + scalar(@mult_orders) + 4
             + scalar(keys %primroots) + 1
             + 4 # is_primitive_root
             + scalar(keys %rtau)
@@ -274,6 +274,10 @@ foreach my $moarg (@mult_orders) {
   my $zn = znorder($a, $n);
   is( $zn, $exp, "znorder($a, $n) = " . ((defined $exp) ? $exp : "<undef>") );
 }
+is(znorder("1000000007","25852016738884976640000"), "1931334451200", "znorder(10^9+7,23!) = 1931334451200");
+is(znorder("44800","10301051460877537453973547267843"), "3433683820292512484657849089281", "znorder(44800,3^65) = 3433683820292512484657849089281");
+is(znorder("1000000007","295232799039604140847618609643520000000"), "24533977990733129318400000", "znorder(10^9+7,34!) = 24533977990733129318400000");
+is(znorder("1000000007","10301051460877537453973547267843"), "2289122546861674989771899392854", "znorder(10^9+7,3^65) = 2289122546861674989771899392854");
 ###### znprimroot
 while (my($n, $root) = each (%primroots)) {
   is( znprimroot($n), $root, "znprimroot($n) == " . ((defined $root) ? $root : "<undef>") );

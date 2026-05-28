@@ -1068,7 +1068,7 @@ void fibonacci(IN char* strk)
   ALIAS:
     lucas_number = 1
   PREINIT:
-    mpz_t r, k;
+    mpz_t k;
     unsigned long uk;
     int isneg;
   PPCODE:
@@ -1201,7 +1201,7 @@ void addint(IN char* stra, IN char* strb)
     fdivrem = 9
     cdivrem = 10
   PREINIT:
-    mpz_t a, b, t;
+    mpz_t a, b;
   PPCODE:
     validate_and_set(a, IFLAG_ANY);
     validate_and_set(b, IFLAG_ANY);
