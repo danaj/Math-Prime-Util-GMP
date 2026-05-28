@@ -199,17 +199,17 @@ plan tests => 0 + 8
 eval { no warnings; is_strong_pseudoprime(2047, undef); };
 like($@, qr/(defined|empty)/i, "is_strong_pseudoprime with base undef fails");
 eval { is_strong_pseudoprime(2047, ''); };
-like($@, qr/(positive|empty)/i, "is_strong_pseudoprime with base '' fails");
+like($@, qr/(non-negative|positive|empty)/i, "is_strong_pseudoprime with base '' fails");
 eval { is_strong_pseudoprime(2047,0); };
 like($@, qr/invalid/i, "is_strong_pseudoprime with base 0 fails");
 eval { is_strong_pseudoprime(2047,1); };
 like($@, qr/invalid/i, "is_strong_pseudoprime with base 1 fails");
 eval { is_strong_pseudoprime(2047,-7); };
-like($@, qr/positive/i, "is_strong_pseudoprime with base -7 fails");
+like($@, qr/non-negative|positive/i, "is_strong_pseudoprime with base -7 fails");
 eval { no warnings; is_strong_pseudoprime(undef, 2); };
 like($@, qr/(defined|empty)/i, "is_strong_pseudoprime(undef,2) is invalid");
 eval { is_strong_pseudoprime('', 2); };
-like($@, qr/(positive|empty)/i, "is_strong_pseudoprime('',2) is invalid");
+like($@, qr/(non-negative|positive|empty)/i, "is_strong_pseudoprime('',2) is invalid");
 is(is_strong_pseudoprime(-7), 0, "is_strong_pseudoprime(-7) returns 0");
 
 eval { no warnings; is_strong_lucas_pseudoprime(undef); };

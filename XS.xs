@@ -35,49 +35,70 @@
  * crude but seems to work pretty well.
  */
 
-#define validate_string_number(cv,var,s) \
-  do { \
-    const char* p; \
-    if ((s) == 0)  croak("%s (%s): null string pointer as input", GvNAME(CvGV(cv)),var); \
-    if (*(s) == 0) croak("%s (%s): empty string as input", GvNAME(CvGV(cv)),var); \
-    for (p = s;  *p != 0; p++) \
-      if (!isdigit(*p)) \
-        croak("%s (%s): input '%s' must be a positive integer", GvNAME(CvGV(cv)), var, s); \
-  } while (0)
-
-#define VSETNEG_ERR 0
-#define VSETNEG_ABS 1
-#define VSETNEG_OK  2
-static int validate_and_set_signed_static(pTHX_ CV* cv, mpz_t v, const char* vname, const char* s, int negflag) {
-  int neg = (s && *s == '-');
-  if (s && *s == '+') s++;
-  validate_string_number(cv, vname, (neg && negflag != VSETNEG_ERR) ? s+1 : s);
-  mpz_init_set_str(v, (neg && negflag == VSETNEG_ABS) ? s+1 : s, 10);
-  return neg;
-}
-#define validate_and_set_signed(cv, var, varname, str, flag) \
-  validate_and_set_signed_static(aTHX_ cv, var, varname, str, flag)
-
-#define validate_and_set(var, flag) \
-  validate_and_set_signed_static(aTHX_ cv, var, #var, str ## var, flag)
-
-static char* cert_with_header(char* proof, mpz_t n) {
-  char *str, *strptr;
-  if (proof == 0) {
-    New(0, str, 1, char);
-    str[0] = '\0';
-  } else {
-    New(0, str, strlen(proof) + 100 + mpz_sizeinbase(n,10), char);
-    strptr = str;
-    strptr += gmp_sprintf(strptr, "[MPU - Primality Certificate]\nVersion 1.0\n\nProof for:\nN %Zd\n\n", n);
-    strcat(strptr, proof);
-    Safefree(proof);
-  }
-  return str;
-}
-
 static const char* _subname(pTHX_ const CV *cv) { return GvNAME(CvGV(cv)); }
 #define SUBNAME _subname(aTHX_ cv)
+
+#define IFLAG_ANY    0x00
+#define IFLAG_NONNEG 0x01
+#define IFLAG_POS    0x02
+#define IFLAG_ABS    0x04
+
+static void _croak_bad_integer(pTHX_ CV* cv, const char* vname, const char* s, int iflag)
+{
+  const char* m = (iflag & IFLAG_POS)    ? "a positive integer"
+                : (iflag & IFLAG_NONNEG) ? "a non-negative integer"
+                                         : "an integer";
+  croak("%s (%s): input '%s' must be %s", SUBNAME, vname, s, m);
+}
+
+static int _validate_integer_string(pTHX_ CV* cv, const char* vname,
+                                    const char* s, int iflag)
+{
+  const char *p;
+  int neg;
+
+  if (s == 0)  croak("%s (%s): null string pointer as input", SUBNAME, vname);
+  if (*s == 0) croak("%s (%s): empty string as input", SUBNAME, vname);
+
+  neg = (*s == '-');
+  if (neg && (iflag & (IFLAG_POS | IFLAG_NONNEG)))
+    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+
+  p = s + (*s == '-' || *s == '+');
+  if (*p == 0)  /* Check for no digits, e.g. only a sign */
+    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+
+  for (; *p != 0; p++)
+    if (!isdigit((unsigned char)*p))
+      _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+
+  return neg;  /* Return means the string had a negative sign (could be '-0') */
+}
+#define validate_integer_string(vname,s,iflag) \
+  _validate_integer_string(aTHX_ cv, vname, s, iflag)
+
+static NOINLINE int _set_integer_string(pTHX_ CV* cv, mpz_t v, const char* vname, const char* s, int iflag) {
+  int wasneg;
+  validate_integer_string(vname, s, iflag);
+  /* After validate_integer_string, s is non-zero and *s =~ /^[+-]?\d+$/ */
+  mpz_init_set_str(v, s + (*s == '+'), 10);
+  /* Wasneg is 0 for -0, but true if the result before ABS was negative */
+  wasneg = mpz_sgn(v) < 0;
+  if ((iflag & IFLAG_ABS) && wasneg)
+    mpz_abs(v, v);
+
+  if ((iflag & IFLAG_POS) && mpz_sgn(v) <= 0) {
+    mpz_clear(v);
+    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+  }
+
+  return wasneg;
+}
+#define set_integer_string(v, vname, s, iflag) \
+  _set_integer_string(aTHX_ cv, v, vname, s, iflag)
+
+#define validate_and_set(var, iflag) \
+  set_integer_string(var, #var, str ## var, iflag)
 
 static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
   if (mpz_fits_uv_p(n)) {
@@ -102,6 +123,21 @@ static SV* sv_return_for_mpz(pTHX_ const mpz_t n) {
   XPUSHs(sv_2mortal( newSViv(n) ))
 #define XPUSH_UINT(n) \
   XPUSHs(sv_2mortal( newSVuv(n) ))
+
+static char* cert_with_header(char* proof, mpz_t n) {
+  char *str, *strptr;
+  if (proof == 0) {
+    New(0, str, 1, char);
+    str[0] = '\0';
+  } else {
+    New(0, str, strlen(proof) + 100 + mpz_sizeinbase(n,10), char);
+    strptr = str;
+    strptr += gmp_sprintf(strptr, "[MPU - Primality Certificate]\nVersion 1.0\n\nProof for:\nN %Zd\n\n", n);
+    strcat(strptr, proof);
+    Safefree(proof);
+  }
+  return str;
+}
 
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
@@ -156,7 +192,7 @@ is_pseudoprime(IN char* strn, ...)
     int i, nbases;
     mpz_t n, *A;
   CODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     if (items == 1) {
       nbases = 1;
       New(0, A, nbases, mpz_t);
@@ -165,7 +201,7 @@ is_pseudoprime(IN char* strn, ...)
       nbases = items-1;
       New(0, A, nbases, mpz_t);
       for (i = 1; i < items; i++) {
-        validate_and_set_signed(cv, A[i-1], "base", SvPV_nolen(ST(i)), VSETNEG_ERR);
+        set_integer_string(A[i-1], "base", SvPV_nolen(ST(i)), IFLAG_NONNEG);
         if (mpz_cmp_ui(A[i-1], 2) < 0)
           croak("Base %s is invalid", SvPV_nolen(ST(i)));
       }
@@ -192,7 +228,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
   CODE:
     if (nbases < 0)
       croak("Parameter '%"IVdf"' must be a positive integer\n", nbases);
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     RETVAL = miller_rabin_random(n, nbases, seedstr);
     mpz_clear(n);
   OUTPUT:
@@ -200,17 +236,13 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
 
 #define PRIMALITY_START(name, small_retval, test_small_factors) \
     /* Negative numbers return 0 */ \
-    if ((strn != 0) && (strn[0] == '-') ) \
+    if (validate_integer_string("n", strn, IFLAG_ANY)) \
       XSRETURN_IV(0); \
-    validate_string_number(cv, "n", strn); \
+    if (*strn == '+') strn++; \
     /* Handle single digit numbers */ \
     if (strn[1] == 0) { \
-      int q_is_prime = 0; \
-      switch (strn[0]) { \
-        case '2': case '3': case '5': case '7': q_is_prime = (small_retval); \
-                                                break; \
-      } \
-      XSRETURN_IV(q_is_prime); \
+      uint8_t v = strn[0] - '0'; \
+      XSRETURN_IV((v == 2 || v == 3 || v == 5 || v == 7) ? (small_retval) : 0);\
     } \
     /* Test for small multiples while it is still a string */ \
     if (test_small_factors) { \
@@ -219,7 +251,7 @@ int miller_rabin_random(IN char* strn, IN IV nbases = 1, IN char* seedstr = 0)
       /* Multiples of 2 and 5 return 0 */ \
       switch (strn[slen-1]-'0') { \
         case 0: case 2: case 4: case 5: case 6: case 8: \
-           XSRETURN_IV(0); break; \
+          XSRETURN_IV(0); break; \
       } \
       /* Multiples of 3 return 0 */ \
       for (i = 0; i < slen; i++)  digsum += strn[i]-'0'; \
@@ -272,15 +304,13 @@ is_frobenius_pseudoprime(IN char* strn, IN char* strP = 0, IN char* strQ = 0)
   CODE:
     if (items != 1 && items != 3)
       croak("is_frobenius_pseudoprime: expected 1 or 3 arguments");
-    /* Don't do primality_start, we want to check P and Q */
-    if ((strn != 0) && strn[0] == '-')
-      XSRETURN_IV(0);
-    validate_and_set(n, VSETNEG_ERR);
-    if (items == 1) {
+    if (validate_and_set(n, IFLAG_ANY)) {
+      RETVAL = 0;  /* Negative input */
+    } else if (items == 1) {
       RETVAL = is_frobenius_pseudoprime(n);
     } else {
-      validate_and_set(P, VSETNEG_OK);
-      validate_and_set(Q, VSETNEG_OK);
+      validate_and_set(P, IFLAG_ANY);
+      validate_and_set(Q, IFLAG_ANY);
       RETVAL = is_frobenius_pseudoprime_pq(n, P, Q);
       mpz_clear(Q); mpz_clear(P);
     }
@@ -374,13 +404,13 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
   PREINIT:
     mpz_t a, b, n, px, py, m, q, t1, t2;
   CODE:
-    validate_and_set(a, VSETNEG_ERR);
-    validate_and_set(b, VSETNEG_ERR);  /* Unused */
-    validate_and_set(n, VSETNEG_ERR);
-    validate_and_set(px,VSETNEG_ERR);
-    validate_and_set(py,VSETNEG_ERR);
-    validate_and_set(m, VSETNEG_ERR);
-    validate_and_set(q, VSETNEG_ERR);
+    validate_and_set(a, IFLAG_NONNEG);
+    validate_and_set(b, IFLAG_NONNEG);  /* Unused */
+    validate_and_set(n, IFLAG_NONNEG);
+    validate_and_set(px,IFLAG_NONNEG);
+    validate_and_set(py,IFLAG_NONNEG);
+    validate_and_set(m, IFLAG_NONNEG);
+    validate_and_set(q, IFLAG_NONNEG);
     mpz_init(t1);  mpz_init(t2);
     RETVAL = (ecpp_check_point(px, py, m, q, a, n, t1, t2) == 2) ? 1 : 0;
     mpz_clear(t1); mpz_clear(t2);
@@ -394,7 +424,7 @@ is_almost_prime(IN unsigned int k, IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     RETVAL = is_almost_prime(k, n);
     mpz_clear(n);
   OUTPUT:
@@ -405,7 +435,7 @@ UV is_power(IN char* strn, IN UV a = 0)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set(n, VSETNEG_ABS);
+    isneg = validate_and_set(n, IFLAG_ABS);
     RETVAL = 0;
     if (!isneg || (a == 0 || a & 1)) {
       RETVAL = is_power(n, a);
@@ -424,12 +454,12 @@ int is_divisible(IN char* strn, IN char* strd, ...)
     mpz_t n, d;
     size_t i;
   CODE:
-    validate_and_set(n, VSETNEG_OK);
-    validate_and_set(d, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
+    validate_and_set(d, IFLAG_ANY);
     RETVAL = !!mpz_divisible_p(n, d);
     for (i = 2; i < (size_t)items && RETVAL == 0; i++) {
       mpz_clear(d);
-      validate_and_set_signed(cv, d, "d", SvPV_nolen(ST(i)), VSETNEG_OK);
+      set_integer_string(d, "d", SvPV_nolen(ST(i)), IFLAG_ANY);
       RETVAL = !!mpz_divisible_p(n, d);
     }
     mpz_clear(d);  mpz_clear(n);
@@ -440,9 +470,9 @@ int is_congruent(IN char* strn, IN char* strc, IN char* strd)
   PREINIT:
     mpz_t n, c, d;
   CODE:
-    validate_and_set(n, VSETNEG_OK);
-    validate_and_set(c, VSETNEG_OK);
-    validate_and_set(d, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
+    validate_and_set(c, IFLAG_ANY);
+    validate_and_set(d, IFLAG_ABS);
     RETVAL = !!mpz_congruent_p(n, c, d);
     mpz_clear(d);  mpz_clear(c);  mpz_clear(n);
   OUTPUT:
@@ -456,7 +486,7 @@ next_prime(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     if (ix == 1 && mpz_cmp_ui(n,3) < 0) { mpz_clear(n); XSRETURN_UNDEF; }
     if      (ix == 0) _GMP_next_prime(n);
     else if (ix == 1) _GMP_prev_prime(n);
@@ -474,12 +504,12 @@ random_prime(IN char* strlo, IN char* strhi = 0)
     int retundef;
   PPCODE:
     if (items == 1) {
-      validate_and_set(lo, VSETNEG_ERR);
+      validate_and_set(lo, IFLAG_NONNEG);
       mpz_init_set(hi, lo);
       mpz_set_ui(lo,0);
     } else {
-      validate_and_set(lo, VSETNEG_ERR);
-      validate_and_set(hi, VSETNEG_ERR);
+      validate_and_set(lo, IFLAG_NONNEG);
+      validate_and_set(hi, IFLAG_NONNEG);
     }
     if (ix == 1 && mpz_sizeinbase(hi,2) <= 32) {
       uint32_t ulo = mpz_get_ui(lo),  uhi = mpz_get_ui(hi);
@@ -517,7 +547,7 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
   PPCODE:
     mpz_init(res);
     if (items == 1) {
-      validate_and_set(lo, VSETNEG_ERR);
+      validate_and_set(lo, IFLAG_NONNEG);
       switch (ix) {
         case  0: prime_count(res, lo); break;
         case  1: prime_power_count(res, lo); break;
@@ -526,8 +556,8 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
       }
       mpz_clear(lo);
     } else {
-      validate_and_set(lo, VSETNEG_ERR);
-      validate_and_set(hi, VSETNEG_ERR);
+      validate_and_set(lo, IFLAG_NONNEG);
+      validate_and_set(hi, IFLAG_NONNEG);
       switch (ix) {
         case  0: prime_count_range(res, lo, hi); break;
         case  1: prime_power_count_range(res, lo, hi); break;
@@ -546,7 +576,7 @@ void nth_perfect_power(IN char* strn)
   PREINIT:
     mpz_t n, res;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     mpz_init(res);
     if (ix == 0) nth_perfect_power(res, n);
     else         nth_perfect_power_approx(res, n);
@@ -560,7 +590,7 @@ void next_perfect_power(IN char* strn)
   PREINIT:
     mpz_t n, res;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     mpz_init(res);
     if (ix == 0) next_perfect_power(res, n);
     else         prev_perfect_power(res, n);
@@ -592,7 +622,7 @@ totient(IN char* strn)
       if (ix == 5)  strn++;            /* znprimroot flip sign */
       if (ix == 8)  XSRETURN_IV(0);    /* is_prime_power return 0 */
     }
-    validate_and_set(n, ix==14 || ix==15 ? VSETNEG_OK : VSETNEG_ERR);
+    validate_and_set(n, ix==14 || ix==15 ? IFLAG_ANY : IFLAG_NONNEG);
     mpz_init(res);
     switch (ix) {
       case 0:  totient(res, n);  break;
@@ -631,7 +661,7 @@ void absint(IN char* strn)
     mpz_t n;
     int isneg;
   PPCODE:
-    isneg = validate_and_set(n, VSETNEG_ABS);
+    isneg = validate_and_set(n, IFLAG_ABS);
     if (ix == 1 && !isneg)  mpz_neg(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);
@@ -641,7 +671,7 @@ void signint(IN char* strn)
     mpz_t n;
     int res;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     res = mpz_sgn(n);
     mpz_clear(n);
     XSRETURN_IV(res);
@@ -653,8 +683,8 @@ void cmpint(IN char* stra, IN char* strb)
     mpz_t a, b;
     int res;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     res = (ix == 0) ? mpz_cmp(a, b) : mpz_cmpabs(a, b);
     /* GMP 6.2 changed to only return -1,0,1 */
     /* Enforce -1, 0, 1 as our only return values. */
@@ -673,7 +703,7 @@ void setbit(IN char* strn, IN UV k)
     mpz_t n;
     int res;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     switch (ix) {
       case 0:  mpz_setbit(n, k); break;
       case 1:  mpz_clrbit(n, k); break;
@@ -692,8 +722,8 @@ void bitand(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     switch (ix) {
       case 0:  mpz_and(a, a, b); break;
       case 1:  mpz_ior(a, a, b); break;
@@ -708,7 +738,7 @@ void bitnot(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     mpz_com(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);
@@ -731,7 +761,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
   PPCODE:
     if (ix == 9) {  /* surround_primes */
       UV prev, next;
-      validate_and_set(n, VSETNEG_ERR);
+      validate_and_set(n, IFLAG_NONNEG);
       next = 1 + (mpz_sgn(n)==0);
       if (mpz_cmp_ui(n,2) > 0) {
         surround_primes(n, &prev, &next, (items == 1) ? 0 : prec);
@@ -742,7 +772,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
       XPUSHs(sv_2mortal(newSVuv(next)));
       mpz_clear(n);
     } else if (ix <= 1) {
-      validate_and_set(n, VSETNEG_ERR);
+      validate_and_set(n, IFLAG_NONNEG);
       res = (ix == 0) ? harmreal(n, prec) : bernreal(n, prec);
       mpz_clear(n);
       XPUSHs(sv_2mortal(newSVpv(res, 0)));
@@ -846,13 +876,13 @@ gcd(...)
     mpz_t ret, n;
   PPCODE:
     if (items == 0) XSRETURN_IV( (ix == 1 || ix == 3) ? 1 : 0);
-    negflag = (ix <= 1) ? VSETNEG_ABS : VSETNEG_OK;
+    negflag = (ix <= 1) ? IFLAG_ABS : IFLAG_ANY;
     if (ix == 1 || ix == 3) {
       mpz_t* list;
       New(0, list, items, mpz_t);
       for (i = 0; i < items; i++) {
         char* strn = SvPV_nolen(ST(i));
-        validate_and_set_signed(cv, list[i], "arg", strn, negflag);
+        set_integer_string(list[i], "arg", strn, negflag);
       }
       if (ix == 1) mpz_veclcm(list, 0, items-1);
       else         mpz_product(list, 0, items-1);
@@ -864,7 +894,7 @@ gcd(...)
     mpz_init_set_ui(ret, (ix == 1 || ix == 3) ? 1 : 0);
     for (i = 0; i < items; i++) {
       char* strn = SvPV_nolen(ST(i));
-      validate_and_set_signed(cv, n, "arg", strn, negflag);
+      set_integer_string(n, "arg", strn, negflag);
       switch (ix) {
         case 0:  mpz_gcd(ret, ret, n); break;
         case 1:  mpz_lcm(ret, ret, n); break;
@@ -887,8 +917,8 @@ kronecker(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   CODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     if (ix != 0) {
       mpz_abs(a,a);
       mpz_abs(b,b);
@@ -931,14 +961,14 @@ moebius(IN char* strn, IN char* strnhi = 0)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     if (strnhi == 0) {
       int result = moebius(n);
       mpz_clear(n);
       XSRETURN_IV(result);
     } else {   /* Ranged result */
       mpz_t nhi;
-      validate_and_set(nhi, VSETNEG_OK);
+      validate_and_set(nhi, IFLAG_ANY);
       while (mpz_cmp(n, nhi) <= 0) {
         XPUSH_INT( moebius(n) );
         mpz_add_ui(n, n, 1);
@@ -954,9 +984,9 @@ void lucasu(IN char* strp, IN char* strq, IN char* strk)
   PREINIT:
     mpz_t u, v, p, q, k;
   PPCODE:
-    validate_and_set(p, VSETNEG_OK);
-    validate_and_set(q, VSETNEG_OK);
-    validate_and_set(k, VSETNEG_ERR);
+    validate_and_set(p, IFLAG_ANY);
+    validate_and_set(q, IFLAG_ANY);
+    validate_and_set(k, IFLAG_NONNEG);
     mpz_init(u);  mpz_init(v);
     lucasuv(u, v, p, q, k);
     switch (ix) {
@@ -975,10 +1005,10 @@ void lucasumod(IN char* strp, IN char* strq, IN char* strk, IN char* strn)
   PREINIT:
     mpz_t u, v, t, p, q, k, n;
   PPCODE:
-    validate_and_set(p, VSETNEG_OK);
-    validate_and_set(q, VSETNEG_OK);
-    validate_and_set(k, VSETNEG_ERR);
-    validate_and_set(n, VSETNEG_ABS);
+    validate_and_set(p, IFLAG_ANY);
+    validate_and_set(q, IFLAG_ANY);
+    validate_and_set(k, IFLAG_NONNEG);
+    validate_and_set(n, IFLAG_ABS);
     if (mpz_cmpabs_ui(n,1) <= 0) {
       int retundef = (mpz_sgn(n) == 0);
       mpz_clear(n); mpz_clear(k); mpz_clear(q); mpz_clear(p);
@@ -1007,7 +1037,7 @@ void catalan_number(IN char* strn)
     mpz_t n;
     unsigned long un;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     if (!mpz_fits_ulong_p(n))
       croak("catalan_number: argument too large");
     un = mpz_get_ui(n);
@@ -1026,7 +1056,7 @@ void bell_number(IN char* strn)
     mpz_t n;
     unsigned long un;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     if (!mpz_fits_ulong_p(n))
       croak("bell_number: argument too large");
     un = mpz_get_ui(n);
@@ -1042,7 +1072,7 @@ void fibonacci(IN char* strk)
     unsigned long uk;
     int isneg;
   PPCODE:
-    isneg = validate_and_set(k, VSETNEG_ABS);
+    isneg = validate_and_set(k, IFLAG_ABS);
     if (!mpz_fits_ulong_p(k))
       croak("%s: argument too large", GvNAME(CvGV(cv)));
     uk = mpz_get_ui(k);
@@ -1061,7 +1091,7 @@ liouville(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     RETVAL = liouville(n);
     mpz_clear(n);
   OUTPUT:
@@ -1080,7 +1110,7 @@ is_square(IN char* strn)
     mpz_t n;
     int isneg;
   CODE:
-    isneg = validate_and_set(n, VSETNEG_OK);
+    isneg = validate_and_set(n, IFLAG_ANY);
     if (isneg && ix <= 4) {
       RETVAL = 0;
     } else {
@@ -1108,7 +1138,7 @@ prime_omega(IN char* strn)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set(n, VSETNEG_ABS);
+    validate_and_set(n, IFLAG_ABS);
     switch (ix) {
       case 0:  RETVAL = omega(n);          break;
       case 1:  RETVAL = bigomega(n);       break;
@@ -1127,7 +1157,7 @@ is_powerful(IN char* strn, IN UV k = 2)
   PREINIT:
     mpz_t n;
   CODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     switch (ix) {
       case 0:  RETVAL = is_powerful(n,k);   break;
       case 1:  RETVAL = is_powerfree(n,k);  break;
@@ -1146,7 +1176,7 @@ next_powerfree(IN char* strn, IN UV k = 2)
     mpz_t n;
     int retundef;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     switch (ix) {
       case 0:  next_powerfree(n,n,k);  break;
       case 1:  prev_powerfree(n,n,k);  break;
@@ -1173,8 +1203,8 @@ void addint(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b, t;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     if (ix >= 4 && mpz_sgn(b) == 0)
       croak("%s: divide by zero", SUBNAME);
     switch (ix) {
@@ -1198,25 +1228,26 @@ void addint(IN char* stra, IN char* strb)
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
 
-void
-rootint(IN char* stra, IN char* strb)
-  ALIAS:
-    logint = 1
+void rootint(IN char* strn, IN char* strk)
   PREINIT:
-    mpz_t a, b;
+    mpz_t n, k;
   PPCODE:
-    validate_and_set(a, VSETNEG_ERR);
-    validate_and_set(b, VSETNEG_ERR);
-    if (ix == 0) {
-      if (mpz_sgn(b) <= 0) croak("rootint: k must be at least 1");
-      mpz_rootint(a, a, b);
-    } else {
-      if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be at least 2");
-      if (mpz_sgn(a) <= 0) croak("logint: n must be at least 1");
-      mpz_logint(a, a, b);
-    }
-    XPUSH_MPZ(a);
-    mpz_clear(b); mpz_clear(a);
+    validate_and_set(n, IFLAG_NONNEG);
+    validate_and_set(k, IFLAG_POS);
+    mpz_rootint(n, n, k);
+    XPUSH_MPZ(n);
+    mpz_clear(n); mpz_clear(k);
+
+void logint(IN char* strn, IN char* strb)
+  PREINIT:
+    mpz_t n, b;
+  PPCODE:
+    validate_and_set(n, IFLAG_POS);
+    validate_and_set(b, IFLAG_POS);
+    if (mpz_cmp_ui(b,2) < 0) croak("logint: base must be at least 2");
+    mpz_logint(n, n, b);
+    XPUSH_MPZ(n);
+    mpz_clear(n); mpz_clear(b);
 
 void invmod(IN char* stra, IN char* strn)
   ALIAS:
@@ -1230,8 +1261,8 @@ void invmod(IN char* stra, IN char* strn)
     mpz_t a, n;
     int retundef;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(n, VSETNEG_ABS);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
     if (mpz_sgn(n) == 0) {
       mpz_clear(n); mpz_clear(a);
       XSRETURN_UNDEF;
@@ -1259,15 +1290,15 @@ void invmod(IN char* stra, IN char* strn)
     XPUSH_MPZ(a);
     mpz_clear(n); mpz_clear(a);
 
-void multifactorial(IN char* stra, IN char* strb)
+void multifactorial(IN char* strn, IN char* strm)
   PREINIT:
-    mpz_t a, b;
+    mpz_t n, m;
   PPCODE:
-    validate_and_set(a, VSETNEG_ERR);
-    validate_and_set(b, VSETNEG_ERR);
-    mpz_mfac(a, a, b);
-    XPUSH_MPZ(a);
-    mpz_clear(b); mpz_clear(a);
+    validate_and_set(n, IFLAG_NONNEG);
+    validate_and_set(m, IFLAG_POS);
+    mpz_mfac(n, n, m);
+    XPUSH_MPZ(n);
+    mpz_clear(m); mpz_clear(n);
 
 void is_polygonal(IN char* stra, IN char* strb)
   ALIAS:
@@ -1275,8 +1306,8 @@ void is_polygonal(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_ERR);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_NONNEG);
     if (mpz_cmp_ui(b,3) < 0) croak("%s: k must be >= 3",SUBNAME);
     polygonal_nth(a, a, b);
     if (ix == 0) {
@@ -1292,8 +1323,8 @@ void binomial(IN char* stra, IN char* strb)
     mpz_t a, b;
     unsigned long n, k;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     if (mpz_sgn(a) >= 0) {
       int reflect = 0;
       if (mpz_sgn(b) < 0 || mpz_cmp(b,a) > 0)
@@ -1338,8 +1369,8 @@ void gcdext(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b, t;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
     mpz_init(t);
     if (mpz_sgn(a) == 0 && mpz_sgn(b) == 0) {
       mpz_set_ui(t, 0);  /* This changed in GMP 5.1.2.  Enforce new result. */
@@ -1357,9 +1388,9 @@ void muladdint(IN char* stra, IN char* strb, IN char* strc)
   PREINIT:
     mpz_t a, b, c;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
-    validate_and_set(c, VSETNEG_OK);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
+    validate_and_set(c, IFLAG_ANY);
     if      (ix == 0) { mpz_mul(a, a, b); mpz_add(a, a, c); } /* a * b + c */
     else if (ix == 1) { mpz_mul(a, a, b); mpz_sub(a, a, c); } /* a * b - c */
     else if (ix == 2) { mpz_addmul(a, b, c); }                /* a + b * c */
@@ -1373,9 +1404,9 @@ binomialmod(IN char* strn, IN char* strk, IN char* strm)
     mpz_t n, k, m, r;
     unsigned long nu, ku;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
-    validate_and_set(k, VSETNEG_OK);
-    validate_and_set(m, VSETNEG_ABS);
+    validate_and_set(n, IFLAG_ANY);
+    validate_and_set(k, IFLAG_ANY);
+    validate_and_set(m, IFLAG_ABS);
     if (mpz_sgn(m) == 0) {
       mpz_clear(n); mpz_clear(k); mpz_clear(m);
       XSRETURN_UNDEF;
@@ -1412,8 +1443,8 @@ falling_factorial(IN char* strx, IN char* strn)
   PREINIT:
     mpz_t x, n, r;
   PPCODE:
-    validate_and_set(x, VSETNEG_OK);
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(x, IFLAG_ANY);
+    validate_and_set(n, IFLAG_NONNEG);
     mpz_init(r);
     if (ix == 0)  falling_factorial(r, x, n);
     else          rising_factorial(r, x, n);
@@ -1429,8 +1460,8 @@ void powersum(IN char* stra, IN char* strb)
   PREINIT:
     mpz_t a, b;
   PPCODE:
-    validate_and_set(a, VSETNEG_ERR);
-    validate_and_set(b, VSETNEG_ERR);
+    validate_and_set(a, IFLAG_NONNEG);
+    validate_and_set(b, IFLAG_NONNEG);
     if (ix == 0 || ix == 1) {
       if (!mpz_fits_ulong_p(b)) croak("%s: power too large", SUBNAME);
       faulhaber_sum(a, a, mpz_get_ui(b));
@@ -1450,7 +1481,7 @@ lshiftint(IN char* strn, IN long k = 1)
     mpz_t n;
     int nix;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     nix = ix;
     if (k < 0) {
       k = -k;
@@ -1472,7 +1503,7 @@ powerful_count(IN char* strn, IN int k = 2)
   PREINIT:
     mpz_t n, r;
   PPCODE:
-    validate_and_set(n, VSETNEG_OK);
+    validate_and_set(n, IFLAG_ANY);
     mpz_init(r);
     switch (ix) {
       case 0:  powerful_count(r, n, (unsigned long) k);  break;
@@ -1494,9 +1525,9 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     mpz_t a, b, n;
     int retundef;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
-    validate_and_set(n, VSETNEG_ABS);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
     retundef = (mpz_sgn(n) <= 0);
     if (!retundef && ix == 4) {
       if (mpz_cmp_ui(n,1) > 0) {  /* if n is 1, let the mod turn it into zero */
@@ -1535,10 +1566,10 @@ void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
   PREINIT:
     mpz_t a, b, c, n;
   PPCODE:
-    validate_and_set(a, VSETNEG_OK);
-    validate_and_set(b, VSETNEG_OK);
-    validate_and_set(c, VSETNEG_OK);
-    validate_and_set(n, VSETNEG_ABS);
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(b, IFLAG_ANY);
+    validate_and_set(c, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
     if (mpz_sgn(n) <= 0) {
       mpz_clear(n); mpz_clear(c); mpz_clear(b); mpz_clear(a);
       XSRETURN_UNDEF;
@@ -1688,10 +1719,10 @@ void chinese(...)
       psvn = av_fetch(av, 1, 0);
 
       strn = SvPV_nolen(*psva);
-      validate_and_set_signed(cv, an[i+0], "a", strn, VSETNEG_OK);
+      set_integer_string(an[i+0], "a", strn, IFLAG_ANY);
 
       strn = SvPV_nolen(*psvn);
-      validate_and_set_signed(cv, an[i+items], "b", strn, VSETNEG_OK);
+      set_integer_string(an[i+items], "b", strn, IFLAG_ANY);
     }
     mpz_init(lcm);
     doretval = chinese(ret, lcm, an, an+items, items);
@@ -1767,7 +1798,7 @@ void numtoperm(IN UV n, IN char* strk)
   PPCODE:
     if (n == 0)
       XSRETURN_EMPTY;
-    validate_and_set(k, VSETNEG_OK);
+    validate_and_set(k, IFLAG_ANY);
     mpz_init(f);  mpz_init(p);
     New(0, perm, n, UV);
     for (i = 0; i < n; i++)
@@ -1798,8 +1829,8 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     mpz_t low, seghigh, high, t;
     UV i, nc, nprimes, maxseg, *list;
   PPCODE:
-    validate_and_set(low, VSETNEG_ERR);
-    validate_and_set(high, VSETNEG_ERR);
+    validate_and_set(low, IFLAG_NONNEG);
+    validate_and_set(high, IFLAG_NONNEG);
     mpz_init(seghigh);
     mpz_init(t);
 
@@ -1854,7 +1885,7 @@ sieve_range(IN char* strlow, IN UV width, IN UV depth)
     if (width == 0) XSRETURN(0);
     if (depth == 0) depth = 1;
 
-    validate_and_set(low, VSETNEG_ERR);
+    validate_and_set(low, IFLAG_NONNEG);
     mpz_init(high);
     mpz_add_ui(high, low, width-1);
     mpz_init(seghigh);
@@ -1902,10 +1933,10 @@ lucas_sequence(IN char* strn, IN char* strP, IN char* strQ, IN char* strk)
   PREINIT:
     mpz_t U, V, Qk, n, P, Q, k, t;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
-    validate_and_set(P, VSETNEG_OK);
-    validate_and_set(Q, VSETNEG_OK);
-    validate_and_set(k, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_POS);
+    validate_and_set(P, IFLAG_ANY);
+    validate_and_set(Q, IFLAG_ANY);
+    validate_and_set(k, IFLAG_NONNEG);
     mpz_init(U);  mpz_init(V);  mpz_init(Qk);  mpz_init(t);
     lucasuvmod(U, V, P, Q, k, n, t);
     mpz_powm(Qk, Q, k, n);
@@ -1914,17 +1945,6 @@ lucas_sequence(IN char* strn, IN char* strP, IN char* strQ, IN char* strk)
     XPUSH_MPZ(Qk);
     mpz_clear(n);  mpz_clear(P);  mpz_clear(Q);  mpz_clear(k);
     mpz_clear(U);  mpz_clear(V);  mpz_clear(Qk);  mpz_clear(t);
-
-
-#define SET_UV_VIA_MPZ_STRING(uva, sva, name) \
-  { \
-      mpz_t t; \
-      char* stra = SvPV_nolen(sva); \
-      validate_string_number(cv, name, stra); \
-      mpz_init_set_str(t, stra, 10); \
-      uva = mpz_get_ui(t); \
-      mpz_clear(t); \
-  }
 
 void
 trial_factor(IN char* strn, ...)
@@ -1939,13 +1959,13 @@ trial_factor(IN char* strn, ...)
     ecm_factor = 8
     qs_factor = 9
   PREINIT:
-    mpz_t n;
+    mpz_t n, t;
     UV arg1, arg2, uf;
     static const UV default_arg1[] =
       {0,   64000000,64000000,5000000,5000000,0,256000000,100000000,0,  0  };
     /*Trial,Rho,     Brent,   P-1,    P+1,    Cheb, HOLF, SQUFOF,   ECM,QS */
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     {
       int cmpr = mpz_cmp_ui(n,1);
       if (cmpr <= 0) {
@@ -1956,8 +1976,20 @@ trial_factor(IN char* strn, ...)
     }
     arg1 = default_arg1[ix];
     arg2 = 0;
-    if (items >= 2) SET_UV_VIA_MPZ_STRING(arg1, ST(1), "specific factor arg 1");
-    if (items >= 3) SET_UV_VIA_MPZ_STRING(arg2, ST(2), "specific factor arg 2");
+    if (items >= 2) {
+      set_integer_string(t, "arg1", SvPV_nolen(ST(1)), IFLAG_NONNEG);
+      if (!mpz_fits_uv_p(t))
+        { mpz_clear(t); croak("%s: arg1 must fit in UV",SUBNAME); }
+      arg1 = mpz_get_uv(t);
+      mpz_clear(t);
+    }
+    if (items >= 3) {
+      set_integer_string(t, "arg2", SvPV_nolen(ST(2)), IFLAG_NONNEG);
+      if (!mpz_fits_uv_p(t))
+        { mpz_clear(t); croak("%s: arg2 must fit in UV",SUBNAME); }
+      arg2 = mpz_get_uv(t);
+      mpz_clear(t);
+    }
     while (mpz_even_p(n)) {
       XPUSH_UINT(2);
       mpz_divexact_ui(n, n, 2);
@@ -2038,7 +2070,7 @@ factor(IN char* strn)
     int* exponents;
     int nfactors, i, j;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     if (GIMME_V != G_VOID) {
       nfactors = factor(n, &factors, &exponents);
       if (GIMME_V == G_SCALAR) {
@@ -2062,11 +2094,11 @@ void divisors(IN char* strn, IN char* strk = 0)
     mpz_t* divs;
     int ndivisors, i;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     if (strk == 0) {
       mpz_init_set(k, n);
     } else {
-      validate_and_set(k, VSETNEG_ERR);
+      validate_and_set(k, IFLAG_NONNEG);
     }
     if (GIMME_V == G_VOID) {
       /* Nothing */
@@ -2094,7 +2126,7 @@ sigma(IN char* strn, IN UV k = 1)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set(n, VSETNEG_ERR);
+    validate_and_set(n, IFLAG_NONNEG);
     sigma(n, n, k);
     XPUSH_MPZ(n);
     mpz_clear(n);
@@ -2106,8 +2138,8 @@ todigits(IN char* strn, unsigned int base=10, int length=-1)
     uint32_t d, *digits;
   PPCODE:
     if (base < 2 || base > 0xFFFFFFFFU) croak("invalid base: %u\n", base);
+    validate_integer_string("n", strn, IFLAG_ANY);
     if (strn[0] == '-' || strn[0] == '+')  strn++;
-    validate_string_number(cv, "n", strn);
     if (base == 10) {
       uint32_t l = strlen(strn);
       New(0, digits, l, uint32_t);

@@ -118,7 +118,7 @@ plan tests =>   1    # factorial
               + 2    # extra primorial tests
               + 1    # subfactorial
               + 1    # factorial_sum
-              + 7    # multifactorial
+              + 6    # multifactorial
               + 2    # falling_factorial
               + 2    # rising_factorial
               + 2;   # Check rising/falling negative croaks
@@ -169,10 +169,6 @@ is_deeply( [ map { subfactorial($_) } 0..23 ],
 is_deeply( [ map { factorial_sum($_) } 0..22 ],
            [qw/0 1 2 4 10 34 154 874 5914 46234 409114 4037914 43954714 522956314 6749977114 93928268314 1401602636314 22324392524314 378011820620314 6780385526348314 128425485935180314 2561327494111820314 53652269665821260314/],
            "factorial_sum(n) for 0..22" );
-
-is_deeply( [ map { multifactorial($_,0) } 0..22 ],
-           [ map { 1 } 0..22 ],
-           "multifactorial(n,0) for 0..22" );
 
 is_deeply( [ map { multifactorial($_,1) } 0..22 ],
            [ map { factorial($_) } 0..22 ],

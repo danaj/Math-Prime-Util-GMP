@@ -920,11 +920,10 @@ void mpz_rootint(mpz_t r, const mpz_t x, const mpz_t n)
     mpz_set_ui(r,1);
   else if (mpz_fits_ulong_p(n))
     mpz_root(r, x, mpz_get_ui(n));
-  else if (sizeof(size_t) <= sizeof(unsigned long))
-    mpz_set_ui(r,1);
-  else if (sizeof(size_t) != 8 || sizeof(unsigned long) != 4)
-    croak("rootint: root too large");
   else {
+#if SIZE_MAX <= ULONG_MAX
+    mpz_set_ui(r,1);
+#elif SIZE_MAX == 0xFFFFFFFFFFFFFFFFULL && ULONG_MAX == 0xFFFFFFFFUL
     size_t xbits = mpz_sizeinbase(x, 2);
     mpz_t zbits;
     mpz_init_set_ui(zbits, xbits >> 32);
@@ -935,6 +934,9 @@ void mpz_rootint(mpz_t r, const mpz_t x, const mpz_t n)
     else
       croak("rootint: root too large");
     mpz_clear(zbits);
+#else
+    croak("rootint: root too large");
+#endif
   }
 }
 

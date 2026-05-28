@@ -1273,11 +1273,12 @@ and Mathematica's C<Factorial[n]> functions.
 
 =head2 multifactorial
 
-Given two non-negative integer arguments C<n> and C<m>, returns C<n!^(m)>,
-the multifactorial.  C<m=1> is the standard L</factorial> while C<m=2>
-is the double factorial.  While the factorial is the product of all
-integers C<n> and below, the multifactorial skips those without the
-same parity as C<n mod m>.  Hence
+Given non-negative integer argument C<n> and positive integer argument C<m>,
+returns C<n!^(m)>, the multifactorial.
+C<m=1> is the standard L</factorial> while C<m=2> is the double factorial.
+While the factorial is the product of all integers C<n> and below,
+the multifactorial skips those without the same parity as C<n mod m>.
+Hence
 
   multifactorial(n,2) = n * (n-2) * (n-4) * ...
 
