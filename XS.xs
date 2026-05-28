@@ -1211,9 +1211,18 @@ void addint(IN char* stra, IN char* strb)
       case 0: mpz_add(a, a, b); break;
       case 1: mpz_sub(a, a, b); break;
       case 2: mpz_mul(a, a, b); break;
-      case 3: if (mpz_sgn(b) < 0 || !mpz_fits_ulong_p(b))
-                croak("powint: exponent must be >= 0 and <= ULONG_MAX");
-              mpz_pow_ui(a, a, mpz_get_ui(b));
+      case 3: if (mpz_sgn(b) < 0)
+                croak("powint: exponent must be non-negative");
+              else if (mpz_sgn(a) == 0)
+                mpz_set_si(a, mpz_sgn(b) == 0);
+              else if (mpz_cmp_si(a,1) == 0)
+                mpz_set_si(a, 1);
+              else if (mpz_cmp_si(a,-1) == 0)
+                mpz_set_si(a, mpz_odd_p(b) ? -1 : 1);
+              else if (!mpz_fits_ulong_p(b))
+                croak("powint: exponent must be <= ULONG_MAX");
+              else
+                mpz_pow_ui(a, a, mpz_get_ui(b));
               break;
       case 4: mpz_fdiv_q(a, a, b); break;
       case 5: mpz_fdiv_r(a, a, b); break;

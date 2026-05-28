@@ -13,6 +13,15 @@ my @powints = (
  [5, 6, 15625],
  [2, 16, 65536],
 );
+my $powint_huge_even = "18446744073709551616";
+my $powint_huge_odd  = "18446744073709551617";
+my @powint_bad = (
+  [ 0, -1, qr/exponent must be non-negative/ ],
+  [ 1, -1, qr/exponent must be non-negative/ ],
+  [-1, -1, qr/exponent must be non-negative/ ],
+  [ 2, -1, qr/exponent must be non-negative/ ],
+  [ 2, $powint_huge_even, qr/ULONG_MAX/ ],
+);
 my @mulints = (
   ["13282407956253574712","14991082624209354397","199117675120653046511338473800925208664"],
 );
@@ -71,7 +80,7 @@ my @negshifts = (
 );
 
 plan tests => 0
-            + 7*4 + scalar(@powints) + 2     # powint
+            + 7*4 + scalar(@powints) + 2 + 4 + scalar(@powint_bad)  # powint
             + 1 + scalar(@mulints)           # mulint
             + 1 + scalar(@addints)           # addint
             + 1 + scalar(@subints)           # subint
@@ -108,6 +117,16 @@ foreach my $r (@powints) {
 }
 is(powint(powint(2,32),3),"79228162514264337593543950336","(2^32)^3");
 is(powint(3,powint(2,7)),"11790184577738583171520872861412518665678211592275841109096961","3^(2^7)");
+is(powint( 0, $powint_huge_even),  0, "powint(0,HUGE) = 0");
+is(powint( 1, $powint_huge_even),  1, "powint(1,HUGE) = 1");
+is(powint(-1, $powint_huge_even),  1, "powint(-1,HUGE even) = 1");
+is(powint(-1, $powint_huge_odd ), -1, "powint(-1,HUGE odd) = -1");
+foreach my $r (@powint_bad) {
+  my($a, $b, $err) = @$r;
+  my $ok = eval { powint($a, $b); 1 };
+  like($@, $err, "powint($a,$b) croaks") if !$ok;
+  fail("powint($a,$b) croaks") if $ok;
+}
 
 ###### mulint
 { my(@got,@exp);
