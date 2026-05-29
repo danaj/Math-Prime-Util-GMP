@@ -1698,7 +1698,7 @@ void Pi(IN UV n)
       Safefree(cstr);
     }
 
-void random_nbit_prime(IN UV n)
+void random_nbit_prime(IN char* strN)
   ALIAS:
     random_safe_prime = 1
     random_strong_prime = 2
@@ -1716,9 +1716,15 @@ void random_nbit_prime(IN UV n)
     pn_primorial = 14
     consecutive_integer_lcm = 15
   PREINIT:
-    mpz_t p;
+    mpz_t p, N;
+    UV n;
     char* proof;
   PPCODE:
+    validate_and_set(N, IFLAG_NONNEG);
+    if (!mpz_fits_uv_p(N))
+      { mpz_clear(N); croak("%s: argument too large",SUBNAME); }
+    n = mpz_get_uv(N);
+    mpz_clear(N);
     if (ix == 8 && n <= BITS_PER_WORD) {
       UV v = irand64(n);
       ST(0) = sv_2mortal(newSVuv(v));

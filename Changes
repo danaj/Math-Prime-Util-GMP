@@ -48,6 +48,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and
       is_primitive_root consistently use |n| for the modulus.
 
+    - random_nbit_prime and related native-count functions croak on oversized
+      inputs instead of silently truncating them.
+
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)
