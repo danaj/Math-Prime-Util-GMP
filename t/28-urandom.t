@@ -25,7 +25,7 @@ plan tests => 0
             + scalar(keys %nbit_range)
             + 7
             + 4
-            + 4
+            + 6
             + 3;
 
 ########
@@ -62,6 +62,13 @@ ok(!eval { urandomm(-1); }, "urandomm(-1) errors");
 ok(!eval { urandomm(0); }, "urandomm(0) errors");
 is(urandomm(1), 0, "urandomm(1)=0");
 check_range_m(1234567);
+{
+  my $hi = Math::BigInt->new(10)**30;
+  my @s = map { urandomm($hi) } 1 .. 20;
+  @s = map { ref($hi)->new("$_") } @s;
+  is( scalar(grep { $_ < 0 || $_ >= $hi } @s), 0, "urandomm($hi) values are in range" );
+  ok( scalar(grep { $_ != 0 } @s) > 0, "urandomm($hi) is not stuck at zero" );
+}
 
 ########
 

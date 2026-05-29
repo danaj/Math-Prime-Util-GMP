@@ -170,6 +170,15 @@ void mpz_isaac_urandomm(mpz_t rop, const mpz_t n)
   int count = 80;
   unsigned long nbits = mpz_sizeinbase(n,2);
 
+  if (rop == n) {
+    mpz_t t;
+    mpz_init(t);
+    mpz_isaac_urandomm(t, n);
+    mpz_set(rop, t);
+    mpz_clear(t);
+    return;
+  }
+
   if (mpz_sgn(n) <= 0) {
     mpz_set_ui(rop,0);
     return;
