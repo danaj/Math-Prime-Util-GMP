@@ -1757,14 +1757,22 @@ void random_nbit_prime(IN UV n)
     }
 
 void
-stirling(IN UV n, IN UV m, IN UV type = 1)
+stirling(IN char* strn, IN char* strm, IN char* strtype = 0)
   PREINIT:
-    mpz_t r;
+    mpz_t n, m, type;
+    int stype = 1;
   PPCODE:
-    mpz_init(r);
-    stirling(r, n, m, type);
-    XPUSH_MPZ( r );
-    mpz_clear(r);
+    validate_and_set(n, IFLAG_NONNEG);
+    validate_and_set(m, IFLAG_NONNEG);
+    if (items > 2) {
+      validate_and_set(type, IFLAG_ANY);
+      stype = mpz_fits_sint_p(type) ? (int)mpz_get_si(type) : 0;
+      mpz_clear(type);
+    }
+    mpz_stirling(n, n, m, stype);
+    XPUSH_MPZ(n);
+    mpz_clear(m);
+    mpz_clear(n);
 
 void chinese(...)
   ALIAS:

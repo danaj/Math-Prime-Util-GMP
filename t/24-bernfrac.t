@@ -83,7 +83,7 @@ my @stirling1 = (
 plan tests => 2      # bernfrac
             + 1      # bernvec
             + scalar(@stirling3) + scalar(@stirling2) + scalar(@stirling1)
-            + 3      # large stirling
+            + 17     # large stirling / input validation
             + 5      # harmfrac
             + 6      # harmreal
             + 4      # bernreal
@@ -132,6 +132,30 @@ plan tests => 2      # bernfrac
 is( stirling(246,61,3), '16781089031289908648739894658187968503831038435579384473036844176021715959960063309748494851984040210112281911986359570651366793437675293554444919512994972542928372289858529733210971633662476717598808875335617639975100691881555975405754262383248739607900482185116908949278639778972088005321758840374848760552543345287066862821699035121991640194236911712299712310508321119592475284255246533432645238910745625755648000000000000000000000000000000000000000000000', "L(246,61)" );
 is( stirling(137,14,2), '119921091552849030298712472784655311636455680166733181212686613915193327160253320582242126677455942135033082921631146726468348015037515052954267400', "S(137,14)" );
 is( stirling(99,14,1), '-76185801962487294910690331431878395972434237854033124053130281967496159110075633618163409236750708320666097319441407130017141175404355750702612480000000', "s(99,14)" );
+
+ok(!eval { stirling(-1,1,1); 1 }, "stirling negative n croaks");
+ok(!eval { stirling(1,-1,1); 1 }, "stirling negative k croaks");
+ok(!eval { stirling(1,1,0); 1 }, "stirling type 0 croaks");
+ok(!eval { stirling(1,1,4); 1 }, "stirling type 4 croaks");
+ok(!eval { stirling(1,1,-1); 1 }, "stirling negative type croaks");
+ok(!eval { stirling(1,1,"18446744073709551616"); 1 }, "stirling huge type croaks");
+
+{
+  my $N = "18446744073709551616";
+  my $Nm1 = "18446744073709551615";
+  is_deeply([map { stirling($N, $N, $_) } 1..3], [qw/1 1 1/], "stirling(N,N) with bigint N");
+  is_deeply([map { stirling($N, 0, $_) } 1..3], [qw/0 0 0/], "stirling(N,0) with bigint N");
+  is_deeply([map { stirling(0, $N, $_) } 1..3], [qw/0 0 0/], "stirling(0,N) with bigint N");
+  is(stirling($N, 1, 2), 1, "stirling2(N,1) with bigint N");
+  is_deeply([map { stirling($N, $Nm1, $_) } 1..3],
+            [qw/-170141183460469231722463931679029329920
+                170141183460469231722463931679029329920
+                340282366920938463444927863358058659840/],
+            "stirling(N,N-1) with bigint N");
+  ok(!eval { stirling($N, 1, 1); 1 }, "oversized nontrivial stirling1 croaks");
+  ok(!eval { stirling($N, 1, 3); 1 }, "oversized nontrivial stirling3 croaks");
+  ok(!eval { stirling($N, 2, 2); 1 }, "oversized nontrivial stirling2 croaks");
+}
 
 ###########
 is_deeply( [harmfrac(0)], [qw/0 1/], "harmfrac(0) = 0/1");

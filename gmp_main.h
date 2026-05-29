@@ -18,7 +18,7 @@ extern void surround_primes(const mpz_t n, UV* prev, UV* next, UV skip_width);
 extern void _GMP_pn_primorial(mpz_t prim, UV n);
 extern void _GMP_primorial(mpz_t prim, UV n);
 extern void consecutive_integer_lcm(mpz_t m, unsigned long B);
-extern void stirling(mpz_t r, unsigned long n, unsigned long m, UV type);
+extern void mpz_stirling(mpz_t r, const mpz_t n, const mpz_t m, int type);
 extern void bell_number(mpz_t r, unsigned long n);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);

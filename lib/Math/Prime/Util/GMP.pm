@@ -1570,6 +1570,9 @@ arguments C<n> and C<k> plus the optional C<type>.  This corresponds to Pari's
 C<stirling(n,k,{type})> function and Mathematica's
 C<StirlingS1> / C<StirlingS2> functions.
 
+Non-trivial values require C<n> and C<k> to fit in an unsigned long, though
+some zero, one, and near-diagonal cases are handled for larger inputs.
+
 Stirling numbers of the first kind are C<-1^(n-k)> times the number of
 permutations of C<n> symbols with exactly C<k> cycles.  Stirling numbers
 of the second kind are the number of ways to partition a set of C<n>

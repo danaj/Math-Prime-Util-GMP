@@ -574,72 +574,145 @@ void _GMP_primorial(mpz_t prim, UV n)
 
 /*****************************************************************************/
 
-void stirling(mpz_t r, unsigned long n, unsigned long m, UV type)
+static void _stirling2_ui(mpz_t r, unsigned long n, unsigned long m);
+
+static void _stirling1_ui(mpz_t r, unsigned long n, unsigned long m)
 {
   mpz_t t, t2;
   unsigned long j;
-  if (type < 1 || type > 3) croak("stirling type must be 1, 2, or 3");
   if (n == m) {
     mpz_set_ui(r, 1);
   } else if (n == 0 || m == 0 || m > n) {
     mpz_set_ui(r,0);
   } else if (m == 1) {
-    switch (type) {
-      case 1:  mpz_fac_ui(r, n-1);  if (!(n&1)) mpz_neg(r, r); break;
-      case 2:  mpz_set_ui(r, 1); break;
-      case 3:
-      default: mpz_fac_ui(r, n); break;
-    }
+    mpz_fac_ui(r, n-1);
+    if (!(n&1)) mpz_neg(r, r);
   } else {
     mpz_init(t);  mpz_init(t2);
     mpz_set_ui(r,0);
-    if (type == 3) { /* Lah: binomial(n k) * binomial(n-1 k-1) * (n-k)!*/
-      mpz_bin_uiui(t, n, m);
-      mpz_bin_uiui(t2, n-1, m-1);
-      mpz_mul(r, t, t2);
-      mpz_fac_ui(t2, n-m);
-      mpz_mul(r, r, t2);
-    } else if (type == 2) {
-      mpz_t binom;
-      mpz_init_set_ui(binom, m);
-      mpz_ui_pow_ui(r, m, n);
-      /* Use symmetry to halve the number of loops */
-      for (j = 1; j <= ((m-1)>>1); j++) {
-        mpz_ui_pow_ui(t, j, n);
-        mpz_ui_pow_ui(t2, m-j, n);
-        if (m&1) mpz_sub(t, t2, t);
-        else     mpz_add(t, t2, t);
-        mpz_mul(t, t, binom);
-        if (j&1) mpz_sub(r, r, t);
-        else     mpz_add(r, r, t);
-        mpz_mul_ui(binom, binom, m-j);
-        mpz_divexact_ui(binom, binom, j+1);
-      }
-      if (!(m&1)) {
-        mpz_ui_pow_ui(t, j, n);
-        mpz_mul(t, t, binom);
-        if (j&1) mpz_sub(r, r, t);
-        else     mpz_add(r, r, t);
-      }
-      mpz_clear(binom);
-      mpz_fac_ui(t, m);
-      mpz_divexact(r, r, t);
-    } else {
-      mpz_bin_uiui(t,  n-1+1, n-m+1);
-      mpz_bin_uiui(t2, n-m+n, n-m-1);
-      mpz_mul(t2, t2, t);
-      for (j = 1; j <= n-m; j++) {
-        stirling(t, n-m+j, j, 2);
-        mpz_mul(t, t, t2);
-        if (j & 1)      mpz_sub(r, r, t);
-        else            mpz_add(r, r, t);
-        mpz_mul_ui(t2, t2, n+j);
-        mpz_divexact_ui(t2, t2, n-m+j+1);
-        mpz_mul_ui(t2, t2, n-m-j);
-        mpz_divexact_ui(t2, t2, n+j+1);
-      }
+    mpz_bin_uiui(t,  n-1+1, n-m+1);
+    mpz_bin_uiui(t2, n-m+n, n-m-1);
+    mpz_mul(t2, t2, t);
+    for (j = 1; j <= n-m; j++) {
+      _stirling2_ui(t, n-m+j, j);
+      mpz_mul(t, t, t2);
+      if (j & 1)      mpz_sub(r, r, t);
+      else            mpz_add(r, r, t);
+      mpz_mul_ui(t2, t2, n+j);
+      mpz_divexact_ui(t2, t2, n-m+j+1);
+      mpz_mul_ui(t2, t2, n-m-j);
+      mpz_divexact_ui(t2, t2, n+j+1);
     }
     mpz_clear(t2);  mpz_clear(t);
+  }
+}
+
+static void _stirling2_ui(mpz_t r, unsigned long n, unsigned long m)
+{
+  mpz_t t, t2;
+  unsigned long j;
+  if (n == m) {
+    mpz_set_ui(r, 1);
+  } else if (n == 0 || m == 0 || m > n) {
+    mpz_set_ui(r,0);
+  } else if (m == 1) {
+    mpz_set_ui(r, 1);
+  } else {
+    mpz_t binom;
+    mpz_init(t);  mpz_init(t2);
+    mpz_init_set_ui(binom, m);
+    mpz_ui_pow_ui(r, m, n);
+    /* Use symmetry to halve the number of loops */
+    for (j = 1; j <= ((m-1)>>1); j++) {
+      mpz_ui_pow_ui(t, j, n);
+      mpz_ui_pow_ui(t2, m-j, n);
+      if (m&1) mpz_sub(t, t2, t);
+      else     mpz_add(t, t2, t);
+      mpz_mul(t, t, binom);
+      if (j&1) mpz_sub(r, r, t);
+      else     mpz_add(r, r, t);
+      mpz_mul_ui(binom, binom, m-j);
+      mpz_divexact_ui(binom, binom, j+1);
+    }
+    if (!(m&1)) {
+      mpz_ui_pow_ui(t, j, n);
+      mpz_mul(t, t, binom);
+      if (j&1) mpz_sub(r, r, t);
+      else     mpz_add(r, r, t);
+    }
+    mpz_clear(binom);
+    mpz_fac_ui(t, m);
+    mpz_divexact(r, r, t);
+    mpz_clear(t2);  mpz_clear(t);
+  }
+}
+
+static void _stirling3_ui(mpz_t r, unsigned long n, unsigned long m)
+{
+  mpz_t t, t2;
+  if (n == m) {
+    mpz_set_ui(r, 1);
+  } else if (n == 0 || m == 0 || m > n) {
+    mpz_set_ui(r,0);
+  } else if (m == 1) {
+    mpz_fac_ui(r, n);
+  } else {
+    mpz_init(t);  mpz_init(t2);
+    /* Lah: binomial(n k) * binomial(n-1 k-1) * (n-k)! */
+    mpz_bin_uiui(t, n, m);
+    mpz_bin_uiui(t2, n-1, m-1);
+    mpz_mul(r, t, t2);
+    mpz_fac_ui(t2, n-m);
+    mpz_mul(r, r, t2);
+    mpz_clear(t2);  mpz_clear(t);
+  }
+}
+
+static int _stirling_special(mpz_t r, const mpz_t n, const mpz_t m, int type)
+{
+  if (mpz_sgn(n) < 0 || mpz_sgn(m) < 0)
+    croak("stirling: arguments must be non-negative");
+
+  if (mpz_cmp(n, m) == 0) {
+    mpz_set_ui(r, 1);
+  } else if (mpz_sgn(n) == 0 || mpz_sgn(m) == 0 || mpz_cmp(m, n) > 0) {
+    mpz_set_ui(r, 0);
+  } else if (type == 2 && mpz_cmp_ui(m, 1) == 0) {
+    mpz_set_ui(r, 1);
+  } else {
+    mpz_t nm1, t;
+    int is_adjacent;
+    mpz_init(nm1);
+    mpz_sub_ui(nm1, n, 1);
+    is_adjacent = (mpz_cmp(m, nm1) == 0);
+    mpz_clear(nm1);
+    if (!is_adjacent)
+      return 0;
+    mpz_init(t);
+    mpz_sub_ui(t, n, 1);
+    mpz_mul(r, n, t);
+    mpz_clear(t);
+    if (type != 3) mpz_tdiv_q_2exp(r, r, 1);
+    if (type == 1) mpz_neg(r, r);
+  }
+  return 1;
+}
+
+void mpz_stirling(mpz_t r, const mpz_t n, const mpz_t m, int type)
+{
+  if (type < 1 || type > 3)
+    croak("stirling: type must be 1, 2, or 3");
+
+  if (_stirling_special(r, n, m, type))
+    return;
+
+  if (!mpz_fits_ulong_p(n) || !mpz_fits_ulong_p(m))
+      croak("stirling: arguments too large");
+
+  switch (type) {
+    case 1: _stirling1_ui(r, mpz_get_ui(n), mpz_get_ui(m)); break;
+    case 2: _stirling2_ui(r, mpz_get_ui(n), mpz_get_ui(m)); break;
+    case 3: _stirling3_ui(r, mpz_get_ui(n), mpz_get_ui(m)); break;
   }
 }
 
