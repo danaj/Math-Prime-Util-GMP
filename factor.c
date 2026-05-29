@@ -588,10 +588,11 @@ void totient(mpz_t tot, const mpz_t n_input)
   int* exponents;
   int i, j, nfactors;
 
-  if (mpz_cmp_ui(n_input, 1) <= 0) {
-    mpz_set(tot, n_input);
-    return;
-  }
+  if (mpz_sgn(n_input) <= 0)
+    { mpz_set_ui(tot, 0); return; }
+  if (mpz_cmp_ui(n_input, 1) == 0)
+    { mpz_set_ui(tot, 1); return; }
+
   mpz_init_set(n, n_input);
   mpz_set_ui(tot, 1);
   /* Fast reduction of multiples of 2 */
@@ -889,6 +890,7 @@ static int _znprimroot_prime(mpz_t root, const mpz_t p,
   return found;
 }
 
+/* root is set to -1 if no root.  n should be positive. */
 void znprimroot(mpz_t root, const mpz_t n)
 {
   mpz_t pk, p;
@@ -897,11 +899,11 @@ void znprimroot(mpz_t root, const mpz_t n)
 
   if (mpz_cmp_ui(n, 4) <= 0) {
     if (mpz_sgn(n) > 0) mpz_sub_ui(root, n, 1);
-    else                mpz_set_ui(root, 0);
+    else                mpz_set_si(root, -1);
     return;
   }
   if (mpz_divisible_ui_p(n, 4)) {
-    mpz_set_ui(root, 0);
+    mpz_set_si(root, -1);
     return;
   }
 
@@ -914,13 +916,13 @@ void znprimroot(mpz_t root, const mpz_t n)
 
   k = prime_power(p, pk);
   mpz_clear(pk);
-  if (k == 0) { mpz_set_ui(root,0);  mpz_clear(p);  return; }
+  if (k == 0) { mpz_set_si(root,-1);  mpz_clear(p);  return; }
 
   /* n is either p^k or 2p^k for p an odd prime.  A root exists. */
   kr = _znprimroot_prime(root, p, is_neven, k>1);
   if (kr == 0) {
-    mpz_set_ui(root, 0);
-    gmp_printf("  Failed to find primitive root for n %Zd\n",n);
+    gmp_printf("  Failed to find primitive root for n %Zd\n", n);
+    mpz_set_si(root, -1);
   }
   mpz_clear(p);
 }

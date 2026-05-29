@@ -1370,7 +1370,7 @@ void consecutive_integer_lcm(mpz_t m, unsigned long B)
 
 void exp_mangoldt(mpz_t res, const mpz_t n)
 {
-  if (prime_power(res, n) < 1)
+  if (mpz_sgn(n) <= 0 || prime_power(res, n) < 1)
     mpz_set_ui(res, 1);
 }
 

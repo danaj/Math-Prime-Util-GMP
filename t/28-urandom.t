@@ -58,8 +58,8 @@ is(urandomr(100,-10), undef, "urandomr(pos,neg)=undef if lo > hi");
 
 ########
 
-ok(!eval { urandomm(-1); }, "urandomm(-1)");
-is(urandomm(0), 0, "urandomm(0)=0");
+ok(!eval { urandomm(-1); }, "urandomm(-1) errors");
+ok(!eval { urandomm(0); }, "urandomm(0) errors");
 is(urandomm(1), 0, "urandomm(1)=0");
 check_range_m(1234567);
 

@@ -88,6 +88,7 @@ our @EXPORT_OK = qw(
                      exp_mangoldt
                      liouville
                      totient
+                     euler_phi
                      jordan_totient
                      carmichael_lambda
                      prime_omega prime_bigomega
@@ -2144,17 +2145,32 @@ return C<totient(-n)> for C<n E<lt> 0>.  Mathematica returns 0 for C<n = 0>,
 Pari pre-2.6.2 raises and exception, and Pari 2.6.2 and newer returns 2.
 
 
+=head2 euler_phi
+
+Takes either a single integer C<n> and returns C<totient(n)>, or takes two
+integers C<lo> and C<hi>, and returns a list with C<totient(n)> for each
+integer C<n> in C<< lo <= n <= hi >>.
+
+This matches L<Math::Prime::Util/euler_phi>.
+
+
 =head2 jordan_totient
 
   say "Jordan's totient J_$k($n) is ", jordan_totient($k, $n);
 
-Returns Jordan's totient function for a given integer value.  Jordan's totient
-is a generalization of Euler's totient, where
-  C<jordan_totient(1,$n) == euler_totient($n)>
-This counts the number of k-tuples less than or equal to n that form a coprime
-tuple with n.  As with C<totient>, 0 is returned for all C<n E<lt> 1>.
-This function can be used to generate some other useful functions, such as
-the Dedekind psi function, where C<psi(n) = J(2,n) / J(1,n)>.
+Given non-negative integers C<k> and C<n>, returns Jordan's totient function
+C<J_k(n)>.
+
+For C<k = 1>, this is Euler's totient function:
+
+  jordan_totient(1, $n) == totient($n)
+
+For C<<k > 0>>, C<J_k(n)> counts the number of C<k>-tuples of positive integers
+less than or equal to C<n> whose entries, together with C<n>, have greatest
+common divisor 1.
+
+For C<n = 0>, the return value is C<0>.  For C<k = 0>, the return value is
+C<1> if C<n = 1>, and C<0> otherwise.
 
 
 =head2 carmichael_lambda

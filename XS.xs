@@ -628,73 +628,55 @@ void next_perfect_power(IN char* strn)
     mpz_clear(n);
     mpz_clear(res);
 
-void
-totient(IN char* strn)
+void totient(IN char* strn)
   ALIAS:
     carmichael_lambda = 1
-    exp_mangoldt = 2
-    bernfrac = 3
-    harmfrac = 4
-    znprimroot = 5
-    ramanujan_tau = 6
-    sqrtint = 7
-    is_prime_power = 8
-    prime_count_lower = 9
-    prime_count_upper = 10
-    urandomm = 13
-    add1int = 14
-    sub1int = 15
-  PREINIT:
-    mpz_t res, n;
-  PPCODE:
-    if (strn != 0 && strn[0] == '-') { /* If input is negative... */
-      if (ix == 2)  XSRETURN_IV(1);    /* exp_mangoldt return 1 */
-      if (ix == 5)  strn++;            /* znprimroot flip sign */
-      if (ix == 8)  XSRETURN_IV(0);    /* is_prime_power return 0 */
-    }
-    validate_and_set(n, ix==14 || ix==15 ? IFLAG_ANY : IFLAG_NONNEG);
-    mpz_init(res);
-    switch (ix) {
-      case 0:  totient(res, n);  break;
-      case 1:  carmichael_lambda(res, n);  break;
-      case 2:  exp_mangoldt(res, n);  break;
-      case 3:  bernfrac(n, res, n);
-               XPUSH_MPZ(n);
-               break;
-      case 4:  harmfrac(n, res, n);
-               XPUSH_MPZ(n);
-               break;
-      case 5:  znprimroot(res, n);
-               if (!mpz_sgn(res) && mpz_cmp_ui(n,1) != 0) {
-                 mpz_clear(n);  mpz_clear(res);
-                 XSRETURN_UNDEF;
-               }
-               break;
-      case 6:  rtau(res, n);  break;
-      case 7:  mpz_sqrt(res, n);  break;
-      case 8:  mpz_set_uv(res, prime_power(res, n)); break;
-      case 9:  prime_count_lower(res, n); break;
-      case 10: prime_count_upper(res, n); break;
-      case 13: mpz_isaac_urandomm(res, n); break;
-      case 14: mpz_add_ui(res, n, 1); break;
-      case 15: mpz_sub_ui(res, n, 1); break;
-      default: break;
-    }
-    XPUSH_MPZ(res);
-    mpz_clear(n);
-    mpz_clear(res);
-
-void absint(IN char* strn)
-  ALIAS:
-    negint = 1
+    ramanujan_tau = 2
+    sqrtint = 3
+    prime_count_lower = 4
+    prime_count_upper = 5
   PREINIT:
     mpz_t n;
-    int isneg;
   PPCODE:
-    isneg = validate_and_set(n, IFLAG_ABS);
-    if (ix == 1 && !isneg)  mpz_neg(n, n);
+    validate_and_set(n, IFLAG_NONNEG);
+    switch (ix) {
+      case 0:  totient(n, n);            break;
+      case 1:  carmichael_lambda(n, n);  break;
+      case 2:  rtau(n, n);               break;
+      case 3:  mpz_sqrt(n, n);           break;
+      case 4:  prime_count_lower(n, n);  break;
+      case 5:  prime_count_upper(n, n);  break;
+      default: break;
+    }
     XPUSH_MPZ(n);
     mpz_clear(n);
+
+void absint(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set(n, IFLAG_ABS);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void urandomm(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set(n, IFLAG_POS);
+    mpz_isaac_urandomm(n, n);
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void is_prime_power(IN char* strn)
+  PREINIT:
+    mpz_t n;
+    UV    R;
+  PPCODE:
+    validate_and_set(n, IFLAG_ANY);
+    R = (mpz_sgn(n) <= 0) ? 0 : prime_power(n, n);
+    mpz_clear(n);
+    XSRETURN_UV(R);
 
 void signint(IN char* strn)
   PREINIT:
@@ -765,12 +747,39 @@ void bitand(IN char* stra, IN char* strb)
     mpz_clear(b);
 
 void bitnot(IN char* strn)
+  ALIAS:
+    negint = 1
+    add1int = 2
+    sub1int = 3
+    exp_mangoldt = 4
   PREINIT:
     mpz_t n;
   PPCODE:
     validate_and_set(n, IFLAG_ANY);
-    mpz_com(n, n);
+    switch (ix) {
+      case 0:  mpz_com(n, n);       break;
+      case 1:  mpz_neg(n, n);       break;
+      case 2:  mpz_add_ui(n, n, 1); break;
+      case 3:  mpz_sub_ui(n, n, 1); break;
+      case 4:  exp_mangoldt(n, n);  break;
+      default: break;
+    }
     XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void bernfrac(IN char* strn)
+  ALIAS:
+    harmfrac = 1
+  PREINIT:
+    mpz_t n, d;
+  PPCODE:
+    validate_and_set(n, IFLAG_NONNEG);
+    mpz_init(d);
+    if (ix == 0) bernfrac(n,d,n);
+    else         harmfrac(n,d,n);
+    XPUSH_MPZ(n);
+    XPUSH_MPZ(d);
+    mpz_clear(d);
     mpz_clear(n);
 
 void harmreal(IN char* strn, IN UV prec = 40)
@@ -986,26 +995,43 @@ kronecker(IN char* stra, IN char* strb)
   OUTPUT:
     RETVAL
 
-void
-moebius(IN char* strn, IN char* strnhi = 0)
+void moebius(IN char* strn, IN char* strnhi = 0)
   PREINIT:
-    mpz_t n;
+    mpz_t n, nhi;
   PPCODE:
     validate_and_set(n, IFLAG_ANY);
-    if (strnhi == 0) {
-      int result = moebius(n);
-      mpz_clear(n);
-      XSRETURN_IV(result);
-    } else {   /* Ranged result */
-      mpz_t nhi;
+    if (items == 1) {
+      XPUSH_INT(moebius(n));
+    } else {
       validate_and_set(nhi, IFLAG_ANY);
       while (mpz_cmp(n, nhi) <= 0) {
-        XPUSH_INT( moebius(n) );
+        XPUSH_INT(moebius(n));
         mpz_add_ui(n, n, 1);
       }
-      mpz_clear(n);
       mpz_clear(nhi);
     }
+    mpz_clear(n);
+
+void euler_phi(IN char* strn, IN char* strnhi = 0)
+  PREINIT:
+    mpz_t n, nhi, r;
+  PPCODE:
+    validate_and_set(n, IFLAG_ANY);
+    if (items == 1) {
+      totient(n, n);
+      XPUSH_MPZ(n);
+    } else {
+      validate_and_set(nhi, IFLAG_ANY);
+      mpz_init(r);
+      while (mpz_cmp(n, nhi) <= 0) {
+        totient(r, n);
+        XPUSH_MPZ(r);
+        mpz_add_ui(n, n, 1);
+      }
+      mpz_clear(r);
+      mpz_clear(nhi);
+    }
+    mpz_clear(n);
 
 void lucasu(IN char* strp, IN char* strq, IN char* strk)
   ALIAS:
@@ -1328,6 +1354,17 @@ void invmod(IN char* stra, IN char* strn)
     }
     XPUSH_MPZ(a);
     mpz_clear(n); mpz_clear(a);
+
+void znprimroot(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set(n, IFLAG_ABS);
+    znprimroot(n, n);
+    if (mpz_sgn(n) < 0)
+      { mpz_clear(n);  XSRETURN_UNDEF; }
+    XPUSH_MPZ(n);
+    mpz_clear(n);
 
 void multifactorial(IN char* strn, IN char* strm)
   PREINIT:

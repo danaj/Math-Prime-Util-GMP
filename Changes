@@ -19,6 +19,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - lucas_number(k)          the k-th Lucas number
     - catalan_number(n)        the n-th Catalan number
     - bell_number(n)           the n-th Bell number
+    - euler_phi(n[,nhi])       totient or ranged totient
 
     [FIXES]
 

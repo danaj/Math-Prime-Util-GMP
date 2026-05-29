@@ -82,6 +82,7 @@ my @functions = qw(
                      exp_mangoldt
                      liouville
                      totient
+                     euler_phi
                      jordan_totient
                      carmichael_lambda
                      prime_omega prime_bigomega

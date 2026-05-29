@@ -4,7 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/moebius liouville totient jordan_totient
-                              exp_mangoldt carmichael_lambda
+                              exp_mangoldt carmichael_lambda euler_phi
                               znorder znprimroot is_primitive_root
                               powint mulint
                               chinese chinese2 ramanujan_tau/;
@@ -210,19 +210,19 @@ my @crts = (
 );
 
 
-plan tests => 1
-            + 2 # moeb_vals
+plan tests => 3     # moebius
             + 1 + scalar(keys %totients)
             + scalar(keys %jordan_totients)
             + 1 # Small Carmichael Lambda
             + scalar(@liouville_pos) + scalar(@liouville_neg)
             + scalar(keys %mangoldt)
-            + scalar(@mult_orders) + 4
-            + scalar(keys %primroots) + 1
-            + 4 # is_primitive_root
+            + scalar(@mult_orders) + 4     # znorder
+            + scalar(keys %primroots) + 1  # znprimroot
+            + 4     # is_primitive_root
+            + 10    # misc specific values for coverage
             + scalar(keys %rtau)
             + 3     # chinese, chinese2
-            + 10;
+            + 15;   # euler_phi
 
 
 ###### moebius
@@ -231,7 +231,6 @@ ok(!eval { moebius(0); }, "moebius(0)");
   my @moebius = map { moebius($_) } (1 .. scalar @moeb_vals);
   is_deeply( \@moebius, \@moeb_vals, "moebius 1 .. " . scalar @moeb_vals );
 }
-
 is_deeply( [moebius("1000000000000","1000000000010")], [0,-1,-1,-1,0,-1,1,1,0,-1,0], "moebius(10^12,10^12+10)" );
 
 ###### totient
@@ -278,11 +277,13 @@ is(znorder("1000000007","25852016738884976640000"), "1931334451200", "znorder(10
 is(znorder("44800","10301051460877537453973547267843"), "3433683820292512484657849089281", "znorder(44800,3^65) = 3433683820292512484657849089281");
 is(znorder("1000000007","295232799039604140847618609643520000000"), "24533977990733129318400000", "znorder(10^9+7,34!) = 24533977990733129318400000");
 is(znorder("1000000007","10301051460877537453973547267843"), "2289122546861674989771899392854", "znorder(10^9+7,3^65) = 2289122546861674989771899392854");
+
 ###### znprimroot
 while (my($n, $root) = each (%primroots)) {
   is( znprimroot($n), $root, "znprimroot($n) == " . ((defined $root) ? $root : "<undef>") );
 }
 is( znprimroot("-100000898"), 31, "znprimroot(\"-100000898\") == 31" );
+
 ###### is_primitive_root
 is( is_primitive_root(1,0), undef, "is_primitive_root(1,0) returns undef" );
 ok(!is_primitive_root(3,"1000000000000000000000000000057"), "3 is not a primitive root mod 10^30+57");
@@ -324,3 +325,36 @@ is_deeply(
   my $exp = "136087033612415680135652384720211725322439455926600161642975712081793643488493755937124527801573888040172128823894114154111447649674574363111575626347716066313619599607917617189192959594301781868283458102";
   is( $crt, $exp, "chinese with 128 arguments" );
 }
+
+###### euler_phi
+is(euler_phi(-123456), 0, "euler_phi(-n) = 0");
+is(euler_phi(123456), 41088, "euler_phi(123456) = 41088");
+is(euler_phi(123457), 123456, "euler_phi(123457) = 123456");
+is(euler_phi(123456789), 82260072, "euler_phi(123456789) = 82260072");
+
+is_deeply([euler_phi(0,0)], [0],     "euler_phi(0,0)");
+is_deeply([euler_phi(1,0)], [],      "euler_phi with end < start");
+is_deeply([euler_phi(0,1)], [0,1],   "euler_phi 0-1");
+is_deeply([euler_phi(1,2)], [1,1],   "euler_phi 1-2");
+is_deeply([euler_phi(1,3)], [1,1,2], "euler_phi 1-3");
+is_deeply([euler_phi(2,3)], [1,2],   "euler_phi 2-3");
+is_deeply([euler_phi(10,20)], [4,10,4,12,6,8,8,16,6,18,8], "euler_phi 10-20");
+is_deeply( [euler_phi(1513,1537)],
+  [qw/1408 756 800 756 1440 440 1260 576 936 760 1522 504 1200 648
+      1016 760 1380 384 1530 764 864 696 1224 512 1456/],
+  "euler_phi(1513,1537)" );
+# negative euler_phi returns zero
+is_deeply( [euler_phi(-5,5)], [0,0,0,0,0,0,1,1,2,2,4], "euler_phi -5 to 5" );
+
+is_deeply([[euler_phi(4294967293,4294967295)],
+           [euler_phi(4294967293,4294967296)],
+           [euler_phi(4294967295,4294967297)],
+           [euler_phi(4294967296,4294967298)]],
+          [[4294493280,2147483646,2147483648],[4294493280,2147483646,2147483648,2147483648],[2147483648,2147483648,4288266240],[2147483648,4288266240,1431655764]],
+          "euler_phi ranges around 2^32");
+
+is_deeply([euler_phi("18446744073709551613","18446744073709551615"),
+           euler_phi("18446744073709551613","18446744073709551616"),
+           euler_phi("18446744073709551615","18446744073709551616")],
+          [qw/17023385317621506048 7713001620195508224 9208981628670443520 17023385317621506048 7713001620195508224 9208981628670443520 9223372036854775808 9208981628670443520 9223372036854775808/],
+          "euler_phi ranges around 2^64");
