@@ -197,6 +197,10 @@ For new functions:
 
 - finish looking at all mp*_ui functions to check for UV/IV vs long use.
 
+- Automate multi-argument XS integer validation, e.g. validate_and_set2/3 or
+  similar, so call sites can validate all string inputs before initializing
+  any mpz_t values and avoid exception-path leaks without verbose boilerplate.
+
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
 
 - binomialmod better using factorialmod:

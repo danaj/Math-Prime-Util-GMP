@@ -436,12 +436,23 @@ _validate_ecpp_curve(IN char* stra, IN char* strb, IN char* strn, IN char* strpx
     RETVAL
 
 int
-is_almost_prime(IN unsigned int k, IN char* strn)
+is_almost_prime(IN char* strk, IN char* strn)
   PREINIT:
-    mpz_t n;
+    mpz_t k, n;
   CODE:
+    validate_and_set(k, IFLAG_NONNEG);
     validate_and_set(n, IFLAG_ANY);
-    RETVAL = is_almost_prime(k, n);
+    if (mpz_sgn(n) <= 0)
+      RETVAL = 0;
+    else if (mpz_fits_ulong_p(k) && mpz_cmp_ui(k, UINT32_MAX) <= 0)
+      RETVAL = is_almost_prime((uint32_t)mpz_get_ui(k), n);
+    else if (mpz_sizeinbase(n,2) <= (size_t)UINT32_MAX)
+      RETVAL = 0;
+    else {
+      mpz_clear(k); mpz_clear(n);
+      croak("is_almost_prime: k too large");
+    }
+    mpz_clear(k);
     mpz_clear(n);
   OUTPUT:
     RETVAL

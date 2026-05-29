@@ -1666,8 +1666,9 @@ function performs shortcuts that can greatly speed up the operation.
 
   say is_almost_prime(6,2169229601);  # True if n has exactly 6 factors
 
-Given positive integers C<k> and C<n>, returns 1 if C<n> has exactly C<k>
-prime factors, and 0 otherwise.
+Given a non-negative integer C<k> and an integer C<n>, returns 1 if
+C<n> is positive with exactly C<k> prime factors, and 0 otherwise.
+
 With C<k=1>, this is a standard primality test.
 With C<k=2>, this is the same as L</is_semiprime>.
 

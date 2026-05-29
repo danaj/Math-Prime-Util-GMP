@@ -29,7 +29,7 @@ my %kap=(
    20 => [1048576,1572864,2359296,2621440,3538944,3670016,3932160,5308416,5505024,5767168],
 );
 
-plan tests => 11 + scalar(keys(%kap)) + 1;
+plan tests => 11 + scalar(keys(%kap)) + 5;
 
 for my $k (0 .. 10) {
   my @exp = map { fac_is_almost_prime($k, $_) } 0 .. 40;
@@ -46,6 +46,11 @@ while (my($k, $pvals) = each (%kap)) {
 
 # TODO: more bignums
 is( is_almost_prime(3,"250320631882951088595682695816397374705"), 1, "3*5*prime is a 3-almost-prime" );
+
+is( is_almost_prime("0003","250320631882951088595682695816397374705"), 1, "string k is accepted" );
+is( is_almost_prime("4294967296", 2), 0, "too-large k impossible for small n returns false" );
+is( is_almost_prime("18446744073709551616", "250320631882951088595682695816397374705"), 0, "huge k impossible for bigint n returns false" );
+ok( !eval { is_almost_prime("-1", 10); 1 }, "negative k croaks" );
 
 
 sub fac_is_almost_prime {

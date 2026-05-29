@@ -37,6 +37,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - urandomr accepts signed ranges.
 
+    - is_almost_prime validates k as a non-negative integer and avoids
+      truncating large k values.
+
     - rising_factorial, falling_factorial don't accept a negative second arg.
 
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and
