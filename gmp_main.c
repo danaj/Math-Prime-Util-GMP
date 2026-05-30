@@ -913,17 +913,12 @@ void factorialmod(mpz_t r, const mpz_t n, const mpz_t m)
     return;
   }
 
-  if (!mpz_fits_uv_p(D)) {
-    mpz_clear(t); mpz_clear(D);
-    croak("factorialmod: argument too large");
-  }
-  du = mpz_get_uv(D);
-
-  /* For large D, check for zero if m is composite and not too big. */
-  if (du > 500) {
+  /* For large n, check for zero if m is composite and not too big.  This
+   * must happen before the D -> UV conversion so huge but trivially zero
+   * cases can return 0 instead of croaking. */
+  if (mpz_cmp_ui(n, 500) > 0 && mpz_sizeinbase(m, 2) <= 150) {
     if (m_is_prime < 0) m_is_prime = _GMP_is_prime(m);
-    if (!m_is_prime && mpz_sizeinbase(m, 2) <= 150)
-      check_for_zero = 1;
+    if (!m_is_prime) check_for_zero = 1;
   }
   if (check_for_zero) {
     mpz_t *factors;
@@ -947,7 +942,9 @@ void factorialmod(mpz_t r, const mpz_t n, const mpz_t m)
     clear_factors(nfactors, &factors, &exponents);
     if (reszero) { mpz_clear(t); mpz_clear(D); mpz_set_ui(r,0); return; }
   }
-  if (du >= FACTORIALMOD_MAX_D) {  /* Don't go into near infinite loop. */
+
+  /* Set du = D = reduced n if small enough, otherwise error. */
+  if (!mpz_fits_uv_p(D) || (du = mpz_get_uv(D)) >= FACTORIALMOD_MAX_D) {
     mpz_clear(t); mpz_clear(D);
     croak("factorialmod: reduced n too large for processing");
   }

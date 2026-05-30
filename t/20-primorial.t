@@ -113,7 +113,7 @@ if ($extra) {
 
 plan tests =>   1    # factorial
               + 1    # factorialmod
-              + scalar(@facmods) + 7
+              + scalar(@facmods) + 8
               + 2    # primorial and pn_primorial
               + 2    # extra primorial tests
               + 1    # subfactorial
@@ -143,6 +143,7 @@ is( factorialmod(37,0), undef, "factorialmod(37,0) = undef" );
   is( factorialmod("216807359884357411648908138950271200945", $p), 1, "factorialmod(p-2,p) with large p" );
   is( factorialmod("216807359884357411648908138950271200944", $p), "108403679942178705824454069475135600473", "factorialmod(p-3,p) with large p" );
   is( factorialmod("36893488147432436565", "18446744073709551629"), 0, "factorialmod(n,m) with large n >= m" );
+  is( factorialmod("18446744073709551616", "1208925819614629174706176"), 0, "factorialmod huge n with composite m gives zero" );
   ok( !eval { factorialmod(-1,101); 1 }, "factorialmod with negative n croaks" );
   ok( !eval { factorialmod("1000000000001",$p); 1 }, "factorialmod with excessive work size croaks" );
 }

@@ -24,7 +24,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     [FIXES]
 
     - factorialmod takes large (a,m) instead of silently reducing a to UL.
-      We guard against values that would result in excessive time.
+      We guard against values that would result in excessive time, while still
+      returning zero for large inputs known to vanish modulo composite m.
 
     - binomial handles large k more carefully, reflecting k before native
       conversion where possible and croaking instead of silently truncating.
