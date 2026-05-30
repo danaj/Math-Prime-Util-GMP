@@ -41,6 +41,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_almost_prime validates k as a non-negative integer and avoids
       truncating large k values.
 
+    - is_power validates large exponents instead of silently truncating them.
+
     - stirling validates large inputs instead of silently reducing them.
 
     - rising_factorial, falling_factorial don't accept a negative second arg.

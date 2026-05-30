@@ -190,7 +190,7 @@ plan tests => 1      # gcd
             + 1      # gcdext
             + 1      # vecsum
             + 1      # vecprod
-            + 5 + 4 + 3 + 3 + 2;
+            + 5 + 4 + 7 + 3 + 3 + 2;
 
 is_deeply( [map { gcd(@{$_->[0]}) } @gcds],
            [map { $_->[1]         } @gcds], "gcd(...)");
@@ -257,6 +257,20 @@ is( is_power(-27), 3, "-27 is found to be a third power" );
 is( is_power(-8, 3), 1, "-8 is a third power" );
 is( is_power(-8, 4), 0, "-8 is not a fourth power" );
 is( is_power(-16,4), 0, "-16 is not a fourth power" );
+
+{
+  my $huge_even_k = "1000000000000000000000000000000";
+  my $huge_odd_k  = "1000000000000000000000000000001";
+
+  is( is_power(16, undef), 4, "is_power(n,undef) requests largest power" );
+  is( is_power(16, $huge_even_k), 0, "is_power(n,huge k) returns exact false" );
+  is( is_power(1, $huge_even_k), 1, "is_power(1,huge k) returns exact true" );
+  is( is_power(-1, $huge_odd_k), 1, "is_power(-1,huge odd k) returns exact true" );
+  is( is_power(-1, $huge_even_k), 0, "is_power(-1,huge even k) returns exact false" );
+  is( is_power(-8, $huge_odd_k), 0, "is_power(-8,huge odd k) returns exact false" );
+  eval { is_power(16, ""); 1 };
+  like($@, qr/empty string/, "is_power rejects empty k");
+}
 
 is( is_prime_power("18475335773296164196"), "0", "is_prime_power(18475335773296164196) == 0" );
 is( is_prime_power("894311843364148115560351871258324837202590615410044436950984649"), 0, "is_prime_power(29905047121918201644964877983907^2) == 0" );

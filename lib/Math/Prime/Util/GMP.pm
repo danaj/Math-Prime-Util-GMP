@@ -2168,7 +2168,7 @@ For C<k = 1>, this is Euler's totient function:
 
   jordan_totient(1, $n) == totient($n)
 
-For C<<k > 0>>, C<J_k(n)> counts the number of C<k>-tuples of positive integers
+For C<<k > 0>>, C<J_k(n)> counts the number of k-tuples of positive integers
 less than or equal to C<n> whose entries, together with C<n>, have greatest
 common divisor 1.
 
@@ -2239,13 +2239,16 @@ This includes its semantics with C<d=0> which returns 0 unless C<n=c>.
   say "$n is a perfect cube" if is_power($n, 3);
   say "$n is a ", is_power($n), "-th power";
 
-Given a single positive integer input C<n>, returns k if C<n = p^k> for
-some integer C<p E<gt> 1, k E<gt> 1>, and 0 otherwise.  The k returned is
-the largest possible.  This can be used in a boolean statement to
-determine if C<n> is a perfect power.
+Given a single integer input C<n>, returns C<k> if C<n = p^k> for some
+integer C<p>, C<abs(p) E<gt> 1>, C<k E<gt> 1>, and 0 otherwise.  The C<k>
+returned is the largest possible.  For negative C<n>, only odd values of
+C<k> can be returned.  This can be used in a boolean statement to determine
+if C<n> is a perfect power.
 
-If given two arguments C<n> and C<k>, returns 1 if C<n> is a C<k-th> power,
-and 0 otherwise.  For example, if C<k=2> then this detects perfect squares.
+If given two arguments C<n> and C<k>, C<k> must be a non-negative integer.
+With C<k=0> or C<k=undef>, this behaves like the one-argument form.  Otherwise
+it returns 1 if C<n> is a C<k>-th power, and 0 otherwise.  For example, if
+C<k=2> then this detects perfect squares.
 
 This corresponds to Pari/GP's C<ispower> function, with the limitations of
 only integer arguments and no third argument may be given to return the root.

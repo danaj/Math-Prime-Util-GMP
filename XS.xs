@@ -457,21 +457,41 @@ is_almost_prime(IN char* strk, IN char* strn)
   OUTPUT:
     RETVAL
 
-UV is_power(IN char* strn, IN UV a = 0)
+UV is_power(IN char* strn, IN SV* svk = 0)
   PREINIT:
-    mpz_t n;
-    int isneg;
+    mpz_t n, k;
+    int isneg, have_k = 0, auto_k = 0;
   CODE:
-    isneg = validate_and_set(n, IFLAG_ABS);
     RETVAL = 0;
-    if (!isneg || (a == 0 || a & 1)) {
-      RETVAL = is_power(n, a);
+    isneg = validate_and_set(n, IFLAG_ABS);
+    if (items == 1 || !SvOK(svk)) {
+      auto_k = 1;
+    } else {
+      set_integer_string(k, "k", SvPV_nolen(svk), IFLAG_NONNEG);
+      have_k = 1;
+      if (mpz_sgn(k) == 0) {
+        auto_k = 1;
+      } else if (mpz_cmp_ui(k, 1) == 0) {
+        RETVAL = 1;
+      } else if (isneg && mpz_even_p(k)) {
+        RETVAL = 0;
+      } else if (mpz_cmp_ui(n, 1) == 0) {
+        RETVAL = 1;
+      } else if (!mpz_fits_uv_p(k)) {
+        RETVAL = 0;
+      } else {
+        RETVAL = is_power(n, mpz_get_uv(k));
+      }
     }
-    if (isneg && a == 0 && RETVAL != 0) {
-      UV r = RETVAL;
-      while (!(r & 1)) r >>= 1;
-      RETVAL = (r == 1) ? 0 : r;
+    if (auto_k) {
+      RETVAL = is_power(n, 0);
+      if (isneg && RETVAL != 0) {
+        UV r = RETVAL;
+        while (!(r & 1)) r >>= 1;
+        RETVAL = (r == 1) ? 0 : r;
+      }
     }
+    if (have_k) mpz_clear(k);
     mpz_clear(n);
   OUTPUT:
     RETVAL
