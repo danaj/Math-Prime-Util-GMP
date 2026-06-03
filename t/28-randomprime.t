@@ -72,7 +72,7 @@ plan tests => 0
               + (2 * scalar @random_safe_tests)
               + (1 * scalar @random_strong_tests)
               + (2 * scalar @random_nbit_tests)   # proven primes
-              + 6
+              + 8
               + 0;
 
 my $infinity = 20**20**20;
@@ -207,4 +207,18 @@ N 482980495961
 Q 1061869
 A 178206865367
 ", "random Shawe-Taylor prime certificate" );
+}
+
+{
+  my($n,$cert) = random_maurer_prime_with_cert(32);
+  like( $cert,
+        qr/\A\[MPU - Primality Certificate\]\nVersion 1\.0\n\nProof for:\nN \Q$n\E\n\nType Small\nN \Q$n\E\n\z/,
+        "random 32-bit Maurer prime certificate" );
+}
+
+{
+  my($n,$cert) = random_shawe_taylor_prime_with_cert(32);
+  like( $cert,
+        qr/\A\[MPU - Primality Certificate\]\nVersion 1\.0\n\nProof for:\nN \Q$n\E\n\nType Small\nN \Q$n\E\n\z/,
+        "random 32-bit Shawe-Taylor prime certificate" );
 }

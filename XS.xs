@@ -142,7 +142,11 @@ static void _croak_invalid_fromdigits_digit(pTHX_ const mpz_t base)
 
 static char* cert_with_header(char* proof, mpz_t n) {
   char *str, *strptr;
-  if (proof == 0) {
+  if (proof == 0 && mpz_sizeinbase(n,2) <= 64 && _GMP_is_prime(n)) {
+    New(0, str, 50, char);
+    gmp_sprintf(str, "Type Small\nN %Zd\n", n);
+    return cert_with_header(str, n);
+  } else if (proof == 0) {
     New(0, str, 1, char);
     str[0] = '\0';
   } else {

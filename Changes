@@ -54,6 +54,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - random_nbit_prime and related native-count functions croak on oversized
       inputs instead of silently truncating them.
 
+    - random_{maurer,shawe_taylor}_prime_with_cert wasn't producing a cert for
+      very small primes (32 and fewer bits).
+
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)
