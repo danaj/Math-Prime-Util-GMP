@@ -39,6 +39,7 @@ my @functions = qw(
                      lucasuvmod  lucasumod  lucasvmod
                      fibonacci lucas_number catalan_number bell_number
                      primes
+                     twin_primes
                      sieve_primes
                      sieve_twin_primes
                      sieve_prime_cluster

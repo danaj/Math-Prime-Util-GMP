@@ -45,6 +45,7 @@ our @EXPORT_OK = qw(
                      lucasuvmod  lucasumod  lucasvmod
                      fibonacci lucas_number catalan_number bell_number
                      primes
+                     twin_primes
                      sieve_primes
                      sieve_twin_primes
                      sieve_prime_cluster
@@ -872,6 +873,24 @@ and returns definitely prime, probably prime, or definitely composite.
 
 Returns all the primes between the lower and upper limits (inclusive), with
 a lower limit of C<2> if none is given.
+
+The arguments must be non-negative integers.  If the lower limit is larger
+than the upper limit, an empty array reference is returned.
+
+An array reference is returned, matching the signature of the function
+of the same name in L<Math::Prime::Util>.
+
+Values above 64-bit are extra-strong BPSW probable primes.
+
+
+=head2 twin_primes
+
+  my $aref1 = twin_primes( 1_000_000 );
+  my $aref2 = twin_primes( 2 ** 448, 2 ** 448 + 10000 );
+
+Returns all the lower twin primes between the lower and upper limits
+(inclusive), with a lower limit of C<2> if none is given.  That is, for
+each returned value C<p>, both C<p> and C<p+2> are prime.
 
 The arguments must be non-negative integers.  If the lower limit is larger
 than the upper limit, an empty array reference is returned.

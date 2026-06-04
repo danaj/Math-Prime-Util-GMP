@@ -1995,6 +1995,8 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
 
 void
 primes(IN SV* svlo, IN SV* svhi = 0)
+  ALIAS:
+    twin_primes = 1
   PREINIT:
     AV* av;
     mpz_t low, seghigh, high, t;
@@ -2015,13 +2017,15 @@ primes(IN SV* svlo, IN SV* svhi = 0)
     mpz_init(seghigh);
     mpz_init(t);
     maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
+    if (ix == 1) maxseg -= 2;  /* sieve_twin_primes uses length + 2 */
 
     while (mpz_cmp(low, high) <= 0) {
       mpz_add_ui(seghigh, low, maxseg - 1);
       if (mpz_cmp(seghigh, high) > 0)
         mpz_set(seghigh, high);
 
-      list = sieve_primes(low, seghigh, 0, &nprimes);
+      if (ix == 0) list = sieve_primes(low, seghigh, 0, &nprimes);
+      else         list = sieve_twin_primes(low, seghigh, 2, &nprimes);
       if (list != 0) {
         for (i = 0; i < nprimes; i++) {
           mpz_add_ui(t, low, list[i]);

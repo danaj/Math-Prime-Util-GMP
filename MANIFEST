@@ -57,6 +57,7 @@ t/01-load.t
 t/02-can.t
 t/10-isprime.t
 t/11-primes.t
+t/11-twinprimes.t
 t/12-nextprime.t
 t/13-primecount.t
 t/15-probprime.t
