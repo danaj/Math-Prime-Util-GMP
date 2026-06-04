@@ -8,7 +8,7 @@ use Math::BigInt;  # Don't use GMP so we don't have to work around bug
 
 plan tests =>  0
             + 13 + 1      # todigits
-            +  6 + 4 + 19 # fromdigits
+            +  6 + 4 + 22 # fromdigits
             +  1          # combined
             +  0;
 
@@ -67,7 +67,10 @@ my @bad_fromdigits = (
   [ sub { fromdigits("1!",1000) },      qr/invalid digit/,            "punctuation in high base" ],
   [ sub { fromdigits("2",2) },          qr/invalid digit/,            "digit equal to base" ],
   [ sub { fromdigits("101",1) },        qr/invalid base/,             "base one" ],
+  [ sub { fromdigits("101","-0") },     qr/invalid base/,             "signed zero base" ],
+  [ sub { fromdigits("101","-00") },    qr/invalid base/,             "signed zero base with leading zeros" ],
   [ sub { fromdigits("101",-2) },       qr/non-negative/,             "negative base" ],
+  [ sub { fromdigits("101","-01") },    qr/non-negative/,             "negative base with leading zero" ],
 );
 foreach my $t (@bad_fromdigits) {
   my ($sub, $err, $name) = @$t;

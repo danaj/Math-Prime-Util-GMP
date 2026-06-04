@@ -55,35 +55,38 @@ static int _validate_integer_string(pTHX_ CV* cv, const char* vname,
                                     const char* s, int iflag)
 {
   const char *p;
-  int neg;
+  int hasneg, nonzero;
 
   if (s == 0)  croak("%s (%s): null string pointer as input", SUBNAME, vname);
   if (*s == 0) croak("%s (%s): empty string as input", SUBNAME, vname);
 
-  neg = (*s == '-');
-  if (neg && (iflag & (IFLAG_POS | IFLAG_NONNEG)))
-    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
-
+  hasneg = (*s == '-');
+  nonzero = 0;
   p = s + (*s == '-' || *s == '+');
   if (*p == 0)  /* Check for no digits, e.g. only a sign */
     _croak_bad_integer(aTHX_ cv, vname, s, iflag);
 
-  for (; *p != 0; p++)
+  for (; *p != 0; p++) {
     if (!isdigit((unsigned char)*p))
       _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+    nonzero |= (*p != '0');
+  }
 
-  return neg;  /* Return means the string had a negative sign (could be '-0') */
+  if ((iflag & IFLAG_POS) && (hasneg || !nonzero))
+    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+  if ((iflag & IFLAG_NONNEG) && hasneg && nonzero)
+    _croak_bad_integer(aTHX_ cv, vname, s, iflag);
+
+  return hasneg && nonzero;
 }
 #define validate_integer_string(vname,s,iflag) \
   _validate_integer_string(aTHX_ cv, vname, s, iflag)
 
 static NOINLINE int _set_integer_string(pTHX_ CV* cv, mpz_t v, const char* vname, const char* s, int iflag) {
   int wasneg;
-  validate_integer_string(vname, s, iflag);
+  wasneg = validate_integer_string(vname, s, iflag);
   /* After validate_integer_string, s is non-zero and *s =~ /^[+-]?\d+$/ */
   mpz_init_set_str(v, s + (*s == '+'), 10);
-  /* Wasneg is 0 for -0, but true if the result before ABS was negative */
-  wasneg = mpz_sgn(v) < 0;
   if ((iflag & IFLAG_ABS) && wasneg)
     mpz_abs(v, v);
 

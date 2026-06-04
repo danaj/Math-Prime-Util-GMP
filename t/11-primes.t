@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/primes sieve_twin_primes sieve_primes sieve_range/;
 
-plan tests => 12 + 12 + 1 + 22 + 1 + 1 + 13*1 + 7 + 3;
+plan tests => 12 + 3 + 12 + 1 + 22 + 1 + 1 + 13*1 + 7 + 3;
 
 ok(!eval { primes(undef); },   "primes(undef)");
 ok(!eval { primes("a"); },     "primes(a)");
@@ -19,6 +19,9 @@ ok(!eval { primes(-10,7); },   "primes(-10,7)");
 ok(!eval { primes(undef,undef); },  "primes(undef,undef)");
 ok(!eval { primes('x','x'); }, "primes(x,x)");
 ok(!eval { primes(-10,-4); },  "primes(-10,-4)");
+is_deeply( primes("-0", 2), [2], 'primes("-0",2)' );
+is_deeply( primes("-00", 2), [2], 'primes("-00",2)' );
+ok(!eval { primes("-01", 2) }, 'primes("-01",2)');
 
 my @small_primes = qw/
 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71

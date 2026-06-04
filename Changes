@@ -48,6 +48,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - primes accepts non-negative ranges matching Math::Prime::Util.
 
+    - Non-negative XS validation accepts signed zero strings.
+
     - rising_factorial, falling_factorial don't accept a negative second arg.
 
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and
