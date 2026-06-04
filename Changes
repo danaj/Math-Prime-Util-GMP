@@ -46,6 +46,8 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - stirling validates large inputs instead of silently reducing them.
 
+    - primes accepts non-negative ranges matching Math::Prime::Util.
+
     - rising_factorial, falling_factorial don't accept a negative second arg.
 
     - invmod, negmod, sqrtmod, factorialmod, znorder, is_qr, and

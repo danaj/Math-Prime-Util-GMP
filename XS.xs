@@ -1991,6 +1991,51 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     mpz_clear(low);
 
 void
+primes(IN SV* svlo, IN SV* svhi = 0)
+  PREINIT:
+    AV* av;
+    mpz_t low, seghigh, high, t;
+    UV i, nprimes, maxseg, *list;
+  PPCODE:
+    if (!SvOK(svlo) || (items >= 2 && !SvOK(svhi)))
+      croak("Parameter must be defined");
+
+    if (items == 1) {
+      set_integer_string(high, "hi", SvPV_nolen(svlo), IFLAG_NONNEG);
+      mpz_init_set_ui(low, 2);
+    } else {
+      set_integer_string(low, "lo", SvPV_nolen(svlo), IFLAG_NONNEG);
+      set_integer_string(high, "hi", SvPV_nolen(svhi), IFLAG_NONNEG);
+    }
+
+    av = newAV();
+    mpz_init(seghigh);
+    mpz_init(t);
+    maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
+
+    while (mpz_cmp(low, high) <= 0) {
+      mpz_add_ui(seghigh, low, maxseg - 1);
+      if (mpz_cmp(seghigh, high) > 0)
+        mpz_set(seghigh, high);
+
+      list = sieve_primes(low, seghigh, 0, &nprimes);
+      if (list != 0) {
+        for (i = 0; i < nprimes; i++) {
+          mpz_add_ui(t, low, list[i]);
+          av_push(av, sv_return_for_mpz(aTHX_ t));
+        }
+        Safefree(list);
+      }
+      mpz_add_ui(low, seghigh, 1);
+    }
+
+    mpz_clear(t);
+    mpz_clear(seghigh);
+    mpz_clear(high);
+    mpz_clear(low);
+    XPUSHs(sv_2mortal(newRV_noinc((SV*)av)));
+
+void
 sieve_range(IN char* strlow, IN UV width, IN UV depth)
   PREINIT:
     mpz_t low, seghigh, high, t;

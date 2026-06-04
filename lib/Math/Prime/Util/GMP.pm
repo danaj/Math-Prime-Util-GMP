@@ -164,22 +164,6 @@ END {
 }
 
 
-sub _validate_positive_integer {
-  my($n, $min, $max) = @_;
-  croak "Parameter must be defined" if !defined $n;
-  if (ref($n) eq 'Math::BigInt' && $n->can("sign")) {
-    croak "Parameter '$n' must be a positive integer" unless $n->sign() eq '+';
-  } else {
-    my $sn = "$n";
-    croak "Parameter '$sn' must be a positive integer"
-          if $sn eq '' || $sn =~ tr/0123456789//c;
-  }
-  croak "Parameter '$n' must be >= $min" if defined $min && $n < $min;
-  croak "Parameter '$n' must be <= $max" if defined $max && $n > $max;
-  1;
-}
-
-
 sub is_provable_prime {
   my ($n) = @_;
   return 0 if $n < 2;
@@ -198,15 +182,6 @@ sub is_provable_prime_with_cert {
   $text =~ s/\n$//;
   $text = "[MPU - Primality Certificate]\nVersion 1.0\n\nProof for:\nN $n\n\n$text";
   return ($result, $text);
-}
-
-sub primes {
-  my($low,$high) = (scalar(@_) == 1) ? (2,$_[0]) : ($_[0], $_[1]);
-
-  _validate_positive_integer($low);
-  _validate_positive_integer($high);
-
-  [ sieve_primes($low, $high, 0) ];
 }
 
 1;
@@ -897,6 +872,9 @@ and returns definitely prime, probably prime, or definitely composite.
 
 Returns all the primes between the lower and upper limits (inclusive), with
 a lower limit of C<2> if none is given.
+
+The arguments must be non-negative integers.  If the lower limit is larger
+than the upper limit, an empty array reference is returned.
 
 An array reference is returned, matching the signature of the function
 of the same name in L<Math::Prime::Util>.

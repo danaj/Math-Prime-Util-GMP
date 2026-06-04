@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/primes sieve_twin_primes sieve_primes sieve_range/;
 
-plan tests => 12 + 12 + 1 + 19 + 1 + 1 + 13*1 + 7 + 3;
+plan tests => 12 + 12 + 1 + 22 + 1 + 1 + 13*1 + 7 + 3;
 
 ok(!eval { primes(undef); },   "primes(undef)");
 ok(!eval { primes("a"); },     "primes(a)");
@@ -68,6 +68,9 @@ while (my($high, $expect) = each (%small_single)) {
 }
 
 my %small_range = (
+  "0 to 0" => [],
+  "0 to 1" => [],
+  "0 to 2" => [2],
   "3 to 9" => [3,5,7],
   "2 to 20" => [2,3,5,7,11,13,17,19],
   "30 to 70" => [31,37,41,43,47,53,59,61,67],

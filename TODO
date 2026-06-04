@@ -201,6 +201,8 @@ For new functions:
   similar, so call sites can validate all string inputs before initializing
   any mpz_t values and avoid exception-path leaks without verbose boilerplate.
 
+- validation using IFLAG_NONNEG should treat -0 as 0.  E.g. primes("-0")
+
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
 
 - binomialmod better using factorialmod:
