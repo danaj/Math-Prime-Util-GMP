@@ -63,7 +63,7 @@ Revision history for Perl module Math::Prime::Util::GMP
       very small primes (32 and fewer bits).
 
     - sieve_range width and depth arguments now croak if they don't fit into
-      a UV instead of truncating.  Sieving depth < 2 no longer skips 0 and 1.
+      a UV instead of truncating.
 
     [PERFORMANCE]
 

@@ -133,8 +133,8 @@ is_deeply( [sieve_range(0,4,2)], [2,3], "sieve_range starting at zero" );
 is_deeply( [sieve_range(1,4,2)], [1,2], "sieve_range starting at one" );
 is_deeply( [sieve_range(2,4,2)], [0,1,3], "sieve_range starting at two" );
 is_deeply( [sieve_range(5,30,4)], [0,2,6,8,12,14,18,20,24,26], "sieve_range shallow small range" );
-is_deeply( [sieve_range(0,4,0)], [0..3], "sieve_range depth 0" );
-is_deeply( [sieve_range(0,4,1)], [0..3], "sieve_range depth 1 starting at zero" );
+is_deeply( [sieve_range(0,4,0)], [2,3], "sieve_range depth 0 starting at zero" );
+is_deeply( [sieve_range(0,4,1)], [2,3], "sieve_range depth 1 starting at zero" );
 is_deeply( [sieve_range(6,12,1)], [0..11], "sieve_range depth 1" );
 {
   my @primes = (2,3,5,7,11,13,17);

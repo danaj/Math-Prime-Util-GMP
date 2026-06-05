@@ -953,15 +953,17 @@ Given a start value C<n>, and native unsigned integers C<width> and C<depth>,
 a sieve of maximum depth C<depth> is done for the C<width> consecutive
 numbers beginning with C<n>.  An array of offsets from the start is returned.
 
-The returned list contains those offsets in the range C<n> to C<n+width-1>
-where C<n + offset> passes the partial sieve of depth C<depth>.  For each
-prime C<p> less than or equal to C<depth>, a value is retained if it is
-C<p> itself or is not divisible by C<p>.
-A depth of 0 or 1 performs no sieving and returns all offsets in the
-requested range.  A depth of 2 removes all even numbers other than 2 itself,
-a depth of 3 removes all numbers divisible by either 2 or 3 other than those
-primes themselves, and so on.
-For depths 2 and higher, values less than 2 are not returned.
+This is a prime-candidate sieve, so values less than 2 are never returned.
+For values 2 and larger, the returned list contains those offsets in the
+range C<n> to C<n+width-1> where C<n + offset> passes the partial sieve of
+depth C<depth>.  A value is retained if it is a prime C<p> less than or
+equal to C<depth>, or if it has no prime factor less than or equal to
+C<depth>.
+
+A depth of 0 or 1 performs no divisibility sieving, so all values 2 and
+larger in the requested range are returned.  A depth of 2 removes all even
+numbers other than 2 itself, a depth of 3 removes all numbers divisible by
+either 2 or 3 other than those primes themselves, and so on.
 
 This function is very similar to the three argument form of L</sieve_primes>.
 The differences are using C<(n,width)> instead of C<(low,high)>, and most

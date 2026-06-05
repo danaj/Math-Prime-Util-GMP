@@ -2067,21 +2067,23 @@ sieve_range(IN char* strlow, IN char* strwidth, IN char* strdepth)
     udepth = mpz_get_uv(depth);    mpz_clear(depth);
     uwidth = mpz_get_uv(width);    mpz_clear(width);
 
-    if (udepth < 2) {  /* Depth 0 or 1 results in nothing being sieved. */
-      for (i = 0; i < uwidth; i++)
+    /* sieve_range returns prime candidates, so values below 2 are skipped. */
+    if (mpz_cmp_ui(low,2) < 0)
+      offset = 2 - mpz_get_ui(low);
+
+    if (udepth < 2) {  /* Depth 0 or 1 does no divisibility sieving. */
+      for (i = offset; i < uwidth; i++)
         XPUSH_UINT(i);
       mpz_clear(low);
-      XSRETURN(uwidth);
+      XSRETURN(i - offset);
     }
 
     mpz_init(high);
     mpz_init(seghigh);
 
     mpz_add_uv(high, low, uwidth-1);
-    if (mpz_cmp_ui(low,2) < 0) {
-      offset = 2 - mpz_get_ui(low);
+    if (offset != 0)
       mpz_set_ui(low,2);
-    }
     /* Loop processing size-2^32-1 segments from low to high */
     while (mpz_cmp(low, high) <= 0) {
       mpz_add_ui(seghigh, low, 4294967295U - 1);
