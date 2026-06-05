@@ -2043,53 +2043,60 @@ primes(IN SV* svlo, IN SV* svhi = 0)
     XPUSHs(sv_2mortal(newRV_noinc((SV*)av)));
 
 void
-sieve_range(IN char* strlow, IN UV width, IN UV depth)
+sieve_range(IN char* strlow, IN char* strwidth, IN char* strdepth)
   PREINIT:
-    mpz_t low, seghigh, high, t;
-    UV i, nprimes, maxseg, offset, *list;
+    mpz_t low, width, depth, high, seghigh;
+    UV udepth, uwidth, i, nprimes, *list, offset = 0;
   PPCODE:
-    if (width == 0) XSRETURN(0);
-    if (depth == 0) depth = 1;
-
     validate_and_set(low, IFLAG_NONNEG);
-    mpz_init(high);
-    mpz_add_ui(high, low, width-1);
-    mpz_init(seghigh);
-    mpz_init(t);
-    maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
-    offset = 0;
+    validate_and_set(width, IFLAG_NONNEG);
+    validate_and_set(depth, IFLAG_NONNEG);
 
-    /* Deal with 0 and 1 inside range */
+    if (mpz_sgn(width) == 0) {
+      mpz_clear(low); mpz_clear(width); mpz_clear(depth);
+      XSRETURN_EMPTY;
+    }
+    if (!mpz_fits_uv_p(depth)) {
+      mpz_clear(low); mpz_clear(width); mpz_clear(depth);
+      croak("sieve_range: depth must fit in UV");
+    }
+    if (!mpz_fits_uv_p(width)) {
+      mpz_clear(low); mpz_clear(width); mpz_clear(depth);
+      croak("sieve_range: width must fit in UV");
+    }
+    udepth = mpz_get_uv(depth);    mpz_clear(depth);
+    uwidth = mpz_get_uv(width);    mpz_clear(width);
+
+    if (udepth < 2) {  /* Depth 0 or 1 results in nothing being sieved. */
+      for (i = 0; i < uwidth; i++)
+        XPUSH_UINT(i);
+      mpz_clear(low);
+      XSRETURN(uwidth);
+    }
+
+    mpz_init(high);
+    mpz_init(seghigh);
+
+    mpz_add_uv(high, low, uwidth-1);
     if (mpz_cmp_ui(low,2) < 0) {
       offset = 2 - mpz_get_ui(low);
-      width = (width < offset) ? 0 : width - offset;
       mpz_set_ui(low,2);
     }
-    /* Deal with depth < 2 (no sieving) */
-    if (depth < 2) {
-      for (i = 0; i < width; i++)
-        XPUSH_UINT(offset + i);
-      mpz_add_ui(low, high, 1);
-    }
-    /* Loop as needed */
+    /* Loop processing size-2^32-1 segments from low to high */
     while (mpz_cmp(low, high) <= 0) {
-      mpz_add_ui(seghigh, low, maxseg - 1);
+      mpz_add_ui(seghigh, low, 4294967295U - 1);
       if (mpz_cmp(seghigh, high) > 0)
         mpz_set(seghigh, high);
-      mpz_set(t, seghigh);  /* Save in case it is modified */
-      list = sieve_primes(low, seghigh, depth, &nprimes);
-      mpz_set(seghigh, t);  /* Restore the value we used */
+      list = sieve_primes(low, seghigh, udepth, &nprimes);
 
       if (list != 0) {
-        for (i = 0; i < nprimes; i++) {
+        for (i = 0; i < nprimes; i++)
           XPUSH_UINT(offset + list[i]);
-        }
         Safefree(list);
       }
       mpz_add_ui(low, seghigh, 1);
-      offset += maxseg;
+      offset += 4294967295U;
     }
-    mpz_clear(t);
     mpz_clear(seghigh);
     mpz_clear(high);
     mpz_clear(low);

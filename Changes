@@ -62,6 +62,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - random_{maurer,shawe_taylor}_prime_with_cert wasn't producing a cert for
       very small primes (32 and fewer bits).
 
+    - sieve_range width and depth arguments now croak if they don't fit into
+      a UV instead of truncating.  Sieving depth < 2 no longer skips 0 and 1.
+
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)

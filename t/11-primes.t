@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/primes sieve_twin_primes sieve_primes sieve_range/;
 
-plan tests => 12 + 3 + 12 + 1 + 22 + 1 + 1 + 13*1 + 7 + 3;
+plan tests => 12 + 3 + 12 + 1 + 22 + 1 + 1 + 13*1 + 10 + 3;
 
 ok(!eval { primes(undef); },   "primes(undef)");
 ok(!eval { primes("a"); },     "primes(a)");
@@ -133,7 +133,29 @@ is_deeply( [sieve_range(0,4,2)], [2,3], "sieve_range starting at zero" );
 is_deeply( [sieve_range(1,4,2)], [1,2], "sieve_range starting at one" );
 is_deeply( [sieve_range(2,4,2)], [0,1,3], "sieve_range starting at two" );
 is_deeply( [sieve_range(5,30,4)], [0,2,6,8,12,14,18,20,24,26], "sieve_range shallow small range" );
+is_deeply( [sieve_range(0,4,0)], [0..3], "sieve_range depth 0" );
+is_deeply( [sieve_range(0,4,1)], [0..3], "sieve_range depth 1 starting at zero" );
 is_deeply( [sieve_range(6,12,1)], [0..11], "sieve_range depth 1" );
+{
+  my @primes = (2,3,5,7,11,13,17);
+  my @got = map { [sieve_range(109485, 100, $_)] } 0..17;
+  my @expect;
+  for my $depth (0..17) {
+    my @list;
+    OFFSET: for my $offset (0..99) {
+      my $n = 109485 + $offset;
+      if ($depth >= 2) {
+        for my $p (@primes) {
+          last if $p > $depth;
+          next OFFSET if $n % $p == 0;
+        }
+      }
+      push @list, $offset;
+    }
+    push @expect, \@list;
+  }
+  is_deeply( \@got, \@expect, "sieve_range depths 0 to 17" );
+}
 
 is_deeply( [sieve_twin_primes("1000000000000000000000000000000","1000000000000000000000000020000")], [qw/1000000000000000000000000001681 1000000000000000000000000004831 1000000000000000000000000018739 1000000000000000000000000019171/], "Sieve twin primes 10^30 10^30+20000");
 is_deeply( [sieve_twin_primes("1000000000000000000000000004832","1000000000000000000000000018738")], [], "Sieve twin primes 10^30+4832 10^20+18738 should be empty");
