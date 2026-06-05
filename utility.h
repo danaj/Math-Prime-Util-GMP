@@ -23,6 +23,8 @@ extern void mpz_set_iv(mpz_t n, IV v);
 extern UV   mpz_get_uv(const mpz_t n);
 extern IV   mpz_get_iv(const mpz_t n);
 /* TODO: cmp_uv, cmp_iv, mul_iv, mul_uv, etc. */
+extern void mpz_add_uv(mpz_t r, const mpz_t a, UV b);
+extern void mpz_sub_uv(mpz_t r, const mpz_t a, UV b);
 
 extern UV   is_power(const mpz_t n, UV a);
 extern UV   prime_power(mpz_t prime, const mpz_t n);
