@@ -1022,6 +1022,29 @@ kronecker(IN char* stra, IN char* strb)
   OUTPUT:
     RETVAL
 
+void remove_factors(IN char* strn, IN char* strk)
+  ALIAS:
+    remove_factors_exp = 1
+  PREINIT:
+    mpz_t n, k;
+  PPCODE:
+    validate_and_set(n, IFLAG_ANY);
+    validate_and_set(k, IFLAG_NONNEG);
+    if (mpz_cmp_ui(k,2) < 0) {
+      mpz_clear(k); mpz_clear(n);
+      croak("%s: k must be > 1", SUBNAME);
+    }
+    if (mpz_sgn(n) == 0) {
+      XPUSHs(&PL_sv_undef);
+      if (ix == 1) XPUSHs(&PL_sv_undef);
+    } else {
+      UV e = mpz_remove(n, n, k);
+      XPUSH_MPZ(n);
+      if (ix == 1) XPUSH_UINT(e);
+    }
+    mpz_clear(k);
+    mpz_clear(n);
+
 void moebius(IN char* strn, IN char* strnhi = 0)
   PREINIT:
     mpz_t n, nhi;

@@ -82,6 +82,7 @@ our @EXPORT_OK = qw(
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
+                     remove_factors remove_factors_exp
                      negmod invmod sqrtmod addmod submod mulmod divmod powmod
                      is_qr
                      muladdmod mulsubmod
@@ -1922,6 +1923,24 @@ C<k> must be greater than 1.
 C<|n| = 0> returns undef, and C<|n| = 1> returns zero.
 
 This corresponds to Pari and SAGE's C<valuation> function.
+
+=head2 remove_factors
+
+  say "$n with all factors of 10 removed is ", remove_factors($n,10);
+
+Given integer C<n> and integer C<k> greater than 1, returns C<n> with all
+repeated exact factors of C<k> removed.  Equivalently, the return value is
+C<r> such that C<n = r * k^e> and C<k> no longer divides C<r>.
+
+If C<n = 0>, returns undef.
+
+=head2 remove_factors_exp
+
+  my($r, $e) = remove_factors_exp($n,10);
+
+As L</remove_factors>, but returns C<(r,e)> where C<e> is the number of
+times C<k> was removed.  If C<n = 0>, returns C<(undef,undef)>.
+
 
 =head2 is_qr
 

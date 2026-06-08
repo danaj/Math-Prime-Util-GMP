@@ -21,6 +21,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - bell_number(n)           the n-th Bell number
     - euler_phi(n[,nhi])       totient or ranged totient
     - twin_primes([lo,]hi)     returns an array ref of lower twin primes
+    - remove_factors(n,k)      returns r: n with all factors of k removed
+    - remove_factors_exp(n,k)  as above, returns (r,e) e = times removed
 
     [FIXES]
 

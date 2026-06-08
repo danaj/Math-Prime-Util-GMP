@@ -3,8 +3,9 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight invmod
-                              is_qr
+use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight
+                              remove_factors remove_factors_exp
+                              invmod is_qr
                               is_power is_prime_power is_square
                               binomial binomialmod gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -107,6 +108,18 @@ my @valuations = (
   [96552,6, 3],
   [1879048192,2, 28],
 );
+my @remove_factors = (
+  [ 72,  6,  2,  2],
+  [ 72, 12,  6,  1],
+  [ 72,  8,  9,  1],
+  [  5,  6,  5,  0],
+  [-72,  6, -2,  2],
+  [-12,  3, -4,  1],
+  ["184467440737095516160", 10, "18446744073709551616", 1],
+  ["-184467440737095516160", 10, "-18446744073709551616", 1],
+  [ 0, 6, undef, undef],
+);
+
 my @binomials = (
  [ 0,0, 1 ],
  [ 0,1, 0 ],
@@ -183,6 +196,7 @@ plan tests => 1      # gcd
             + 1      # lcm
             + 1      # kronecker
             + 1      # valuation
+            + 3      # remove_factors
             + 1      # hammingweight
             + 1      # binomial
             + 6      # ... more binomial
@@ -203,6 +217,14 @@ is_deeply( [map { kronecker($_->[0],$_->[1]) } @kroneckers],
 
 is_deeply( [map { valuation($_->[0],$_->[1]) } @valuations],
            [map { $_->[2]                    } @valuations], "valuation(n,k)");
+
+is_deeply(
+  [ map { my($n,$k) = @$_; [ remove_factors($n,$k), remove_factors_exp($n,$k) ] } @remove_factors ],
+  [ map { [ $_->[2], $_->[2], $_->[3] ] } @remove_factors ],
+  "remove_factors(n,k)"
+);
+ok(!eval { remove_factors(10,1); 1 }, "remove_factors rejects k=1");
+ok(!eval { remove_factors_exp(10,0); 1 }, "remove_factors_exp rejects k=0");
 
 is_deeply( [map { hammingweight($_) } @hamming], \@popcnt, "hammingweight" );
 
