@@ -36,6 +36,7 @@ WriteMakefile1(
                     'utility.o '        .
                     'misc_ui.o '        .
                     'factmod.o '        .
+                    'znlog.o '          .
                     'rootmod.o '        .
                     'prime_iterator.o ' .
                     'poly.o '           .

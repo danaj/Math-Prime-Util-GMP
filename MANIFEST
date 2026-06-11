@@ -12,6 +12,8 @@ gmp_main.h
 gmp_main.c
 factmod.h
 factmod.c
+znlog.h
+znlog.c
 primality.h
 primality.c
 prime_iterator.h
@@ -96,6 +98,7 @@ t/26-practical.t
 t/26-real.t
 t/26-riemann.t
 t/26-roots.t
+t/26-znlog.t
 t/26-smooth.t
 t/27-clusters.t
 t/28-randomprime.t

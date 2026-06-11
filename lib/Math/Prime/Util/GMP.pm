@@ -116,6 +116,7 @@ our @EXPORT_OK = qw(
                      is_square_free is_powerfree next_powerfree prev_powerfree
                      powerfree_count nth_powerfree
                      znorder
+                     znlog
                      znprimroot
                      ramanujan_tau
                      Pi Euler
@@ -197,7 +198,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znlog znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -1642,6 +1643,14 @@ C<a^k ≡ 1 mod n>.  Returns 1 if C<a = 1>.  Returns undef if C<a = 0> or if
 C<a> and C<n> are not coprime, since no value will result in 1 mod n.
 This corresponds to Pari's C<znorder(Mod(a,n))> function and Mathematica's
 C<MultiplicativeOrder[a,n]> function.
+
+
+=head2 znlog
+
+  $k = znlog($a, $g, $n);
+
+Given integers C<a>, C<g>, and C<n>, returns the smallest non-negative
+integer C<k> such that C<g^k ≡ a mod n>, or C<undef> if no such C<k> exists.
 
 
 =head2 znprimroot

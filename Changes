@@ -23,6 +23,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - twin_primes([lo,]hi)     returns an array ref of lower twin primes
     - remove_factors(n,k)      returns r: n with all factors of k removed
     - remove_factors_exp(n,k)  as above, returns (r,e) e = times removed
+    - znlog(a,g,n)             solve for k where g^k = a mod n
 
     [FIXES]
 

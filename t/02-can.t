@@ -110,6 +110,7 @@ my @functions = qw(
                      is_square_free is_powerfree next_powerfree prev_powerfree
                      powerfree_count nth_powerfree
                      znorder
+                     znlog
                      znprimroot
                      ramanujan_tau
                      Pi Euler

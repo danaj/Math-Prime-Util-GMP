@@ -20,6 +20,7 @@
 #include "ecpp.h"
 #include "aks.h"
 #include "rootmod.h"
+#include "znlog.h"
 #include "utility.h"
 #include "factor.h"
 #include "isaac.h"
@@ -1416,6 +1417,20 @@ void znprimroot(IN char* strn)
       { mpz_clear(n);  XSRETURN_UNDEF; }
     XPUSH_MPZ(n);
     mpz_clear(n);
+
+void znlog(IN char* stra, IN char* strg, IN char* strn)
+  PREINIT:
+    mpz_t a, g, n, r;
+    int ok;
+  PPCODE:
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(g, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
+    mpz_init(r);
+    ok = _GMP_znlog(r, a, g, n);
+    if (ok) XPUSH_MPZ(r);
+    mpz_clear(r); mpz_clear(n); mpz_clear(g); mpz_clear(a);
+    if (!ok) XSRETURN_UNDEF;
 
 void multifactorial(IN char* strn, IN char* strm)
   PREINIT:
