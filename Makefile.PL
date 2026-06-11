@@ -24,29 +24,30 @@ WriteMakefile1(
     LICENSE      => 'perl_5',
     AUTHOR       => 'Dana A Jacobsen <dana@acm.org>',
 
-    OBJECT       => 'prime_iterator.o ' .
-                    'misc_ui.o '        .
-                    'utility.o '        .
-                    'poly.o '           .
-                    'primality.o '      .
-                    'lucas_seq.o '      .
-                    'rootmod.o '        .
+    OBJECT       => 'XS.o '             .
                     'factor.o '         .
-                    'pbrent63.o '       .
-                    'squfof126.o '      .
-                    'ecm.o '            .
+                    'gmp_main.o '       .
                     'tinyqs.o '         .
                     'simpqs.o '         .
+                    'primality.o '      .
                     'bls75.o '          .
                     'ecpp.o '           .
                     'aks.o '            .
-                    'gmp_main.o '       .
+                    'utility.o '        .
+                    'misc_ui.o '        .
+                    'factmod.o '        .
+                    'rootmod.o '        .
+                    'prime_iterator.o ' .
+                    'poly.o '           .
+                    'pbrent63.o '       .
+                    'squfof126.o '      .
+                    'ecm.o '            .
+                    'lucas_seq.o '      .
                     'real.o '           .
                     'isaac.o '          .
                     'random_prime.o '   .
                     'perfect_powers.o ' .
-                    'powerfree.o '      .
-                    'XS.o',
+                    'powerfree.o',
     LIBS         => ['-lgmp -lm'],
 
     TEST_REQUIRES=> {
