@@ -33,6 +33,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - binomial handles large k more carefully, reflecting k before native
       conversion where possible and croaking instead of silently truncating.
 
+    - binomialmod avoids constructing huge intermediate binomial values for
+      more large-input cases.
+
     - powint croaks on huge exponents instead of truncating.
 
     - logint accepts large bases.  rootint accepts large roots.
@@ -70,6 +73,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)
+
+    - is_power is much faster for large-exponent perfect powers with a small
+      prime factor.
 
 
 0.53 2026-03-11

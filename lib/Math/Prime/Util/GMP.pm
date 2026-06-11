@@ -1435,14 +1435,15 @@ with similar semantics.  Prior to this, C<< n < 0, k > 0 >> was undefined.
 
 =head2 binomialmod
 
-Given integer arguments C<n>, C<k>, and C<m>, returns C<binomial(n,k) mod m>
+Given integer arguments C<n>, C<k>, and C<m>, returns C<binomial(n,k) mod |m|>
 efficiently.
 
-All requirements for L<binomial> must be met including the size of k and
-the treatment of negative C<n> and C<k>.
+The treatment of negative C<n> and C<k> matches L</binomial>.  The effective
+C<k> after negative-argument normalization and symmetry must fit in an unsigned
+long.  Cases known to have a zero result may return C<0> without this limit.
 
-The current implementation is not optimized, but can greatly reduce the
-overhead associated with the very large intermediate.
+The implementation avoids constructing the full binomial coefficient for many
+prime and prime-power moduli.
 
 =head2 addreal
 =head2 subreal

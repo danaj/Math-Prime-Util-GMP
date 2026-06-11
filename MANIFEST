@@ -105,6 +105,7 @@ t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
 xt/arithmod.pl
+xt/bench-ispower.pl
 xt/bench-random-bytes.pl
 xt/create-standalone.sh
 xt/calculate-mr-probs.pl

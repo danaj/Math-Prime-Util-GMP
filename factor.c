@@ -12,6 +12,15 @@
 #include "simpqs.h"
 #include "lucas_seq.h"
 
+static unsigned long _gcd_ui(unsigned long a, unsigned long b) {
+  while (b != 0) {
+    unsigned long t = a % b;
+    a = b;
+    b = t;
+  }
+  return a;
+}
+
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
 
@@ -1755,32 +1764,217 @@ int _GMP_holf_factor(const mpz_t n, mpz_t f, UV rounds)
   return 0;
 }
 
+
+#define POWER_FACTOR_SMALL_EXP_LIMIT 31
+#define POWER_FACTOR_PRECHECK_TRIAL_LIMIT 127UL
+#define POWER_FACTOR_EARLY_TRIAL_LIMIT 1000UL
+#define POWER_FACTOR_TRIAL_LIMIT 1000000UL
+
+static int _power_factor_trial_root(mpz_t root, const mpz_t cofactor,
+                                    const unsigned long *pfactors,
+                                    const unsigned long *exponents,
+                                    unsigned long nfactors, unsigned long k)
+{
+  mpz_t pk;
+  unsigned long i;
+
+  for (i = 0; i < nfactors; i++)
+    if ((exponents[i] % k) != 0)
+      return 0;
+
+  if (mpz_cmp_ui(cofactor, 1) == 0)
+    mpz_set_ui(root, 1); /* We'll multiply by valuation factors below */
+  else if (!mpz_root(root, cofactor, k))
+    return 0;
+
+  mpz_init(pk);
+  for (i = 0; i < nfactors; i++) {
+    mpz_ui_pow_ui(pk, pfactors[i], exponents[i]/k);
+    mpz_mul(root, root, pk);
+  }
+  mpz_clear(pk);
+  return 1;
+}
+
+static unsigned long _power_factor_from_valuations(const mpz_t cofactor, mpz_t f,
+                                                   const unsigned long *pfactors,
+                                                   const unsigned long *exponents,
+                                                   unsigned long nfactors,
+                                                   unsigned long g)
+{
+  unsigned long k = 1, q = 2, rem = g;
+
+  if (g <= 1)
+    return 1;
+  if (mpz_cmp_ui(cofactor, 1) == 0) {
+    _power_factor_trial_root(f, cofactor, pfactors, exponents, nfactors, g);
+    return g;
+  }
+
+  {
+    PRIME_ITERATOR(iter);
+    while (rem > 1 && q <= rem/q) {
+      if ((rem % q) == 0) {
+        do { rem /= q; } while ((rem % q) == 0);
+        while (k <= g/q && (g % (k*q)) == 0) {
+          unsigned long cand = k*q;
+          if (!_power_factor_trial_root(f, cofactor, pfactors, exponents, nfactors, cand))
+            break;
+          k = cand;
+        }
+      }
+      q = prime_iterator_next(&iter);
+    }
+    if (rem > 1) {
+      q = rem;
+      while (k <= g/q && (g % (k*q)) == 0) {
+        unsigned long cand = k*q;
+        if (!_power_factor_trial_root(f, cofactor, pfactors, exponents, nfactors, cand))
+          break;
+        k = cand;
+      }
+    }
+    prime_iterator_destroy(&iter);
+  }
+  return k;
+}
+
+static unsigned long _power_factor_from_large_valuation(const mpz_t n, mpz_t f,
+                                                        unsigned long B,
+                                                        unsigned long limit)
+{
+  mpz_t cofactor, zp;
+  unsigned long pfactor = 0, exponent = 0;
+  unsigned long p, ret = 1;
+  PRIME_ITERATOR(iter);
+
+  mpz_init(cofactor);
+  mpz_init(zp);
+
+  if (B >= 2 && mpz_even_p(n)) {
+    exponent = mpz_scan1(n, 0);
+    if (exponent > limit) {
+      pfactor = 2;
+      mpz_tdiv_q_2exp(cofactor, n, exponent);
+      ret = _power_factor_from_valuations(cofactor, f, &pfactor, &exponent, 1, exponent);
+      goto end;
+    }
+  }
+
+  prime_iterator_setprime(&iter, 3);
+  for (p = 3; p <= B; p = prime_iterator_next(&iter)) {
+    if (mpz_divisible_ui_p(n, p)) {
+      mpz_set_ui(zp, p);
+      exponent = mpz_remove(cofactor, n, zp);
+      if (exponent > limit) {
+        pfactor = p;
+        ret = _power_factor_from_valuations(cofactor, f, &pfactor, &exponent, 1, exponent);
+        break;
+      }
+    }
+  }
+
+  end:
+  prime_iterator_destroy(&iter);
+  mpz_clear(zp);
+  mpz_clear(cofactor);
+  return ret;
+}
+
+static unsigned long _power_factor_from_trial_factors(const mpz_t n, mpz_t f, unsigned long B)
+{
+  mpz_t cofactor, zf;
+  unsigned long *pfactors = 0, *exponents = 0;
+  unsigned long alloc = 0, nfactors = 0;
+  unsigned long p, v, g = 0;
+  unsigned long k;
+  PRIME_ITERATOR(iter);
+
+  mpz_init_set(cofactor, n);
+  mpz_init(zf);
+
+  for (p = 2; p <= B && mpz_cmp_ui(cofactor, 1) > 0; p = prime_iterator_next(&iter)) {
+    if (mpz_divisible_ui_p(cofactor, p)) {
+      if (nfactors == alloc) {
+        if (alloc == 0) {
+          alloc = 8;
+          New(0, pfactors, alloc, unsigned long);
+          New(0, exponents, alloc, unsigned long);
+        } else {
+          alloc += 8;
+          Renew(pfactors, alloc, unsigned long);
+          Renew(exponents, alloc, unsigned long);
+        }
+      }
+      mpz_set_ui(zf, p);
+      v = mpz_remove(cofactor, cofactor, zf);
+      pfactors[nfactors] = p;
+      exponents[nfactors] = v;
+      nfactors++;
+      g = (g == 0) ? v : _gcd_ui(g, v);
+      if (g == 1)
+        break;
+    }
+  }
+  prime_iterator_destroy(&iter);
+
+  k = _power_factor_from_valuations(cofactor, f, pfactors, exponents, nfactors, g);
+  if (pfactors != 0)  Safefree(pfactors);
+  if (exponents != 0) Safefree(exponents);
+  mpz_clear(zf);
+  mpz_clear(cofactor);
+  return k;
+}
+
 /* See if n is a perfect power */
 unsigned long power_factor(const mpz_t n, mpz_t f)
 {
   unsigned long k = 1, b = 2;
-  if (mpz_cmp_ui(n, 1) > 0 && mpz_perfect_power_p(n)) {
+  if (mpz_cmp_ui(n, 1) <= 0)
+    return 0;
+
+  k = _power_factor_from_large_valuation(n, f, POWER_FACTOR_PRECHECK_TRIAL_LIMIT,
+                                               POWER_FACTOR_SMALL_EXP_LIMIT);
+  if (k > 1)
+    return k;
+
+  if (mpz_perfect_power_p(n)) {
+    int tried_factor = 0;
     mpz_t nf, tf;
     PRIME_ITERATOR(iter);
 
     mpz_init_set(nf, n);
     mpz_init(tf);
-    while (1) {
-      unsigned long ok = k;
-      while (mpz_root(tf, nf, b)) {
-        mpz_set(f, tf);
-        mpz_set(nf, tf);
-        k *= b;
+    k = _power_factor_from_trial_factors(nf, f, POWER_FACTOR_EARLY_TRIAL_LIMIT);
+    if (k == 1) {
+      while (1) {
+        unsigned long ok = k;
+        while (mpz_root(tf, nf, b)) {
+          mpz_set(f, tf);
+          mpz_set(nf, tf);
+          k *= b;
+        }
+        if (ok != k && !mpz_perfect_power_p(nf)) break;
+        if (mpz_cmp_ui(tf, 1) <= 0) break; /* Exit if we can't find the power */
+        b = prime_iterator_next(&iter);
+        if (!tried_factor && b > POWER_FACTOR_SMALL_EXP_LIMIT) {
+          unsigned long vk;
+          tried_factor = 1;
+          /* Known small-factor valuations bound the remaining exponent. */
+          vk = _power_factor_from_trial_factors(nf, f, POWER_FACTOR_TRIAL_LIMIT);
+          if (vk > 1) {
+            k *= vk;
+            break;
+          }
+        }
       }
-      if (ok != k && !mpz_perfect_power_p(nf)) break;
-      if (mpz_cmp_ui(tf, 1) <= 0) break; /* Exit if we can't find the power */
-      b = prime_iterator_next(&iter);
     }
     mpz_clear(tf);  mpz_clear(nf);
     prime_iterator_destroy(&iter);
   }
   return (k == 1) ? 0 : k;
 }
+
 
 static int numcmp(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }

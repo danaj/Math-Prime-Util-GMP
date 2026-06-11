@@ -9,6 +9,8 @@ use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight
                               is_power is_prime_power is_square
                               binomial binomialmod gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
+my $author = defined $ENV{AUTHOR_TESTING} && $ENV{AUTHOR_TESTING};
+my $deep_testing = $extra || $author;
 
 my @gcds = (
   [ [], 0],
@@ -200,11 +202,11 @@ plan tests => 1      # gcd
             + 1      # hammingweight
             + 1      # binomial
             + 6      # ... more binomial
-            + 4      # binomialmod
+            + 8 + ($deep_testing ? 3 : 0)      # binomialmod
             + 1      # gcdext
             + 1      # vecsum
             + 1      # vecprod
-            + 5 + 4 + 7 + 3 + 3 + 2;
+            + 7 + 4 + 7 + 3 + 3 + 2;
 
 is_deeply( [map { gcd(@{$_->[0]}) } @gcds],
            [map { $_->[1]         } @gcds], "gcd(...)");
@@ -257,6 +259,16 @@ is_deeply([binomialmod(400,343,1777),
            binomialmod(-400,-343,1777),
            binomialmod(-14,-343,1777)],
           [977, 251, 421, 0, 0, 647], "binomialmod with negative");
+is(binomialmod(126001, 251, 63001), 501, "binomialmod with prime-square modulus");
+is(binomialmod(2060601, 101, 1030301), 20401, "binomialmod with prime-cube modulus");
+is(binomialmod(208120801, 101, 104060401), 2060601, "binomialmod with prime-fourth-power modulus");
+is(binomialmod(100, 2, 16875), 4950, "binomialmod with composite prime-power modulus");
+
+if ($deep_testing) {
+  is(binomialmod(2*4514260853041-1, 4514260853041-1, 4514260853041), 1, "binomialmod with large prime-square modulus");
+  is(binomialmod(567373297, 283686649, 4778134229107), 1, "binomialmod with large prime-cube modulus");
+  is(binomialmod(8589935272, 429496, 97656250000000000), 57900778336640000, "binomialmod with large composite prime-power modulus");
+}
 
 
 is_deeply( [map { [gcdext($_->[0],$_->[1])] } @gcdexts],
@@ -274,6 +286,8 @@ is( is_power("141584201252435576611385848128741754359444747593833758786464145304
 is( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761"), "16", "is_power(903111^16) == 16" );
 ok( is_power("195820481042341245090221890868767224469265867337457650976172728836917821923718632978263135461761",4), "is_power(903111^16,4) is true" );
 is( is_power("894311843364148115560351871258324837202590615410044436950984649"), "2", "is_power(29905047121918201644964877983907^2) == 2" );
+is( is_power(Math::Prime::Util::GMP::powint(101,101)), 101, "is_power(101^101) == 101" );
+is( is_power(Math::Prime::Util::GMP::powint(202,101)), 101, "is_power(202^101) == 101" );
 
 is( is_power(-27), 3, "-27 is found to be a third power" );
 is( is_power(-8, 3), 1, "-8 is a third power" );

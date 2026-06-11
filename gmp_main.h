@@ -23,6 +23,7 @@ extern void bell_number(mpz_t r, unsigned long n);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
 extern void factorialmod(mpz_t r, const mpz_t n, const mpz_t m);
+extern void binomialmod(mpz_t r, const mpz_t n, const mpz_t k, const mpz_t m);
 extern void mpz_mfac(mpz_t r, const mpz_t n, const mpz_t k);
 extern void factorial_sum(mpz_t r, unsigned long n);
 extern void subfactorial(mpz_t r, unsigned long n);

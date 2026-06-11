@@ -1527,8 +1527,7 @@ void muladdint(IN char* stra, IN char* strb, IN char* strc)
 void
 binomialmod(IN char* strn, IN char* strk, IN char* strm)
   PREINIT:
-    mpz_t n, k, m, r;
-    unsigned long nu, ku;
+    mpz_t n, k, m;
   PPCODE:
     validate_and_set(n, IFLAG_ANY);
     validate_and_set(k, IFLAG_ANY);
@@ -1537,30 +1536,11 @@ binomialmod(IN char* strn, IN char* strk, IN char* strm)
       mpz_clear(n); mpz_clear(k); mpz_clear(m);
       XSRETURN_UNDEF;
     }
-    if ( mpz_cmp_ui(m,1) <= 0 ||
-         (mpz_sgn(n) >= 0 && (mpz_sgn(k) < 0 || mpz_cmp(k,n) > 0)) ||
-         (mpz_sgn(n) <  0 && (mpz_sgn(k) < 0 && mpz_cmp(k,n) > 0)) ) {
-      mpz_clear(n); mpz_clear(k); mpz_clear(m);
-      XSRETURN_IV(0);
-    }
-    if (mpz_sgn(k) < 0)  /* Only here with n < 0 and k <= n */
-      mpz_sub(k,n,k);    /* So k always positive after this */
-    if (!mpz_fits_ulong_p(k)) croak("binomialmod: k too large");
-    nu = mpz_get_ui(n);
-    ku = mpz_get_ui(k);
-    mpz_init(r);
-    if (!mpz_fits_ulong_p(n) || mpz_sgn(n) < 0 || ku == 0 || ku >= nu) {
-      mpz_bin_ui(r, n, ku);
-    } else {
-      if (ku > nu/2) ku = nu-ku;
-      mpz_bin_uiui(r, nu, ku);
-    }
-    mpz_fdiv_r(r, r, m);
-    mpz_clear(n);
-    mpz_clear(k);
+    binomialmod(n, n, k, m);
+    XPUSH_MPZ(n);
     mpz_clear(m);
-    XPUSH_MPZ(r);
-    mpz_clear(r);
+    mpz_clear(k);
+    mpz_clear(n);
 
 void
 falling_factorial(IN char* strx, IN char* strn)
