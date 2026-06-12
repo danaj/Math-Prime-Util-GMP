@@ -236,10 +236,12 @@ static void _rho_step(mpz_t x, mpz_t a, mpz_t b,
       mpz_sub(a, a, order);
   } else if (bucket == 1) {
     _mulmod(x, x, x, n, tmp);
-    mpz_mul_ui(a, a, 2);
-    mpz_mod(a, a, order);
-    mpz_mul_ui(b, b, 2);
-    mpz_mod(b, b, order);
+    mpz_add(a, a, a);
+    if (mpz_cmp(a, order) >= 0)
+      mpz_sub(a, a, order);
+    mpz_add(b, b, b);
+    if (mpz_cmp(b, order) >= 0)
+      mpz_sub(b, b, order);
   } else {
     _mulmod(x, x, h, n, tmp);
     mpz_add_ui(b, b, 1);
@@ -264,39 +266,44 @@ static int _znlog_rho(mpz_t r, const mpz_t h, const mpz_t g,
   mpz_init(da); mpz_init(db);
   mpz_init(inv); mpz_init(tmp);
 
-  for (attempt = 0; attempt < ZNLOG_RHO_ATTEMPTS && !found; attempt++) {
-    mpz_isaac_urandomm(a1, order);
-    mpz_isaac_urandomm(b1, order);
-    if (mpz_sgn(a1) == 0 && mpz_sgn(b1) == 0)
-      mpz_add_ui(a1, a1, 1);
+  for (attempt = 1; attempt <= ZNLOG_RHO_ATTEMPTS && !found; attempt++) {
+    mpz_set_ui(a1, attempt);
+    mpz_set_ui(b1, 0);
     mpz_powm(x1, g, a1, n);
-    mpz_powm(tmp, h, b1, n);
-    mpz_mul(x1, x1, tmp);
-    mpz_mod(x1, x1, n);
 
-    mpz_set(x2, x1);
-    mpz_set(a2, a1);
-    mpz_set(b2, b1);
+    mpz_set(x2, x1);  mpz_set(a2, a1);  mpz_set(b2, b1);
 
-    for (iter = 0; iter < max_iters; iter++) {
-      _rho_step(x1, a1, b1, g, h, n, order, tmp);
-      _rho_step(x2, a2, b2, g, h, n, order, tmp);
-      _rho_step(x2, a2, b2, g, h, n, order, tmp);
+    _rho_step(x2, a2, b2, g, h, n, order, tmp);
+    iter = 1;
+    {
+      unsigned long power = 1;
+      unsigned long lam = 1;
 
-      if (mpz_cmp(x1, x2) == 0) {
-        mpz_sub(da, a1, a2);
-        mpz_mod(da, da, order);
-        mpz_sub(db, b2, b1);
-        mpz_mod(db, db, order);
-        if (mpz_sgn(db) != 0 && mpz_invert(inv, db, order)) {
-          mpz_mul(r, da, inv);
-          mpz_mod(r, r, order);
-          if (_pow_equal(g, r, n, h)) {
-            found = 1;
-            break;
-          }
+      while (mpz_cmp(x1, x2) != 0 && iter < max_iters) {
+        if (power == lam) {
+          mpz_set(x1, x2);  mpz_set(a1, a2);  mpz_set(b1, b2);
+          power <<= 1;
+          lam = 0;
         }
-        break;
+        _rho_step(x2, a2, b2, g, h, n, order, tmp);
+        lam++;
+        iter++;
+      }
+    }
+
+    if (mpz_cmp(x1, x2) == 0) {
+      mpz_sub(da, a1, a2);
+      mpz_mod(da, da, order);
+      mpz_sub(db, b2, b1);
+      mpz_mod(db, db, order);
+      if (mpz_sgn(db) != 0 && mpz_invert(inv, db, order)) {
+        mpz_mul(r, da, inv);
+        mpz_mod(r, r, order);
+        if (_pow_equal(g, r, n, h)) {
+          found = 1;
+          if (get_verbose_level() > 1)
+            printf("  prho found after %lu steps (attempt %lu)\n",iter,attempt);
+        }
       }
     }
   }
