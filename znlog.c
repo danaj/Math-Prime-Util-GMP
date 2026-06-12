@@ -12,9 +12,10 @@
   #define ZNLOG_BSGS_MAX       1000000UL
   #define ZNLOG_BSGS_HARD_MAX  12000000UL
 #endif
-#define ZNLOG_RHO_ATTEMPTS     24
+#define ZNLOG_RHO_ATTEMPTS     4
 #define ZNLOG_RHO_MIN_ITERS    10000UL
-#define ZNLOG_RHO_MAX_ITERS    5000000UL
+#define ZNLOG_RHO_MAX_ITERS    1000000000UL
+#define ZNLOG_RHO_TARGET_FACTOR 4UL
 
 /* Discrete log via coprime reduction, Pohlig-Hellman, BSGS, and rho.
  * The subproblem solvers are bounded: very hard prime-order logs can fail.
@@ -53,10 +54,10 @@ static unsigned long _rho_max_iters(const mpz_t order)
   mpz_sqrt(s, order);
   if (mpz_fits_ulong_p(s)) {
     unsigned long su = mpz_get_ui(s);
-    if (su > (ZNLOG_RHO_MAX_ITERS - 1000UL) / 8UL)
+    if (su > (ZNLOG_RHO_MAX_ITERS - 1000UL) / ZNLOG_RHO_TARGET_FACTOR)
       max_iters = ZNLOG_RHO_MAX_ITERS;
     else
-      max_iters = 8UL * su + 1000UL;
+      max_iters = ZNLOG_RHO_TARGET_FACTOR * su + 1000UL;
   } else {
     max_iters = ZNLOG_RHO_MAX_ITERS;
   }
@@ -348,6 +349,7 @@ static int _znlog_prime_order(mpz_t r, const mpz_t h, const mpz_t g,
     return 1;
   }
 
+  if (VL) gmp_printf("znlog: order %Zd failed to find residue\n",order);
   return 0;
 }
 
