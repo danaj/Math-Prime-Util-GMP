@@ -1643,6 +1643,7 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
     mulmod = 2
     powmod = 3
     divmod = 4
+    rootmod = 5
   PREINIT:
     mpz_t a, b, n;
     int retundef;
@@ -1658,7 +1659,7 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
         else if (mpz_cmp_ui(b,1) > 0)  retundef = !mpz_invert(b,b,n);
       }
     }
-    if (!retundef && ix == 3 && mpz_sgn(b) < 0) {
+    if (!retundef && (ix == 3 || ix == 5) && mpz_sgn(b) < 0) {
       if (!mpz_cmp_ui(n,1))       mpz_set_ui(b,0);
       else                        retundef = !mpz_invert(a,a,n);
       mpz_abs(b,b);
@@ -1678,9 +1679,66 @@ addmod(IN char* stra, IN char* strb, IN char* strn)
       mpz_mod(a,a,n);
     } else if (ix == 3) {
       mpz_powm(a, a, b, n);
+    } else if (ix == 5) {
+      retundef = !rootmod(a, a, b, n);
+    }
+    if (retundef) {
+      mpz_clear(n); mpz_clear(b); mpz_clear(a);
+      XSRETURN_UNDEF;
     }
     XPUSH_MPZ(a);
     mpz_clear(n); mpz_clear(b); mpz_clear(a);
+
+void allsqrtmod(IN char* stra, IN char* strn)
+  PREINIT:
+    mpz_t a, n;
+    mpz_t *roots;
+    UV i, nroots;
+  PPCODE:
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
+    if (mpz_sgn(n) == 0) {
+      mpz_clear(n); mpz_clear(a);
+      if (GIMME_V == G_ARRAY) XSRETURN_EMPTY;
+      XSRETURN_UV(0);
+    }
+    if (GIMME_V != G_ARRAY) {
+      nroots = allsqrtmod_count(a, n);
+      mpz_clear(n); mpz_clear(a);
+      XSRETURN_UV(nroots);
+    }
+    roots = allsqrtmod(&nroots, a, n);
+    EXTEND(SP, (long)nroots);
+    for (i = 0; i < nroots; i++)
+      XPUSH_MPZ(roots[i]);
+    clear_rootmod_list(roots, nroots);
+    mpz_clear(n); mpz_clear(a);
+
+void allrootmod(IN char* stra, IN char* strk, IN char* strn)
+  PREINIT:
+    mpz_t a, k, n;
+    mpz_t *roots;
+    UV i, nroots;
+  PPCODE:
+    validate_and_set(a, IFLAG_ANY);
+    validate_and_set(k, IFLAG_ANY);
+    validate_and_set(n, IFLAG_ABS);
+    if (mpz_sgn(n) == 0) {
+      mpz_clear(n); mpz_clear(k); mpz_clear(a);
+      if (GIMME_V == G_ARRAY) XSRETURN_EMPTY;
+      XSRETURN_UV(0);
+    }
+    if (GIMME_V != G_ARRAY) {
+      nroots = allrootmod_count(a, k, n);
+      mpz_clear(n); mpz_clear(k); mpz_clear(a);
+      XSRETURN_UV(nroots);
+    }
+    roots = allrootmod(&nroots, a, k, n);
+    EXTEND(SP, (long)nroots);
+    for (i = 0; i < nroots; i++)
+      XPUSH_MPZ(roots[i]);
+    clear_rootmod_list(roots, nroots);
+    mpz_clear(n); mpz_clear(k); mpz_clear(a);
 
 void muladdmod(IN char* stra, IN char* strb, IN char* strc, IN char* strn)
   ALIAS:

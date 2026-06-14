@@ -83,7 +83,8 @@ our @EXPORT_OK = qw(
                      logreal expreal powreal rootreal agmreal
                      gcd lcm kronecker valuation binomial gcdext hammingweight
                      remove_factors remove_factors_exp
-                     negmod invmod sqrtmod addmod submod mulmod divmod powmod
+                     negmod invmod sqrtmod allsqrtmod rootmod allrootmod
+                     addmod submod mulmod divmod powmod
                      is_qr
                      muladdmod mulsubmod
                      vecsum vecprod
@@ -198,7 +199,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znlog znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znlog znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod allsqrtmod rootmod allrootmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -2007,6 +2008,38 @@ If the modulus is prime, the function will always return C<r>, the smaller
 of the two square roots (the other being C<-r mod |n|>.  If the modulus is
 composite, one of possibly many square roots will be returned, and it will
 not necessarily be the smallest.
+
+=head2 allsqrtmod
+
+Given two integers C<a> and C<n>, returns a sorted list of all modular
+square roots of C<a> mod C<|n|>. If no square root exists, an empty
+list is returned.
+
+Some inputs will return many roots and may not be able to successfully
+return them all.
+
+In scalar context, this returns the count of roots.
+
+=head2 rootmod
+
+Given three integers C<a>, C<k>, and C<n>, returns a C<k>-th root of
+C<a> modulo C<|n|>, or undef if one does not exist.
+If defined, the return value C<r> will satisfy C<r^k = a mod |n|>.
+There is no guarantee that the smallest root will be returned.
+
+C<rootmod(a,-k,n)> is calculated as C<rootmod(invmod(a,n),k,n)>.
+If C<1/a mod |n|> does not exist, undef is returned.
+
+=head2 allrootmod
+
+Given three integers C<a>, C<k>, and C<n>, returns a sorted list of all
+modular C<k>-th roots of C<a> modulo C<|n|>.
+If no root exists, an empty list is returned.
+
+Similar to L</allsqrtmod>, some inputs have millions or billions of roots,
+so it might not be able to successfully return them all.
+
+In scalar context, this returns the count of roots.
 
 =head2 negmod
 

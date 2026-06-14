@@ -24,6 +24,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - remove_factors(n,k)      returns r: n with all factors of k removed
     - remove_factors_exp(n,k)  as above, returns (r,e) e = times removed
     - znlog(a,g,n)             solve for k where g^k = a mod n
+    - rootmod(a,k,n)           modular k-th root
+    - allsqrtmod(a,n)          all square roots of a (mod n)
+    - allrootmod(a,k,n)        all k-th roots of a (mod n)
 
     [FIXES]
 

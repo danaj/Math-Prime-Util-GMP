@@ -5,8 +5,7 @@ use warnings;
 use Test::More;
 use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight
                               remove_factors remove_factors_exp
-                              invmod is_qr
-                              is_power is_prime_power is_square
+                              is_power is_prime_power is_square is_qr
                               binomial binomialmod gcdext vecsum vecprod/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 my $author = defined $ENV{AUTHOR_TESTING} && $ENV{AUTHOR_TESTING};
