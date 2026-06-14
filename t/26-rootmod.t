@@ -55,7 +55,7 @@ my @allroot = (
 plan tests => 0
             + 2 * @allsqrt
             + 2 * @allroot
-            + 7;
+            + 8;
 
 for my $t (@allsqrt) {
   my($a, $n, $exp) = @$t;
@@ -85,4 +85,11 @@ is(rootmod(12,41,1147), 1106, "rootmod one-root composite case");
   my $r = rootmod(13,6,107);
   ok(is_one_of($r, 24, 83) && powmod($r, 6, 107) == 13,
      "rootmod returns a valid root");
+}
+
+{
+  my($a, $k, $n) = (6250000, 4, 10000000000);
+  my $r = rootmod($a, $k, $n);
+  ok(defined($r) && powmod($r, $k, $n) == $a,
+     "rootmod high-multiplicity composite case");
 }

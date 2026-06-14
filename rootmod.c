@@ -316,6 +316,7 @@ int sqrtmodp_t(mpz_t r, const mpz_t a, const mpz_t p,  mpz_t t1,mpz_t t2,mpz_t t
 /******************************************************************************/
 
 #define MAX_ROOTS_RETURNED 600000000
+#define ROOTMOD_BRUTE_LIFT_MAX 1000000
 
 static int _mpz_cmp_roots(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
@@ -1139,6 +1140,304 @@ static mpz_t* _allrootmod_kprime(UV *nroots, const mpz_t a,
   return roots;
 }
 
+static int _rootmod_prime_power_one(mpz_t r, const mpz_t a,
+                                    const mpz_t k, const mpz_t p, int e)
+{
+  mpz_t n, pk, apk, s, tt, t1, t2, gcd, delta, np;
+  unsigned long ku = 0;
+  int k_le_e, ret = 0;
+
+  if (mpz_cmp_ui(k, 2) == 0) {
+    mpz_t t, u, v, w;
+    mpz_init(t); mpz_init(u); mpz_init(v); mpz_init(w);
+    ret = _sqrtmod_prime_power(r, a, p, e, t,u,v,w);
+    mpz_clear(w); mpz_clear(v); mpz_clear(u); mpz_clear(t);
+    return ret;
+  }
+  if (e == 1)
+    return _rootmod_prime_splitk(r, 0, a, k, p);
+
+  mpz_init(n); mpz_init(pk); mpz_init(apk); mpz_init(s); mpz_init(tt);
+  mpz_init(t1); mpz_init(t2); mpz_init(gcd); mpz_init(delta); mpz_init(np);
+  mpz_pow_ui(n, p, (unsigned long)e);
+  k_le_e = mpz_fits_ulong_p(k) && (ku = mpz_get_ui(k)) <= (unsigned long)e;
+
+  if (mpz_divisible_p(a, n)) {
+    mpz_set_ui(r, 0);
+    ret = 1;
+    goto DONE;
+  }
+
+  if (k_le_e) {
+    mpz_pow_ui(pk, p, ku);
+    if (mpz_divisible_p(a, pk)) {
+      mpz_divexact(apk, a, pk);
+      if (_rootmod_prime_power_one(s, apk, k, p, e-(int)ku)) {
+        mpz_mul(r, s, p);
+        mpz_mod(r, r, n);
+        ret = 1;
+      }
+      goto DONE_VERIFY;
+    }
+  }
+
+  if (mpz_divisible_p(a, p))
+    goto DONE;
+
+  {
+    int ered = (mpz_cmp_ui(p,2) > 0 || e < 5) ? (e+1)>>1 : (e+3)>>1;
+    if (!_rootmod_prime_power_one(s, a, k, p, ered))
+      goto DONE;
+  }
+
+  if (mpz_cmp(k, p) == 0) mpz_mul(np, n, p);
+  else                    mpz_set(np, n);
+  mpz_sub_ui(tt, k, 1);
+  mpz_powm(tt, s, tt, np);
+  mpz_mul(t1, tt, s);
+  mpz_sub(t1, a, t1);
+  mpz_mod(t1, t1, np);
+  mpz_mul(t2, k, tt);
+  mpz_mod(t2, t2, np);
+  mpz_gcd(gcd, t1, t2);
+  mpz_divexact(t1, t1, gcd);
+  mpz_divexact(t2, t2, gcd);
+  if (!mpz_divmod(delta, t1, t2, n, tt))
+    goto DONE;
+  mpz_add(r, s, delta);
+  mpz_mod(r, r, n);
+  ret = 1;
+
+DONE_VERIFY:
+  if (ret && !_rootmod_verify(r, a, k, n, tt, t1))
+    ret = 0;
+DONE:
+  mpz_clear(np); mpz_clear(delta); mpz_clear(gcd); mpz_clear(t2); mpz_clear(t1);
+  mpz_clear(tt); mpz_clear(s); mpz_clear(apk); mpz_clear(pk); mpz_clear(n);
+  return ret;
+}
+
+static int _rootmod_hensel_lift(mpz_t re, const mpz_t r, const mpz_t a,
+                                const mpz_t k, const mpz_t pe)
+{
+  mpz_t f, fp, km1, d, t;
+  int ret = 0;
+
+  mpz_init(f); mpz_init(fp); mpz_init(km1); mpz_init(d); mpz_init(t);
+  mpz_powm(f, r, k, pe);
+  mpz_sub(f, f, a);
+  mpz_mod(f, f, pe);
+  if (mpz_sgn(f) == 0) {
+    mpz_set(re, r);
+    ret = 1;
+    goto DONE;
+  }
+
+  mpz_sub_ui(km1, k, 1);
+  mpz_powm(fp, r, km1, pe);
+  mpz_mul(fp, fp, k);
+  mpz_mod(fp, fp, pe);
+  if (mpz_divmod(d, f, fp, pe, t)) {
+    mpz_sub(re, r, d);
+    mpz_mod(re, re, pe);
+    ret = 1;
+  }
+
+DONE:
+  mpz_clear(t); mpz_clear(d); mpz_clear(km1); mpz_clear(fp); mpz_clear(f);
+  return ret;
+}
+
+static int _rootmod_prime_power_direct(mpz_t r, const mpz_t a,
+                                       const mpz_t k, const mpz_t p, int e)
+{
+  mpz_t pe, pk, apk, s, p2, m, j, cand, A;
+  unsigned long ku = 0;
+  int ei, k_le_e, ret = 0;
+
+  if (_GMP_is_prime(k))
+    return _rootmod_prime_power_one(r, a, k, p, e);
+
+  mpz_init(pe); mpz_init(pk); mpz_init(apk); mpz_init(s); mpz_init(p2);
+  mpz_init(m); mpz_init(j); mpz_init(cand); mpz_init(A);
+  mpz_pow_ui(pe, p, (unsigned long)e);
+  k_le_e = mpz_fits_ulong_p(k) && (ku = mpz_get_ui(k)) <= (unsigned long)e;
+
+  if (mpz_divisible_p(a, pe)) {
+    mpz_set_ui(r, 0);
+    ret = 1;
+    goto DONE;
+  }
+
+  if (k_le_e) {
+    mpz_pow_ui(pk, p, ku);
+    if (mpz_divisible_p(a, pk)) {
+      mpz_divexact(apk, a, pk);
+      if (_rootmod_prime_power_direct(s, apk, k, p, e-(int)ku)) {
+        mpz_mul(r, s, p);
+        mpz_mod(r, r, pe);
+        ret = 1;
+      }
+      goto DONE;
+    }
+  }
+
+  if (mpz_divisible_p(a, p))
+    goto DONE;
+
+  mpz_mod(A, a, p);
+  if (!_rootmod_prime_splitk(r, 0, A, k, p) ||
+      !_rootmod_verify(r, A, k, p, pe, m))
+    goto FALLBACK;
+
+  if (e == 1) {
+    ret = 1;
+    goto DONE;
+  }
+
+  mpz_set(pe, p);
+  mpz_mul(p2, p, p);
+  for (ei = 2; ei <= e; ei++) {
+    mpz_mul(pe, pe, p);
+    if (_rootmod_hensel_lift(r, r, a, k, pe))
+      continue;
+
+    mpz_divexact(m, pe, p2);
+    for (mpz_set_ui(j, 1); mpz_cmp(j, p) < 0; mpz_add_ui(j, j, 1)) {
+      mpz_mul(cand, j, m);
+      mpz_add(cand, cand, r);
+      if (_rootmod_hensel_lift(r, cand, a, k, pe))
+        break;
+    }
+    if (mpz_cmp(j, p) >= 0) {
+      mpz_divexact(m, pe, p);
+      if (!mpz_fits_uv_p(m) || mpz_get_uv(m) > ROOTMOD_BRUTE_LIFT_MAX)
+        goto FALLBACK;
+      mpz_mod(cand, r, p);
+      mpz_mod(A, a, pe);
+      for (mpz_set_ui(j, 0); mpz_cmp(j, m) < 0; mpz_add_ui(j, j, 1)) {
+        mpz_powm(s, cand, k, pe);
+        if (mpz_cmp(s, A) == 0) {
+          mpz_set(r, cand);
+          break;
+        }
+        mpz_add(cand, cand, p);
+      }
+      if (mpz_cmp(j, m) >= 0)
+        goto FALLBACK;
+    }
+  }
+  ret = 1;
+  goto DONE;
+
+FALLBACK:
+  ret = 0;
+
+DONE:
+  if (ret) {
+    mpz_pow_ui(pe, p, (unsigned long)e);
+    ret = _rootmod_verify(r, a, k, pe, m, j);
+  }
+  mpz_clear(A); mpz_clear(cand); mpz_clear(j); mpz_clear(m); mpz_clear(p2);
+  mpz_clear(s); mpz_clear(apk); mpz_clear(pk); mpz_clear(pe);
+  return ret;
+}
+
+static int _rootmod_kprime_one(mpz_t r, const mpz_t a,
+                               const mpz_t k, const mpz_t n,
+                               mpz_t *fac, int *exp, int nfactors)
+{
+  mpz_t A, N, fe, s, t, u;
+  int i, ret = 0;
+
+  if (nfactors <= 0)
+    return 0;
+
+  mpz_init_set(A, a);
+  mpz_init_set_ui(N, 1);
+  mpz_init(fe); mpz_init(s); mpz_init(t); mpz_init(u);
+  mpz_set_ui(r, 0);
+
+  for (i = 0; i < nfactors; i++) {
+    mpz_pow_ui(fe, fac[i], (unsigned long)exp[i]);
+    if (!_rootmod_prime_power_one(s, A, k, fac[i], exp[i]))
+      goto DONE;
+    mpz_sub(t, s, r);
+    mpz_mod(t, t, fe);
+    if (!mpz_divmod(t, t, N, fe, u))
+      goto DONE;
+    mpz_mul(t, t, N);
+    mpz_add(r, r, t);
+    mpz_mod(r, r, n);
+    mpz_mul(N, N, fe);
+  }
+  ret = _rootmod_verify(r, A, k, n, t, u);
+
+DONE:
+  mpz_clear(u); mpz_clear(t); mpz_clear(s); mpz_clear(fe); mpz_clear(N);
+  mpz_clear(A);
+  return ret;
+}
+
+static int _rootmod_composite_direct(mpz_t r, const mpz_t a,
+                                     const mpz_t k, const mpz_t n,
+                                     mpz_t *fac, int *exp, int nfactors,
+                                     mpz_t t, mpz_t u)
+{
+  mpz_t N, fe, s;
+  int i, ret = 0;
+
+  if (nfactors <= 0)
+    return 0;
+
+  mpz_init_set_ui(N, 1);
+  mpz_init(fe);
+  mpz_init(s);
+  mpz_set_ui(r, 0);
+
+  for (i = 0; i < nfactors; i++) {
+    mpz_pow_ui(fe, fac[i], (unsigned long)exp[i]);
+    if (!_rootmod_prime_power_direct(s, a, k, fac[i], exp[i]))
+      goto DONE;
+    mpz_sub(t, s, r);
+    mpz_mod(t, t, fe);
+    if (!mpz_divmod(t, t, N, fe, u))
+      goto DONE;
+    mpz_mul(t, t, N);
+    mpz_add(r, r, t);
+    mpz_mod(r, r, n);
+    mpz_mul(N, N, fe);
+  }
+  ret = _rootmod_verify(r, a, k, n, t, u);
+
+DONE:
+  mpz_clear(s); mpz_clear(fe); mpz_clear(N);
+  return ret;
+}
+
+static int _rootmod_composite_splitn(mpz_t r, const mpz_t a,
+                                     const mpz_t k, const mpz_t n,
+                                     mpz_t *fac, int *exp, int nfactors,
+                                     mpz_t t, mpz_t u)
+{
+  mpz_t *kfac;
+  int *kexp, nkfactors, fi, ei, ret = 1;
+
+  if (_GMP_is_prime(k))
+    return _rootmod_kprime_one(r, a, k, n, fac, exp, nfactors);
+
+  mpz_set(r, a);
+  nkfactors = factor(k, &kfac, &kexp);
+  for (fi = 0; ret && fi < nkfactors; fi++)
+    for (ei = 0; ret && ei < kexp[fi]; ei++)
+      ret = _rootmod_kprime_one(r, r, kfac[fi], n, fac, exp, nfactors);
+  clear_factors(nkfactors, &kfac, &kexp);
+
+  if (ret)
+    ret = _rootmod_verify(r, a, k, n, t, u);
+  return ret;
+}
+
 mpz_t* allrootmod(UV* nroots, const mpz_t a, const mpz_t k, const mpz_t n)
 {
   mpz_t A, K, i, *fac, *kfac;
@@ -1268,10 +1567,11 @@ UV allrootmod_count(const mpz_t a, const mpz_t k, const mpz_t n)
 
 int rootmod(mpz_t r, const mpz_t a, const mpz_t k, const mpz_t n)
 {
-  mpz_t A, K, t, u;
+  mpz_t A, K, t, u, *fac;
   mpz_t *roots;
+  int *exp, nfactors;
   UV nroots;
-  int ret = 0;
+  int k_is_prime, ret = 0;
 
   if (mpz_sgn(n) == 0) {
     mpz_set_ui(r, 0);
@@ -1324,12 +1624,21 @@ int rootmod(mpz_t r, const mpz_t a, const mpz_t k, const mpz_t n)
     goto DONE;
   }
 
-  roots = allrootmod(&nroots, A, K, n);
-  if (nroots > 0) {
-    mpz_set(r, roots[0]);
-    ret = _rootmod_verify(r, A, K, n, t, u);
+  nfactors = factor(n, &fac, &exp);
+  k_is_prime = _GMP_is_prime(K);
+  ret = _rootmod_composite_direct(r, A, K, n, fac, exp, nfactors, t, u);
+  if (!ret && !k_is_prime)
+    ret = _rootmod_composite_splitn(r, A, K, n, fac, exp, nfactors, t, u);
+  clear_factors(nfactors, &fac, &exp);
+
+  if (!ret && !k_is_prime) {
+    roots = allrootmod(&nroots, A, K, n);
+    if (nroots > 0) {
+      mpz_set(r, roots[0]);
+      ret = _rootmod_verify(r, A, K, n, t, u);
+    }
+    clear_rootmod_list(roots, nroots);
   }
-  clear_rootmod_list(roots, nroots);
 
 DONE:
   mpz_clear(u); mpz_clear(t); mpz_clear(K); mpz_clear(A);
