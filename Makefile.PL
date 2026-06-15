@@ -38,6 +38,7 @@ WriteMakefile1(
                     'factmod.o '        .
                     'znlog.o '          .
                     'rootmod.o '        .
+                    'legendre_phi.o '   .
                     'prime_iterator.o ' .
                     'poly.o '           .
                     'pbrent63.o '       .

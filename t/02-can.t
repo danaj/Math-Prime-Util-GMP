@@ -64,6 +64,7 @@ my @functions = qw(
                      chinese chinese2
                      moebius
                      prime_count prime_count_lower prime_count_upper
+                     legendre_phi
                      primorial
                      pn_primorial
                      factorial subfactorial multifactorial factorial_sum

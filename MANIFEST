@@ -55,6 +55,8 @@ real.h
 real.c
 rootmod.h
 rootmod.c
+legendre_phi.h
+legendre_phi.c
 utility.h
 utility.c
 t/01-load.t
@@ -67,6 +69,7 @@ t/13-primecount.t
 t/15-probprime.t
 t/16-provableprime.t
 t/17-pseudoprime.t
+t/19-legendrephi.t
 t/19-moebius.t
 t/20-primorial.t
 t/21-conseq-lcm.t

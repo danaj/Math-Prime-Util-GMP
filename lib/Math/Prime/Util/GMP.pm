@@ -70,6 +70,7 @@ our @EXPORT_OK = qw(
                      chinese chinese2
                      moebius
                      prime_count prime_count_lower prime_count_upper
+                     legendre_phi
                      primorial
                      pn_primorial
                      factorial subfactorial multifactorial factorial_sum
@@ -922,6 +923,14 @@ for 64-bit arguments.
 Returns lower or upper bounds for the prime count of the input C<n>.
 
 Bounds use Dusart 2010, Büthe 2014, Büthe 2015, and Axler 2017.
+
+=head2 legendre_phi
+
+  $phi = legendre_phi(1000000000, 41);
+
+Given two non-negative integers C<n> and C<a>, returns the Legendre phi
+function.  This is the count of positive integers C<< <= n >> which are
+not divisible by any of the first C<a> primes.
 
 
 =head2 sieve_primes

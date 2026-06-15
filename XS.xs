@@ -20,6 +20,7 @@
 #include "ecpp.h"
 #include "aks.h"
 #include "rootmod.h"
+#include "legendre_phi.h"
 #include "znlog.h"
 #include "utility.h"
 #include "factor.h"
@@ -628,6 +629,19 @@ void prime_count(IN char* strlo, IN char* strhi = 0)
     }
     XPUSH_MPZ(res);
     mpz_clear(res);
+
+void legendre_phi(IN char* strn, IN char* stra)
+  PREINIT:
+    mpz_t n, a, res;
+  PPCODE:
+    validate_and_set(n, IFLAG_NONNEG);
+    validate_and_set(a, IFLAG_NONNEG);
+    mpz_init(res);
+    legendre_phi(res, n, a);
+    XPUSH_MPZ(res);
+    mpz_clear(res);
+    mpz_clear(a);
+    mpz_clear(n);
 
 void nth_perfect_power(IN char* strn)
   ALIAS:

@@ -27,6 +27,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - rootmod(a,k,n)           modular k-th root
     - allsqrtmod(a,n)          all square roots of a (mod n)
     - allrootmod(a,k,n)        all k-th roots of a (mod n)
+    - legendre_phi(n,a)        Legendre's phi function
 
     [FIXES]
 
