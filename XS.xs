@@ -1272,6 +1272,61 @@ prime_omega(IN char* strn)
   OUTPUT:
     RETVAL
 
+void
+sopf(IN char* strn)
+  ALIAS:
+    sopfr = 1
+    dedekind_psi = 2
+    aliquot_sum = 3
+    abundance = 4
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set(n, ix == 2 ? IFLAG_ANY : IFLAG_NONNEG);
+    switch (ix) {
+      case 0:  sopf(n, n);          break;
+      case 1:  sopfr(n, n);         break;
+      case 2:  dedekind_psi(n, n);  break;
+      case 3:  aliquot_sum(n, n);   break;
+      case 4:  abundance(n, n);     break;
+      default: break;
+    }
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void
+prime_signature(IN char* strn)
+  PREINIT:
+    mpz_t n, r;
+    uint32_t *signature;
+    int i, nsig;
+  PPCODE:
+    validate_and_set(n, IFLAG_NONNEG);
+    if (GIMME_V == G_ARRAY) {
+      nsig = prime_signature(0, &signature, n);
+      EXTEND(SP, nsig);
+      for (i = 0; i < nsig; i++)
+        XPUSH_UINT(signature[i]);
+      if (signature != 0) Safefree(signature);
+    } else {
+      mpz_init(r);
+      prime_signature(r, 0, n);
+      XPUSH_MPZ(r);
+      mpz_clear(r);
+    }
+    mpz_clear(n);
+
+int
+is_safe_prime(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  CODE:
+    validate_and_set(n, IFLAG_ANY);
+    RETVAL = is_safe_prime(n);
+    mpz_clear(n);
+  OUTPUT:
+    RETVAL
+
 int
 is_powerful(IN char* strn, IN UV k = 2)
   ALIAS:

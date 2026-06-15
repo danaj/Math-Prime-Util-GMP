@@ -11,8 +11,15 @@ extern void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[]);
 
 extern uint32_t omega(const mpz_t n);
 extern uint32_t bigomega(const mpz_t n);
+extern void sopf(mpz_t res, const mpz_t n);
+extern void sopfr(mpz_t res, const mpz_t n);
+extern int  prime_signature(mpz_t res, uint32_t **signature, const mpz_t n);
 extern void sigma(mpz_t res, const mpz_t n, unsigned long k);
+extern void dedekind_psi(mpz_t res, const mpz_t n);
+extern void aliquot_sum(mpz_t res, const mpz_t n);
+extern void abundance(mpz_t res, const mpz_t n);
 extern int moebius(const mpz_t n);
+extern int is_safe_prime(const mpz_t n);
 extern int is_square_free_ui(unsigned long n);
 extern int is_square_free(const mpz_t n);
 extern int liouville(const mpz_t n);

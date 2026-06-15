@@ -88,6 +88,8 @@ my @functions = qw(
                      euler_phi
                      jordan_totient
                      carmichael_lambda
+                     dedekind_psi aliquot_sum abundance
+                     sopf sopfr prime_signature
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
                      muladdint mulsubint addmulint submulint
@@ -99,6 +101,7 @@ my @functions = qw(
                      bitand bitor bitxor bitnot
                      is_divisible is_congruent
                      is_power is_prime_power is_semiprime is_almost_prime
+                     is_safe_prime
                      is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root

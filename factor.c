@@ -1,4 +1,5 @@
 #include <gmp.h>
+#include <stdlib.h>
 #include "ptypes.h"
 
 #include "factor.h"
@@ -467,6 +468,100 @@ uint32_t bigomega(const mpz_t n)
   return bo;
 }
 
+void sopf(mpz_t res, const mpz_t n)
+{
+  mpz_t* factors;
+  int i, nfactors, *exponents;
+
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(res, 0);
+    return;
+  }
+
+  nfactors = factor(n, &factors, &exponents);
+  mpz_set_ui(res, 0);
+  for (i = 0; i < nfactors; i++)
+    mpz_add(res, res, factors[i]);
+  clear_factors(nfactors, &factors, &exponents);
+}
+
+void sopfr(mpz_t res, const mpz_t n)
+{
+  mpz_t* factors;
+  int i, j, nfactors, *exponents;
+
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(res, 0);
+    return;
+  }
+
+  nfactors = factor(n, &factors, &exponents);
+  mpz_set_ui(res, 0);
+  for (i = 0; i < nfactors; i++)
+    for (j = 0; j < exponents[i]; j++)
+      mpz_add(res, res, factors[i]);
+  clear_factors(nfactors, &factors, &exponents);
+}
+
+static int _cmp_uint32_desc(const void *a, const void *b)
+{
+  uint32_t ai = *(const uint32_t*)a;
+  uint32_t bi = *(const uint32_t*)b;
+  return (ai < bi) ? 1 : (ai > bi) ? -1 : 0;
+}
+
+int prime_signature(mpz_t res, uint32_t **signature, const mpz_t n)
+{
+  mpz_t* factors;
+  int i, nfactors, *exponents;
+  uint32_t *sig = 0;
+
+  if (mpz_sgn(n) == 0) {
+    if (res != 0) mpz_set_ui(res, 2);
+    if (signature != 0) {
+      New(0, sig, 1, uint32_t);
+      sig[0] = 1;
+      *signature = sig;
+    }
+    return 1;
+  }
+  if (mpz_cmp_ui(n, 1) == 0) {
+    if (res != 0) mpz_set_ui(res, 0);
+    if (signature != 0) *signature = 0;
+    return 0;
+  }
+
+  nfactors = factor(n, &factors, &exponents);
+  New(0, sig, nfactors, uint32_t);
+  for (i = 0; i < nfactors; i++)
+    sig[i] = exponents[i];
+  qsort(sig, nfactors, sizeof(*sig), _cmp_uint32_desc);
+
+  if (res != 0) {
+    mpz_t t;
+    PRIME_ITERATOR(iter);
+
+    mpz_init(t);
+    mpz_set_ui(res, 1);
+    prime_iterator_setprime(&iter, 1);
+    for (i = 0; i < nfactors; i++) {
+      unsigned long p = prime_iterator_next(&iter);
+      mpz_ui_pow_ui(t, p, sig[i]);
+      mpz_mul(res, res, t);
+    }
+    prime_iterator_destroy(&iter);
+    mpz_clear(t);
+  }
+
+  clear_factors(nfactors, &factors, &exponents);
+  if (signature != 0) {
+    *signature = sig;
+  } else {
+    Safefree(sig);
+  }
+  return nfactors;
+}
+
 void sigma(mpz_t res, const mpz_t n, unsigned long k)
 {
   mpz_t* factors;
@@ -525,6 +620,63 @@ void sigma(mpz_t res, const mpz_t n, unsigned long k)
   mpz_product(factors, 0, nfactors-1);
   mpz_set(res, factors[0]);
   clear_factors(nfactors, &factors, &exponents);
+}
+
+void dedekind_psi(mpz_t res, const mpz_t n)
+{
+  mpz_t* factors;
+  mpz_t t, pke;
+  int i, j, nfactors, *exponents;
+
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(res, (mpz_cmp_ui(n, 1) == 0) ? 1 : 0);
+    return;
+  }
+
+  nfactors = factor(n, &factors, &exponents);
+  mpz_init(t);
+  mpz_init(pke);
+  mpz_set_ui(res, 1);
+  for (i = 0; i < nfactors; i++) {
+    mpz_add_ui(t, factors[i], 1);
+    if (exponents[i] > 1) {
+      mpz_set(pke, factors[i]);
+      for (j = 2; j < exponents[i]; j++)
+        mpz_mul(pke, pke, factors[i]);
+      mpz_mul(t, t, pke);
+    }
+    mpz_mul(res, res, t);
+  }
+  mpz_clear(pke);
+  mpz_clear(t);
+  clear_factors(nfactors, &factors, &exponents);
+}
+
+void aliquot_sum(mpz_t res, const mpz_t n)
+{
+  if (mpz_cmp_ui(n, 1) <= 0) {
+    mpz_set_ui(res, 0);
+  } else {
+    mpz_t r;
+    mpz_init(r);
+    sigma(r, n, 1);
+    mpz_sub(res, r, n);
+    mpz_clear(r);
+  }
+}
+
+void abundance(mpz_t res, const mpz_t n)
+{
+  if (mpz_sgn(n) <= 0) {
+    mpz_set_ui(res, 0);
+  } else {
+    mpz_t r;
+    mpz_init(r);
+    sigma(r, n, 1);
+    mpz_sub(r, r, n);
+    mpz_sub(res, r, n);
+    mpz_clear(r);
+  }
 }
 
 
@@ -588,6 +740,22 @@ int liouville(const mpz_t n)
 {
   uint32_t result = bigomega(n);
   return (result & 1)  ?  -1  : 1;
+}
+
+int is_safe_prime(const mpz_t n)
+{
+  mpz_t q;
+  int ret;
+
+  if (mpz_sgn(n) <= 0 || !_GMP_is_prime(n))
+    return 0;
+
+  mpz_init(q);
+  mpz_sub_ui(q, n, 1);
+  mpz_tdiv_q_2exp(q, q, 1);
+  ret = _GMP_is_prime(q);
+  mpz_clear(q);
+  return ret ? 1 : 0;
 }
 
 void totient(mpz_t tot, const mpz_t n_input)

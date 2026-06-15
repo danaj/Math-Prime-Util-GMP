@@ -4,6 +4,7 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/is_carmichael is_fundamental is_totient is_gaussian_prime
+                              is_safe_prime
                               is_polygonal polygonal_nth/;
 
 plan tests => 0
@@ -11,6 +12,7 @@ plan tests => 0
             + 4 # is_fundamental
             + 8 # is_gaussian_prime
             + 9 # is_totient
+            + 1 # is_safe_prime
             + 6 # is_polygonal
             + 0;
 
@@ -49,6 +51,11 @@ is( is_totient("9671406556917033397649496"), 1, "is_totient(2^83+88)" );
 is( is_totient("9671406556917033397649458"), 0, "is_totient(2^83+50)" );
 is( is_totient("9671406556917033397649472"), 1, "is_totient(2^83+64)" );
 is( is_totient("1237940039285380274899124224"), 1, "is_totient(2^90)" );
+
+###### is_safe_prime
+is_deeply( [map { is_safe_prime($_) } -59,0,2,3,5,7,11,23,29,47,59,83],
+           [0,0,0,0,1,1,1,1,0,1,1,1],
+           "is_safe_prime selected values" );
 
 ###### is_gaussian_prime
 ok( !is_gaussian_prime(29,0), "29 is not a Gaussian Prime" );

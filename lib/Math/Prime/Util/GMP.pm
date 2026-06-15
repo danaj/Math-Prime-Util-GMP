@@ -95,6 +95,8 @@ our @EXPORT_OK = qw(
                      euler_phi
                      jordan_totient
                      carmichael_lambda
+                     dedekind_psi aliquot_sum abundance
+                     sopf sopfr prime_signature
                      prime_omega prime_bigomega
                      sqrtint rootint logint powint mulint addint subint
                      muladdint mulsubint addmulint submulint
@@ -106,6 +108,7 @@ our @EXPORT_OK = qw(
                      bitand bitor bitxor bitnot
                      is_divisible is_congruent
                      is_power is_prime_power is_semiprime is_almost_prime
+                     is_safe_prime
                      is_square is_smooth is_rough is_powerful is_practical
                      is_carmichael is_fundamental is_totient
                      is_primitive_root
@@ -1693,6 +1696,11 @@ A semiprime is the product of exactly two primes.
 The boolean result is the same as C<scalar(factor(n)) == 2>, but this
 function performs shortcuts that can greatly speed up the operation.
 
+=head2 is_safe_prime
+
+Given an integer C<n>, returns 1 if C<n> is a safe prime, and 0 otherwise.
+A safe prime is a prime C<p> where C<(p-1)/2> is also prime.
+
 =head2 is_almost_prime
 
   say is_almost_prime(6,2169229601);  # True if n has exactly 6 factors
@@ -2288,6 +2296,33 @@ The result is identical to C<scalar(factor_exp($n))>.
 
 This corresponds to Pari's C<omega> function
 and Mathematica's C<PrimeNu[n]> function.
+
+=head2 prime_signature
+
+Returns the prime signature of C<n>: the exponents in the prime factorization,
+sorted in descending order.  In scalar context, returns the least positive
+integer with that signature.
+
+=head2 sopfr
+
+Returns the sum of prime factors of C<n>, counted with multiplicity.
+
+=head2 sopf
+
+Returns the sum of distinct prime factors of C<n>.
+
+=head2 dedekind_psi
+
+Returns Dedekind's psi function C<psi(n)>.
+
+=head2 aliquot_sum
+
+Returns the sum of proper divisors of C<n>.
+
+=head2 abundance
+
+Returns C<aliquot_sum(n) - n>.  Positive values are abundant, zero values are
+perfect, and negative values are deficient.
 
 =head2 is_divisible
 

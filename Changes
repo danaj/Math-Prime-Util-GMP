@@ -28,6 +28,13 @@ Revision history for Perl module Math::Prime::Util::GMP
     - allsqrtmod(a,n)          all square roots of a (mod n)
     - allrootmod(a,k,n)        all k-th roots of a (mod n)
     - legendre_phi(n,a)        Legendre's phi function
+    - sopf(n)                  sum of distinct prime factors
+    - sopfr(n)                 sum of prime factors with multiplicity
+    - prime_signature(n)       sorted factorization exponents
+    - dedekind_psi(n)          Dedekind psi function
+    - aliquot_sum(n)           sum of proper divisors
+    - abundance(n)             aliquot_sum(n)-n
+    - is_safe_prime(n)         n and (n-1)/2 are both prime
 
     [FIXES]
 

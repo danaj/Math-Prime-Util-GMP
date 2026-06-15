@@ -4,7 +4,9 @@ use warnings;
 
 use Test::More;
 use Math::Prime::Util::GMP qw/factor is_prime sigma divisors is_semiprime
-                              prime_bigomega prime_omega/;
+                              prime_bigomega prime_omega
+                              prime_signature sopf sopfr
+                              dedekind_psi aliquot_sum abundance/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 
@@ -40,6 +42,7 @@ plan tests => 0 + 57
                 + 9    # divisors
                 + 2    # is_semiprime
                 + 4    # omega and bigomega
+                + 3    # prime_signature, sopf/sopfr, derived sums
                 + 0;
 
 # On a 64-bit machine, put all 32-bit nums in /tmp/foo, 64-bit in /tmp/foo2
@@ -257,3 +260,48 @@ is_deeply([map { prime_omega($_)     } @omegai],\@omegao,"prime_omega(n)");
 is_deeply([map { prime_bigomega($_)  } @omegai],\@omegab,"prime_bigomega(n)");
 is_deeply([map {prime_omega('-'.$_)  } @omegai],\@omegao,"prime_omega(-n)");
 is_deeply([map {prime_bigomega('-'.$_)}@omegai],\@omegab,"prime_bigomega(-n)");
+
+subtest 'prime_signature' => sub {
+  is_deeply([prime_signature(0)], [1], "prime_signature(0) array context");
+  is(scalar prime_signature(0), 2, "prime_signature(0) scalar context");
+  is_deeply([prime_signature(1)], [], "prime_signature(1) array context");
+  is(scalar prime_signature(1), 0, "prime_signature(1) scalar context");
+  is_deeply([prime_signature(360)], [3,2,1], "prime_signature(360)");
+  is(scalar prime_signature(360), 360, "prime_signature(360) scalar context");
+  is_deeply([prime_signature("224409867525043200000")], [13,7,5,3,2,1,1,1,1],
+            "prime_signature(68-bit smooth)");
+  is("".scalar(prime_signature("224409867525043200000")), "224409867525043200000",
+     "prime_signature(68-bit smooth) scalar context");
+};
+
+subtest 'sopf and sopfr' => sub {
+  is_deeply([map { sopfr($_) } 0..15],
+            [0,0,2,3,4,5,5,7,6,6,7,11,7,13,9,8],
+            "sopfr(0..15)");
+  is_deeply([map { sopf($_) } 0..15],
+            [0,0,2,3,2,5,5,7,2,3,7,11,5,13,9,8],
+            "sopf(0..15)");
+  is(sopfr(174636000), 62, "sopfr(174636000)");
+  is(sopf(174636000), 28, "sopf(174636000)");
+  is("".sopfr("224409867525043200000"), "187", "sopfr(68-bit smooth)");
+  is("".sopf("224409867525043200000"), "100", "sopf(68-bit smooth)");
+};
+
+subtest 'dedekind_psi, aliquot_sum, abundance' => sub {
+  is(dedekind_psi(-7), 0, "dedekind_psi(-7) = 0");
+  is_deeply([map { dedekind_psi($_) } 0..20],
+            [qw/0 1 3 4 6 6 12 8 12 12 18 12 24 14 24 24 24 18 36 20 36/],
+            "dedekind_psi(0..20)");
+  is_deeply([map { aliquot_sum($_) } 0..20],
+            [0, 0,1,1,3,1,6,1,7,4,8,1,16,1,10,9,15,1,21,1,22],
+            "aliquot_sum(0..20)");
+  is_deeply([map { abundance($_) } 1..20],
+            [-1,-1,-2,-1,-4,0,-6,-1,-5,-2,-10,4,-12,-4,-6,-1,-16,3,-18,2],
+            "abundance(1..20)");
+  is("".dedekind_psi("927208363107752634625925"), "1204512000016257309081600",
+     "dedekind_psi bigint");
+  is("".aliquot_sum("927208363107752634625925"), "317454036909046584758395",
+     "aliquot_sum bigint");
+  is("".abundance("927208363107752634625925"), "-609754326198706049867530",
+     "abundance bigint");
+};
