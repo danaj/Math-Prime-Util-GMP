@@ -203,22 +203,9 @@ For new functions:
 
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
 
-- binomialmod better using factorialmod:
-  factorial_valuation and _binoval, then use factorialmod
-  also maybe better factorialmod
-
 - real functions should have a settable default precision
 
 - new functions:
-  - is_safe_prime
-  - aliquot_sum
-  - prime_signature
-  - sopfr
-  - sopf
-  - abundance
   - vecprefixsum
-  - dedekind_psi
-
   - fubini
   - partitionsq
-  - legendre phi?

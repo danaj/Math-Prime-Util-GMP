@@ -325,10 +325,10 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (success&&o) {gmp_printf("pbrent (1,1M) found factor %Zd\n", f);o=0;}
 
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 4*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 4*B1,f);o=0;}
+      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 4*B1/1000,f);o=0;}
 
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 8*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 8*B1,f);o=0;}
+      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 8*B1/1000,f);o=0;}
 
       /* HOLF in case it's a near-ratio-of-perfect-square */
       if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
@@ -343,7 +343,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (success&&o) {gmp_printf("p-1 (5M) found factor %Zd\n", f);o=0;}
 
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 32*B1, 40);
-      if (success&&o) {gmp_printf("ecm (%luk,40) ecm found factor %Zd\n", 32*B1,f);o=0;}
+      if (success&&o) {gmp_printf("ecm (%luk,40) ecm found factor %Zd\n", 32*B1/1000,f);o=0;}
 
       /*
       if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);

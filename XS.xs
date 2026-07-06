@@ -1070,9 +1070,15 @@ void moebius(IN char* strn, IN char* strnhi = 0)
       XPUSH_INT(moebius(n));
     } else {
       validate_and_set(nhi, IFLAG_ANY);
-      while (mpz_cmp(n, nhi) <= 0) {
-        XPUSH_INT(moebius(n));
-        mpz_add_ui(n, n, 1);
+      if (GIMME_V != G_ARRAY) {
+        if (mpz_cmp(n,nhi) > 0) { mpz_set_ui(n,0); }
+        else                    { mpz_sub(nhi,nhi,n); mpz_add_ui(n,nhi,1); }
+        XPUSH_MPZ(n);
+      } else {
+        while (mpz_cmp(n, nhi) <= 0) {
+          XPUSH_INT(moebius(n));
+          mpz_add_ui(n, n, 1);
+        }
       }
       mpz_clear(nhi);
     }
@@ -1088,13 +1094,19 @@ void euler_phi(IN char* strn, IN char* strnhi = 0)
       XPUSH_MPZ(n);
     } else {
       validate_and_set(nhi, IFLAG_ANY);
-      mpz_init(r);
-      while (mpz_cmp(n, nhi) <= 0) {
-        totient(r, n);
-        XPUSH_MPZ(r);
-        mpz_add_ui(n, n, 1);
+      if (GIMME_V != G_ARRAY) {
+        if (mpz_cmp(n,nhi) > 0) { mpz_set_ui(n,0); }
+        else                    { mpz_sub(nhi,nhi,n); mpz_add_ui(n,nhi,1); }
+        XPUSH_MPZ(n);
+      } else {
+        mpz_init(r);
+        while (mpz_cmp(n, nhi) <= 0) {
+          totient(r, n);
+          XPUSH_MPZ(r);
+          mpz_add_ui(n, n, 1);
+        }
+        mpz_clear(r);
       }
-      mpz_clear(r);
       mpz_clear(nhi);
     }
     mpz_clear(n);
@@ -2095,7 +2107,7 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
     validate_and_set(low, IFLAG_NONNEG);
     validate_and_set(high, IFLAG_NONNEG);
     mpz_init(seghigh);
-    mpz_init(t);
+    mpz_init_set_ui(t,0);
 
     nc = items-1;
     maxseg = ((UV_MAX > ULONG_MAX) ? ULONG_MAX : UV_MAX);
@@ -2126,14 +2138,20 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
       }
 
       if (list != 0) {
-        for (i = 0; i < nprimes; i++) {
-          mpz_add_ui(t, low, list[i]);
-          XPUSH_MPZ( t );
+        if (GIMME_V != G_ARRAY) {
+          mpz_add_uv(t, t, nprimes);
+        } else {
+          for (i = 0; i < nprimes; i++) {
+            mpz_add_ui(t, low, list[i]);
+            XPUSH_MPZ( t );
+          }
         }
         Safefree(list);
       }
       mpz_add_ui(low, seghigh, 1);
     }
+    if (GIMME_V != G_ARRAY)
+      XPUSH_MPZ(t);
     mpz_clear(t);
     mpz_clear(seghigh);
     mpz_clear(high);

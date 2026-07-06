@@ -944,6 +944,7 @@ not divisible by any of the first C<a> primes.
 Given two arguments C<low> and C<high>, this returns the primes in the
 interval (inclusive) as a list.  It operates similar to L<primes>, though
 must always have an lower and upper bound and returns a list.
+In scalar context, this returns the count.
 
 With three arguments C<low>, C<high>, and C<limit>, this does a partial
 sieve over the inclusive range and returns the list that pass the sieve.
@@ -993,6 +994,7 @@ multi-thousand digit numbers.
 
 Given two arguments C<low> and C<high>, this returns each lower twin prime
 in the interval (inclusive).  The result is a list, not a reference.
+In scalar context, this returns the count.
 
 This does a partial sieve of the range, removes any non-twin candidates,
 then checks that each pair are both BPSW probable primes.  This is
@@ -1027,6 +1029,7 @@ than filtering results from primes or twin primes.
 Shorter clusters are not quite this efficient, and the overhead for
 returning large arrays should not be ignored.
 
+In scalar context, this returns the count.
 
 =head2 next_prime
 
@@ -2005,7 +2008,7 @@ C<moebius(0) = 0> for convenience.
 
 If called with two arguments, they define a range C<low> to C<high>, and the
 function returns an array with the value of the Möbius function for every n
-from low to high inclusive.
+from low to high inclusive.  In scalar context returns the count.
 
 =head2 invmod
 
@@ -2237,7 +2240,7 @@ Pari pre-2.6.2 raises and exception, and Pari 2.6.2 and newer returns 2.
 
 Takes either a single integer C<n> and returns C<totient(n)>, or takes two
 integers C<lo> and C<hi>, and returns a list with C<totient(n)> for each
-integer C<n> in C<< lo <= n <= hi >>.
+integer C<n> in C<< lo <= n <= hi >>.  In scalar context returns the count.
 
 This matches L<Math::Prime::Util/euler_phi>.
 
