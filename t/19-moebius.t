@@ -210,7 +210,7 @@ my @crts = (
 );
 
 
-plan tests => 3     # moebius
+plan tests => 6     # moebius
             + 1 + scalar(keys %totients)
             + scalar(keys %jordan_totients)
             + 1 # Small Carmichael Lambda
@@ -222,7 +222,7 @@ plan tests => 3     # moebius
             + 10    # misc specific values for coverage
             + scalar(keys %rtau)
             + 3     # chinese, chinese2
-            + 15;   # euler_phi
+            + 18;   # euler_phi
 
 
 ###### moebius
@@ -232,6 +232,9 @@ ok(!eval { moebius(0); }, "moebius(0)");
   is_deeply( \@moebius, \@moeb_vals, "moebius 1 .. " . scalar @moeb_vals );
 }
 is_deeply( [moebius("1000000000000","1000000000010")], [0,-1,-1,-1,0,-1,1,1,0,-1,0], "moebius(10^12,10^12+10)" );
+is( scalar(moebius(1,10)), 10, "moebius range scalar context returns count" );
+is( scalar(moebius(10,1)), 0, "moebius range scalar context returns zero for empty range" );
+is( scalar(moebius("1000000000000","1000000000010")), 11, "moebius bigint range scalar context returns count" );
 
 ###### totient
 {
@@ -345,6 +348,9 @@ is_deeply( [euler_phi(1513,1537)],
   "euler_phi(1513,1537)" );
 # negative euler_phi returns zero
 is_deeply( [euler_phi(-5,5)], [0,0,0,0,0,0,1,1,2,2,4], "euler_phi -5 to 5" );
+is( scalar(euler_phi(1,3)), 3, "euler_phi range scalar context returns count" );
+is( scalar(euler_phi(10,1)), 0, "euler_phi range scalar context returns zero for empty range" );
+is( scalar(euler_phi("18446744073709551613","18446744073709551616")), 4, "euler_phi bigint range scalar context returns count" );
 
 is_deeply([[euler_phi(4294967293,4294967295)],
            [euler_phi(4294967293,4294967296)],
