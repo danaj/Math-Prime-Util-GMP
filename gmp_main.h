@@ -20,6 +20,7 @@ extern void _GMP_primorial(mpz_t prim, UV n);
 extern void consecutive_integer_lcm(mpz_t m, unsigned long B);
 extern void mpz_stirling(mpz_t r, const mpz_t n, const mpz_t m, int type);
 extern void bell_number(mpz_t r, unsigned long n);
+extern void fubini(mpz_t r, unsigned long n);
 extern void binomial(mpz_t r, UV n, UV k);
 extern void partitions(mpz_t npart, UV n);
 extern void mpz_mfac(mpz_t r, const mpz_t n, const mpz_t k);

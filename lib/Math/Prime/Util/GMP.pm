@@ -43,7 +43,7 @@ our @EXPORT_OK = qw(
                      is_gaussian_prime
                      lucas_sequence  lucasuv  lucasu  lucasv
                      lucasuvmod  lucasumod  lucasvmod
-                     fibonacci lucas_number catalan_number bell_number
+                     fibonacci lucas_number catalan_number bell_number fubini
                      primes
                      twin_primes
                      sieve_primes
@@ -203,7 +203,7 @@ __END__
 
 =encoding utf8
 
-=for stopwords Möbius Deléglise Bézout s-gonal gcdext vecsum vecprod moebius totient liouville znorder znlog znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod allsqrtmod rootmod allrootmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
+=for stopwords Möbius Deléglise Bézout Fubini s-gonal gcdext vecsum vecprod moebius totient liouville znorder znlog znprimroot bernfrac bernreal bernvec harmfrac harmreal addreal subreal mulreal divreal logreal expreal powreal rootreal agmreal stirling zeta li ei riemannr lambertw lucasuv lucasu lucasv lucasuvmod lucasumod lucasvmod fibonacci lucas_number catalan_number bell_number OpenPFGW gmpy2 nonresidue chinese tuplets sqrtmod allsqrtmod rootmod allrootmod negmod addmod submod mulmod powmod divmod muladdmod mulsubmod superset sqrtint rootint logint powint mulint addint subint muladdint mulsubint addmulint submulint divint cdivint modint divrem tdivrem fdivrem cdivrem negint absint lshiftint rshiftint rashiftint todigits fromdigits urandomb urandomr powerfree
 
 =head1 NAME
 
@@ -2129,6 +2129,14 @@ Given a non-negative integer C<n>, returns the Bell number C<B(n)>, which
 counts the number of ways to partition a set of C<n> elements.
 
 This is L<OEIS A000110|http://oeis.org/A000110>.
+
+=head2 fubini
+
+Given a non-negative integer C<n>, returns the Fubini number C<a(n)>,
+also known as the ordered Bell number.  This counts the number of ways
+to partition a set of C<n> elements into non-empty ordered subsets.
+
+This is L<OEIS A000670|http://oeis.org/A000670>.
 
 =head2 catalan_number
 

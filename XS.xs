@@ -1188,13 +1188,22 @@ void catalan_number(IN char* strn)
 void bell_number(IN char* strn)
   PREINIT:
     mpz_t n;
-    unsigned long un;
   PPCODE:
     validate_and_set(n, IFLAG_NONNEG);
     if (!mpz_fits_ulong_p(n))
       croak("bell_number: argument too large");
-    un = mpz_get_ui(n);
-    bell_number(n, un);
+    bell_number(n, mpz_get_ui(n));
+    XPUSH_MPZ(n);
+    mpz_clear(n);
+
+void fubini(IN char* strn)
+  PREINIT:
+    mpz_t n;
+  PPCODE:
+    validate_and_set(n, IFLAG_NONNEG);
+    if (!mpz_fits_ulong_p(n))
+      croak("fubini: argument too large");
+    fubini(n, mpz_get_ui(n));
     XPUSH_MPZ(n);
     mpz_clear(n);
 

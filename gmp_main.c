@@ -900,6 +900,35 @@ void bell_number(mpz_t r, unsigned long n)
   Safefree(cur); Safefree(nxt);
 }
 
+void fubini(mpz_t r, unsigned long n)
+{
+  unsigned long i, k;
+  mpz_t *row;
+
+  if (n == 0) { mpz_set_ui(r, 1); return; }
+
+  New(0, row, n+1, mpz_t);
+  for (i = 0; i <= n; i++)
+    mpz_init(row[i]);
+
+  mpz_set_ui(row[0], 1);
+  for (i = 1; i <= n; i++) {
+    for (k = i; k > 0; k--) {
+      mpz_add(row[k], row[k], row[k-1]);
+      mpz_mul_ui(row[k], row[k], k);
+    }
+    mpz_set_ui(row[0], 0);
+  }
+
+  mpz_set_ui(r, 0);
+  for (k = 1; k <= n; k++)
+    mpz_add(r, r, row[k]);
+
+  for (i = 0; i <= n; i++)
+    mpz_clear(row[i]);
+  Safefree(row);
+}
+
 void partitions(mpz_t npart, UV n)
 {
   mpz_t psum, *part;
