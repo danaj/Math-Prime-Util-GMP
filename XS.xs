@@ -1906,9 +1906,10 @@ void random_nbit_prime(IN char* strN)
     factorial_sum = 10
     subfactorial = 11
     partitions = 12
-    primorial = 13
-    pn_primorial = 14
-    consecutive_integer_lcm = 15
+    partitionsq = 13
+    primorial = 14
+    pn_primorial = 15
+    consecutive_integer_lcm = 16
   PREINIT:
     mpz_t p, N;
     UV n;
@@ -1944,9 +1945,10 @@ void random_nbit_prime(IN char* strN)
       case 10: factorial_sum(p, n); break;
       case 11: subfactorial(p, n); break;
       case 12: partitions(p, n); break;
-      case 13: _GMP_primorial(p, n);  break;
-      case 14: _GMP_pn_primorial(p, n);  break;
-      case 15:
+      case 13: partitionsq(p, n); break;
+      case 14: _GMP_primorial(p, n);  break;
+      case 15: _GMP_pn_primorial(p, n);  break;
+      case 16:
       default: consecutive_integer_lcm(p, n);  break;
     }
     XPUSH_MPZ(p);

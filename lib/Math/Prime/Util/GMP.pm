@@ -77,7 +77,7 @@ our @EXPORT_OK = qw(
                      falling_factorial rising_factorial
                      factorialmod binomialmod
                      consecutive_integer_lcm
-                     partitions bernfrac bernreal harmfrac harmreal stirling
+                     partitions partitionsq bernfrac bernreal harmfrac harmreal stirling
                      bernvec powersum faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
@@ -2167,6 +2167,14 @@ If you want the enumerated partitions, see L<Math::Prime::Util/forpart>
 or L<Integer::Partition>.  These are fast and memory efficient iterators,
 but not practical for producing the partition I<number> for values
 over 100 or so.
+
+=head2 partitionsq
+
+Given a non-negative integer C<n>, returns the number of partitions of C<n>
+into distinct parts (no part repeated).  By Euler's theorem, this is also
+the number of partitions of C<n> into odd parts.
+
+This is L<OEIS A000009|http://oeis.org/A000009>.
 
 
 =head2 numtoperm

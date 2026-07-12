@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Math::Prime::Util::GMP qw/partitions/;
+use Math::Prime::Util::GMP qw/partitions partitionsq/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 
 my @parts = qw/
@@ -69,12 +69,24 @@ my %bparts = (
   13337 => "4841449229081281114351180373774137636239639013054790559544724995314398354517477085116206336008004971541987422037760634642695",
   37373 => "885240148270777711759915557428752066370785294706979437063536090533501018735098279767013023483349639513395622225840616033227700794918506274833787569446519667398089943122156454986205555766363295867812094833219935",
 );
+my @qparts = qw/
+1 1 1 2 2 3 4 5 6 8 10 12 15 18 22 27 32 38 46 54 64 76 89 104
+122 142 165 192 222 256 296 340 390 448 512 585 668 760 864 982
+1113 1260 1426 1610 1816 2048 2304 2590 2910 3264 3658
+/;
+my %bqparts = (
+   100 => "444793",
+   300 => "114872472064",
+  1000 => "8635565795744155161506",
+  2000 => "106972734349914451123354464808960",
+);
 if (!$extra) {
   my @ns = grep { $_ > 5000 } keys %bparts;
   foreach my $n (@ns) { delete $bparts{$n} }
 }
 
-plan tests => scalar(@parts) + scalar(keys(%bparts));
+plan tests => scalar(@parts) + scalar(keys(%bparts))
+            + 2 + scalar(keys(%bqparts));
 
 
 foreach my $n (0..$#parts) {
@@ -83,4 +95,11 @@ foreach my $n (0..$#parts) {
 
 while (my($n, $epart) = each (%bparts)) {
   is( partitions($n), $epart, "partitions($n)" );
+}
+
+ok(!eval { partitionsq(-1); 1 }, "partitionsq(-1) gives error");
+is_deeply([map { partitionsq($_) } 0 .. $#qparts], \@qparts,
+          "partitionsq(0..$#qparts)");
+while (my($n, $epart) = each (%bqparts)) {
+  is(partitionsq($n), $epart, "partitionsq($n)");
 }

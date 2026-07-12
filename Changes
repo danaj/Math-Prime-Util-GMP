@@ -20,6 +20,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - catalan_number(n)        the n-th Catalan number
     - bell_number(n)           the n-th Bell number
     - fubini(n)                the n-th ordered Bell number
+    - partitionsq(n)           partitions of n into distinct parts
     - euler_phi(n[,nhi])       totient or ranged totient
     - twin_primes([lo,]hi)     returns an array ref of lower twin primes
     - remove_factors(n,k)      returns r: n with all factors of k removed
