@@ -2625,8 +2625,13 @@ Given integer C<n>, return bitwise C<NOT n>.
   @factors = factor(640552686568398413516426919223357728279912327120302109778516984973296910867431808451611740398561987580967216226094312377767778241368426651540749005659);
   # Returns an array of 11 factors
 
-Returns a list of prime factors of a positive number, in numerical order.  The
-special cases of C<n = 0> and C<n = 1> will return C<n>.
+Returns a list of prime factors of an integer, in numerical order.  For a
+negative input, C<-1> is prepended to the factors of its absolute value.
+Thus C<factor(-1)> returns C<-1>.  The special cases C<factor(0)> and
+C<factor(1)> return C<0> and an empty list, respectively.
+
+In scalar context, returns the number of prime factors with multiplicity.
+The sign of a negative input is not counted.
 
 Like most advanced factoring programs, a mix of methods is used.  This
 includes trial division for small factors, perfect power detection,

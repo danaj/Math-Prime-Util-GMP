@@ -31,6 +31,7 @@ my @omegao = (qw/1 0 1 2  3   2   3       5/);
 my @omegab = (qw/1 0 1 4  3   5   7       7/);
 
 plan tests => 0 + 57
+                + 7    # negative factor inputs
                 + 24
                 + 2
                 + 2
@@ -113,6 +114,16 @@ is_deeply( [ factor(999999929) ], [999999929], "factor(999999929)" );
 is_deeply( [ factor(2147483647) ], [2147483647], "factor(2147483647)" );
 is_deeply( [ factor(4118054813) ], [19,216739727], "factor(4118054813)" );
 is_deeply( [ factor(4294967293) ], [9241,464773], "factor(4294967293)" );
+
+is_deeply( [ factor(-1) ], [-1], "factor(-1)" );
+is_deeply( [ factor('-0') ], [0], "factor(-0)" );
+is_deeply( [ factor(-12) ], [-1,2,2,3], "factor(-12)" );
+is_deeply( [ map { "$_" } factor('-37607912018') ],
+           [qw/-1 2 18803956009/], "factor(negative bigint)" );
+is( scalar factor(-1), 0, "scalar factor(-1) should be 0" );
+is( scalar factor(-12), 3, "scalar factor(-12) should be 3" );
+is( scalar factor('-37607912018'), 2,
+    "scalar factor(negative bigint) should be 2" );
 
 #diag "factoring 64-bit numbers";
 is_deeply( [ factor('6469693230') ], [2,3,5,7,11,13,17,19,23,29], "factor(6469693230)" );

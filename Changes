@@ -9,6 +9,13 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - multifactorial supports large integer n,m.  m must be positive.
 
+    - factor accepts negative inputs.  In list context, negative inputs have
+      a leading -1 factor.  Scalar context counts factors of the absolute
+      value and does not count the sign.
+
+    - Ranged moebius and euler_phi, plus sieve_primes, sieve_twin_primes,
+      and sieve_prime_cluster, return the result count in scalar context.
+
     [ADDED]
 
     - muladdint(a,b,c)         returns a*b+c

@@ -2472,9 +2472,9 @@ factor(IN char* strn)
     mpz_t n;
     mpz_t* factors;
     int* exponents;
-    int nfactors, i, j;
+    int nfactors, i, j, isneg;
   PPCODE:
-    validate_and_set(n, IFLAG_NONNEG);
+    isneg = validate_and_set(n, IFLAG_ABS);
     if (GIMME_V != G_VOID) {
       nfactors = factor(n, &factors, &exponents);
       if (GIMME_V == G_SCALAR) {
@@ -2482,6 +2482,8 @@ factor(IN char* strn)
           j += exponents[i];
         PUSHs(sv_2mortal(newSVuv(j)));
       } else {
+        if (isneg)
+          XPUSH_INT(-1);
         for (i = 0; i < nfactors; i++) {
           for (j = 0; j < exponents[i]; j++) {
             XPUSH_MPZ(factors[i]);

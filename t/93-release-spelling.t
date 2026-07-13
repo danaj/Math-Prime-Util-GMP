@@ -25,6 +25,7 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  precalculated premultiplier multipoint
                  pseudoprime pseudoprimes compositeness
                  powersum
+                 fubini partitionsq sopf sopfr vecprefixsum
                  signint cmpint cmpabsint
                  setbit clrbit notbit tstbit
                  bitand bitor bitxor bitnot
