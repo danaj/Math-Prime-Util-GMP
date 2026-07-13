@@ -6,7 +6,8 @@ use Test::More;
 use Math::Prime::Util::GMP qw/gcd lcm kronecker valuation hammingweight
                               remove_factors remove_factors_exp
                               is_power is_prime_power is_square is_qr
-                              binomial binomialmod gcdext vecsum vecprod/;
+                              binomial binomialmod gcdext
+                              vecsum vecprod vecprefixsum/;
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
 my $author = defined $ENV{AUTHOR_TESTING} && $ENV{AUTHOR_TESTING};
 my $deep_testing = $extra || $author;
@@ -205,6 +206,7 @@ plan tests => 1      # gcd
             + 1      # gcdext
             + 1      # vecsum
             + 1      # vecprod
+            + 6      # vecprefixsum
             + 7 + 4 + 7 + 3 + 3 + 2;
 
 is_deeply( [map { gcd(@{$_->[0]}) } @gcds],
@@ -278,6 +280,40 @@ is_deeply( [map { vecsum(@{$_->[1]}) } @vecsums],
 
 is_deeply( [map { vecprod(@{$_->[1]}) } @vecprods],
            [map { $_->[0]            } @vecprods], "vecprod(...)");
+
+{
+  my @cases = (
+    [ [], [] ],
+    [ [5], [5] ],
+    [ [1,2,3,4,5], [1,3,6,10,15] ],
+    [ [-3,2,-1,5], [-3,-1,-2,3] ],
+    [ ["9000000000000000000","9000000000000000000",-1],
+      ["9000000000000000000","18000000000000000000","17999999999999999999"] ],
+    [ ["-9223372036854775808",-1,"9223372036854775810"],
+      ["-9223372036854775808","-9223372036854775809",1] ],
+  );
+  my (@list_result, @aref_result);
+  for my $case (@cases) {
+    my $in = $case->[0];
+    push @list_result, [map { "$_" } vecprefixsum(@$in)];
+    push @aref_result, [map { "$_" } vecprefixsum($in)];
+  }
+  is_deeply(\@list_result, [map { $_->[1] } @cases],
+            "vecprefixsum integer lists");
+  is_deeply(\@aref_result, [map { $_->[1] } @cases],
+            "vecprefixsum array references");
+  is_deeply([scalar(vecprefixsum()), scalar(vecprefixsum([])),
+             scalar(vecprefixsum(1,2,3)), scalar(vecprefixsum([1,2,3]))],
+            [0,0,3,3], "vecprefixsum scalar context");
+  ok(!eval { my @v = vecprefixsum(1,"not an integer"); 1 },
+     "vecprefixsum rejects non-integers");
+  my @sparse;
+  $sparse[2] = 3;
+  ok(!eval { my @v = vecprefixsum(\@sparse); 1 },
+     "vecprefixsum rejects sparse arrays");
+  ok(!eval { my @v = vecprefixsum([1,2],3); 1 },
+     "vecprefixsum rejects an array reference mixed with list arguments");
+}
 
 
 is( is_power("18475335773296164196"), "0", "is_power(18475335773296164196) == 0" );

@@ -204,8 +204,3 @@ For new functions:
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
 
 - real functions should have a settable default precision
-
-- new functions:
-  - vecprefixsum
-  - fubini
-  - partitionsq

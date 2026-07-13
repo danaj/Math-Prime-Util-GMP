@@ -88,7 +88,7 @@ our @EXPORT_OK = qw(
                      addmod submod mulmod divmod powmod
                      is_qr
                      muladdmod mulsubmod
-                     vecsum vecprod
+                     vecsum vecprod vecprefixsum
                      exp_mangoldt
                      liouville
                      totient
@@ -1409,6 +1409,19 @@ If no solution exists, both return values will be C<undef>.
 =head2 vecsum
 
 Returns the sum of all arguments, each of which must be an integer.
+
+=head2 vecprefixsum
+
+  my @cumulative = vecprefixsum(1..5);  # 1,3,6,10,15
+
+Returns the prefix sums, also called cumulative sums, of the integer
+arguments.  Given C<(a0, a1, a2, ...)>, returns
+C<(a0, a0+a1, a0+a1+a2, ...)>.  Inputs may be negative or arbitrarily
+large, and all results are exact.
+
+The input may also be a single array reference.  The output is still a flat
+list.  In scalar context, returns the number of prefix sums that would be
+returned.
 
 =head2 vecprod
 

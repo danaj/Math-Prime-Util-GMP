@@ -989,6 +989,60 @@ gcd(...)
     XPUSH_MPZ(ret);
     mpz_clear(ret);
 
+void
+vecprefixsum(...)
+  PROTOTYPE: @
+  PREINIT:
+    AV *av;
+    SV *sv;
+    SV **svp;
+    int plen;
+    size_t i, len;
+    mpz_t sum, n;
+  PPCODE:
+    av = 0;
+    plen = -1;
+    if (items > 0 && SvROK(ST(0)) && SvTYPE(SvRV(ST(0))) == SVt_PVAV) {
+      if (items != 1)
+        croak("vecprefixsum: expected integer list or single array reference");
+      av = (AV*) SvRV(ST(0));
+      plen = av_len(av);
+      len = (plen < 0) ? 0 : (size_t)plen + 1;
+    } else {
+      len = (size_t)items;
+    }
+
+    if (GIMME_V == G_ARRAY) {
+      EXTEND(SP, (long)len);
+      mpz_init_set_ui(sum, 0);
+    }
+    for (i = 0; i < len; i++) {
+      if (av != 0) {
+        svp = av_fetch(av, (I32)i, 0);
+        if (svp == 0 || !SvOK(*svp)) {
+          if (GIMME_V == G_ARRAY) mpz_clear(sum);
+          croak("Parameter must be defined");
+        }
+        sv = *svp;
+      } else {
+        sv = ST(i);
+        if (!SvOK(sv)) {
+          if (GIMME_V == G_ARRAY) mpz_clear(sum);
+          croak("Parameter must be defined");
+        }
+      }
+      set_integer_string(n, "arg", SvPV_nolen(sv), IFLAG_ANY);
+      if (GIMME_V == G_ARRAY) {
+        mpz_add(sum, sum, n);
+        XPUSH_MPZ(sum);
+      }
+      mpz_clear(n);
+    }
+    if (GIMME_V == G_ARRAY)
+      mpz_clear(sum);
+    else if (GIMME_V == G_SCALAR)
+      XPUSH_UINT(len);
+
 int
 kronecker(IN char* stra, IN char* strb)
   ALIAS:

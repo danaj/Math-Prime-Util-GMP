@@ -15,6 +15,7 @@ Revision history for Perl module Math::Prime::Util::GMP
     - mulsubint(a,b,c)         returns a*b-c
     - addmulint(a,b,c)         returns a+b*c
     - submulint(a,b,c)         returns a-b*c
+    - vecprefixsum(list)       prefix sum / cumulative sum of integer list
     - fibonacci(k)             the k-th Fibonacci number
     - lucas_number(k)          the k-th Lucas number
     - catalan_number(n)        the n-th Catalan number

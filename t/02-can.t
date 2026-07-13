@@ -81,7 +81,7 @@ my @functions = qw(
                      negmod invmod sqrtmod addmod submod mulmod divmod powmod
                      is_qr
                      muladdmod mulsubmod
-                     vecsum vecprod
+                     vecsum vecprod vecprefixsum
                      exp_mangoldt
                      liouville
                      totient
