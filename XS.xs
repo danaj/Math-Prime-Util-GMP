@@ -706,7 +706,7 @@ void urandomm(IN char* strn)
   PREINIT:
     mpz_t n;
   PPCODE:
-    validate_and_set(n, IFLAG_POS);
+    validate_and_set(n, IFLAG_NONNEG);
     mpz_isaac_urandomm(n, n);
     XPUSH_MPZ(n);
     mpz_clear(n);

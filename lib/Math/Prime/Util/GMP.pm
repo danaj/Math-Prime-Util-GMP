@@ -2953,8 +2953,9 @@ This is similar to the GMP function C<mpz_urandomb>.
   $n = urandomm(100);    # random integer in [0,99]
   $n = urandomm(1024);   # random integer in [0,1023]
 
-Given a positive integer C<n>, returns a random unsigned integer less than C<n>.
-The results will be uniformly distributed between C<0> and C<n-1> inclusive.
+Given a non-negative integer C<n>, returns a random unsigned integer less than
+C<n>.  The results will be uniformly distributed between C<0> and C<n-1>
+inclusive.  For C<n = 0>, returns C<0>.
 
 This is similar to the GMP function C<mpz_urandomm>.
 
