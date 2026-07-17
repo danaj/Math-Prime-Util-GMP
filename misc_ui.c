@@ -97,7 +97,7 @@ unsigned long modinverse(unsigned long a, unsigned long p)
   long quot;
   while (v3) {
     quot = u3 - v3;
-    if (u3 < (v3<<2)) {
+    if (u3 < v3*4) {
       if (quot < v3) {
         if (quot < 0) {
           t1 = u1; u1 = v1; v1 = t1;
@@ -106,9 +106,9 @@ unsigned long modinverse(unsigned long a, unsigned long p)
           t1 = u1 - v1; u1 = v1; v1 = t1;
           t3 = u3 - v3; u3 = v3; v3 = t3;
         }
-      } else if (quot < (v3<<1)) {
-        t1 = u1 - (v1<<1); u1 = v1; v1 = t1;
-        t3 = u3 - (v3<<1); u3 = v3; v3 = t3;
+      } else if (quot < v3*2) {
+        t1 = u1 - v1*2; u1 = v1; v1 = t1;
+        t3 = u3 - v3*2; u3 = v3; v3 = t3;
       } else {
         t1 = u1 - v1*3; u1 = v1; v1 = t1;
         t3 = u3 - v3*3; u3 = v3; v3 = t3;
