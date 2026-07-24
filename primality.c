@@ -613,7 +613,7 @@ int _GMP_is_lucas_pseudoprime(const mpz_t n, int strength)
  *
  * increment:  1 for Baillie OEIS, 2 for Pari.
  *
- * With increment = 1, these results will be a subset of the extra-strong
+ * With increment = 1, these results will be a superset of the extra-strong
  * Lucas pseudoprimes.  With increment = 2, we produce Pari's results (we've
  * added the necessary GCD with D so we produce somewhat fewer).
  */
@@ -623,12 +623,21 @@ int _GMP_is_almost_extra_strong_lucas_pseudoprime(const mpz_t n, UV increment)
   UV P, s;
   int rval;
 
-  {
-    int cmpr = mpz_cmp_ui(n, 2);
-    if (cmpr == 0)     return 1;  /* 2 is prime */
-    if (cmpr < 0)      return 0;  /* below 2 is not prime */
-    if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
-  }
+  if (increment < 1 || increment > 256)
+    croak("is_almost_extra_strong_lucas_pseudoprime: invalid increment: %"UVuf,
+          increment);
+
+  if (mpz_cmp_ui(n, 13) < 0)
+    return mpz_cmp_ui(n, 2) == 0 || mpz_cmp_ui(n, 3) == 0 ||
+           mpz_cmp_ui(n, 5) == 0 || mpz_cmp_ui(n, 7) == 0 ||
+           mpz_cmp_ui(n, 11) == 0;
+  if (mpz_even_p(n)) return 0;
+
+  /* Ensure small primes work with large parameter increments. */
+  if (((increment >= 16 && mpz_cmp_ui(n, 331) <= 0) ||
+       (increment > 148 && mpz_cmp_ui(n, 631) <= 0)) &&
+      primality_pretest(n) == 2)
+    return 1;
 
   mpz_init(t);
   {

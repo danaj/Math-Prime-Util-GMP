@@ -191,6 +191,7 @@ plan tests => 0 + 8
                 + 4  *scalar(@perrint)    # Perrin pseudoprime types
                 + 2   # Test for unusual single digit pseudoprimes
                 + 3   # Implicit base 2
+                + 6   # AES parameter edge cases
                 + 0;
 
 # no base is no implicit 2
@@ -225,6 +226,19 @@ is( is_strong_pseudoprime(2, 2), 1, "spsp(2, 2) shortcut prime");
 is( is_strong_pseudoprime(3, 2), 1, "spsp(2, 2) shortcut prime");
 is( is_strong_lucas_pseudoprime(1), 0, "slpsp(1) shortcut composite");
 is( is_strong_lucas_pseudoprime(3), 1, "slpsp(3) shortcut prime");
+is( is_almost_extra_strong_lucas_pseudoprime(5, 5), 1,
+    "AES accepts a small prime with an unusable parameter progression");
+is( is_almost_extra_strong_lucas_pseudoprime(31, 28), 1,
+    "AES large-increment prime shortcut");
+is( is_almost_extra_strong_lucas_pseudoprime(319, 148), 1,
+    "AES large-increment composite follows the requested test");
+is( is_almost_extra_strong_lucas_pseudoprime(259, 256), 1,
+    "AES largest-increment composite follows the requested test");
+
+eval { is_almost_extra_strong_lucas_pseudoprime(2, 0) };
+like($@, qr/invalid increment: 0/, "AES validates increment before small n");
+eval { is_almost_extra_strong_lucas_pseudoprime(4, 257) };
+like($@, qr/invalid increment: 257/, "AES validates increment before even n");
 
 # Check that each strong pseudoprime base b makes it through MR with that base
 while (my($base, $ppref) = each (%pseudoprimes)) {

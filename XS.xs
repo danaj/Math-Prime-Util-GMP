@@ -315,8 +315,9 @@ is_almost_extra_strong_lucas_pseudoprime(IN char* strn, IN UV increment = 1)
   PREINIT:
     mpz_t n;
   CODE:
-    if (increment == 0 || increment > 65535)
-      croak("Increment parameter must be >0 and < 65536");
+    if (increment == 0 || increment > 256)
+      croak("is_almost_extra_strong_lucas_pseudoprime: invalid increment: %"UVuf,
+            increment);
     PRIMALITY_START("is_almost_extra_strong_lucas_pseudoprime", 1, 0);
     RETVAL = _GMP_is_almost_extra_strong_lucas_pseudoprime(n, increment);
     mpz_clear(n);
