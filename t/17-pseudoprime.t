@@ -186,8 +186,9 @@ plan tests => 0 + 8
                 + 2 # M-R-random
                 + 5 * scalar(@primes128)  # strong probable prime tests
                 + 5 * scalar(@comp128)    # strong probable prime tests
+                + 2   # BPSW return values around 2^64
                 + 15  # Check Frobenius for small primes
-                + 11  # Frobenius parameter and Khashin selection cases
+                + 12  # Frobenius parameter and Khashin selection cases
                 + 3   # mrr with seed and neg bases
                 + 4  *scalar(@perrint)    # Perrin pseudoprime types
                 + 2   # Test for unusual single digit pseudoprimes
@@ -455,6 +456,10 @@ for my $p (@comp128) {
   is( is_frobenius_underwood_pseudoprime($p), 0, "composite $p fails Frobenius Underwood primality test");
   is( is_bpsw_prime($p), 0, "composite $p fails BPSW primality test");
 }
+is( is_bpsw_prime("18446744073709551557"), 2,
+    "64-bit prime has a deterministic BPSW result" );
+is( is_bpsw_prime("18446744073709551629"), 1,
+    "prime above 64 bits has a probable-prime BPSW result" );
 
 # Frobenius has some issues.  Test
 for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
@@ -470,6 +475,8 @@ is( is_frobenius_pseudoprime(4181,4182,-1), 1,
     "large P is reduced modulo n" );
 is( is_frobenius_pseudoprime(4181,1,4180), 1,
     "large Q is reduced modulo n" );
+ok( !eval { is_frobenius_pseudoprime(5,3,2); 1 },
+    "small prime validates Frobenius parameters" );
 
 is( is_frobenius_khashin_pseudoprime(19), 1,
     "Khashin test with c = -1" );

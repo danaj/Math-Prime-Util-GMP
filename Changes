@@ -101,6 +101,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - is_power is much faster for large-exponent perfect powers with a small
       prime factor.
 
+    - BPSW uses AES Lucas for 64-bit inputs, about 30% faster.
+
 
 0.53 2026-03-11
 

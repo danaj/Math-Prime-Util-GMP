@@ -885,8 +885,8 @@ int is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t P, const mpz_t Q)
   mpz_t t, Vcomp, d, U, V, D, Pmod, Qmod;
   int k, rval;
 
-  if (mpz_cmp_ui(n, 7) < 0)
-    return (mpz_cmp_ui(n,2) == 0 || mpz_cmp_ui(n,3) == 0 || mpz_cmp_ui(n,5) == 0);
+  if (mpz_cmp_ui(n, 4) < 0)
+    return (mpz_cmp_ui(n,2) == 0 || mpz_cmp_ui(n,3) == 0);
   if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
 
   mpz_init(D);
@@ -1198,13 +1198,10 @@ int _GMP_BPSW(const mpz_t n)
   if (miller_rabin_ui(n, 2) == 0)   /* Miller Rabin with base 2 */
     return 0;
 
-  if (_GMP_is_lucas_pseudoprime(n, 2 /*extra strong*/) == 0)
-    return 0;
+  if (mpz_sizeinbase(n, 2) <= 64) /* BPSW is deterministic for 64-bit */
+    return _GMP_is_almost_extra_strong_lucas_pseudoprime(n, 1) ? 2 : 0;
 
-  if (mpz_sizeinbase(n, 2) <= 64)        /* BPSW is deterministic below 2^64 */
-    return 2;
-
-  return 1;
+  return _GMP_is_lucas_pseudoprime(n, 2 /*extra strong*/) ? 1 : 0;
 }
 
 /* Assume n is a BPSW PRP, return 1 (no result), 0 (composite), 2 (prime) */
