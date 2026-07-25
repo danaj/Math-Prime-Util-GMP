@@ -882,7 +882,7 @@ int is_frobenius_pseudoprime(const mpz_t n)
 
 int is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t P, const mpz_t Q)
 {
-  mpz_t t, Vcomp, d, U, V, D, Dabs, Pmod, Qmod;
+  mpz_t t, Vcomp, d, U, V, D, Pmod, Qmod;
   int k, rval;
 
   if (mpz_cmp_ui(n, 7) < 0)
@@ -890,34 +890,31 @@ int is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t P, const mpz_t Q)
   if (mpz_even_p(n)) return 0;  /* multiple of 2 is composite */
 
   mpz_init(D);
-  mpz_init(Dabs);
   mpz_init(Pmod);
   mpz_init(Qmod);
   mpz_init(t);
 
   mpz_mul(D, P, P);
   mpz_submul_ui(D, Q, 4);
-  mpz_abs(Dabs, D);
-  if (mpz_perfect_square_p(Dabs)) {
-    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+  if (mpz_sgn(D) >= 0 && mpz_perfect_square_p(D)) {
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(D);
     croak("is_frobenius_pseudoprime: invalid P,Q");
   }
 
   mpz_mod(Pmod, P, n);
   mpz_mod(Qmod, Q, n);
 
-  mpz_gcd(t, n, Pmod);
-  if (mpz_cmp_ui(t,1) == 0) mpz_gcd(t, n, Qmod);
+  mpz_gcd(t, n, Qmod);
   if (mpz_cmp_ui(t,1) == 0) mpz_gcd(t, n, D);
   if (mpz_cmp_ui(t,1) != 0) {
     rval = (mpz_cmp(t, n) == 0) ? (_GMP_is_prob_prime(n) > 0) : 0;
-    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(D);
     return rval;
   }
 
   k = mpz_jacobi(D, n);
   if (k == 0) {
-    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+    mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(D);
     return 0;
   }
 
@@ -938,7 +935,7 @@ int is_frobenius_pseudoprime_pq(const mpz_t n, const mpz_t P, const mpz_t Q)
 
   mpz_clear(d); mpz_clear(V); mpz_clear(U);
   mpz_clear(Vcomp);
-  mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(Dabs); mpz_clear(D);
+  mpz_clear(t); mpz_clear(Qmod); mpz_clear(Pmod); mpz_clear(D);
 
   return rval;
 }
@@ -1112,8 +1109,9 @@ int _GMP_is_frobenius_underwood_pseudoprime(const mpz_t n)
 int _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n)
 {
   mpz_t t, ta, tb, ra, rb, a, b, n_minus_1;
-  unsigned long c = 1;
-  int bit, len, k, rval = 0;
+  long c = 1;
+  unsigned long ea = 2;
+  int bit, len, k = -1, rval = 0;
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -1124,21 +1122,32 @@ int _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n)
   if (mpz_perfect_square_p(n)) return 0;
 
   mpz_init(t);
-  do {
-    c += 2;
-    mpz_set_ui(t, c);
-    k = mpz_jacobi(t, n);
-  } while (k == 1);
-  if (k == 0) {
+  mpz_init(n_minus_1);
+  mpz_sub_ui(n_minus_1, n, 1);
+
+  /* c = -1 and c = 2 use 2+sqrt(c); positive c uses 1+sqrt(c). */
+  if (mpz_fdiv_ui(n, 4) == 3) {
+    c = -1;
+  } else if (mpz_fdiv_ui(n, 8) == 5) {
+    c = 2;
+  } else {
+    ea = 1;
+    do {
+      c = (long) next_prime_ui((UV)c);
+      k = mpz_si_kronecker(c, n);
+    } while (k == 1);
+  }
+  if (k == 0 || (ea == 2 && mpz_divisible_ui_p(n, 3))) {
+    mpz_clear(n_minus_1);
     mpz_clear(t);
     return 0;
   }
 
-  mpz_init_set_ui(ra, 1);   mpz_init_set_ui(rb, 1);
-  mpz_init_set_ui(a, 1);    mpz_init_set_ui(b, 1);
+  mpz_init_set_ui(ra, ea);
+  mpz_init_set_ui(rb, 1);
+  mpz_init_set_ui(a, ea);
+  mpz_init_set_ui(b, 1);
   mpz_init(ta);   mpz_init(tb);
-  mpz_init(n_minus_1);
-  mpz_sub_ui(n_minus_1, n, 1);
 
   len = mpz_sizeinbase(n_minus_1, 2);
   for (bit = 0; bit < len; bit++) {
@@ -1151,13 +1160,13 @@ int _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n)
       mpz_sub(rb, rb, ta);
       mpz_sub(rb, rb, tb);
       mpz_mod(rb, rb, n);
-      mpz_mul_ui(tb, tb, c);
+      mpz_mul_si(tb, tb, c);
       mpz_add(ra, ta, tb);
       mpz_mod(ra, ra, n);
     }
     if (bit < len-1) {
       mpz_mul(t, b, b);
-      mpz_mul_ui(t, t, c);
+      mpz_mul_si(t, t, c);
       mpz_mul(b, b, a);
       mpz_add(b, b, b);
       mpz_mod(b, b, n);
@@ -1166,7 +1175,8 @@ int _GMP_is_frobenius_khashin_pseudoprime(const mpz_t n)
       mpz_mod(a, a, n);
     }
   }
-  if ( (mpz_cmp_ui(ra,1) == 0) && (mpz_cmp(rb, n_minus_1) == 0) )
+  if ( (mpz_cmp_ui(ra, ea) == 0) &&
+       (mpz_cmp(rb, n_minus_1) == 0) )
     rval = 1;
 
   mpz_clear(n_minus_1);

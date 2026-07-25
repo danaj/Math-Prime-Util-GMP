@@ -92,6 +92,8 @@ Revision history for Perl module Math::Prime::Util::GMP
     - sieve_range width and depth arguments now croak if they don't fit into
       a UV instead of truncating.
 
+    - Frobenius-Khashin algorithm changed from 2013 to 2018 algorithm.
+
     [PERFORMANCE]
 
     - znorder(a, p^e) is much faster for large prime powers p^e. (Trizen)

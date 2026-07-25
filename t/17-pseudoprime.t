@@ -187,6 +187,7 @@ plan tests => 0 + 8
                 + 5 * scalar(@primes128)  # strong probable prime tests
                 + 5 * scalar(@comp128)    # strong probable prime tests
                 + 15  # Check Frobenius for small primes
+                + 11  # Frobenius parameter and Khashin selection cases
                 + 3   # mrr with seed and neg bases
                 + 4  *scalar(@perrint)    # Perrin pseudoprime types
                 + 2   # Test for unusual single digit pseudoprimes
@@ -459,6 +460,29 @@ for my $p (@comp128) {
 for my $p (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47) {
   is( is_frobenius_pseudoprime($p,37,-13), 1, "prime $p is a Frobenius (37,-13) pseudoprime" );
 }
+is( is_frobenius_pseudoprime(101,2,2), 1,
+    "negative discriminant with square absolute value is valid" );
+is( is_frobenius_pseudoprime(91,2,2), 0,
+    "negative discriminant parameters reject a composite" );
+is( is_frobenius_pseudoprime(561,0,2), 1,
+    "P need not be coprime to n" );
+is( is_frobenius_pseudoprime(4181,4182,-1), 1,
+    "large P is reduced modulo n" );
+is( is_frobenius_pseudoprime(4181,1,4180), 1,
+    "large Q is reduced modulo n" );
+
+is( is_frobenius_khashin_pseudoprime(19), 1,
+    "Khashin test with c = -1" );
+is( is_frobenius_khashin_pseudoprime(13), 1,
+    "Khashin test with c = 2" );
+is( is_frobenius_khashin_pseudoprime(17), 1,
+    "Khashin test with a positive c" );
+is( is_frobenius_khashin_pseudoprime(15), 0,
+    "Khashin c = -1 branch rejects a multiple of 3" );
+is( is_frobenius_khashin_pseudoprime(21), 0,
+    "Khashin c = 2 branch rejects a multiple of 3" );
+is( is_frobenius_khashin_pseudoprime(33), 0,
+    "Khashin positive c branch rejects a zero symbol" );
 
 {
   my $prime = $primes128[0];
