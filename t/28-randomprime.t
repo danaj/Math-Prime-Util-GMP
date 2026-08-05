@@ -72,11 +72,20 @@ plan tests => 0
               + (2 * scalar @random_safe_tests)
               + (1 * scalar @random_strong_tests)
               + (2 * scalar @random_nbit_tests)   # proven primes
-              + 8
+              + 10
               + 0;
 
 my $infinity = 20**20**20;
 my $nrandom_range_samples = $extra ? 1000 : 50;
+
+{
+  my $lo = "10000000000000000000000000000000000000000000000000000000000000000000000000000050";
+  my $empty_hi = "10000000000000000000000000000000000000000000000000000000000000000000000000000246";
+  my $one_hi = "10000000000000000000000000000000000000000000000000000000000000000000000000000560";
+  my $one_prime = "10000000000000000000000000000000000000000000000000000000000000000000000000000247";
+  is(random_prime($lo, $empty_hi), undef, "large narrow range with no primes");
+  is(random_prime($lo, $one_hi), $one_prime, "large narrow range with one prime");
+}
 
 while (my($range, $expect) = each (%range_edge_empty)) {
   my($low,$high) = $range =~ /(\d+) to (\d+)/;

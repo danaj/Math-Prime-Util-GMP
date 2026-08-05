@@ -14,6 +14,9 @@
 
 static char pr[31] = {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127};
 
+#define RANDOM_PRIME_TRIES_PER_BIT  4
+#define RANDOM_PRIME_MAX_TRIES  10000
+
 void mpz_random_nbit_prime(mpz_t p, UV n)
 {
   switch (n) {
@@ -56,30 +59,35 @@ void mpz_random_nbit_prime(mpz_t p, UV n)
   }
 }
 
-/* PRIMEINC: pick random value, select next prime. */
-/* Fast but bad distribution. */
-static int _random_prime_primeinc(mpz_t p, const mpz_t lo, const mpz_t hi)
+/* Tighten lo and hi to the first and last primes in the represented range.
+ * The value 1 in lo represents the prime 2 for odd-candidate sampling.
+ * Return 0 for no primes, 1 for one prime, or 2 for multiple.
+ */
+static int _random_prime_endpoints(mpz_t lo, mpz_t hi)
 {
-  mpz_t r, t;
-  mpz_init(t);
-  mpz_init(r);
-  mpz_sub(r, hi, lo);
-  mpz_isaac_urandomm(t, r);
-  mpz_clear(r);
-  mpz_add(t, t, lo);
-  mpz_sub_ui(t, t, 1);
-  _GMP_next_prime(t);
-  if (mpz_cmp(t,hi) > 0) {
-     mpz_sub_ui(t, lo, 1);
-    _GMP_next_prime(t);
-    if (mpz_cmp(t,hi) > 0) {
-      mpz_clear(t);
-      return 0;
-    }
+  int cmp;
+
+  /* This check, along with hi = 2, should have been handled before calling. */
+  if (mpz_cmp_ui(hi,2) < 0 || mpz_cmp(lo,hi) > 0)  return 0;
+
+  mpz_sub_ui(lo, lo, 1);
+  _GMP_next_prime(lo);
+
+  if (mpz_cmp(lo, hi) < 0) {
+    mpz_add_ui(hi, hi, 1);
+    _GMP_prev_prime(hi);
   }
-  mpz_set(p, t);
-  mpz_clear(t);
-  return 1;
+
+  cmp = mpz_cmp(lo, hi);
+  if (cmp > 0)    /* No primes in [lo,hi]. */
+    return 0;
+  if (cmp == 0)   /* One prime in [lo,hi].  p = lo = hi. */
+    return 1;
+
+  /* Put back lo=2 => lo=1 for search */
+  if (mpz_cmp_ui(lo,2) == 0)
+    mpz_set_ui(lo,1);
+  return 2;       /* At least two primes in [lo,hi] (endpoints are primes). */
 }
 
 /* TRIVIAL: pick random values until one is prime */
@@ -87,10 +95,15 @@ static int _random_prime_primeinc(mpz_t p, const mpz_t lo, const mpz_t hi)
 static int _random_prime_trivial(mpz_t p, const mpz_t lo_in, const mpz_t hi_in)
 {
   mpz_t r, t, lo, hi;
-  int res = 0, tries = 10000;
+  UV lobits, nbits, tries;
+  int endpoint_status, nonempty_proven = 0, res = 0;
 
   if (mpz_cmp_ui(hi_in,2) < 0 || mpz_cmp(lo_in,hi_in) > 0)
     return 0;
+  if (mpz_cmp_ui(hi_in,2) == 0) { /* Take care of hi = 2 now */
+    mpz_set_ui(p,2);
+    return 1;
+  }
 
   mpz_init_set(lo, lo_in);
   mpz_init_set(hi, hi_in);
@@ -99,12 +112,9 @@ static int _random_prime_trivial(mpz_t p, const mpz_t lo_in, const mpz_t hi_in)
   } else if (mpz_even_p(lo)) {
     mpz_add_ui(lo,lo,1);
   }
-  if (mpz_cmp_ui(hi,2) <= 0) {
-    mpz_set_ui(hi,1);
-  } else if (mpz_even_p(hi)) {
+  if (mpz_even_p(hi))
     mpz_sub_ui(hi,hi,1);
-  }
-  /* lo and hi are now odd */
+  /* lo and hi are now odd, and hi > 2 */
   if (mpz_cmp(lo,hi) >= 0) {
     if (mpz_cmp(lo,hi) > 0) {
       /* null range */
@@ -118,27 +128,84 @@ static int _random_prime_trivial(mpz_t p, const mpz_t lo_in, const mpz_t hi_in)
     mpz_clear(hi); mpz_clear(lo);
     return res;
   }
-  /* lo and hi are now odd and at least one odd between them */
+  /* lo and hi are odd with hi > lo */
 
   mpz_init(t);
   mpz_init(r);
   mpz_sub(r, hi, lo);
   mpz_tdiv_q_2exp(r, r, 1);
   mpz_add_ui(r,r,1);
+
+  nbits = (UV) mpz_sizeinbase(hi, 2);
+
+  /* Odd-prime density near hi is about 2/log(hi).  Thus a range with
+   * at most nbits odd candidates contains at most about 2.9 expected
+   * primes, making exact endpoint discovery useful before sampling.
+   * Otherwise, four trials per input bit represents about 11.5 expected
+   * prime hits in a broad range.  Retain the historical cap, and do not
+   * sample a small candidate set more times than its size. */
+  mpz_set_uv(t, nbits);
+  if (mpz_cmp(r, t) <= 0) {
+    tries = 0;
+  } else {
+    tries = (nbits >= RANDOM_PRIME_MAX_TRIES / RANDOM_PRIME_TRIES_PER_BIT)
+          ? RANDOM_PRIME_MAX_TRIES : RANDOM_PRIME_TRIES_PER_BIT * nbits;
+    if (mpz_cmp_ui(r, (unsigned long)tries) < 0)
+      tries = (UV) mpz_get_ui(r);
+  }
+
+  while (tries > 0) {
+    mpz_isaac_urandomm(t, r);
+    mpz_mul_2exp(t, t, 1);
+    mpz_add(t, t, lo);
+    if (mpz_cmp_ui(t,1) == 0) mpz_set_ui(t,2);  /* map 1 back to 2 */
+    if (_GMP_is_prob_prime(t)) {
+      mpz_set(p, t);
+      res = 1;
+      goto return_result;
+    }
+    tries--;
+  }
+
+  /* Dusart 2016, Corollary 5.5 guarantees a prime in
+   * (x, x+x/(5000 ln^2 x)] for x >= 468991632.  With
+   * b=floor(log2 x), ln x > 2b/3, giving the conservative test
+   * 20000*(hi-lo)*b^2 >= 9*lo using only integer arithmetic. */
+  if (mpz_cmp_ui(lo, 468991632UL) >= 0) {
+    lobits = (UV) mpz_sizeinbase(lo, 2) - 1;
+    mpz_sub(r, hi, lo);
+    mpz_set_uv(t, lobits);
+    mpz_mul(t, t, t);
+    mpz_mul(r, r, t);
+    mpz_mul_ui(r, r, 20000);
+    mpz_mul_ui(t, lo, 9);
+    nonempty_proven = (mpz_cmp(r, t) >= 0);
+  }
+
+  if (!nonempty_proven) {
+    endpoint_status = _random_prime_endpoints(lo, hi);
+    if (endpoint_status < 2) {
+      res = endpoint_status;
+      if (res) mpz_set(p, lo);
+      goto return_result;
+    }
+  }
+
+  /* Set r to the odd span ((hi-lo) >> 1) + 1 = odds in [lo,hi] */
+  mpz_sub(r, hi, lo);
+  mpz_tdiv_q_2exp(r, r, 1);
+  mpz_add_ui(r, r, 1);
+
   do {
     mpz_isaac_urandomm(t, r);
     mpz_mul_2exp(t, t, 1);
     mpz_add(t, t, lo);
     if (mpz_cmp_ui(t,1) == 0) mpz_set_ui(t,2);  /* map 1 back to 2 */
-  } while (!_GMP_is_prob_prime(t) && --tries > 0);
+  } while (!_GMP_is_prob_prime(t));
+  mpz_set(p, t);
+  res = 1;
 
-  if (tries > 0) {
-    mpz_set(p, t);
-    res = 1;
-  } else {
-    /* We couldn't find anything.  Perhaps no primes in range. */
-    res = _random_prime_primeinc(p, lo, hi);
-  }
+return_result:
   mpz_clear(r); mpz_clear(t); mpz_clear(hi); mpz_clear(lo);
   return res;
 }

@@ -86,6 +86,9 @@ Revision history for Perl module Math::Prime::Util::GMP
     - random_nbit_prime and related native-count functions croak on oversized
       inputs instead of silently truncating them.
 
+    - random_prime preserves uniform selection after exhausting its initial
+      trials, replacing the biased next-prime fallback present since v0.42.
+
     - random_{maurer,shawe_taylor}_prime_with_cert wasn't producing a cert for
       very small primes (32 and fewer bits).
 
