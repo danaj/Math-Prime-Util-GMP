@@ -135,6 +135,7 @@ static NV _tonv_32 = -1.0;
 static NV _tonv_64;
 NV drand64(void)
 {
+  NV r;
   if (_tonv_32 < 0) {
     int i;
     NV t64, t32 = 1.0;
@@ -146,7 +147,10 @@ NV drand64(void)
     _tonv_64 = t64;
     _tonv_32 = t32;
   }
-  return isaac_rand32() * _tonv_32 + isaac_rand32() * _tonv_64;
+  do {
+    r = isaac_rand32() * _tonv_32 + isaac_rand32() * _tonv_64;
+  } while (r >= 1.0);
+  return r;
 }
 
 void mpz_isaac_urandomb(mpz_t rop, int nbits)

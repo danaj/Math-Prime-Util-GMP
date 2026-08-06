@@ -203,9 +203,10 @@ UV irand()
   OUTPUT:
     RETVAL
 
-NV drand(NV m = 1.0)
+NV drand(NV m = 0.0)
   CODE:
-    RETVAL = m * drand64();
+    RETVAL = drand64();
+    if (m != 0.0) RETVAL *= m;
   OUTPUT:
     RETVAL
 
@@ -2190,16 +2191,18 @@ sieve_prime_cluster(IN char* strlow, IN char* strhigh, ...)
         list = sieve_twin_primes(low, seghigh, 2, &nprimes);
       } else {
         uint32_t *cl;
+        UV ncl = 1;
         New(0, cl, nc, uint32_t);
         cl[0] = 0;
         for (i = 1; i < nc; i++) {
           UV cval = SvUV(ST(1+i));
+          if (i == 1 && cval == 0) continue;
           if (cval & 1) croak("sieve_prime_cluster: values must be even");
           if (cval > 2147483647UL) croak("sieve_prime_cluster: values must be 31-bit");
-          if (cval <= cl[i-1]) croak("sieve_prime_cluster: values must be increasing");
-          cl[i] = cval;
+          if (cval <= cl[ncl-1]) croak("sieve_prime_cluster: values must be increasing");
+          cl[ncl++] = cval;
         }
-        list = sieve_cluster(low, seghigh, cl, nc, &nprimes);
+        list = sieve_cluster(low, seghigh, cl, ncl, &nprimes);
         Safefree(cl);
       }
 

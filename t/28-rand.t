@@ -15,7 +15,7 @@ my $samples = $extra ? 100000 :  10000;
 plan tests => 0
             + 2
             + ($use64 ? 2 : 0)
-            + 2;
+            + 4;
 
 ########
 
@@ -76,3 +76,19 @@ if ($use64) {
   ok($k >= 21, "drand supplies at least 21 bits (got $k)");
 }
 
+{
+  my $seed = pack("V", 0x521974A3);
+  seed_csprng(length($seed), $seed);
+  my $expected = drand();
+  my @got;
+  for my $zero (0, "0.0", "0E0") {
+    seed_csprng(length($seed), $seed);
+    push @got, drand($zero);
+  }
+  is_deeply(\@got, [($expected) x 3],
+            "drand treats every numeric zero limit as an omitted limit");
+
+  my @negative = map { drand(-10) } 1 .. 100;
+  ok(!(grep { $_ > 0 || $_ <= -10 } @negative),
+     "drand with a negative limit returns values in (limit,0]");
+}

@@ -48,6 +48,9 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     [FIXES]
 
+    - drand treats a zero limit like an omitted limit and always returns below
+      the upper endpoint before scaling.
+
     - factorialmod takes large (a,m) instead of silently reducing a to UL.
       We guard against values that would result in excessive time, while still
       returning zero for large inputs known to vanish modulo composite m.

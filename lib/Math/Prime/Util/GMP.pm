@@ -1016,8 +1016,9 @@ Given a cluster set C<C>, the returned values are all primes in the
 range where C<p+c> is prime for all C<c> in the cluster set C<C>.
 
 The cluster is described as offsets from 0, with the implicit prime
-at 0.  Hence an empty list is asking for all primes (the cluster
-C<p+0>).  A list with the single value C<2> will find all twin primes
+at 0.  An explicit leading 0 is accepted and ignored.  Hence an empty
+list is asking for all primes (the cluster C<p+0>).  A list with the
+single value C<2> will find all twin primes
 (the cluster where C<p+0> and C<p+2> are prime).  The list C<2,6,8>
 will find prime quadruplets.  Note that there is no requirement that
 the list denote a constellation (a cluster with minimal distance) --
@@ -2999,8 +3000,13 @@ Returns a random 64-bit integer using the CSPRNG (on 64-bit Perl).
 
   $f = drand;       # random floating point value in [0,1)
   $r = drand(25);   # random floating point value in [0,25)
+  $r = drand(-10);  # random floating point value in (-10,0]
 
 Returns a random NV (Perl's native floating point) using the CSPRNG.
+
+With no argument or with an argument numerically equal to zero, the range
+is C<[0,1)>.  For a positive argument C<m>, the range is C<[0,m)>; for a
+negative argument C<m>, the range is C<(m,0]>.
 
 The number of bits returned is equal to the mantissa bits of the NV type
 used for the Perl build, with a max of 64.  By default Perl uses doubles
