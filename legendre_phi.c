@@ -251,13 +251,13 @@ typedef struct {
 
 static UV nth_prime_upper_ui(UV n)
 {
-  long double fn, upper;
+  double fn, upper;
   if (n <= 50) return _snth[n];
-  fn = (long double)n;
-  upper = fn * (logl(fn) + logl(logl(fn)));
-  if (upper >= (long double)UV_MAX-32)
+  fn = (double)n;
+  upper = fn * (log(fn) + log(log(fn)));
+  if (upper >= (double)UV_MAX-32)
     croak("legendre_phi: nth prime upper overflow");
-  return (UV)ceill(upper) + 32;
+  return (UV)ceil(upper) + 32;
 }
 
 static UV prime_count_ui(UV n)
