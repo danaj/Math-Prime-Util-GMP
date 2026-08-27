@@ -7,7 +7,6 @@
 #if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
 
 #define FUNC_gcd_ui 1
-#include "utility.h"
 #include "misc_ui.h"
 
 static INLINE UV mpz_getuv(const mpz_t n) {
