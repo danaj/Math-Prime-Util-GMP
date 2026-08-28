@@ -402,7 +402,7 @@ Perspective"
     if (((beta*beta) % p) != p-1) {
       do { d += 2; } while (legendre_16(d,p) != -1 && d < p);
       alpha = mulm_16(alpha, powm_16(d, (p-9)>>3, p), p);
-      beta = mulm_16(a2, mulm_16(mulm_16(d,d,p),mulm_16(alpha,p,p),p), p);
+      beta = mulm_16(a2, mulm_16(mulm_16(d,d,p),mulm_16(alpha,alpha,p),p), p);
     }
     b = mulm_16(alpha, mulm_16(a, mulm_16(d, (beta ? beta-1 : p-1), p), p), p);
     return b;
