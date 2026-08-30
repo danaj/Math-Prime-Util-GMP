@@ -3,7 +3,6 @@
  * Slightly modified readable.c from Bob Jenkins 1996.
  */
 
-#include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 #include "ptypes.h"
@@ -46,10 +45,23 @@
 static uint32_t randrsl[256];
 static uint32_t randcnt;
 static int good_seed = 0;
+static int reseed_needed = 0;
+static void (*reseed_callback)(void) = NULL;
 
 /* internal state */
 static uint32_t mm[256];
 static uint32_t aa = 0, bb = 0, cc = 0;
+
+static void _reseed_if_needed(void)
+{
+  if (!reseed_needed)
+    return;
+  if (reseed_callback == NULL)
+    croak("CSPRNG reseed requested without a callback");
+  reseed_callback();
+  if (reseed_needed)
+    croak("CSPRNG reseed callback did not seed ISAAC");
+}
 
 static void isaac(void)
 {
@@ -72,6 +84,12 @@ static void isaac(void)
      randrsl[i] = bb = mm[(y>>10)%256] + x;
    }
    randcnt = 0;
+}
+
+static void _isaac_refill(void)
+{
+  _reseed_if_needed();
+  isaac();
 }
 #define mix(a,b,c,d,e,f,g,h) \
 { \
@@ -138,12 +156,30 @@ void isaac_init(uint32_t bytes, const unsigned char* data)
   }
   randinit();
   good_seed = (bytes >= 16);
+  reseed_needed = 0;
 }
 
-int isaac_seeded(void) { return good_seed; }
+void isaac_set_reseed_callback(void (*reseed)(void))
+{
+  reseed_callback = reseed;
+}
+
+void isaac_require_reseed(void)
+{
+  randcnt = 256;
+  good_seed = 0;
+  reseed_needed = 1;
+}
+
+int isaac_seeded(void)
+{
+  _reseed_if_needed();
+  return good_seed;
+}
 
 void isaac_rand_bytes(uint32_t bytes, unsigned char* data)
 {
+  if (bytes == 0) return;
   if ( 4*(256-randcnt) >= bytes) {
     /* We have enough data, just copy it and leave */
     COPYRSL(data, randrsl, randcnt, bytes);
@@ -153,7 +189,7 @@ void isaac_rand_bytes(uint32_t bytes, unsigned char* data)
     uint32_t n_rand_bytes, n_copy_bytes;
     while (bytes > 0) {
       if (randcnt > 255)
-        isaac();
+        _isaac_refill();
       n_rand_bytes = 4 * (256-randcnt);
       n_copy_bytes = (n_rand_bytes > bytes) ? bytes : n_rand_bytes;
       COPYRSL(data, randrsl, randcnt, n_copy_bytes);
@@ -166,7 +202,8 @@ void isaac_rand_bytes(uint32_t bytes, unsigned char* data)
 
 uint32_t isaac_rand32(void)
 {
-  if (randcnt > 255) isaac();
+  if (randcnt > 255)
+    _isaac_refill();
   return randrsl[randcnt++];
 }
 

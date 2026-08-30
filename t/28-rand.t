@@ -3,8 +3,9 @@ use strict;
 use warnings;
 
 use Test::More;
+use Config;
 use Math::Prime::Util::GMP qw/seed_csprng is_csprng_well_seeded
-                              irand irand64 drand/;
+                              irand irand64 drand random_bytes/;
 
 my $use64 = (~0 > 4294967295);
 my $extra = defined $ENV{EXTENDED_TESTING} && $ENV{EXTENDED_TESTING};
@@ -15,6 +16,7 @@ my $samples = $extra ? 100000 :  10000;
 plan tests => 0
             + 2
             + ($use64 ? 2 : 0)
+            + 4
             + 4;
 
 ########
@@ -91,4 +93,45 @@ if ($use64) {
   my @negative = map { drand(-10) } 1 .. 100;
   ok(!(grep { $_ > 0 || $_ <= -10 } @negative),
      "drand with a negative limit returns values in (limit,0]");
+}
+
+SKIP: {
+  my $have_fork = ($Config{d_fork} || '') eq 'define';
+  my $have_atfork = ($Config{d_pthread_atfork} || '') eq 'define';
+  my $have_pseudofork = ($Config{d_pseudofork} || '') eq 'define';
+  skip "native fork CSPRNG reseeding is not available", 4
+    unless $have_fork && !$have_pseudofork && $have_atfork;
+
+  require POSIX;
+  my $seed = "fork stream regression";
+  seed_csprng(length($seed), $seed);
+  irand();
+  my $expected = unpack("H*", random_bytes(32));
+  seed_csprng(length($seed), $seed);
+  irand();
+
+  pipe(my $reader, my $writer) or die "pipe failed: $!";
+  my $pid = fork();
+  die "fork failed: $!" unless defined $pid;
+  if ($pid == 0) {
+    close $reader;
+    my $child = eval { unpack("H*", random_bytes(32)) };
+    $child = "ERROR: $@" unless defined $child;
+    print {$writer} "$child\n";
+    close $writer;
+    POSIX::_exit(0);
+  }
+
+  close $writer;
+  my $parent = unpack("H*", random_bytes(32));
+  my $child = <$reader>;
+  close $reader;
+  waitpid($pid, 0);
+  my $status = $?;
+  chomp $child if defined $child;
+
+  is($parent, $expected, "fork does not alter the parent CSPRNG stream");
+  like($child, qr/\A[0-9a-f]{64}\z/, "child produced a valid CSPRNG stream");
+  isnt($child, $expected, "child reseeds the inherited CSPRNG stream");
+  is($status, 0, "child exited successfully after CSPRNG reseed");
 }

@@ -2941,6 +2941,10 @@ On startup the module will attempt to seed the CSPRNG from
 C</dev/urandom>, so this function will return true if that was
 successful, but false otherwise.
 
+On systems with C<pthread_atfork>, after a process forks the child
+reseeds from system entropy before producing CSPRNG output.  The
+parent's stream is unchanged.
+
 =head2 urandomb
 
   $n32 = urandomb(32);    # Classic irand32, returns a UV

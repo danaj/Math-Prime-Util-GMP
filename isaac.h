@@ -4,6 +4,8 @@
 #include "ptypes.h"
 
 extern void isaac_init(uint32_t bytes, const unsigned char* data);
+extern void isaac_set_reseed_callback(void (*reseed)(void));
+extern void isaac_require_reseed(void);
 extern uint32_t isaac_rand32(void);
 extern uint32_t isaac_rand(uint32_t n);
 extern void isaac_rand_bytes(uint32_t bytes, unsigned char* data);

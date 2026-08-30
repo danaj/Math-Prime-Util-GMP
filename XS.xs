@@ -5,8 +5,16 @@
 #include "XSUB.h"
 /* We're not using anything for which we need ppport.h */
 
+#include <stdio.h>
 #include <string.h>
 #include <gmp.h>
+
+#if defined(HAS_FORK) && defined(HAS_PTHREAD_ATFORK)
+#include <pthread.h>
+#define USE_GMP_ATFORK 1
+#else
+#define USE_GMP_ATFORK 0
+#endif
 
 #include "ptypes.h"
 #include "gmp_main.h"
@@ -165,12 +173,69 @@ static char* cert_with_header(char* proof, mpz_t n) {
   return str;
 }
 
+#if USE_GMP_ATFORK
+static int _gmp_atfork_initialized = 0;
+
+static void _clear_seed(unsigned char *seed, size_t bytes)
+{
+  volatile unsigned char *p = (volatile unsigned char*)seed;
+  while (bytes-- > 0) *p++ = 0;
+}
+
+static void _isaac_reseed_from_entropy(void)
+{
+  unsigned char seed[64];
+  FILE *f;
+  size_t got = 0, nread;
+
+  f = fopen("/dev/urandom", "rb");
+  if (f == NULL)
+    f = fopen("/dev/random", "rb");
+  if (f != NULL) {
+    while (got < sizeof(seed)) {
+      nread = fread(seed + got, 1, sizeof(seed) - got, f);
+      if (nread == 0) break;
+      got += nread;
+    }
+    fclose(f);
+  }
+  if (got != sizeof(seed)) {
+    _clear_seed(seed, got);
+    croak("Failed to get entropy bytes after fork");
+  }
+
+  isaac_init((uint32_t)sizeof(seed), seed);
+  _clear_seed(seed, sizeof(seed));
+}
+
+static void _gmp_after_fork_child(void)
+{
+  isaac_require_reseed();
+}
+
+static void _gmp_init_fork_tracking(void)
+{
+  if (!_gmp_atfork_initialized) {
+    isaac_set_reseed_callback(_isaac_reseed_from_entropy);
+    if (pthread_atfork(NULL, NULL, _gmp_after_fork_child) != 0)
+      croak("Unable to register CSPRNG fork handler");
+    _gmp_atfork_initialized = 1;
+  }
+}
+#else
+#define _gmp_init_fork_tracking() ((void)0)
+#endif
+
 
 MODULE = Math::Prime::Util::GMP		PACKAGE = Math::Prime::Util::GMP
 
 PROTOTYPES: ENABLE
 
-void _GMP_init()
+void
+_GMP_init()
+  PPCODE:
+    _gmp_init_fork_tracking();
+    _GMP_init();
 
 void _GMP_destroy()
 

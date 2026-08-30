@@ -1,5 +1,13 @@
 Revision history for Perl module Math::Prime::Util::GMP
 
+0.55 2026-?
+
+    [OTHER]
+
+    - On systems with pthread_atfork, forked child processes reseed the
+      CSPRNG from system entropy before producing random output.
+
+
 0.54 2026-08-08
 
     [API CHANGES]
