@@ -70,6 +70,14 @@ void _init_factor(void) {
   Safefree(pr);
 }
 
+void _destroy_factor(void) {
+  mpz_clear(_gcd_1k);
+  mpz_clear(_gcd_4k);
+  mpz_clear(_gcd_16k);
+  mpz_clear(_gcd_32k);
+  mpz_clear(_gcd_64k);
+}
+
 /* Max number of factors on the unfactored stack, not the max total factors.
  * This is used when we split n into two or more composites.  Since we work
  * on the smaller of the composites first, this rarely goes above 10 even
