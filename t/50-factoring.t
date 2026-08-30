@@ -33,9 +33,9 @@ my @omegab = (qw/1 0 1 4  3   5   7       7/);
 plan tests => 0 + 57
                 + 7    # negative factor inputs
                 + 24
+                + 3
                 + 2
-                + 2
-                + 11  # individual tets for factoring methods
+                + 13  # individual tests for factoring methods
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
@@ -153,6 +153,9 @@ is_deeply( [ factor('18446744073709551611') ], [11,59,'98818999','287630261'], "
 
 is_deeply( [ factor('22436743170696946255920') ], [2,2,2,2,3,5,7,208067,'64187037196057'], "factor(22436743170696946255920)" );
 is_deeply( [ factor('43455102778396761657787') ], ['175595514959','247472737493'], "factor(43455102778396761657787)" );
+is_deeply( [ factor('267212883610666843931009408162450623523') ],
+           ['3133007124855728119','85289586956484094517'],
+           "factor 128-bit semiprime with TinyQS" );
 
 # Check perfect squares that make it past early testing
 is_deeply( [ factor('1524157875323973084894790521049') ], ['1234567890123493','1234567890123493'], "factor(1234567890123493^2)" );
@@ -171,6 +174,18 @@ is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pplus1_factor('2209531120999
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::ecm_factor('16049407357301026788959025956634678743968244330856613525782006075043') ], [qw/99151111 161868154531329727500068314480456792299263740280798402004613/], "ECM factors p8*p60" );
 
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "QS factors 22095311209999409685885162322219" );
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '1009000000000000000000000000000000067603') ],
+  ['1009', '1000000000000000000000000000000000067'],
+  "QS records a factor found while combining partial relations"
+);
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      Math::Prime::Util::GMP::powint(7, 100)) ],
+  [ ('7') x 100 ],
+  "QS dynamically grows its repeated-factor result"
+);
 
 #diag "factor 736-bit number with HOLF";
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::holf_factor('185486767418172501041516225455805768237366368964328490571098416064672288855543059138404131637447372942151236559829709849969346650897776687202384767704706338162219624578777915220190863619885201763980069247978050169295918863') ], ['192606732705880508138303165129171270891951231683030125996296974238495711578947569589234612013165893468683239489', '963033663529402540691515825645856354459756158415150629981484871192478557894737847946173060065829467343416197967'], "HOLF factors poorly formed 222-digit semiprime" );

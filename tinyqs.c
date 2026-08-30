@@ -30,7 +30,7 @@ typedef unsigned long long u64;
 
 /* High-throughput, low-overhead implementation of the self-
    initializing multiple polynomial quadratic sieve, optimized
-   for small inputs (50-120 bits). Many of the ideas here are
+   for small inputs (50-128 bits). Many of the ideas here are
    extensions of the remarkable MPQS code of F. Bahr, used
    in the lattice sievers by Jens Franke */
 
@@ -72,20 +72,21 @@ static const u64 bitmask[] = {
 
 /* maximum size pool of primes from which
    factor base is constructed */
-#define NUM_PRIMES_TINY 1024
+#define NUM_PRIMES_TINY 2048
 
-/* the number of dependencies the linear algebra
-   will find */
-#define NUM_EXTRA_RELATIONS_TINY 16
+/* Start with a small dependency margin, extending it in equal steps when
+   the generated dependencies are trivial. */
+#define EXTRA_RELATION_STEP_TINY 32
+#define MAX_EXTRA_RELATIONS_TINY 256
 
 /* largest number of relations that can go into the
    linear algebra (includes relations combined from
    pairs of partial relations */
-#define MAX_RELATIONS_TINY 512
+#define MAX_RELATIONS_TINY 960
 
 /* the largest possible factor base */
 #define MAX_FB_SIZE_TINY (MAX_RELATIONS_TINY - \
-                          NUM_EXTRA_RELATIONS_TINY)
+                          MAX_EXTRA_RELATIONS_TINY)
 
 /* offset of the first valid factor base prime */
 #define MIN_FB_OFFSET_TINY 1
@@ -101,8 +102,8 @@ static const u64 bitmask[] = {
    for not sieving with the smallest factor base primes */
 #define SMALL_PRIME_FUDGE_TINY 10
 
-/* maximum number of MPQS polynomials to be computed */
-#define MAX_POLY_TINY 256
+/* maximum number of SIQS polynomials to be computed */
+#define MAX_POLY_TINY 2048
 
 /* maximum number of FB primes that contribute to
    a single polynomial 'A' value */
@@ -125,12 +126,12 @@ static const u64 bitmask[] = {
 /* partial relations are listed in the order
    in which they occur, and a hashtable matches
    up partial relations with the same large prime. */
-#define LOG2_PARTIAL_TABLE_SIZE 10
-#define LARGE_PRIME_HASH(x) (((u32)(x) * ((u32)40499 * 65543)) >> \
+#define LOG2_PARTIAL_TABLE_SIZE 12
+#define LARGE_PRIME_HASH(x) (((u32)(x) * (u32)0x9e3779b1U) >> \
                                 (32 - LOG2_PARTIAL_TABLE_SIZE))
 
-/* number of collisions allowed in one hashtable entry */
-#define LP_HASH_DEPTH_TINY 3
+/* number of slots for each hashtable entry */
+#define LP_HASH_DEPTH_TINY 2
 
 /* scale factor for all log values */
 #define LOGPRIME_SCALE_TINY 2
@@ -146,12 +147,17 @@ static const u64 bitmask[] = {
 #define POSITIVE 0
 #define NEGATIVE 1
 
+/* Restrictions on the above:
+ * 4 * MAX_RELATIONS_TINY must fit below the u16 hash sentinel 0xffff.
+ * MAX_POLY_TINY must fit u16 poly_num.
+ */
+
 /* structure describing a single relation */
 
 typedef struct {
   u32 large_prime;      /* the large prime (may be 1) */
   s16 sieve_offset;     /* the sieve offset of the relation */
-  u8 poly_num;          /* ID of the poly that produce the relation */
+  u16 poly_num;         /* ID of the poly that produced the relation */
   u8 num_factors;       /* number of factors from the factor base
                            (duplicates count) */
   u16 fb_offsets[MAX_FACTORS_TINY]; /* offsets into FB of primes that
@@ -192,6 +198,7 @@ typedef struct {
   s32 num_a_factors;                /* # of factors in poly 'A' values */
   s32 poly_select_idx;              /* ID of the combination of primes
                                        that will make current A value */
+  u16 poly_select_mask;             /* generated combinations after table */
   u16 poly_select_offsets[POLY_SELECT_BITS_TINY]; /* pool of primes for A */
   mpz_t poly_b_aux[MAX_POLY_FACTORS_TINY];      /* scratch values for com-
                                                    puting poly B values */
@@ -217,6 +224,7 @@ typedef struct {
 
   s32 num_full_relations;   /* where next full relation will go */
   s32 partial_idx;          /* where next partial relation will go */
+  s32 target_relations;     /* factor base plus dependency margin */
   s32 large_prime_max;      /* max value of a large prime */
   s32 error_bits;           /* value used for trial factoring cutoff */
   tiny_relation sieve_batch[SIEVE_BATCH_SIZE_TINY]; /* resieved relations */
@@ -626,15 +634,16 @@ static void find_multiplier_tiny(void)
            = log(p) / (p-1)
 
            This contribution occurs once for each
-           square root used for sieving. There are two
-           roots for each factor base prime, unless
-           the prime divides the multiplier. In that
-           case there is only one root. The scores are
-           premultiplied by 2.0, and logarithms are
-           in base 2 (though any base will do) */
+           square root used for sieving. There are two roots
+           for each factor base prime. If the prime divides
+           the squarefree multiplier, its one root modulo p
+           does not lift to higher powers, so its contribution
+           is instead log(p)/p. The scores are premultiplied by
+           2.0, and logarithms are in base 2. */
 
         if (knmodp == 0)
-          score -= 0.5 * params->test_prime_contrib[j];
+          score -= 0.5 * params->test_prime_contrib[j]
+                     * (prime - 1) / prime;
         else
           score -= params->test_prime_contrib[j];
       }
@@ -1089,56 +1098,18 @@ sieve polynomials
      zero of the tables below */
 
   params->poly_select_idx = 0;
+  params->poly_select_mask = 0;
 }
 
-/* A perpetual problem with SIQS is deciding which
-   primes should make up the next polynomial A value.
-   The selected set must multiply out to a value as
-   close as possible to the optimal A value, but must
-   be sufficiently different from previously selected
-   sets that the odds of producing duplicate relations
-   are low. And the set has to be computed quickly.
+/* Choosing the primes for polynomial A is a compromise. A should be
+   close to its optimal value, successive choices should be different
+   enough to avoid duplicate relations, and selection must be cheap.
 
-   Fortunately, we will only need a few polynomials
-   so the sets to use can be precomputed. Each prime in
-   the pool is assigned a bit in a bitfield. Consecutive
-   bits in the bitfield refer to primes alternately
-   above and below the optimal factor size. The low-order
-   bits correspond to factors near the optimal value, and
-   the more significant bits march away from the optimal
-   value. Hence, setting the bitfield to an integer
-   will select a unique set of primes, the number of which
-   is the number of set bits in the integer. Small integer
-   values of the bitfield will pick primes close to the
-   optimal factor size, with later bitfield values selecting
-   prime factors that march away from the optimal size.
+   a_choice[] lists preferred masks over the 12-prime selection pool.
+   If these masks are exhausted, find_poly_a() enumerates the remaining
+   masks having the required weight. */
 
-   _popcount[] gives the number of set bits for each value
-   of the bitfield, and a_choice[] lists the bitfields
-   themselves. A given factorization only uses one of the
-   population count sizes from the table; bitfields are
-   arranged so that low-order bits are set first, then
-   higher-order bits are set. Every bitfield is different
-   by at least two bits from all other bitfields with the
-   same weight, and there are enough bitfields to generate
-   256 polynomials, whether A values contain 3, 4, or 5 primes */
-
-/* DAJ: Renamed because NetBSD is broken. */
-static u8 _popcount[] = {
-       3,     4,     3,     5,     3,     4,
-       3,     4,     3,     3,     4,     4,
-       3,     4,     5,     4,     5,     4,
-       4,     4,     4,     5,     5,     4,
-       4,     5,     5,     4,     5,     5,
-       5,     5,     3,     5,     5,     5,
-       5,     5,     3,     4,     3,     4,
-       4,     4,     3,     3,     4,     4,
-       4,     4,     3,     4,     4,     4,
-       4,     3,     4,     4,     3,     4,
-       4,     4,     4,     3,     4,     3,
-};
-
-static u16 a_choice[] = {
+static const u16 a_choice[] = {
        0x007, 0x00f, 0x019, 0x01f, 0x02a, 0x033,
        0x034, 0x03c, 0x04c, 0x052, 0x055, 0x05a,
        0x061, 0x066, 0x067, 0x069, 0x079, 0x096,
@@ -1152,6 +1123,16 @@ static u16 a_choice[] = {
        0x990, 0xa05, 0xa0a, 0xa20, 0xa50, 0xc40,
 };
 
+static u32 popcount_12(u32 n)
+{
+  u32 count = 0;
+  while (n) {
+    n &= n - 1;
+    count++;
+  }
+  return count;
+}
+
 
 /***********************************/
 static s32 find_poly_a(mpz_t a)
@@ -1162,20 +1143,36 @@ Compute the next polynomial A value
   tiny_qs_params *params = g_params;
   u32 i, j, mask;
   u32 num_a_factors = params->num_a_factors;
+  const u32 num_a_choices = sizeof(a_choice) / sizeof(a_choice[0]);
   tiny_fb *factor_base = params->factor_base;
   tiny_poly *poly = params->poly_list + params->poly_num;
 
   /* choose the next bitfield representing
      primes to use */
 
-  for (i = params->poly_select_idx; i < sizeof(_popcount); i++) {
-    if (_popcount[i] == num_a_factors)
+  for (i = params->poly_select_idx; i < num_a_choices; i++) {
+    if (popcount_12(a_choice[i]) == num_a_factors)
       break;
   }
-  if (i >= sizeof(_popcount))
-    return -1;
-  mask = a_choice[i];
-  params->poly_select_idx = i + 1;
+  if (i < num_a_choices) {
+    mask = a_choice[i];
+    params->poly_select_idx = i + 1;
+  }
+  else {
+    u32 ti;
+    for (mask = params->poly_select_mask ? params->poly_select_mask : 1;
+         mask < (1U << POLY_SELECT_BITS_TINY); mask++) {
+      if (popcount_12(mask) != num_a_factors)
+        continue;
+      for (ti = 0; ti < num_a_choices; ti++)
+        if (mask == a_choice[ti]) break;
+      if (ti == num_a_choices)
+        break;
+    }
+    if (mask >= (1U << POLY_SELECT_BITS_TINY))
+      return -1;
+    params->poly_select_mask = mask + 1;
+  }
 
   /* gather the chosen primes */
 
@@ -1411,7 +1408,7 @@ Do all the sieving for one polynomial
   tiny_fb *factor_base = params->factor_base;
   s32 cutoff1, num_surviving;
   s32 poly_num = params->poly_num;
-  s32 target_relations = params->fb_size + NUM_EXTRA_RELATIONS_TINY;
+  s32 target_relations = params->target_relations;
   static u8 initialized = 0;
   static mpz_t a, b, c;
 
@@ -1781,9 +1778,9 @@ typedef struct {
   s32 num_poly_factors;
 } tiny_qs_config;
 
-/* factor base sizes for 50 to 120-bit factorizations */
+/* factor base sizes for 50 to 128-bit factorizations */
 
-static tiny_qs_config static_config[] = {
+static const tiny_qs_config static_config[] = {
  { 40, 3 },
  { 50, 3 },
  { 60, 3 },
@@ -1801,6 +1798,9 @@ static tiny_qs_config static_config[] = {
  { 350, 4 },
  { 420, 4 },
  { 490, 5 },
+ { 560, 5 },
+ { 630, 5 },
+ { 700, 5 },
 };
 
 /***********************************/
@@ -1812,11 +1812,10 @@ successful, returns 0 otherwise
 ************************************/
 {
   tiny_qs_params *params;
-  s32 bits, status = 0;
-  s32 fb_size;
+  s32 bits, fb_size, max_relations, status = 0;
   s32 bound;
   s32 large_prime_mult;
-  tiny_qs_config *config;
+  const tiny_qs_config *config;
   mpz_t tmp;
 
   mpz_init(tmp);
@@ -1849,8 +1848,8 @@ successful, returns 0 otherwise
 
   if (bits < 50)
     bits = 50;
-  if (bits > 116)
-    bits = 116;
+  if (bits > 128)
+    bits = 128;
   config = static_config + ((bits - 50) / 4);
   fb_size = config->fb_size;
   params->num_a_factors = config->num_poly_factors;
@@ -1858,6 +1857,8 @@ successful, returns 0 otherwise
   /* build the factor base */
 
   fb_size = init_fb_tiny(fb_size);
+  params->target_relations = fb_size + EXTRA_RELATION_STEP_TINY;
+  max_relations = fb_size + MAX_EXTRA_RELATIONS_TINY;
 
   /* compute the optimal A value */
 
@@ -1879,26 +1880,41 @@ successful, returns 0 otherwise
 
   memset(params->partial_hash, 0xff, sizeof(params->partial_hash));
 
-  /* do the sieving! */
+  /* Collect an initial relation set, then extend it only when all generated
+     dependencies are trivial. */
 
-  while (params->poly_num < MAX_POLY_TINY &&
-         params->num_full_relations < fb_size + NUM_EXTRA_RELATIONS_TINY) {
-    if (sieve_next_poly_tiny() != 0) {
-      mpz_clear(tmp);
-      return 0;
+  while (!status && params->target_relations <= max_relations) {
+    s32 attempt, attempts, sieve_status = 0;
+    s32 exhausted;
+
+    while (params->poly_num < MAX_POLY_TINY &&
+           params->num_full_relations < params->target_relations) {
+      sieve_status = sieve_next_poly_tiny();
+      if (sieve_status != 0)
+        break;
+      params->poly_num++;
     }
-    params->poly_num++;
+
+    /* A relation-pool collision can leave the newest column incomplete. */
+    if (sieve_status == -3)
+      break;
+    exhausted = sieve_status != 0 || params->poly_num >= MAX_POLY_TINY;
+
+    if (params->num_full_relations <= fb_size)
+      break;
+
+    attempts = exhausted || params->target_relations == max_relations ? 4 : 1;
+    for (attempt = 0; attempt < attempts && !status; attempt++) {
+      solve_linear_system_tiny();
+      status = find_factors_tiny(factor, tmp);
+    }
+    if (status || exhausted || params->target_relations >= max_relations)
+      break;
+    params->target_relations += EXTRA_RELATION_STEP_TINY;
   }
 
-  /* if enough relations were found, finish
-     off the factorization */
-
-  if (params->num_full_relations >= fb_size + NUM_EXTRA_RELATIONS_TINY) {
-    solve_linear_system_tiny();
-    status = find_factors_tiny(factor, tmp);
-    /* Return smaller of two factors */
-    if (status && mpz_cmp(factor,tmp) > 0)  mpz_swap(factor,tmp);
-  }
+  /* Return smaller of two factors */
+  if (status && mpz_cmp(factor,tmp) > 0)  mpz_swap(factor,tmp);
 
   mpz_clear(tmp);
   return status;

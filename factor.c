@@ -11,6 +11,7 @@
 #include "ecm.h"
 #include "tinyqs.h"
 #include "simpqs.h"
+#include "simpqs2.h"
 #include "lucas_seq.h"
 
 static unsigned long _gcd_ui(unsigned long a, unsigned long b) {
@@ -215,8 +216,40 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       int o = get_verbose_level();
       UV B1 = 5000;
       UV nbits = mpz_sizeinbase(n, 2);
+      int use_qs_budget = nbits >= 129 && nbits < 300;
 
-      /*
+      /* First handle factoring of "tiny" inputs.  128-bit and smaller. */
+
+      if (nbits <= 63) {
+        /* On x86-64 with fast ASM Montgomery, this is fastest. */
+        if (!success) success = pbrent63(n, f, 400000);
+        if (success&&o) {gmp_printf("UV Rho-Brent found factor %Zd\n", f);o=0;}
+      }
+
+      if (nbits <= 53) {
+
+        if (!success)  success = squfof126(n, f, 400000);
+        if (success&&o) {gmp_printf("UV SQUFOF126 found factor %Zd\n", f);o=0;}
+
+      } else if (nbits <= 63) {
+
+        int sb1 = nbits < 58 ? 1 : 2;
+        if (!success)  success = _GMP_pminus1_factor(n, f, sb1*1000, sb1*10000);
+        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",sb1,f);o=0;}
+        if (!success)  success = squfof126(n, f, 1000000);
+        if (success&&o) {gmp_printf("SQUFOF126 found factor %Zd\n", f);o=0;}
+
+      } else if (nbits <= 128) {
+
+        if (!success) success = _GMP_pminus1_factor(n, f, 2000, 20000);
+        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",2,f);o=0;}
+        if (!success) success = tinyqs(n, f);
+        if (success&&o) {gmp_printf("tinyqs found factor %Zd\n", f);o=0;}
+
+      }
+
+      /* The general purpose factoring recipe.
+       *
        * This set of operations is meant to provide good performance for
        * "random" numbers as input.  Hence we stack lots of effort up front
        * looking for small factors: prho and pbrent are ~ O(f^1/2) where
@@ -229,34 +262,6 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
        * of many 12-digit or 14-digit primes should take under 10 seconds.
        */
 
-      /* Handle small inputs here */
-      if (nbits <= 63) {
-        if (!success) success = pbrent63(n, f, 400000);
-        if (success&&o) {gmp_printf("UV Rho-Brent found factor %Zd\n", f);o=0;}
-      }
-      if (nbits >= 65 && nbits <= 126) {
-        if (!success) success = _GMP_pminus1_factor(n, f, 5000, 5000);
-        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",5,f);o=0;}
-        if (!success) success = tinyqs(n, f);
-        if (success&&o) {gmp_printf("tinyqs found factor %Zd\n", f);o=0;}
-      }
-
-      /* It's possible the previous calls failed or weren't available */
-      if (nbits <= 53) {
-        if (!success)  success = squfof126(n, f, 400000);
-        if (success&&o) {gmp_printf("UV SQUFOF126 found factor %Zd\n", f);o=0;}
-      } else if (nbits <= 77) {
-        int sb1 = (nbits < 58) ?  1
-                : (nbits < 63) ?  2
-                : (nbits < 72) ?  4
-                               : 10;
-        if (!success)  success = _GMP_pminus1_factor(n, f, sb1*1000, sb1*10000);
-        if (success&&o) {gmp_printf("p-1 (%dk) found factor %Zd\n",sb1,f);o=0;}
-
-        if (!success)  success = squfof126(n, f, 1000000);
-        if (success&&o) {gmp_printf("SQUFOF126 found factor %Zd\n", f);o=0;}
-      }
-
       /* Make sure it isn't a perfect power */
       if (!success)  success = (int)power_factor(n, f);
       if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
@@ -264,25 +269,61 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (!success)  success = _GMP_pminus1_factor(n, f, 20000, 200000);
       if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
 
-      /* Small ECM to find small factors */
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
-      if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 600, 20);
-      if (success&&o) {gmp_printf("tiny ecm (600) found factor %Zd\n", f);o=0;}
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 10);
-      if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
+      if (use_qs_budget) {
+        /* Keep pretests proportional to the expected SIMPQS2 time. */
+        if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
+        if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
 
-      /* Small p-1 */
-      if (!success) {
-        if (nbits < 100 || nbits >= 160) {
+        if (!success && nbits >= 160)
+          success = _GMP_ECM_FACTOR(n, f, 600, 20);
+        if (success&&o) {gmp_printf("tiny ecm (600) found factor %Zd\n", f);o=0;}
+        if (!success && nbits >= 176)
+          success = _GMP_ECM_FACTOR(n, f, 2000, 10);
+        if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
+
+        if (!success && nbits >= 192)
+          success = _GMP_pminus1_factor(n, f, 200000, 3000000);
+        if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
+        if (!success && nbits >= 192)
+          success = _GMP_ECM_FACTOR(n, f, 20000, 2);
+        if (success&&o) {gmp_printf("small ecm (20k,2) found factor %Zd\n",f);o=0;}
+
+        if (!success && nbits >= 208)
+          success = _GMP_ECM_FACTOR(n, f, 30000, 20);
+        if (success&&o) {gmp_printf("small ecm (30k,20) found factor %Zd\n",f);o=0;}
+        if (!success && nbits >= 224)
+          success = _GMP_ECM_FACTOR(n, f, 40000, 40);
+        if (success&&o) {gmp_printf("small ecm (40k,40) found factor %Zd\n",f);o=0;}
+        if (!success && nbits >= 240)
+          success = _GMP_ECM_FACTOR(n, f, 80000, 40);
+        if (success&&o) {gmp_printf("small ecm (80k,40) found factor %Zd\n",f);o=0;}
+        if (!success && nbits >= 256)
+          success = _GMP_ECM_FACTOR(n, f, 160000, 80);
+        if (success&&o) {gmp_printf("small ecm (160k,80) found factor %Zd\n",f);o=0;}
+
+        B1 = nbits < 160 ?  20000
+           : nbits < 192 ?  30000
+           : nbits < 224 ?  40000
+           : nbits < 256 ?  80000
+                         : 160000;
+      } else {
+        UV curves;
+
+        /* Small ECM to find small factors */
+        if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
+        if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
+        if (!success)  success = _GMP_ECM_FACTOR(n, f, 600, 20);
+        if (success&&o) {gmp_printf("tiny ecm (600) found factor %Zd\n", f);o=0;}
+        if (!success)  success = _GMP_ECM_FACTOR(n, f, 2000, 10);
+        if (success&&o) {gmp_printf("tiny ecm (2000) found factor %Zd\n", f);o=0;}
+
+        /* Small p-1 */
+        if (!success && (nbits < 100 || nbits >= 160)) {
           success = _GMP_pminus1_factor(n, f, 200000, 3000000);
           if (success&&o) {gmp_printf("p-1 (200k) found factor %Zd\n", f);o=0;}
         }
-      }
 
-      /* Set ECM parameters that have a good chance of success */
-      if (!success) {
-        UV curves;
+        /* Set ECM parameters that have a good chance of success */
         if      (nbits < 100){ B1 =   5000; curves =  20; }
         else if (nbits < 128){ B1 =  10000; curves =   2; } /* go to QS */
         else if (nbits < 160){ B1 =  20000; curves =   2; } /* go to QS */
@@ -291,7 +332,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         else if (nbits < 256){ B1 =  80000; curves =  40; }
         else if (nbits < 512){ B1 = 160000; curves =  80; }
         else                 { B1 = 320000; curves = 160; }
-        if (curves > 0) {
+        if (!success && curves > 0) {
           success = _GMP_ECM_FACTOR(n, f, B1, curves);
           if (success&&o) {gmp_printf("small ecm (%luk,%lu) found factor %Zd\n", B1/1000, curves, f);o=0;}
         }
@@ -303,11 +344,12 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
        * works, it will generate (possibly) multiple factors for the same
        * amount of work.  Go to some trouble to use them. */
       if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
-        mpz_t farray[66];
-        int i, qs_nfactors;
-        for (i = 0; i < 66; i++)
-          mpz_init(farray[i]);
-        qs_nfactors = _GMP_simpqs(n, farray);
+        mpz_t *farray;
+        uint32_t i, qs_nfactors;
+
+        /* Use SIMPQS2 */
+        farray = _GMP_simpqs2(n, &qs_nfactors, 64007);
+
         mpz_set(f, farray[0]);
         if (qs_nfactors > 2) {
           /* We found multiple factors */
@@ -320,8 +362,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
           }
           /* f = farray[0], n = farray[1], farray[2..] pushed */
         }
-        for (i = 0; i < 66; i++)
-          mpz_clear(farray[i]);
+        _GMP_simpqs2_free(farray, qs_nfactors);
         success = qs_nfactors > 1;
         if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
       }

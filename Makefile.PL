@@ -29,6 +29,8 @@ WriteMakefile1(
                     'gmp_main.o '       .
                     'tinyqs.o '         .
                     'simpqs.o '         .
+                    'lanczos.o '        .
+                    'simpqs2.o '        .
                     'primality.o '      .
                     'bls75.o '          .
                     'ecpp.o '           .
@@ -86,7 +88,7 @@ WriteMakefile1(
                },
                provides => {
                  'Math::Prime::Util::GMP' => {
-                    version => '0.54',
+                    version => '0.55',
                     file => 'lib/Math/Prime/Util/GMP.pm',
                  },
                },

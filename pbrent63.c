@@ -16,6 +16,8 @@ static INLINE UV mpz_getuv(const mpz_t n) {
   return v;
 }
 
+#define ABSDIFF(x,y)  ((x) > (y) ? (x)-(y) : (y)-(x))
+
 int pbrent63(const mpz_t n, mpz_t f, UV rounds) {
   UV facs[2];
   int nfactors;
@@ -89,11 +91,10 @@ static INLINE UV addmod(UV a, UV b, UV n) {
   return a;
 }
 
-#define ABSDIFF(x,y)  (x>y) ? x-y : y-x
 /* Brent's modifications to Pollard's Rho. */
 int uvpbrent63(UV n, UV *factors, UV rounds, UV a)
 {
-  UV const nbits = BITS_PER_WORD - __builtin_ctzll(n);
+  UV const nbits = BITS_PER_WORD - __builtin_clzll(n);
   const UV inner = (nbits <= 31) ? 32 : (nbits <= 35) ? 64 : (nbits <= 40) ? 160 : (nbits <= 52) ? 256 : 320;
   UV f, m, r, rleft, Xi, Xm, Xs;
   int irounds, fails = 6;

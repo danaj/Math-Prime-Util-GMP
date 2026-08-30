@@ -23,7 +23,7 @@
 #include "lucas_seq.h"
 #include "squfof126.h"
 #include "ecm.h"
-#include "simpqs.h"
+#include "simpqs2.h"
 #include "bls75.h"
 #include "ecpp.h"
 #include "aks.h"
@@ -2508,17 +2508,13 @@ trial_factor(IN char* strn, ...)
                 break;
         case 9:
         default:{
-                  mpz_t farray[66];
-                  int i, nfactors;
-                  for (i = 0; i < 66; i++)
-                    mpz_init(farray[i]);
-                  nfactors = _GMP_simpqs(n, farray);
+                  mpz_t *farray;
+                  uint32_t i, nfactors;
+                  farray = _GMP_simpqs2(n, &nfactors, 7);
                   for (i = 0; i < nfactors; i++)
                     XPUSH_MPZ(farray[i]);
-                  for (i = 0; i < 66; i++)
-                    mpz_clear(farray[i]);
-                  if (nfactors > 0)
-                    mpz_set_ui(n, 1);
+                  _GMP_simpqs2_free(farray, nfactors);
+                  mpz_set_ui(n, 1);
                 }
                 break;
       }

@@ -5,7 +5,7 @@ use Carp qw/croak confess carp/;
 
 BEGIN {
   $Math::Prime::Util::GMP::AUTHORITY = 'cpan:DANAJ';
-  $Math::Prime::Util::GMP::VERSION = '0.54';
+  $Math::Prime::Util::GMP::VERSION = '0.55';
 }
 
 # parent is cleaner, and in the Perl 5.10.1 / 5.12.0 core, but not earlier.
@@ -212,7 +212,7 @@ Math::Prime::Util::GMP - Utilities related to prime numbers and factoring, using
 
 =head1 VERSION
 
-Version 0.54
+Version 0.55
 
 
 =head1 SYNOPSIS
@@ -2886,13 +2886,18 @@ quadratic sieve).  The resulting array will contain one or more numbers such
 that multiplying @factors yields the original input.  Typically multiple
 factors will be produced, unlike the other C<..._factor> routines.
 
-The current implementation is a modified version of SIMPQS, a predecessor to
-the QS in FLINT, and was written by William Hart in 2006.  It will not operate
-on input less than 30 digits.  The memory use for large inputs is more than
-desired, so other methods such as L</pbrent_factor>, L</pminus1_factor>, and
-L</ecm_factor> are recommended to begin with to filter out small factors.
-However, it is substantially faster than the other methods on large inputs
-having large factors, and is the method of choice for 35+ digit semiprimes.
+The current implementation is SIMPQS2, derived from William Hart's 2006
+SIMPQS, a predecessor to the QS in FLINT.  Hugo van der Sanden added combined
+partial relations, integrated Jason Papadopoulos's block Lanczos linear
+algebra, and substantially reduced memory use.  It will not operate on inputs
+shorter than 30 decimal digits.
+
+The generic factor routine uses an expanded and tuned TinyQS implementation
+for 64- to 128-bit inputs, then SIMPQS2 for larger suitable inputs.  QS can
+still use substantial memory on large inputs, so methods such as
+L</pbrent_factor>, L</pminus1_factor>, and L</ecm_factor> are useful for first
+removing smaller factors.  SIMPQS2 is substantially faster when the remaining
+factors are too large for those methods.
 
 
 =head2 todigits
@@ -3136,8 +3141,11 @@ preprint, Jan 2003.  L<http://cr.yp.to/papers/aks.pdf>
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
-Jason Papadopoulos wrote the C<tinyqs> code which is basically unchanged.
-William Hart wrote SIMPQS which is the basis for the QS code.
+Jason Papadopoulos wrote the original C<tinyqs> and block Lanczos code.
+TinyQS has since been expanded and tuned for 50- to 128-bit inputs.
+William Hart wrote SIMPQS, which is the basis for SIMPQS2.  Hugo van der
+Sanden added combined partial relations, integrated block Lanczos, and made
+substantial memory and performance improvements for SIMPQS2.
 
 
 =head1 ACKNOWLEDGEMENTS
@@ -3172,5 +3180,8 @@ Copyright 2011-2026 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
 
 SIMPQS Copyright 2006, William Hart.  SIMPQS is distributed under GPL v2+.
+
+Block Lanczos Copyright 2006, Jason Papadopoulos.  The block Lanczos code is
+distributed under GPL v2+.
 
 =cut

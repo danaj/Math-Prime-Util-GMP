@@ -2,6 +2,13 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.55 2026-?
 
+    [PERFORMANCE]
+
+    - Improved factoring performance for 128-bit and smaller inputs.
+
+    - The generic factor routine now uses SIMPQS 2.0, with combined partial
+      relations and block Lanczos.  Thanks to Hugo van der Sanden.
+
     [OTHER]
 
     - On systems with pthread_atfork, forked child processes reseed the

@@ -35,6 +35,10 @@ aks.h
 aks.c
 simpqs.h
 simpqs.c
+lanczos.h
+lanczos.c
+simpqs2.h
+simpqs2.c
 tinyqs.h
 tinyqs.c
 isaac.h
