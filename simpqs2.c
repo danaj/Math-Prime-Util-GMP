@@ -822,7 +822,7 @@ static void evaluateSieve(
   unsigned long Mdiv2,
   unsigned long ctimesreps,
   unsigned long M,
-  unsigned char *sieve,
+  const unsigned char *sieve,
   mpz_t A,
   mpz_t B,
   mpz_t C,
@@ -844,16 +844,16 @@ static void evaluateSieve(
   int ai;
   unsigned int k;
   unsigned int exponent;
+  unsigned int extra;
+  unsigned int score;
   unsigned char vv;
-  unsigned char extra;
   unsigned int modp;
-  unsigned long *sieve2;
-  unsigned char bits;
+  const unsigned long *sieve2 = (const unsigned long *)sieve;
+  size_t bits;
   rel_t *rel = NULL;  /* new relation to add */
 
   i = 0;
   j = 0;
-  sieve2 = (unsigned long *)sieve;
 #ifdef POLS
   gmp_printf("%Zdx^2%+Zdx\n%+Zd\n", A, B, C);
 #endif
@@ -887,7 +887,6 @@ static void evaluateSieve(
       else
         reset_factors(rel);
       if (factorBase[0] != 1 && mpz_divisible_ui_p(res, factorBase[0])) {
-        extra += primeSizes[0];
         if (factorBase[0] == 2) {
           exponent = mpz_scan1(res, 0);
           mpz_tdiv_q_2exp(res, res, exponent);
@@ -896,6 +895,7 @@ static void evaluateSieve(
           exponent = mpz_remove(res, res, temp);
         }
         add_factor(rel, 0, exponent);
+        extra += exponent * primeSizes[0];
       }
 
       if (mpz_divisible_ui_p(res, factorBase[1])) {
@@ -907,9 +907,7 @@ static void evaluateSieve(
           exponent = mpz_remove(res, res, temp);
         }
         add_factor(rel, 1, exponent);
-        /* (hv) simpqs-2.0 adds exponent rather than primeSizes[1]
-         * here, no idea why */
-        extra += exponent;
+        extra += exponent * primeSizes[1];
       }
 
       for (k = 2; k < firstprime; ++k) {
@@ -920,23 +918,25 @@ static void evaluateSieve(
             exponent = mpz_remove(res, res, temp);
             CHECK_EXPONENT(exponent, k);
             PRINT_FB(exponent, k);
-            extra += primeSizes[k];
             add_factor(rel, k, exponent);
+            extra += exponent * primeSizes[k];
           }
         } else {
           mpz_set_ui(temp, factorBase[k]);
           exponent = mpz_remove(res, res, temp);
           if (exponent) {
             PRINT_FB(exponent, k);
-            extra += primeSizes[k];
             add_factor(rel, k, exponent);
+            extra += exponent * primeSizes[k];
           }
         }
       }
-      sieve[i] += extra;
-      if (sieve[i] >= bits) {
+
+      score = (unsigned int)sieve[i] + extra;
+
+      if (score >= bits) {
         vv = (unsigned char)1 << (i & 7);
-        for (k = firstprime; k < secondprime && extra < sieve[i]; ++k) {
+        for (k = firstprime; k < secondprime && extra < score; ++k) {
           modp = (i + ctimesreps) % factorBase[k];
           if (soln2[k] != (unsigned long)-1) {
             if (modp == soln1[k] || modp == soln2[k]) {
@@ -958,7 +958,7 @@ static void evaluateSieve(
           }
         }
 
-        for (k = secondprime; k < numPrimes && extra < sieve[i]; ++k) {
+        for (k = secondprime; k < numPrimes && extra < score; ++k) {
           if (flags[k] & vv) {
             modp = (i + ctimesreps) % factorBase[k];
             if (modp == soln1[k] || modp == soln2[k]) {
