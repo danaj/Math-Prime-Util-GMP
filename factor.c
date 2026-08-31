@@ -85,6 +85,9 @@ void _destroy_factor(void) {
  * with thousands of non-trivial factors. */
 #define MAX_FACTORS 128
 
+static int _mpz_cmp_asc(const void *av, const void *bv)
+  { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
+
 static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexponents)
 {
   int i, j, cmp = 0;
@@ -211,12 +214,12 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   }
 
   do { /* loop over each remaining factor */
-    while ( mpz_cmp_ui(n, tlim*tlim) > 0 && !_GMP_is_prob_prime(n) ) {
+    while ( mpz_cmp_ui(n, tlim*tlim) >= 0 && !_GMP_is_prob_prime(n) ) {
       int success = 0;
       int o = get_verbose_level();
       UV B1 = 5000;
       UV nbits = mpz_sizeinbase(n, 2);
-      int use_qs_budget = nbits >= 129 && nbits < 300;
+      int can_use_qs = mpz_sizeinbase(n, 10) >= 30 && nbits <= 300;
 
       /* First handle factoring of "tiny" inputs.  128-bit and smaller. */
 
@@ -269,7 +272,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (!success)  success = _GMP_pminus1_factor(n, f, 20000, 200000);
       if (success&&o) {gmp_printf("p-1 (20k) found factor %Zd\n", f);o=0;}
 
-      if (use_qs_budget) {
+      if (can_use_qs) {
         /* Keep pretests proportional to the expected SIMPQS2 time. */
         if (!success)  success = _GMP_ECM_FACTOR(n, f, 200, 4);
         if (success&&o) {gmp_printf("tiny ecm (200) found factor %Zd\n", f);o=0;}
@@ -340,31 +343,63 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 
       /* QS (30+ digits).  Fantastic if it is a semiprime, but can be
        * slow and a memory hog if not (compared to ECM).  Restrict to
-       * reasonable size numbers (< 91 digits).  Because of the way it
-       * works, it will generate (possibly) multiple factors for the same
-       * amount of work.  Go to some trouble to use them. */
-      if (!success && mpz_sizeinbase(n,10) >= 30 && nbits < 300) {
+       * SIMPQS supported size (91 digits). */
+      if (!success && can_use_qs) {
         mpz_t *farray;
-        uint32_t i, qs_nfactors;
+        uint32_t i, j, k, copies, ncomp, qs_nfactors;
+        int qs_progress = 0;
 
         /* Use SIMPQS2 */
         farray = _GMP_simpqs2(n, &qs_nfactors, 64007);
 
-        mpz_set(f, farray[0]);
-        if (qs_nfactors > 2) {
-          /* We found multiple factors */
-          for (i = 2; i < qs_nfactors; i++) {
-            if (o){gmp_printf("SIMPQS found extra factor %Zd\n",farray[i]);}
-            if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
-            mpz_init_set(tofac_stack[ntofac], farray[i]);
-            ntofac++;
-            mpz_divexact(n, n, farray[i]);
+        if (qs_nfactors > 1) {
+          qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);
+
+          /* Add prime groups immediately and compact each distinct composite
+           * group into one work item. */
+          for (i = 0, ncomp = 0; i < qs_nfactors; i = j) {
+            for (j = i+1;
+                 j < qs_nfactors && mpz_cmp(farray[i], farray[j]) == 0;
+                 j++)
+              ;
+            copies = j - i;
+            if (_GMP_is_prob_prime(farray[i])) {
+              ADD_FACTORS(farray[i], (int)copies);
+              for (k = 0; k < copies; k++)
+                mpz_divexact(n, n, farray[i]);
+              qs_progress = 1;
+              if (o) {
+                gmp_printf("SIMPQS found prime factor %Zd", farray[i]);
+                if (copies > 1) gmp_printf("^%u", (unsigned int)copies);
+                gmp_printf("\n");
+              }
+            } else {
+              if (copies == 1)
+                mpz_set(farray[ncomp], farray[i]);
+              else {
+                mpz_pow_ui(f, farray[i], copies);
+                mpz_set(farray[ncomp], f);
+              }
+              ncomp++;
+            }
           }
-          /* f = farray[0], n = farray[1], farray[2..] pushed */
+
+          /* Work on the smallest composite next.  If the stack fills, the
+           * unpushed composites remain represented by their product in n. */
+          if (ncomp > 1)
+            qsort(farray, ncomp, sizeof(mpz_t), _mpz_cmp_asc);
+          for (i = ncomp; i > 1 && ntofac < MAX_FACTORS-1; ) {
+            i--;
+            if (o) gmp_printf("SIMPQS found composite factor %Zd\n", farray[i]);
+            mpz_init_set(tofac_stack[ntofac++], farray[i]);
+            mpz_divexact(n, n, farray[i]);
+            qs_progress = 1;
+          }
+
         }
         _GMP_simpqs2_free(farray, qs_nfactors);
-        success = qs_nfactors > 1;
-        if (success&&o) {gmp_printf("SIMPQS found factor %Zd\n", f);o=0;}
+        if (qs_progress)
+          continue;
       }
 
       if (!success)  success = _GMP_ECM_FACTOR(n, f, 2*B1, 20);
@@ -2193,9 +2228,6 @@ unsigned long power_factor(const mpz_t n, mpz_t f)
 }
 
 
-static int numcmp(const void *av, const void *bv)
-  { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
-
 mpz_t * divisor_list(int *num_divisors, const mpz_t n, const mpz_t maxd)
 {
   mpz_t *factors, *divs, mult, t;
@@ -2233,7 +2265,7 @@ mpz_t * divisor_list(int *num_divisors, const mpz_t n, const mpz_t maxd)
   mpz_clear(t);  mpz_clear(mult);
   clear_factors(nfactors, &factors, &exponents);
 
-  qsort(divs, ndivisors, sizeof(mpz_t), numcmp);
+  qsort(divs, ndivisors, sizeof(mpz_t), _mpz_cmp_asc);
 
   *num_divisors = ndivisors;
   return divs;
