@@ -1143,7 +1143,8 @@ static void sieve2(
   unsigned char *end = sieve + M;
 
   for (prime = midprime; prime < secondprime; ++prime) {
-    /* (hv) is this possible? needs aind[0..s-1] + min >= midprime */
+    /* Factors of poly A for our input sizes are normally far below midprime.
+     * Keep this guard as it's otherwise harmless. */
     if (soln2[prime] == (unsigned long)-1)
       continue;
 
@@ -1162,7 +1163,6 @@ static void sieve2(
   }
 
   for (prime = secondprime; prime < numPrimes; ++prime) {
-    /* (hv) is this possible? needs aind[0..s-1] + min >= secondprime */
     if (soln2[prime] == (unsigned long)-1)
       continue;
 
@@ -1453,9 +1453,8 @@ static void mainRoutine(
     for (i = 0; i < s; ++i) {
       p = factorBase[aind[i] + min];
       mpz_tdiv_q_ui(temp, A, p);
-      amodp[i] = mpz_fdiv_r_ui(temp, temp, p);
-      /* (hv) how do we know A/p^2 fits ui? */
-      mpz_set_ui(temp, modinverse(mpz_get_ui(temp), p));
+      amodp[i] = mpz_fdiv_ui(temp, p);
+      mpz_set_ui(temp, modinverse(amodp[i], p));
       mpz_mul(temp, temp, sqrts[aind[i] + min]);
       mpz_fdiv_r_ui(temp, temp, p);
       if (mpz_cmp_ui(temp, p / 2) > 0) {
@@ -1808,17 +1807,6 @@ static void mainRoutine(
         mpz_mod(temp, temp, n);
     }
     mpz_sub(temp, temp2, temp);
-#if 0
-    /* (hv) I think every hit should be 0 or 1 mod n, or give a factor.
-     * If so, we could check more explicitly for failures that might
-     * represent a bug to investigate. */
-    mpz_mod(temp, temp, n);
-    if (mpz_cmp_ui(temp, 1) > 1) {
-        mpz_gcd(temp, temp, n);
-        if (mpz_cmp_ui(temp, 1) == 1)
-          gmp_printf("failed result for l = %d\n", l);
-    }
-#endif
     mpz_gcd(temp, temp, n);
     /* only non-trivial factors */
     if (mpz_cmp_ui(temp, 1) && mpz_cmp(temp, n)) {
@@ -1896,7 +1884,7 @@ mpz_t *_GMP_simpqs2(const mpz_t n, uint32_t *nfactors,
   }
 
   /* Get a preliminary number of primes, pick a multiplier, apply it */
-  numPrimes = (decdigits <= 91) ? primesNo[decdigits - MINDIG] : 64000;
+  numPrimes = (decdigits <= 91) ? primesNo[decdigits - MINDIG] : 80000;
   multiplier = knuthSchroeppel(nred, numPrimes);
   mpz_mul_ui(nred, nred, multiplier);
   decdigits = mpz_sizeinbase(nred, 10);
@@ -1913,20 +1901,17 @@ mpz_t *_GMP_simpqs2(const mpz_t n, uint32_t *nfactors,
     errorbits = errorAmounts[decdigits - MINDIG];
     threshold = thresholds[decdigits - MINDIG];
   } else {
-    /* (hv) this config makes no sense: it should surely be based on
-     * that for 91 digits, which would be:
-     *   numPrimes >= 80000
-     *   largeprime >= 1000 * 500000 (not 1/10 of that)
-     *   errorbits >= 33
-     */
-    numPrimes = 64000;
-    Mdiv2 = 192000 / SIEVEDIV;
-    largeprime = numPrimes * 10 * decdigits;
+    /* No configurations have been tuned beyond 91 digits.  The inherited
+     * SIMPQS/FlintQS fallback reduced several parameters discontinuously;
+     * retain the 91-digit endpoint instead. */
+    numPrimes   = 80000;
+    Mdiv2       = 192000 / SIEVEDIV;
+    largeprime  = 500000000U;
     secondprime = SECONDPRIME;
-    midprime = MIDPRIME;
-    firstprime = 30;
-    errorbits = decdigits / 4 + 2;
-    threshold = 43 + (7 * decdigits) / 10;
+    midprime    = MIDPRIME;
+    firstprime  = 29;
+    errorbits   = 33;
+    threshold   = 102;
   }
 
   if (verbose > 2)
