@@ -23,7 +23,10 @@
 #include "lucas_seq.h"
 #include "squfof126.h"
 #include "ecm.h"
+#include "tinyqs.h"
+#include "simpqs.h"
 #include "simpqs2.h"
+#include "siqs.h"
 #include "bls75.h"
 #include "ecpp.h"
 #include "aks.h"
@@ -2463,6 +2466,10 @@ trial_factor(IN char* strn, ...)
       arg2 = mpz_get_uv(t);
       mpz_clear(t);
     }
+    if (ix == 9 && arg1 > 3) {
+      mpz_clear(n);
+      croak("qs_factor: implementation must be 0, 1, 2, or 3");
+    }
     while (mpz_even_p(n)) {
       XPUSH_UINT(2);
       mpz_divexact_ui(n, n, 2);
@@ -2508,13 +2515,65 @@ trial_factor(IN char* strn, ...)
                 break;
         case 9:
         default:{
-                  mpz_t *farray;
-                  uint32_t i, nfactors;
-                  farray = _GMP_simpqs2(n, &nfactors, 7);
-                  for (i = 0; i < nfactors; i++)
-                    XPUSH_MPZ(farray[i]);
-                  _GMP_simpqs2_free(farray, nfactors);
-                  mpz_set_ui(n, 1);
+                  uint32_t i;
+                  if (arg1 == 3) {
+                    success = tinyqs(n, f);
+                  } else if (arg1 == 1) {
+                    mpz_t *farray;
+                    uint32_t alloc, p;
+                    int nfactors = 0;
+
+                    /* SIMPQS has a caller-owned fixed result array and its
+                     * early trial-factor return can omit the remaining
+                     * cofactor.  Strip its trial range here so the public
+                     * wrapper has a bounded array and preserves the product. */
+                    for (p = 7; p < 1000; p += 2) {
+                      while (mpz_divisible_ui_p(n, p)) {
+                        XPUSH_UINT(p);
+                        mpz_divexact_ui(n, n, p);
+                      }
+                    }
+                    if (mpz_cmp_ui(n, 1) == 0) {
+                      mpz_set_ui(n, 1);
+                      break;
+                    }
+                    if (_GMP_is_prob_prime(n) ||
+                        mpz_sizeinbase(n, 10) < 30) {
+                      XPUSH_MPZ(n);
+                      mpz_set_ui(n, 1);
+                      break;
+                    }
+
+                    /* Every remaining factor is at least 1009, so this is a
+                     * conservative upper bound on the output partition. */
+                    alloc = (uint32_t)(mpz_sizeinbase(n, 2) / 9 + 2);
+                    New(0, farray, alloc, mpz_t);
+                    for (i = 0; i < alloc; i++)
+                      mpz_init(farray[i]);
+                    nfactors = _GMP_simpqs(n, farray);
+                    if (nfactors <= 0)
+                      nfactors = 1;
+                    for (i = 0; i < (uint32_t)nfactors; i++)
+                      XPUSH_MPZ(farray[i]);
+                    for (i = 0; i < alloc; i++)
+                      mpz_clear(farray[i]);
+                    Safefree(farray);
+                  } else {
+                    mpz_t *farray;
+                    uint32_t nfactors;
+                    if (arg1 == 2)
+                      farray = _GMP_simpqs2(n, &nfactors, 7);
+                    else
+                      farray = _GMP_siqs(n, &nfactors, 7);
+                    for (i = 0; i < nfactors; i++)
+                      XPUSH_MPZ(farray[i]);
+                    if (arg1 == 2)
+                      _GMP_simpqs2_free(farray, nfactors);
+                    else
+                      _GMP_siqs_free(farray, nfactors);
+                  }
+                  if (arg1 != 3)
+                    mpz_set_ui(n, 1);
                 }
                 break;
       }

@@ -17,11 +17,7 @@ For new functions:
   just isn't going to be the right algorithm for numbers > 2^64.  Mainly what
   it needs is to pay attention to the rounds argument.  Perhaps race.
 
-- Tune and improve SIMPQS for our uses.  Check FLINT 2.3 for improvements.
-
-- Write our own QS.
-
-- The statics in ecm and QS won't play well with threading.
+- The statics in ecm.c don't work with threading.  SIQS is ok.
 
 - ECPP: Perhaps more HCPs/WCPs could be loaded if needed?
 
@@ -204,3 +200,5 @@ For new functions:
 - check overflow in prime iterator / trial division for 32-bit unsigned long.
 
 - real functions should have a settable default precision
+
+- Look into whether returning composites from factor is the right thing to do.

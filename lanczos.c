@@ -72,6 +72,181 @@ uint64_t getNullEntry(const uint64_t *nullrows, unsigned long i,
   return nullrows[i] & bitmask[l];
 }
 
+/* Return the index of the least significant set bit. */
+static unsigned int dense_ctz64(uint64_t value) {
+#if defined(__GNUC__) || defined(__clang__)
+  return (unsigned int)__builtin_ctzll(value);
+#else
+  unsigned int bit = 0;
+  while ((value & BIT(0)) == 0) {
+    value >>= 1;
+    bit++;
+  }
+  return bit;
+#endif
+}
+
+/*
+ * Solve a small sparse-column matrix by first packing its active rows, then
+ * applying ordinary column-oriented Gaussian elimination over GF(2).
+ *
+ * Pivot-row bits are retained in later columns as the coefficients expressing
+ * those columns in terms of earlier pivot columns.  A column with no unused
+ * pivot is therefore a dependency: its retained pivot bits, together with
+ * the column itself, give one exact nullspace basis vector.  Up to 64 such
+ * vectors are packed across the bits of the returned word for each column.
+ * This avoids augmenting the dense matrix with a full identity matrix.
+ */
+uint64_t *dense_nullspace64(unsigned long nrows, unsigned long ncols,
+                            const la_col_t *cols, uint64_t *mask) {
+  const unsigned long no_row = ~0UL;
+  uint8_t *row_active = NULL;
+  unsigned long *row_map = NULL, *pivot_row = NULL;
+  uint64_t *matrix = NULL, *used_rows = NULL;
+  uint64_t *result = NULL, *check = NULL;
+  unsigned long active_rows = 0, row_words = 0;
+  unsigned long dependencies = 0;
+  unsigned long c, i, j, word;
+  size_t matrix_words = 0;
+
+  *mask = 0;
+  if (ncols == 0)
+    return NULL;
+  if (nrows > (unsigned long)((size_t)-1) / sizeof(*row_active) ||
+      nrows > (unsigned long)((size_t)-1) / sizeof(*row_map) ||
+      ncols > (unsigned long)((size_t)-1) / sizeof(*pivot_row) ||
+      ncols > (unsigned long)((size_t)-1) / sizeof(*result))
+    goto allocation_failure;
+
+  row_active = (uint8_t *)calloc((size_t)nrows, sizeof(*row_active));
+  row_map = (unsigned long *)malloc((size_t)nrows * sizeof(*row_map));
+  pivot_row = (unsigned long *)malloc((size_t)ncols * sizeof(*pivot_row));
+  result = (uint64_t *)calloc((size_t)ncols, sizeof(*result));
+  if ((nrows != 0 && (row_active == NULL || row_map == NULL)) ||
+      pivot_row == NULL || result == NULL)
+    goto allocation_failure;
+
+  for (c = 0; c < ncols; c++) {
+    const la_col_t *column = cols + c;
+    for (i = 0; i < column->weight; i++) {
+      unsigned long row = column->data[i];
+      if (row >= nrows)
+        croak("dense solver: matrix row is out of range");
+      row_active[row] = 1;
+    }
+  }
+  for (i = 0; i < nrows; i++)
+    if (row_active[i])
+      row_map[i] = active_rows++;
+  row_words = (active_rows + 63UL) / 64UL;
+  if (row_words != 0 &&
+      ncols > (unsigned long)(((size_t)-1) / sizeof(*matrix) / row_words))
+    goto allocation_failure;
+  matrix_words = (size_t)ncols * (size_t)row_words;
+  matrix = (uint64_t *)calloc(matrix_words != 0 ? matrix_words : 1,
+                              sizeof(*matrix));
+  used_rows = (uint64_t *)calloc(row_words != 0 ? (size_t)row_words : 1,
+                                 sizeof(*used_rows));
+  if (matrix == NULL || used_rows == NULL)
+    goto allocation_failure;
+
+  for (c = 0; c < ncols; c++) {
+    uint64_t *dense_column = matrix + (size_t)c * row_words;
+    const la_col_t *column = cols + c;
+    pivot_row[c] = no_row;
+    for (i = 0; i < column->weight; i++) {
+      unsigned long row = row_map[column->data[i]];
+      dense_column[row >> 6] ^= BIT(row & 63);
+    }
+  }
+  for (c = 0; c < ncols; c++) {
+    uint64_t *pivot_column = matrix + (size_t)c * row_words;
+    unsigned long pivot = no_row;
+    uint64_t pivot_bit;
+    unsigned long pivot_word;
+
+    for (word = 0; word < row_words; word++) {
+      uint64_t available = pivot_column[word] & ~used_rows[word];
+      if (available != 0) {
+        pivot = word * 64UL + dense_ctz64(available);
+        break;
+      }
+    }
+    if (pivot == no_row)
+      continue;
+
+    pivot_row[c] = pivot;
+    pivot_word = pivot >> 6;
+    pivot_bit = BIT(pivot & 63);
+    used_rows[pivot_word] |= pivot_bit;
+
+    /* Preserve the coefficient in later columns while eliminating the
+     * remaining, as-yet-unpivoted portion of this pivot column. */
+    pivot_column[pivot_word] &= ~pivot_bit;
+    for (i = c + 1; i < ncols; i++) {
+      uint64_t *other = matrix + (size_t)i * row_words;
+      if (other[pivot_word] & pivot_bit)
+        for (j = 0; j < row_words; j++)
+          other[j] ^= pivot_column[j];
+    }
+    pivot_column[pivot_word] |= pivot_bit;
+  }
+  for (c = 0; c < ncols && dependencies < 64; c++) {
+    const uint64_t *column;
+    uint64_t dependency_bit;
+    if (pivot_row[c] != no_row)
+      continue;
+    dependency_bit = BIT(dependencies);
+    result[c] |= dependency_bit;
+    column = matrix + (size_t)c * row_words;
+    for (i = 0; i < c; i++) {
+      unsigned long pivot = pivot_row[i];
+      if (pivot != no_row &&
+          (column[pivot >> 6] & BIT(pivot & 63)))
+        result[i] |= dependency_bit;
+    }
+    dependencies++;
+  }
+  if (dependencies == 0)
+    goto no_dependencies;
+
+  check = (uint64_t *)calloc((size_t)nrows, sizeof(*check));
+  if (nrows != 0 && check == NULL)
+    goto allocation_failure;
+  for (c = 0; c < ncols; c++) {
+    const la_col_t *column = cols + c;
+    uint64_t value = result[c];
+    if (value == 0)
+      continue;
+    for (i = 0; i < column->weight; i++)
+      check[column->data[i]] ^= value;
+  }
+  for (i = 0; i < nrows; i++)
+    if (check[i] != 0)
+      goto no_dependencies;
+
+  *mask = dependencies == 64
+        ? (uint64_t)-1 : BIT(dependencies) - 1;
+  free(check);
+  free(used_rows);
+  free(matrix);
+  free(pivot_row);
+  free(row_map);
+  free(row_active);
+  return result;
+
+allocation_failure:
+no_dependencies:
+  free(check);
+  free(result);
+  free(used_rows);
+  free(matrix);
+  free(pivot_row);
+  free(row_map);
+  free(row_active);
+  return NULL;
+}
+
 /* Returns the maximum of two unsigned long's */
 static unsigned long max_ul(unsigned long a, unsigned long b) {
    return (a < b) ? b : a;
@@ -532,36 +707,37 @@ static void transpose_vector(
  * 64 dependencies instead of 128.
  */
 static void combine_cols(
-  unsigned long ncols, uint64_t *x, uint64_t *v,
+  unsigned long ncols, unsigned long nrows, uint64_t *x, uint64_t *v,
   uint64_t *ax, uint64_t *av
 ) {
-  unsigned long i, j, k, bitpos, col, col_words, num_deps;
+  unsigned long i, j, k, bitpos, col, vector_words, image_words, num_deps;
   uint64_t mask;
   uint64_t *matrix[128], *amatrix[128], *tmp;
 
   num_deps = 128;
   if (v == NULL || av == NULL)
     num_deps = 64;
-  col_words = (ncols + 63) / 64;
+  vector_words = (ncols + 63) / 64;
+  image_words = (nrows + 63) / 64;
 
   for (i = 0; i < num_deps; ++i) {
-    matrix[i] = (uint64_t *)calloc((size_t)col_words, sizeof(uint64_t));
-    amatrix[i] = (uint64_t *)calloc((size_t)col_words, sizeof(uint64_t));
+    matrix[i] = (uint64_t *)calloc((size_t)vector_words, sizeof(uint64_t));
+    amatrix[i] = (uint64_t *)calloc((size_t)image_words, sizeof(uint64_t));
   }
 
   /* operations on columns can more conveniently become operations on rows
    * if all the vectors are first transposed */
   transpose_vector(ncols, x, matrix);
-  transpose_vector(ncols, ax, amatrix);
+  transpose_vector(nrows, ax, amatrix);
   if (num_deps == 128) {
     transpose_vector(ncols, v, matrix + 64);
-    transpose_vector(ncols, av, amatrix + 64);
+    transpose_vector(nrows, av, amatrix + 64);
   }
 
   /* Keep eliminating rows until the unprocessed part of amatrix[][] is
    * all zero. The rows where this happens correspond to linearly dependent
    * vectors in the nullspace */
-  for (i = bitpos = 0; i < num_deps && bitpos < ncols; ++bitpos) {
+  for (i = bitpos = 0; i < num_deps && bitpos < nrows; ++bitpos) {
     /* find the next pivot row */
     mask = bitmask[bitpos % 64];
     col = bitpos / 64;
@@ -584,10 +760,10 @@ static void combine_cols(
         /* Note that the entire row, *not* just the nonzero part of it,
          * must be eliminated; this is because the corresponding (dense)
          * row of matrix[][] must have the same operation applied */
-        for (k = 0; k < col_words; ++k) {
+        for (k = 0; k < image_words; ++k)
           amatrix[j][k] ^= amatrix[i][k];
+        for (k = 0; k < vector_words; ++k)
           matrix[j][k] ^= matrix[i][k];
-        }
       }
     ++i;
   }
@@ -804,14 +980,14 @@ static uint64_t * block_lanczos_once(
    * nullspace vectors */
   mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[1]);
   mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], v[2]);
-  combine_cols(ncols, x, v[0], v[1], v[2]);
+  combine_cols(ncols, nrows, x, v[0], v[1], v[2]);
 
   /* verify that these really are linear dependencies of B */
   mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[0]);
-  for (i = 0; i < ncols; ++i)
+  for (i = 0; i < nrows; ++i)
     if (v[0][i] != 0)
       break;
-  if (i < ncols)
+  if (i < nrows)
     croak("lanczos error: dependencies don't work");
 
   free(v[0]);

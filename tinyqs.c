@@ -661,7 +661,7 @@ static void find_multiplier_tiny(void)
 }
 
 /***********************************/
-static s32 init_fb_tiny(s32 fb_size)
+static s32 init_fb_tiny(s32 fb_size, const mpz_t input_n, mpz_t factor)
 /***********************************/
 {
   tiny_qs_params *params = g_params;
@@ -696,6 +696,14 @@ static s32 init_fb_tiny(s32 fb_size)
         fbptr->modsqrt = (u16)sqrtModP_16(nmodp, prime);
       }
       else {
+        /* params->n is multiplier * input_n here.  A zero can therefore be
+           an actual factor of the input rather than a factor of the chosen
+           multiplier.  Generic factor() normally removes these first, but
+           direct TinyQS callers need this distinction as well. */
+        if (mpz_divisible_ui_p(input_n, (unsigned long)prime)) {
+          mpz_set_ui(factor, (unsigned long)prime);
+          return -1;
+        }
         fbptr->modsqrt = DO_NOT_SIEVE_TINY;
         params->multiplier_fb[mult_idx++] = i;
       }
@@ -704,6 +712,62 @@ static s32 init_fb_tiny(s32 fb_size)
   }
   params->fb_size = i;
   return i;
+}
+
+static INLINE void sieve_one_root_tiny(u8 *sieve_block, u32 root,
+                                       u32 prime, u8 logprime)
+{
+  u32 prime4 = prime << 2;
+
+  while (root + prime4 < SIEVE_SIZE_TINY) {
+    sieve_block[root]             -= logprime;
+    sieve_block[root + prime]     -= logprime;
+    sieve_block[root + 2 * prime] -= logprime;
+    sieve_block[root + 3 * prime] -= logprime;
+    root += prime4;
+  }
+  while (root < SIEVE_SIZE_TINY) {
+    sieve_block[root] -= logprime;
+    root += prime;
+  }
+}
+
+/* Alternating-root-gap sieve structure inspired by PARI/GP's MPQS sieve. */
+static INLINE void sieve_two_roots_tiny(u8 *sieve_block, u32 root1,
+                                        u32 root2, u32 prime, u8 logprime)
+{
+  u32 root, gap1, gap2;
+  u32 prime4 = prime << 2;
+
+  if (root1 > root2) {
+    u32 tmp = root1;
+    root1 = root2;
+    root2 = tmp;
+  }
+
+  /* Visit the sorted roots using their alternating gaps.  This keeps one
+     induction variable and one loop bound for both progressions. */
+  root = root1;
+  gap1 = root2 - root1;
+  gap2 = prime - gap1;
+  while (root + prime4 < SIEVE_SIZE_TINY) {
+    sieve_block[root] -= logprime; root += gap1;
+    sieve_block[root] -= logprime; root += gap2;
+    sieve_block[root] -= logprime; root += gap1;
+    sieve_block[root] -= logprime; root += gap2;
+    sieve_block[root] -= logprime; root += gap1;
+    sieve_block[root] -= logprime; root += gap2;
+    sieve_block[root] -= logprime; root += gap1;
+    sieve_block[root] -= logprime; root += gap2;
+  }
+  while (root < SIEVE_SIZE_TINY) {
+    sieve_block[root] -= logprime;
+    root += gap1;
+    if (root >= SIEVE_SIZE_TINY)
+      break;
+    sieve_block[root] -= logprime;
+    root += gap2;
+  }
 }
 
 /***********************************/
@@ -718,30 +782,26 @@ Core sieving routine
   u8 *sieve_block = params->sieve_block;
   tiny_fb *factor_base = params->factor_base;
 
-  /* Note that since this code will only ever
-     factor small inputs, the sieve interval will
-     always be ridiculously small and does not
-     need to be broken up into chunks. Further,
-     the bottleneck with small inputs is the trial
-     factoring of relations and not the sieving,
-     so no crazy unrolling tricks are needed
-     here either */
+  /* The interval is small enough that it does not need to be segmented.
+     Interleave the two root progressions, however: this removes one of the
+     induction variables and exposes a compact sequence of sieve writes. */
 
   for (i = MIN_FB_OFFSET_TO_SIEVE_TINY; i < fb_size; i++) {
     tiny_fb *fbptr = factor_base + i;
-    s32 prime = fbptr->prime;
+    u32 prime = fbptr->prime;
     u8 logprime = fbptr->logprime;
-    s32 root = fbptr->roots[0];
+    u32 root1 = fbptr->roots[0];
+    u32 root2 = fbptr->roots[1];
 
-    while (root < SIEVE_SIZE_TINY) {
-      sieve_block[root] -= logprime;
-      root += prime;
+    if (root1 == DO_NOT_SIEVE_TINY) {
+      if (root2 != DO_NOT_SIEVE_TINY)
+        sieve_one_root_tiny(sieve_block, root2, prime, logprime);
     }
-
-    root = fbptr->roots[1];
-    while (root < SIEVE_SIZE_TINY) {
-      sieve_block[root] -= logprime;
-      root += prime;
+    else if (root2 == DO_NOT_SIEVE_TINY) {
+      sieve_one_root_tiny(sieve_block, root1, prime, logprime);
+    }
+    else {
+      sieve_two_roots_tiny(sieve_block, root1, root2, prime, logprime);
     }
   }
 }
@@ -1856,7 +1916,11 @@ successful, returns 0 otherwise
 
   /* build the factor base */
 
-  fb_size = init_fb_tiny(fb_size);
+  fb_size = init_fb_tiny(fb_size, n, factor);
+  if (fb_size < 0) {
+    mpz_clear(tmp);
+    return 1;
+  }
   params->target_relations = fb_size + EXTRA_RELATION_STEP_TINY;
   max_relations = fb_size + MAX_EXTRA_RELATIONS_TINY;
 

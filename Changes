@@ -2,12 +2,17 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.55 2026-?
 
+    [API CHANGES]
+
+    - qs_factor accepts an optional implementation selector: SIQS (default),
+      SIMPQS, SIMPQS2, or TinyQS.
+
     [PERFORMANCE]
 
-    - Improved factoring performance for 128-bit and smaller inputs.
-
-    - The generic factor routine now uses SIMPQS 2.0, with combined partial
-      relations and block Lanczos.  Thanks to Hugo van der Sanden.
+    - The generic factor routine and qs_factor now use a new independent SIQS
+      implementation with self-initializing polynomial families; combined
+      one- and two-large-prime relations; a dense solver and block Lanczos.
+      This quadratic sieve is faster at all sizes than the previous release.
 
     [OTHER]
 

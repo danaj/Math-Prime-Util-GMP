@@ -31,6 +31,7 @@ WriteMakefile1(
                     'simpqs.o '         .
                     'lanczos.o '        .
                     'simpqs2.o '        .
+                    'siqs.o '           .
                     'primality.o '      .
                     'bls75.o '          .
                     'ecpp.o '           .

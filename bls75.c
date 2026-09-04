@@ -10,7 +10,7 @@ static const int ev = 0;
 #include "pbrent63.h"
 #include "squfof126.h"
 #include "factor.h"
-#include "simpqs.h"
+#include "siqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
@@ -174,20 +174,19 @@ static int tfe(mpz_t f, const mpz_t n, int effort)
     case 11:if (log2n > 270) { success = _GMP_ECM_FACTOR(n, f,160000, 20); }
             break;
 
-    /* QS for sizes 30-90 digits */
+    /* QS over the supported SIQS range. */
     case 20:
-    case 21:{ UV log10n = mpz_sizeinbase(n, 10);
-              if (log10n >= 30 && log10n <= ((effort == 20) ? 54 : 90)) {
-                mpz_t farray[66];
-                int i, nfactors;
-                for (i = 0; i < 66; i++)  mpz_init(farray[i]);
-                nfactors = _GMP_simpqs(n, farray);
+    case 21:{ if (log2n >= MPU_SIQS_MIN_BITS &&
+                   log2n <= ((effort == 20) ? 180 : MPU_SIQS_MAX_BITS)) {
+                mpz_t *farray;
+                uint32_t nfactors;
+                farray = _GMP_siqs(n, &nfactors, 2);
                 /* TODO: Return all factors */
                 if (nfactors > 1) {
-                 success = 1;
+                  success = 1;
                   mpz_set(f, farray[nfactors-1]);   /* Return largest */
                 }
-                for (i = 0; i < 66; i++)  mpz_clear(farray[i]);
+                _GMP_siqs_free(farray, nfactors);
               }
             } break;
 

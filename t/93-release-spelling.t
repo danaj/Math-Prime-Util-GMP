@@ -32,8 +32,9 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  p-adic bitwise
                  0-th -th
                  -inf
-                 von
+                 von van der
                  PSP-2
+                 TinyQS
                  pp/);
 
 all_pod_files_spelling_ok();

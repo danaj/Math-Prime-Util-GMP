@@ -8,7 +8,8 @@ fi
 cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] real.[ch] standalone/
-cp -p factor.[ch] squfof126.[ch] pbrent63.[ch] tinyqs.[ch] standalone/
+cp -p factor.[ch] squfof126.[ch] pbrent63.[ch] standalone/
+cp -p siqs.[ch] lanczos.[ch] standalone/
 cp -p utility.[ch] isaac.[ch] random_prime.[ch] standalone/
 cp -p primality.[ch] rootmod.[ch] znlog.[ch] misc_ui.[ch] lucas_seq.[ch] standalone/
 cp -p poly.[ch] standalone
@@ -26,40 +27,6 @@ else
   cp -p class_poly_data.h standalone/
 fi
 
-# Standalone ECPP doesn't need SIMPQS, so let's not include it.
-# Warning however:  large BLS75 proofs won't be practical without it.
-cat << 'EOSIMPQSH' > standalone/simpqs.h
-#ifndef MPU_SIMPQS_H
-#define MPU_SIMPQS_H
-#include <gmp.h>
-static int _GMP_simpqs(const mpz_t n, mpz_t* farray) { return 0; }
-#endif
-EOSIMPQSH
-
-cat << 'EOSIMPQS2H' > standalone/simpqs2.h
-#ifndef MPU_SIMPQS2_H
-#define MPU_SIMPQS2_H
-#include <gmp.h>
-#include <stdint.h>
-#include <stdlib.h>
-static mpz_t *_GMP_simpqs2(const mpz_t n, uint32_t *nfactors,
-                           uint32_t trial_start) {
-  mpz_t *factors = (mpz_t *)malloc(sizeof(mpz_t));
-  (void)trial_start;
-  mpz_init_set(factors[0], n);
-  *nfactors = 1;
-  return factors;
-}
-static void _GMP_simpqs2_free(mpz_t *factors, uint32_t nfactors) {
-  uint32_t i;
-  for (i = 0; i < nfactors; i++) mpz_clear(factors[i]);
-  free(factors);
-}
-#endif
-EOSIMPQS2H
-
-# gcc -O3 -fomit-frame-pointer -DSTANDALONE -DSTANDALONE_ECPP ecpp.c bls75.c aks.c primality.c ecm.c prime_iterator.c gmp_main.c small_factor.c utility.c expr.c -o ecpp-dj -lgmp -lm
-
 cat << 'EOM' > standalone/Makefile
 TARGET = ecpp-dj
 CC = gcc
@@ -68,7 +35,7 @@ CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
-      factor.o squfof126.o pbrent63.o tinyqs.o \
+      factor.o squfof126.o pbrent63.o siqs.o lanczos.o \
       real.o isaac.o random_prime.o utility.o expr.o \
       rootmod.o znlog.o lucas_seq.o misc_ui.o poly.o
 HEADERS = ptypes.h class_poly_data.h

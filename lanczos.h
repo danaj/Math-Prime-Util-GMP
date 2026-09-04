@@ -13,6 +13,12 @@ extern uint64_t getNullEntry(const uint64_t *nullrows, unsigned long i,
                              unsigned long l);
 extern void reduce_matrix(unsigned long *nrows, unsigned long *ncols,
                           la_col_t *cols);
+/* Return up to 64 exact dependencies, using the same per-column packed result
+ * and mask convention as block_lanczos().  The input columns are unchanged. */
+extern uint64_t *dense_nullspace64(unsigned long nrows,
+                                    unsigned long ncols,
+                                    const la_col_t *cols,
+                                    uint64_t *mask);
 /* Returns dependency vectors and a nonzero mask, or NULL after all retries. */
 extern uint64_t *block_lanczos(unsigned long nrows,
                                unsigned long dense_rows,

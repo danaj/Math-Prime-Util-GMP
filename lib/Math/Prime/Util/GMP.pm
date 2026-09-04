@@ -264,7 +264,7 @@ Version 0.55
   @factors = squfof_factor($n);   # no more than o1 rounds
   @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
   @factors = ecm_factor($n);      # o1 = B1, o2 = # of curves
-  @factors = qs_factor($n);       # (no arguments)
+  @factors = qs_factor($n);       # o1 selects SIQS/SIMPQS/SIMPQS2/TinyQS
 
 =head1 DESCRIPTION
 
@@ -2641,22 +2641,12 @@ includes trial division for small factors, perfect power detection,
 Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
 Hart's OLF (a Fermat variant), ECM (elliptic curve method), and
 QS (quadratic sieve).
-Certainly improvements could be designed for this algorithm
-(suggestions are welcome).
 
-In practice, this factors 26-digit semiprimes in under C<100ms>, 36-digit
-semiprimes in under one second.  Arbitrary integers are factored faster.
-It is many orders of magnitude faster than any other factoring module on
-CPAN circa 2013.  It is comparable in speed to Math::Pari's C<factorint>
-for most inputs.
-
-If you want better factoring in general, I recommend looking at the
-standalone programs
-L<yafu|http://sourceforge.net/projects/yafu/>,
-L<msieve|http://sourceforge.net/projects/msieve/>,
-L<gmp-ecm|http://ecm.gforge.inria.fr/>, and
-L<GGNFS|http://sourceforge.net/projects/ggnfs/>.
-
+On contemporary desktop hardware, balanced semiprimes from 26 to 36 digits
+are typically factored in single milliseconds; numbers of the same size
+having smaller factors are generally easier.
+Benchmarks performed in 2026 found performance broadly comparable to
+PARI/GP 2.18’s C<factorint>.
 
 =head2 divisors
 
@@ -2880,25 +2870,25 @@ factoring reasonably sized inputs.
 =head2 qs_factor
 
   my @factors = qs_factor($n);
+  my @factors = qs_factor($n, $implementation);
 
 Given a positive number input, tries to discover factors using QS (the
 quadratic sieve).  The resulting array will contain one or more numbers such
 that multiplying @factors yields the original input.  Typically multiple
 factors will be produced, unlike the other C<..._factor> routines.
 
-The current implementation is SIMPQS2, derived from William Hart's 2006
-SIMPQS, a predecessor to the QS in FLINT.  Hugo van der Sanden added combined
-partial relations, integrated Jason Papadopoulos's block Lanczos linear
-algebra, and substantially reduced memory use.  It will not operate on inputs
-shorter than 30 decimal digits.
+The current implementation is SIQS written for this module.  It uses
+self-initializing polynomial families, one- and two-large-prime relation
+combination, dynamic relation sufficiency checks,
+dense elimination for small matrices,
+and block Lanczos for larger matrices/fallback.
+It is intended for inputs of 40 to 350 bits.
 
-The generic factor routine uses an expanded and tuned TinyQS implementation
-for 64- to 128-bit inputs, then SIMPQS2 for larger suitable inputs.  QS can
-still use substantial memory on large inputs, so methods such as
-L</pbrent_factor>, L</pminus1_factor>, and L</ecm_factor> are useful for first
-removing smaller factors.  SIMPQS2 is substantially faster when the remaining
-factors are too large for those methods.
-
+The optional implementation selector is 0 for SIQS (the default), 1 for the
+older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the
+requested QS directly and is useful for benchmarking or compatibility
+comparisons; it does not run the generic factoring routine's preliminary
+methods.  TinyQS is tuned for inputs no larger than 128 bits.
 
 =head2 todigits
 
@@ -3146,6 +3136,8 @@ TinyQS has since been expanded and tuned for 50- to 128-bit inputs.
 William Hart wrote SIMPQS, which is the basis for SIMPQS2.  Hugo van der
 Sanden added combined partial relations, integrated block Lanczos, and made
 substantial memory and performance improvements for SIMPQS2.
+The independent SIQS implementation uses Jason Papadopoulos's block Lanczos
+code for its linear algebra step with large matrices.
 
 
 =head1 ACKNOWLEDGEMENTS

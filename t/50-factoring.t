@@ -35,7 +35,8 @@ plan tests => 0 + 57
                 + 24
                 + 3
                 + 2
-                + 13  # individual tests for factoring methods
+                + 23  # individual tests for factoring methods
+                + 7   # lower SIQS profile boundaries
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
@@ -174,6 +175,83 @@ is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pplus1_factor('2209531120999
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::ecm_factor('16049407357301026788959025956634678743968244330856613525782006075043') ], [qw/99151111 161868154531329727500068314480456792299263740280798402004613/], "ECM factors p8*p60" );
 
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "QS factors 22095311209999409685885162322219" );
+for my $implementation (0, 1, 2, 3) {
+  is_deeply(
+    [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+        '22095311209999409685885162322219', $implementation) ],
+    ['3916587618943361', '5641469912004779'],
+    "QS implementation selector $implementation"
+  );
+}
+eval { Math::Prime::Util::GMP::qs_factor(17, 4) };
+like($@, qr/implementation must be 0, 1, 2, or 3/,
+     "QS rejects an unknown implementation selector");
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      '140000000000000000000000000917', 1) ],
+  ['7', '20000000000000000000000000131'],
+  "SIMPQS selector preserves an early trial cofactor"
+);
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      '140000000000000000000000000917', 3) ],
+  ['7', '20000000000000000000000000131'],
+  "TinyQS selector safely returns a factor found during setup"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '22095311209999409685885162322219', 3) ],
+  ['3916587618943361', '5641469912004779'],
+  "TinyQS remains reusable after returning a setup factor"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '382817662786062950145055216258782531227') ],
+  ['13835058055282293901', '27670116110564585927'],
+  "SIQS factors a balanced 129-bit semiprime"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '700452800137', 0) ],
+  ['784379', '893003'],
+  "SIQS factors a semiprime at its 40-bit lower boundary"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '311628784726421', 0) ],
+  ['14574509', '21381769'],
+  "SIQS factors a semiprime at the end of its q=2 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '723482348936849', 0) ],
+  ['26089759', '27730511'],
+  "SIQS factors a semiprime at the start of its q=3 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '24879201358173668903', 0) ],
+  ['2947412801', '8441030503'],
+  "SIQS factors a semiprime in its q=3 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '917678874579348406863329', 0) ],
+  ['954886120037', '961034887117'],
+  "SIQS factors a semiprime at the end of its q=3 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '1953441022476566674626599', 0) ],
+  ['1085325058141', '1799867245139'],
+  "SIQS factors a semiprime at the start of its q=4 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '57124664369090939411108407007', 0) ],
+  ['203703018979489', '280431113172863'],
+  "SIQS factors a semiprime at the 96-bit q-count boundary"
+);
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
       '1009000000000000000000000000000000067603') ],
@@ -185,6 +263,12 @@ is_deeply(
       Math::Prime::Util::GMP::powint(7, 100)) ],
   [ ('7') x 100 ],
   "QS dynamically grows its repeated-factor result"
+);
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      Math::Prime::Util::GMP::powint(7, 100), 1) ],
+  [ ('7') x 100 ],
+  "SIMPQS selector safely handles repeated trial factors"
 );
 
 #diag "factor 736-bit number with HOLF";
