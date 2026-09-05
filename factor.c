@@ -84,9 +84,9 @@ void _destroy_factor(void) {
 #define MAX_FACTORS 128
 
 /* Balanced-semiprime sweeps put the native-method/SIQS crossover between
- * 57 and 58 bits.  Keep this dispatch choice separate from SIQS's wider
+ * 55 and 56 bits.  Keep this dispatch choice separate from SIQS's wider
  * supported range, which remains useful to direct callers and as fallback. */
-#define FACTOR_SIQS_DIRECT_MIN_BITS 58U
+#define FACTOR_SIQS_DIRECT_MIN_BITS 56U
 
 static int _mpz_cmp_asc(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }

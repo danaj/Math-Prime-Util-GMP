@@ -174,7 +174,6 @@ typedef struct {
   mpz_t y;
   mpz_t q;
   mpz_t rest;
-  mpz_t prime;
   siqs_factor_t *factors;
   uint32_t factor_alloc;
 } siqs_eval_workspace_t;
@@ -2575,6 +2574,24 @@ static void siqs_filter_q(mpz_t q, const siqs_poly_t *poly,
   mpz_add(q, q, poly->C);
 }
 
+/* Factor-base primes fit unsigned long, so avoid constructing an mpz divisor
+ * and entering the general mpz_remove machinery for every resieve hit.  The
+ * 2-adic valuation has a direct bit operation; odd primes normally occur to
+ * the first power.  Both callers exclude zero, and returning zero for a
+ * nonfactor preserves their invariant checks. */
+static INLINE mp_bitcnt_t siqs_remove_ui(mpz_t value, unsigned long p) {
+  mp_bitcnt_t exponent = 0;
+  if (p == 2) {
+    exponent = mpz_scan1(value, 0);
+    mpz_tdiv_q_2exp(value, value, exponent);
+    return exponent;
+  }
+  while (mpz_divisible_ui_p(value, p)) {
+    mpz_divexact_ui(value, value, p);
+    exponent++;
+  }
+  return exponent;
+}
 
 /* Replace the family initializer's expected omitted-prime contribution with
  * exact trial division, including powers, and compare the predicted residual
@@ -2584,7 +2601,7 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   uint32_t original_count = ctx->candidate_count;
   uint32_t read, out = 0;
   uint32_t small_hits[SIQS_POSTFILTER_MAX_SMALL];
-  mpz_t q, twice_b, prime;
+  mpz_t q, twice_b;
   double log_smooth = log((double)ctx->params.smooth_bound);
 
   if (ctx->params.sieve_start > SIQS_POSTFILTER_MAX_SMALL)
@@ -2595,7 +2612,6 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
 #endif
   mpz_init(q);
   mpz_init(twice_b);
-  mpz_init(prime);
   mpz_mul_2exp(twice_b, poly->B, 1);
 
   for (read = 0; read < original_count; read++) {
@@ -2627,8 +2643,7 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
                                       ctx->fb_reciprocal[i]);
         if (rem == ctx->root1[i] || rem == ctx->root2[i]) {
           mp_bitcnt_t exponent;
-          mpz_set_ui(prime, p);
-          exponent = mpz_remove(q, q, prime);
+          exponent = siqs_remove_ui(q, p);
           if (exponent == 0)
             croak("SIQS: postfilter root is not a polynomial factor");
           small_hits[hit_count++] = i;
@@ -2656,7 +2671,6 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   ctx->candidate_count = out;
   mpz_clear(q);
   mpz_clear(twice_b);
-  mpz_clear(prime);
 }
 
 /* Translate a whole-interval root to the current block without changing the
@@ -3112,7 +3126,6 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
   mpz_ptr y = ctx->eval.y;
   mpz_ptr q = ctx->eval.q;
   mpz_ptr rest = ctx->eval.rest;
-  mpz_ptr prime = ctx->eval.prime;
 
 
   for (hit = candidate->first_hit; hit != SIQS_NO_INDEX;
@@ -3173,8 +3186,7 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
         croak("SIQS: candidate resieve hits are not strictly descending");
       previous_fb_index = fb_index;
 #endif
-      mpz_set_ui(prime, p);
-      exponent = (uint32_t)mpz_remove(rest, rest, prime);
+      exponent = (uint32_t)siqs_remove_ui(rest, p);
       if (exponent == 0)
         croak("SIQS: resieve reported a nonfactor");
       write--;
@@ -3637,7 +3649,6 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
   mpz_init(ctx->eval.y);
   mpz_init(ctx->eval.q);
   mpz_init(ctx->eval.rest);
-  mpz_init(ctx->eval.prime);
   siqs_select_parameters(&ctx->params, n);
   seed = (uint64_t)mpz_fdiv_ui(n, 4294967291UL);
   seed ^= (uint64_t)mpz_fdiv_ui(n, 4294967279UL) << 32;
@@ -3806,7 +3817,6 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   mpz_clear(ctx->eval.y);
   mpz_clear(ctx->eval.q);
   mpz_clear(ctx->eval.rest);
-  mpz_clear(ctx->eval.prime);
   mpz_clear(ctx->n);
   mpz_clear(ctx->kn);
   memset(ctx, 0, sizeof(*ctx));

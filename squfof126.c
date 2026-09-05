@@ -108,8 +108,11 @@ static SQUFOF_TYPE squfof_unit(const mpz_t n, mult_t* mult_save, mpz_t t)
       SQUARE_SEARCH_ITERATION;  /* Even iteration */
 
       /* Check if Qn is a perfect square */
-      t2 = Qn & 127;
-      if (!((t2*0x8bc40d7d) & (t2*0xa1e2f5d1) & 0x14020a)) {
+#if BITS_PER_WORD == 64
+      if (!((UVCONST(1) << (Qn & 63)) & UVCONST(0xfdfdfdedfdfcfdec))) {
+#else
+      if (!((1U << (Qn & 31)) & 0xfdfcfdec)) {
+#endif
         t1 = (uint32_t) sqrt(Qn);
         if (Qn == t1*t1)
           break;
