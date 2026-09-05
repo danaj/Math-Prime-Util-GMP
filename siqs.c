@@ -766,70 +766,83 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * smooth relations only.  q=2 keeps A construction healthy at the new
    * lower limit; q=3 then wins until the measured 80/81 crossover.  Its
    * interval ramp begins at the fixed 4096 floor and meets the established
-   * q=4 curve at that boundary.  Full-factor sweeps put the return to q=5 and
-   * ordinary 1LP collection at the 95/96 boundary. */
+   * q=4 curve at that boundary.  Their matrices are too small for an early
+   * readiness check.  Although direct target sweeps gave minimum CPU at
+   * 0/4/2 extra relations, using 2/4/4 cost only 0.3% over 90,000 inputs,
+   * cut matrix retries by 39%, and substantially reduced timing variance.
+   * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
+   * the 95/96 boundary. */
   { "smooth_k1_q2_low", MPU_SIQS_MIN_BITS, 49, 1, 2, 0, 0, 0,
-    1, 60, 60, 8, 0, 48, 8,
+    1, 60, 60, 8, 0, 48, 2,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
   { "smooth_k1_q3_low", 50, 80, 1, 3, 0, 0, 0,
-    1, 60, 60, 8, 0, 48, 8,
+    1, 60, 60, 8, 0, 48, 4,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
   { "smooth_k1_q4_low", 81, 95, 1, 4, 0, 0, 0,
-    1, 60, 60, 8, 0, 48, 8,
+    1, 60, 60, 8, 0, 48, 4,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.05, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
-  { "one_lp_k2_q5", 96, 116, 1, 5, 0, 0, 0, 2, 60, 60, 8, 0, 160, 0,
+  /* Two extra relations cost 0.1% over this band while cutting matrix retries
+   * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
+  { "one_lp_k2_q5", 96, 116, 1, 5, 0, 0, 0, 2, 60, 60, 8, 0, 160, 2,
     SIQS_POLICY_LINEAR(0.315, 0.0, 100),
     SIQS_POLICY_LINEAR(1.7, 0.03, 96),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 100) },
-  { "one_lp_k2_q6", 117, 129, 1, 6, 0, 0, 0, 2, 60, 60, 8, 0, 160, 96,
+  /* Exact dense elimination normally succeeds at the minimum relation count
+   * through this band.  Let it try: a 15,500-input audit needed four second
+   * matrix attempts, while avoiding the fixed readiness surplus reduced
+   * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
+  { "one_lp_k2_q6", 117, 129, 1, 6, 0, 0, 0, 2, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 117),
     SIQS_POLICY_LINEAR(2.5, 0.0, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 117) },
+  /* Stopping at the first full-rank-sized matrix remained healthy through
+   * 158 bits and saved about 1--5% across these bands.  The 151-bit score
+   * transition is also the measured K3/K4 boundary, allowing one less row. */
   { "one_lp_k3_q6_interval_ramp", 130, 139, 1, 6, 0, 0, 0,
-    3, 60, 60, 8, 0, 160, 96,
+    3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
     SIQS_POLICY_LINEAR(2.5, 0.05, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 130) },
-  { "one_lp_k3_q6", 140, 144, 1, 6, 0, 0, 0, 3, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k3_q6", 140, 144, 1, 6, 0, 0, 0, 3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
     SIQS_POLICY_LINEAR(3.0, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140) },
   { "one_lp_k3_q7_bias_ramp", 145, 150, 1, 7, 0, 2, 143,
-    3, 60, 60, 8, 0, 160, 96,
+    3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
     SIQS_POLICY_LINEAR(3.0, 0.0, 146),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 146) },
-  { "one_lp_k3_score_ramp", 151, 154, 1, 7, 0, 2, 143,
-    3, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k4_q7_score_bias_ramp", 151, 158, 1, 7, 0, 2, 143,
+    4, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 151),
     SIQS_POLICY_LINEAR(3.0, 0.0, 151),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k4_q7_bias_ramp", 155, 158, 1, 7, 0, 2, 143,
-    4, 60, 60, 8, 0, 160, 96,
-    SIQS_POLICY_LINEAR(0.32, 0.0, 155),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 155),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k4_q7", 159, 166, 1, 7, 8, 0, 0, 4, 60, 60, 8, 0, 160, 96,
+  /* Zero surplus was 1.5% faster over this band and solved all 1,200 audited
+   * inputs on the first matrix attempt. */
+  { "one_lp_k4_q7", 159, 166, 1, 7, 8, 0, 0, 4, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 159),
     SIQS_POLICY_LINEAR(3.0, 0.0, 159),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
+  /* The readiness check makes the nominal 96 surplus nearly free here:
+   * +32 and +96 produced identical work throughout a coarse 167--177
+   * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
+   * a fresh 600-input order-balanced confirmation, so retain +96. */
   { "one_lp_k5_q7", 167, 177, 1, 7, 8, 0, 0, 5, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
     SIQS_POLICY_LINEAR(3.0, 0.0, 167),
@@ -3804,13 +3817,16 @@ static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_t poly;
   uint32_t family_count = 0, poly_count = 0;
   uint32_t target = ctx->params.target_relations;
-  /* A fixed 128-relation retry is excessive for the small dense matrices. */
-  uint32_t retry_batch = ctx->params.fb_size / 4;
+  /* Small exact matrices need only a modest supply of new dependencies after
+   * a rare trivial first result.  FB/16 with an eight-relation floor is
+   * cheaper than FB/4; only two of 90,000 audited low-bit inputs needed a
+   * third small batch. */
+  uint32_t retry_batch = ctx->params.fb_size / 16;
   uint32_t next_matrix_check = ctx->params.fb_size
                              - ctx->params.fb_size / 4;
   int verbose = get_verbose_level();
-  if (retry_batch < 16)
-    retry_batch = 16;
+  if (retry_batch < 8)
+    retry_batch = 8;
   if (retry_batch > SIQS_MATRIX_RETRY_BATCH_MAX)
     retry_batch = SIQS_MATRIX_RETRY_BATCH_MAX;
   if (next_matrix_check < 256)
