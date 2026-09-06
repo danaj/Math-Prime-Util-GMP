@@ -598,7 +598,7 @@ unsigned long read_matrix(
   unsigned int i, j;
   rel_t *r;
   spp_t *f;
-#ifdef ERROR
+#ifdef ERRORS
   mpz_t test1, test2;
   mpz_init(test1);
   mpz_init(test2);
@@ -612,10 +612,10 @@ unsigned long read_matrix(
         xorColEntry(colarray, relsFound, (unsigned long)f->p);
     }
 
-#ifdef ERROR
+#ifdef ERRORS
     mpz_set_ui(test1,1);
     for (j = 0; j < r->f.count; ++j) {
-      mpz_set_ui(test2, r->f.fact[j].p);
+      mpz_set_ui(test2, factorBase[r->f.fact[j].p]);
       mpz_powm_ui(test2, test2, r->f.fact[j].e, n);
       mpz_mul(test1, test1, test2);
       if ((j % 30) == 0)
@@ -646,7 +646,7 @@ unsigned long read_matrix(
     ++relsFound;
 #endif
   }
-#ifdef ERROR
+#ifdef ERRORS
   mpz_clear(test1);
   mpz_clear(test2);
 #endif
