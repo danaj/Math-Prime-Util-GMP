@@ -749,15 +749,26 @@ typedef struct {
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
- * the 145-bit bridge, then the real K change at 185 starts a second schedule
- * which rises from 0.325 to 0.330 at the 210/211 boundary.  Joint geometry
- * tests keep interval scale 2.5 through 130 bits, ramp it to 3.0 at 140, hold
- * through 200, taper it back to 2.5 at 206, and then rejoin the established
- * 211--217 taper.  At the low end, q=2 has the healthiest A supply through
- * 49 bits, q=3 is faster from 50 through 80, and q=4 takes over at 81.  The
- * remaining adjacent full-factor tests put the q-count changes at 96, 117,
- * 145, 178, 206, and 218 bits; those choices remain independent of the
- * 231-bit LP-mode boundary.
+ * the 145-bit bridge, then a second schedule starts at 185 and rises from
+ * 0.325 to 0.330 at the 210/211 boundary.  After the larger interval was
+ * selected, fresh full-factor tests also moved the 1LP residual multipliers
+ * to K=5, 8, 16, and 48 at the existing 145, 151, 167, and 218-bit
+ * structural boundaries.
+ *
+ * Joint geometry tests keep interval scale 2.5 through 130 bits and ramp it
+ * to 3.0 at 140.
+ * After the alternating-gap two-root sieve made each interval cheaper, fresh
+ * full-factor tests selected 3.75--4.2 from 145 through 177, 3.3 from 178
+ * through 184, and a 3.6--3.0 taper from 185 through 200.  The older taper
+ * then reaches 2.5 at 206 and rejoins the established 211--217 schedule.  At
+ * the low end, q=2 has the healthiest A supply through 49 bits, q=3 is faster
+ * from 50 through 80, and q=4 takes over at 81.  The remaining adjacent
+ * full-factor tests put the q-count changes at 96, 117, 145, 178, 206, and
+ * 218 bits; those choices remain independent of the 231-bit LP-mode boundary.
+ * Upper-range checks keep q=10 through 269 bits and start q=11 at 270.  The
+ * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
+ * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
+ * modestly faster at all five tested anchors, so those rows are merged.
  */
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
@@ -806,8 +817,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 117) },
   /* Stopping at the first full-rank-sized matrix remained healthy through
-   * 158 bits and saved about 1--5% across these bands.  The 151-bit score
-   * transition is also the measured K3/K4 boundary, allowing one less row. */
+   * 158 bits and saved about 1--5% across these bands. */
   { "one_lp_k3_q6_interval_ramp", 130, 139, 1, 6, 0, 0, 0,
     3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
@@ -819,64 +829,64 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(3.0, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140) },
-  { "one_lp_k3_q7_bias_ramp", 145, 150, 1, 7, 0, 2, 143,
-    3, 60, 60, 8, 0, 160, 0,
+  { "one_lp_k5_q7_bias_ramp", 145, 150, 1, 7, 0, 2, 143,
+    5, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 146),
+    SIQS_POLICY_LINEAR(3.75, 0.09, 145),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 146) },
-  { "one_lp_k4_q7_score_bias_ramp", 151, 158, 1, 7, 0, 2, 143,
-    4, 60, 60, 8, 0, 160, 0,
+  { "one_lp_k8_q7_score_bias_ramp", 151, 158, 1, 7, 0, 2, 143,
+    8, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 151),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 151),
+    SIQS_POLICY_LINEAR(4.2, 0.0, 151),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
   /* Zero surplus was 1.5% faster over this band and solved all 1,200 audited
    * inputs on the first matrix attempt. */
-  { "one_lp_k4_q7", 159, 166, 1, 7, 8, 0, 0, 4, 60, 60, 8, 0, 160, 0,
+  { "one_lp_k8_q7", 159, 166, 1, 7, 8, 0, 0, 8, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 159),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 159),
+    SIQS_POLICY_LINEAR(4.2, 0.0, 159),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
   /* The readiness check makes the nominal 96 surplus nearly free here:
    * +32 and +96 produced identical work throughout a coarse 167--177
    * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
    * a fresh 600-input order-balanced confirmation, so retain +96. */
-  { "one_lp_k5_q7", 167, 177, 1, 7, 8, 0, 0, 5, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q7", 167, 177, 1, 7, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 167),
+    SIQS_POLICY_LINEAR(4.2, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k5_q8", 178, 184, 1, 8, 8, 0, 0, 5, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q8", 178, 184, 1, 8, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 178),
+    SIQS_POLICY_LINEAR(3.3, 0.0, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k8_q8", 185, 200, 1, 8, 8, 0, 0, 8, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q8", 185, 200, 1, 8, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 185),
+    SIQS_POLICY_LINEAR(3.6, -0.04, 185),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k8_q8_interval_taper", 201, 205, 1, 8, 8, 0, 0,
-    8, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q8_interval_taper", 201, 205, 1, 8, 8, 0, 0,
+    16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.0, -0.0625, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k8_q9", 206, 210, 1, 9, 8, 0, 0,
-    8, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q9", 206, 210, 1, 9, 8, 0, 0,
+    16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(2.5, 0.0, 208),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k12_q9_taper", 211, 217, 1, 9, 8, 0, 0,
-    12, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q9_taper", 211, 217, 1, 9, 8, 0, 0,
+    16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
     SIQS_POLICY_LINEAR(3.0, -0.05, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k12_q10_interval_taper", 218, 230, 1, 10, 12, 0, 0,
-    12, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k48_q10_interval_taper", 218, 230, 1, 10, 12, 0, 0,
+    48, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -898,18 +908,12 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(1.0, 0.0, 251),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 251) },
-  { "two_lp_fb_ramp_q11", 260, 266, 2, 11, 12, 0, 0,
+  { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 12, 0, 0,
     0, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 260) },
-  { "two_lp_score_release", 267, 269, 2, 11, 12, 0, 0,
-    0, 60, 60, 8, 0, 160, 96,
-    SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 267),
-    SIQS_POLICY_RATIO(0.00537337256, 3, -1, 20), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.17, 0.0003, 150) },
+    SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260) },
   { "two_lp_mid_ramp", 270, 299, 2, 11, 12, 0, 0,
     0, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.30621546, 0.000126151333, 270),
