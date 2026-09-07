@@ -63,6 +63,29 @@ static uint32_t lanczos_rand32(uint32_t *seed1, uint32_t *seed2) {
   return *seed1;
 }
 
+static size_t lanczos_array_bytes(unsigned long count, size_t item_size) {
+  if (item_size != 0 && count > (size_t)-1 / item_size)
+    croak("lanczos: allocation size overflow");
+  return (size_t)count * item_size;
+}
+
+static void *lanczos_malloc_array(unsigned long count, size_t item_size) {
+  size_t bytes = lanczos_array_bytes(count, item_size);
+  void *allocation = malloc(bytes != 0 ? bytes : 1);
+  if (allocation == NULL)
+    croak("lanczos: unable to allocate memory");
+  return allocation;
+}
+
+static void *lanczos_calloc_array(unsigned long count, size_t item_size) {
+  void *allocation;
+  (void)lanczos_array_bytes(count, item_size);
+  allocation = calloc(count != 0 ? (size_t)count : 1, item_size);
+  if (allocation == NULL)
+    croak("lanczos: unable to allocate memory");
+  return allocation;
+}
+
 /* Returns true if the entry with indices i,l is 1 in the
  * supplied 64xN matrix. This is used to read the nullspace
  * vectors which are output by the Lanczos routine
@@ -263,14 +286,14 @@ static unsigned long max_ul(unsigned long a, unsigned long b) {
  * then there are factorizations for which the matrix step will fail outright.
  */
 void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
-  unsigned long r, c, i, j, k;
+  unsigned long previous_rows, previous_cols, c, i, j, k;
   unsigned long passes;
   unsigned long *counts;
   unsigned long reduced_rows;
   unsigned long reduced_cols;
 
   /* count the number of nonzero entries in each row */
-  counts = (unsigned long *)calloc((size_t)*nrows, sizeof(unsigned long));
+  counts = (unsigned long *)lanczos_calloc_array(*nrows, sizeof(*counts));
   for (i = 0; i < *ncols; ++i)
     for (j = 0; j < cols[i].weight; ++j)
       ++counts[cols[i].data[j]];
@@ -280,7 +303,8 @@ void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
   passes = 0;
 
   do {
-    r = reduced_rows;
+    previous_rows = reduced_rows;
+    previous_cols = reduced_cols;
 
     /* remove any columns that contain the only entry in one or more rows,
      * then update the row counts to reflect the missing column.
@@ -320,7 +344,8 @@ void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
      * Delete more columns until the matrix has the correct aspect ratio.
      * Columns at the end of cols[] are the heaviest, so delete those
      * (and update the row counts again) */
-    if (reduced_cols > reduced_rows + NUM_EXTRA_RELATIONS) {
+    if (reduced_cols > reduced_rows &&
+        reduced_cols - reduced_rows > NUM_EXTRA_RELATIONS) {
       for (i = reduced_rows + NUM_EXTRA_RELATIONS;
         i < reduced_cols; ++i
       ) {
@@ -337,7 +362,7 @@ void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
      * is less dense and more columns can be deleted; iterate until no
      * further deletions are possible */
     ++passes;
-  } while (r != reduced_rows);
+  } while (previous_rows != reduced_rows || previous_cols != reduced_cols);
 
   if (get_verbose_level() > 3)
     printf("reduced to %lu x %lu in %lu passes\n",
@@ -717,12 +742,14 @@ static void combine_cols(
   num_deps = 128;
   if (v == NULL || av == NULL)
     num_deps = 64;
-  vector_words = (ncols + 63) / 64;
-  image_words = (nrows + 63) / 64;
+  vector_words = ncols / 64 + (ncols % 64 != 0);
+  image_words = nrows / 64 + (nrows % 64 != 0);
 
   for (i = 0; i < num_deps; ++i) {
-    matrix[i] = (uint64_t *)calloc((size_t)vector_words, sizeof(uint64_t));
-    amatrix[i] = (uint64_t *)calloc((size_t)image_words, sizeof(uint64_t));
+    matrix[i] = (uint64_t *)lanczos_calloc_array(vector_words,
+                                                  sizeof(**matrix));
+    amatrix[i] = (uint64_t *)lanczos_calloc_array(image_words,
+                                                   sizeof(**amatrix));
   }
 
   /* operations on columns can more conveniently become operations on rows
@@ -806,32 +833,34 @@ static uint64_t * block_lanczos_once(
   unsigned long dim0, dim1;
   uint64_t mask0, mask1, randword;
   unsigned long vsize;
+  int inversion_failed = 0;
 
   /* allocate all of the size-n variables. Note that because B has been
    * preprocessed to ignore singleton rows, the number of rows may really
    * be less than nrows and may be greater than ncols. vsize is the maximum
    * of these two numbers. */
   vsize = max_ul(nrows, ncols);
-  v[0] = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  v[1] = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  v[2] = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  vnext = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  x = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  v0 = (uint64_t *)malloc(vsize * sizeof(uint64_t));
-  scratch = (uint64_t *)malloc(max_ul(vsize, 256 * 8) * sizeof(uint64_t));
+  v[0] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[0]));
+  v[1] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[1]));
+  v[2] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[2]));
+  vnext = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*vnext));
+  x = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*x));
+  v0 = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v0));
+  scratch = (uint64_t *)lanczos_malloc_array(max_ul(vsize, 256 * 8),
+                                               sizeof(*scratch));
 
   /* allocate all the 64x64 variables */
-  winv[0] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  winv[1] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  winv[2] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  vt_a_v[0] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  vt_a_v[1] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  vt_a2_v[0] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  vt_a2_v[1] = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  d = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  e = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  f = (uint64_t *)malloc(64 * sizeof(uint64_t));
-  f2 = (uint64_t *)malloc(64 * sizeof(uint64_t));
+  winv[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[0]));
+  winv[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[1]));
+  winv[2] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[2]));
+  vt_a_v[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a_v[0]));
+  vt_a_v[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a_v[1]));
+  vt_a2_v[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a2_v[0]));
+  vt_a2_v[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a2_v[1]));
+  d = (uint64_t *)lanczos_malloc_array(64, sizeof(*d));
+  e = (uint64_t *)lanczos_malloc_array(64, sizeof(*e));
+  f = (uint64_t *)lanczos_malloc_array(64, sizeof(*f));
+  f2 = (uint64_t *)lanczos_malloc_array(64, sizeof(*f2));
 
   /* The iterations computes v[0], vt_a_v[0], vt_a2_v[0], s[0] and winv[0].
    * Subscripts larger than zero represent past versions of these
@@ -887,8 +916,10 @@ static uint64_t * block_lanczos_once(
     /* Find the size-'dim0' nonsingular submatrix of v0'*A*v0, invert it,
      * and list the column indices present in the submatrix */
     dim0 = find_nonsingular_sub(vt_a_v[0], s[0], s[1], dim1, winv[0]);
-    if (dim0 == 0)
+    if (dim0 == 0) {
+      inversion_failed = 1;
       break;
+    }
 
     /* mask0 contains one set bit for every column that participates
      * in the inverted submatrix computed above */
@@ -966,7 +997,7 @@ static uint64_t * block_lanczos_once(
   free(f2);
 
   /* if a recoverable failure occurred, start everything over again */
-  if (dim0 == 0) {
+  if (inversion_failed) {
     if (get_verbose_level() > 3)
       printf("linear algebra failed; retrying...\n");
     free(x);
@@ -1004,7 +1035,10 @@ uint64_t *block_lanczos(
   unsigned long i;
   unsigned int fail_count;
 
-  if ((seed1 | seed2) == 0) {
+  /* The MWC recurrence has two fixed states.  Neither provides the
+   * independent starting vectors needed by retries. */
+  if ((seed1 | seed2) == 0 ||
+      (seed1 == UINT32_MAX && seed2 == RAND_MULT - 1U)) {
     seed1 = 11111111U;
     seed2 = 22222222U;
   }

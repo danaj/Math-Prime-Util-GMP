@@ -3987,8 +3987,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
       printf("# siqs linear algebra with %u relations\n", ctx->full_count);
     if (siqs_solve(ctx))
       break;
-    target += retry_batch;
-    next_matrix_check = ctx->full_count + retry_batch;
+    /* Readiness may stop below target, while one polynomial may overshoot it.
+     * Anchor the retry to the relations actually present so it adds new work. */
+    target = ctx->full_count + retry_batch;
+    next_matrix_check = target;
   }
   if (verbose > 2)
     printf("# siqs used %u families, %u polynomials, %llu candidates, "
