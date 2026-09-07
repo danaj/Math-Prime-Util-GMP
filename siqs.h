@@ -4,7 +4,8 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-#define MPU_SIQS_MIN_BITS  40U
+/* While we work for small sizes, performance under 36-bits is suboptimal. */
+#define MPU_SIQS_MIN_BITS   1U
 #define MPU_SIQS_MAX_BITS 350U
 
 /* n must be positive.  Return an allocated multiplicative partition of n.

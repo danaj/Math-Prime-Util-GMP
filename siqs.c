@@ -61,7 +61,6 @@
 # define M_LN2 0.69314718055994530942
 #endif
 
-#define SIQS_TRIAL_LIMIT        1000U
 #define SIQS_MAX_EXTRA_RELS      512U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
@@ -768,10 +767,11 @@ typedef struct {
  * through 192.  The retained upper taper starts at 3.28 at 193 and reaches
  * 3.0 at 200.  The older taper
  * then reaches 2.5 at 206 and rejoins the established 211--217 schedule.  At
- * the low end, q=2 has the healthiest A supply through 49 bits, q=3 is faster
- * from 50 through 80, and q=4 takes over at 81.  The remaining adjacent
- * full-factor tests put the q-count changes at 96, 117, 145, 178, 206, and
- * 218 bits; those choices remain independent of the 231-bit LP-mode boundary.
+ * the low end, q=1 with a wide interval covers inputs below 37 bits, q=2
+ * takes over through 49, q=3 is faster from 50 through 80, and q=4 at 81.
+ * The other adjacent full-factor tests put q-count changes at 96, 117, 145,
+ * 178, 206, and 218 bits; those choices remain independent of the 231-bit
+ * LP-mode boundary.
  * Upper-range checks keep q=10 through 269 bits and start q=11 at 270.  The
  * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
  * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
@@ -799,61 +799,85 @@ typedef struct {
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
    * K=1 sets the large-prime bound to pmax, so they deliberately collect
-   * smooth relations only.  q=2 keeps A construction healthy at the new
-   * lower limit; q=3 then wins until the measured 80/81 crossover.  Its
-   * interval ramp begins at the fixed 4096 floor and meets the established
-   * q=4 curve at that boundary.  Their matrices are too small for an early
-   * readiness check.  Although direct target sweeps gave minimum CPU at
-   * 0/4/2 extra relations, using 2/4/4 cost only 0.3% over 90,000 inputs,
-   * cut matrix retries by 39%, and substantially reduced timing variance.
-   * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
-   * the 95/96 boundary. */
-  { "smooth_k1_q2_low", MPU_SIQS_MIN_BITS, 49, 1, 2, 0, 0, 0,
-    1, 60, 60, 8, 0, 48, 2,
+   * smooth relations only.  Below 37 bits, q=1 with a wider interval keeps
+   * the one available A family productive; q=2 then wins through 49 bits.
+   * q=3 wins until the measured 80/81 crossover.  Its interval ramp begins
+   * at the fixed 4096 floor and meets the established q=4 curve at that
+   * boundary.  Their matrices are too small for an early readiness check.
+   * Although direct target sweeps gave minimum CPU at 0/4/2 extra relations,
+   * using 2/4/4 cost only 0.3% over 90,000 inputs, cut matrix retries by 39%,
+   * and substantially reduced timing variance.  Full-factor sweeps put the
+   * return to q=5 and ordinary 1LP collection at the 95/96 boundary. */
+  { "smooth_k1_q1_low", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
+    1, 60, 60, 8, 0, 40, 2,
+    SIQS_POLICY_LINEAR(0.315, 0.0, 65),
+    SIQS_POLICY_LINEAR(4.0, 0.0, 1),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  { "smooth_k1_q2_low", 37, 49, 1, 2, 0, 0, 0,
+    1, 60, 60, 8, 0, 40, 2,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
-  { "smooth_k1_q3_low", 50, 80, 1, 3, 0, 0, 0,
-    1, 60, 60, 8, 0, 48, 4,
+  { "smooth_k1_q3_floor40", 50, 64, 1, 3, 0, 0, 0,
+    1, 60, 60, 8, 0, 40, 4,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
-  { "smooth_k1_q4_low", 81, 95, 1, 4, 0, 0, 0,
+  { "smooth_k1_q3_fb_low", 65, 80, 1, 3, 6, 0, 0,
     1, 60, 60, 8, 0, 48, 4,
-    SIQS_POLICY_LINEAR(0.315, 0.0, 65),
+    SIQS_POLICY_LINEAR(0.306956091, 0.0000655453, 65),
+    SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  /* A fresh 30,000-input confirmation found a 3.0% joint win from bias 6
+   * and a uniform 95% factor-base scale.  Express that scale as a shallow
+   * coefficient ramp so the production policy needs no second FB knob. */
+  { "smooth_k1_q4_fb_low", 81, 95, 1, 4, 6, 0, 0,
+    1, 60, 60, 8, 0, 48, 4,
+    SIQS_POLICY_LINEAR(0.311589139, 0.0000229912, 81),
     SIQS_POLICY_LINEAR(0.5, 0.05, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   /* Two extra relations cost 0.1% over this band while cutting matrix retries
    * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
-  { "one_lp_k2_q5", 96, 116, 1, 5, 10, 0, 0, 2, 60, 60, 8, 0, 160, 2,
-    SIQS_POLICY_LINEAR(0.315, 0.0, 100),
-    SIQS_POLICY_LINEAR(1.7, 0.03, 96),
+  { "one_lp_k2_q5_geometry_ramp", 96, 106, 1, 5, 10, 3, 96,
+    2, 60, 60, 8, 0, 160, 2,
+    SIQS_POLICY_LINEAR(0.315, -0.0005929708, 96),
+    SIQS_POLICY_LINEAR(1.7, 0.08, 96),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
+  { "one_lp_k2_q5_geometry", 107, 116, 1, 5, 14, 0, 0,
+    2, 60, 60, 8, 0, 160, 2,
+    SIQS_POLICY_LINEAR(0.309104504, 0.0000317423, 107),
+    SIQS_POLICY_LINEAR(2.5375, 0.0375, 107),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
   /* Exact dense elimination normally succeeds at the minimum relation count
    * through this band.  Let it try: a 15,500-input audit needed four second
    * matrix attempts, while avoiding the fixed readiness surplus reduced
    * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
-  { "one_lp_k2_q6", 117, 129, 1, 6, 12, 0, 0, 2, 60, 60, 8, 0, 160, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.0, 117),
-    SIQS_POLICY_LINEAR(2.5, 0.0, 117),
+  { "one_lp_k4_q6_geometry_ramp", 117, 129, 1, 6, 16, 0, 0,
+    4, 60, 60, 8, 0, 160, 0,
+    SIQS_POLICY_LINEAR(0.309419667, 0.00046502775, 117),
+    SIQS_POLICY_LINEAR(3.125, 0.0, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 117), 0.45 },
   /* Stopping at the first full-rank-sized matrix remained healthy through
    * 166 bits and saved about 1--5% across these bands.  The former 151--158
    * and 159--166 rows merge once they use the same filter bias. */
-  { "one_lp_k3_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
-    3, 60, 60, 8, 0, 160, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
-    SIQS_POLICY_LINEAR(2.5, 0.05, 130),
+  { "one_lp_k4_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
+    4, 60, 60, 8, 0, 160, 0,
+    SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
+    SIQS_POLICY_LINEAR(2.8125, 0.05625, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
-  { "one_lp_k3_q6", 140, 144, 1, 6, 14, 0, 0, 3, 60, 60, 8, 0, 160, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
-    SIQS_POLICY_LINEAR(3.0, 0.0, 140),
+  { "one_lp_k4_q6", 140, 144, 1, 6, 14, 0, 0,
+    4, 60, 60, 8, 0, 160, 0,
+    SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
+    SIQS_POLICY_LINEAR(3.375, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
   { "one_lp_k5_q7", 145, 150, 1, 7, 14, 0, 0,
@@ -1952,13 +1976,16 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     if (poly->a_index[i] < ctx->params.fb_size)
       ctx->fb[poly->a_index[i]].in_a = 0;
 
-  /* The short low-end polynomials have fewer distinct A products.  Preserve
-   * the normal near-optimal search, then widen only an otherwise exhausted
-   * q=2 or q=3 family rather than failing an otherwise healthy small input. */
+  /* The short low-end polynomials have fewer distinct A products.  q=1 has
+   * only one useful nearest-prime choice, so accept it without a tolerance
+   * window and stop after that one attempt.  For q=2 or q=3, preserve the
+   * normal near-optimal search, then widen only an otherwise exhausted
+   * family rather than failing an otherwise healthy small input. */
   for (attempt = 0; attempt < attempt_limit; attempt++) {
     uint32_t tolerance = attempt < 10000U ? 2U
                        : attempt < 20000U ? 4U : 8U;
     uint64_t fingerprint;
+    int acceptable = poly->q_count == 1;
     mpz_set_ui(product, 1);
     for (i = 0; i + 1 < poly->q_count; i++) {
       int64_t wanted_index;
@@ -1995,23 +2022,28 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     }
 
     qsort(poly->a_index, poly->q_count, sizeof(uint32_t), siqs_u32_cmp);
-    mpz_mul_ui(scaled, product, tolerance);
-    if (mpz_cmp(scaled, poly->target_A) >= 0) {
-      mpz_mul_ui(scaled, poly->target_A, tolerance);
-      if (mpz_cmp(product, scaled) <= 0) {
-        fingerprint = siqs_a_fingerprint(poly->a_index, poly->q_count);
-        if (siqs_hashset_insert(&ctx->a_hashes, fingerprint)) {
-          mpz_set(poly->A, product);
-          mpz_mul_ui(poly->DA, poly->A, ctx->params.poly_d);
-          mpz_clear(product);
-          mpz_clear(remaining);
-          mpz_clear(scaled);
-          return 1;
-        }
+    if (!acceptable) {
+      mpz_mul_ui(scaled, product, tolerance);
+      if (mpz_cmp(scaled, poly->target_A) >= 0) {
+        mpz_mul_ui(scaled, poly->target_A, tolerance);
+        acceptable = mpz_cmp(product, scaled) <= 0;
+      }
+    }
+    if (acceptable) {
+      fingerprint = siqs_a_fingerprint(poly->a_index, poly->q_count);
+      if (siqs_hashset_insert(&ctx->a_hashes, fingerprint)) {
+        mpz_set(poly->A, product);
+        mpz_mul_ui(poly->DA, poly->A, ctx->params.poly_d);
+        mpz_clear(product);
+        mpz_clear(remaining);
+        mpz_clear(scaled);
+        return 1;
       }
     }
     for (i = 0; i < poly->q_count; i++)
       ctx->fb[poly->a_index[i]].in_a = 0;
+    if (poly->q_count == 1)
+      break;
   }
   mpz_clear(product);
   mpz_clear(remaining);
@@ -2666,8 +2698,8 @@ static void siqs_filter_q(mpz_t q, const siqs_poly_t *poly,
 /* Factor-base primes fit unsigned long, so avoid constructing an mpz divisor
  * and entering the general mpz_remove machinery for every resieve hit.  The
  * 2-adic valuation has a direct bit operation; odd primes normally occur to
- * the first power.  Both callers exclude zero, and returning zero for a
- * nonfactor preserves their invariant checks. */
+ * the first power.  Both callers exclude zero and already know from a root
+ * hit that p divides the value, so only higher powers need a test. */
 static INLINE mp_bitcnt_t siqs_remove_ui(mpz_t value, unsigned long p) {
   mp_bitcnt_t exponent = 0;
   if (p == 2) {
@@ -2675,6 +2707,12 @@ static INLINE mp_bitcnt_t siqs_remove_ui(mpz_t value, unsigned long p) {
     mpz_tdiv_q_2exp(value, value, exponent);
     return exponent;
   }
+#ifdef SIQS_DEBUG
+  if (!mpz_divisible_ui_p(value, p))
+    croak("SIQS: prime-removal input is not divisible");
+#endif
+  mpz_divexact_ui(value, value, p);
+  exponent = 1;
   while (mpz_divisible_ui_p(value, p)) {
     mpz_divexact_ui(value, value, p);
     exponent++;
@@ -4023,7 +4061,8 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
   siqs_factor_array_t result;
   siqs_ctx_t ctx;
   mpz_t work, divisor, root;
-  uint32_t bits;
+  size_t input_bits;
+  uint32_t bits, trial_limit;
 
   if (nfactors == NULL)
     croak("SIQS: missing factor count output");
@@ -4036,11 +4075,16 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
   mpz_init(divisor);
   mpz_init(root);
 
-  if (trial_start < SIQS_TRIAL_LIMIT) {
+  input_bits = mpz_sizeinbase(n, 2);
+  trial_limit = input_bits <=   40  ?  200
+              : input_bits >= 1000  ?  5000
+                                    :  5U * (uint32_t)input_bits;
+
+  if (trial_start < trial_limit) {
     UV p, first = trial_start < 2 ? 2 : trial_start;
     PRIME_ITERATOR(iter);
     prime_iterator_setprime(&iter, first - 1);
-    for (p = prime_iterator_next(&iter); p < SIQS_TRIAL_LIMIT;
+    for (p = prime_iterator_next(&iter); p < trial_limit;
          p = prime_iterator_next(&iter)) {
       if (mpz_cmp_ui(work, p * p) < 0)
         break;
