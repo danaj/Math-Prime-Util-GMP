@@ -231,6 +231,7 @@ typedef struct {
   uint32_t sieve_start;
   uint32_t sieve_free_units;
   uint32_t sieve_start_prime_floor;
+  double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
   uint8_t sieve_initial;
@@ -701,6 +702,7 @@ typedef struct {
   siqs_policy_ratio_t interval_lp_scale;
   double smooth_bound_exponent;
   siqs_policy_linear_t sieve_hit_exponent;
+  double sieve_start_index_exponent;
 } siqs_policy_band_t;
 
 typedef struct {
@@ -712,6 +714,7 @@ typedef struct {
   uint32_t lp_product_floor;
   uint32_t sieve_free_units;
   uint32_t sieve_start_prime_floor;
+  double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
   uint8_t stage1_bias;
@@ -737,7 +740,8 @@ typedef struct {
  * Integer columns after the bit range are: LP count, q count, bias base,
  * bias step width/origin, 1LP K, conditional 2LP K/R floors, sieve byte
  * headroom, the first-sieved-prime floor, the factor-base floor, and the
- * initial relation surplus.
+ * initial relation surplus.  The final column is the optional factor-base
+ * index exponent used to choose the first sieved prime.
  *
  * The LP count is part of each complete policy row rather than an independent
  * crossover knob: changing it also requires changing the smooth exponent,
@@ -769,6 +773,21 @@ typedef struct {
  * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
  * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
  * modestly faster at all five tested anchors, so those rows are merged.
+ *
+ * JML SIQS showed that omitting substantially more small factor-base primes
+ * from the dense sieve can pay even though the candidate postfilter then has
+ * more work.  Its cutoff index grows approximately as FB^0.47.  Full-factor
+ * sweeps here found a broad optimum from 0.43 through 0.45, so use 0.45 from
+ * 96 through 184 bits.  Below 96 the smooth-only policies were inconsistent;
+ * from 185 through 269 a prime-401 floor was both simpler and faster than
+ * allowing the factor-base formula to keep growing.  At 270 the same floor
+ * saved about 7% and provides a smooth bridge to the established prime-384
+ * floor at 300, so carry it through 299.  Bias 10, 12, 14, 16, and 18 supply
+ * the corresponding extra coarse-filter headroom.  Full-factor sweeps put
+ * those transitions at existing 117, 130, 167, and 185-bit policy boundaries,
+ * without adding narrow bands.  At the 269/270 q-count boundary, bias 18 won
+ * on the q=10 side while 12 and 18 tied on the q=11 side, so only the prime
+ * floor carries across.
  */
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
@@ -787,151 +806,145 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q3_low", 50, 80, 1, 3, 0, 0, 0,
     1, 60, 60, 8, 0, 48, 4,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q4_low", 81, 95, 1, 4, 0, 0, 0,
     1, 60, 60, 8, 0, 48, 4,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.05, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 65) },
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   /* Two extra relations cost 0.1% over this band while cutting matrix retries
    * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
-  { "one_lp_k2_q5", 96, 116, 1, 5, 0, 0, 0, 2, 60, 60, 8, 0, 160, 2,
+  { "one_lp_k2_q5", 96, 116, 1, 5, 10, 0, 0, 2, 60, 60, 8, 0, 160, 2,
     SIQS_POLICY_LINEAR(0.315, 0.0, 100),
     SIQS_POLICY_LINEAR(1.7, 0.03, 96),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 100) },
+    SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
   /* Exact dense elimination normally succeeds at the minimum relation count
    * through this band.  Let it try: a 15,500-input audit needed four second
    * matrix attempts, while avoiding the fixed readiness surplus reduced
    * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
-  { "one_lp_k2_q6", 117, 129, 1, 6, 0, 0, 0, 2, 60, 60, 8, 0, 160, 0,
+  { "one_lp_k2_q6", 117, 129, 1, 6, 12, 0, 0, 2, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 117),
     SIQS_POLICY_LINEAR(2.5, 0.0, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 117) },
+    SIQS_POLICY_LINEAR(0.15, 0.0, 117), 0.45 },
   /* Stopping at the first full-rank-sized matrix remained healthy through
-   * 158 bits and saved about 1--5% across these bands. */
-  { "one_lp_k3_q6_interval_ramp", 130, 139, 1, 6, 0, 0, 0,
+   * 166 bits and saved about 1--5% across these bands.  The former 151--158
+   * and 159--166 rows merge once they use the same filter bias. */
+  { "one_lp_k3_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
     3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
     SIQS_POLICY_LINEAR(2.5, 0.05, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 130) },
-  { "one_lp_k3_q6", 140, 144, 1, 6, 0, 0, 0, 3, 60, 60, 8, 0, 160, 0,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
+  { "one_lp_k3_q6", 140, 144, 1, 6, 14, 0, 0, 3, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.315, 0.00033333333333333333, 130),
     SIQS_POLICY_LINEAR(3.0, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 140) },
-  { "one_lp_k5_q7_bias_ramp", 145, 150, 1, 7, 0, 2, 143,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
+  { "one_lp_k5_q7", 145, 150, 1, 7, 14, 0, 0,
     5, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
     SIQS_POLICY_LINEAR(3.75, 0.09, 145),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 146) },
-  { "one_lp_k8_q7_score_bias_ramp", 151, 158, 1, 7, 0, 2, 143,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 146), 0.45 },
+  { "one_lp_k8_q7", 151, 166, 1, 7, 14, 0, 0,
     8, 60, 60, 8, 0, 160, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 151),
     SIQS_POLICY_LINEAR(4.2, 0.0, 151),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  /* Zero surplus was 1.5% faster over this band and solved all 1,200 audited
-   * inputs on the first matrix attempt. */
-  { "one_lp_k8_q7", 159, 166, 1, 7, 8, 0, 0, 8, 60, 60, 8, 0, 160, 0,
-    SIQS_POLICY_LINEAR(0.32, 0.0, 159),
-    SIQS_POLICY_LINEAR(4.2, 0.0, 159),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   /* The readiness check makes the nominal 96 surplus nearly free here:
    * +32 and +96 produced identical work throughout a coarse 167--177
    * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
    * a fresh 600-input order-balanced confirmation, so retain +96. */
-  { "one_lp_k16_q7", 167, 177, 1, 7, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q7", 167, 177, 1, 7, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
     SIQS_POLICY_LINEAR(4.2, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k16_q8", 178, 184, 1, 8, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+  { "one_lp_k16_q8", 178, 184, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(3.3, 0.0, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k16_q8", 185, 200, 1, 8, 8, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+  { "one_lp_k16_q8", 185, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.6, -0.04, 185),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k16_q8_interval_taper", 201, 205, 1, 8, 8, 0, 0,
-    16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "one_lp_k16_q8_interval_taper", 201, 205, 1, 8, 18, 0, 0,
+    16, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.0, -0.0625, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k16_q9", 206, 210, 1, 9, 8, 0, 0,
-    16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "one_lp_k16_q9", 206, 210, 1, 9, 18, 0, 0,
+    16, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(2.5, 0.0, 208),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k16_q9_taper", 211, 217, 1, 9, 8, 0, 0,
-    16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "one_lp_k16_q9_taper", 211, 217, 1, 9, 18, 0, 0,
+    16, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
     SIQS_POLICY_LINEAR(3.0, -0.05, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "one_lp_k48_q10_interval_taper", 218, 230, 1, 10, 12, 0, 0,
-    48, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "one_lp_k48_q10_interval_taper", 218, 230, 1, 10, 18, 0, 0,
+    48, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150) },
-  { "two_lp_early_interval_taper", 231, 239, 2, 10, 12, 0, 0,
-    0, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "two_lp_early_interval_taper", 231, 239, 2, 10, 18, 0, 0,
+    0, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 231),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 231) },
-  { "two_lp_early", 240, 249, 2, 10, 12, 0, 0, 0, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_LINEAR(0.205, 0.0, 231), 0.0 },
+  { "two_lp_early", 240, 249, 2, 10, 18, 0, 0, 0, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
     SIQS_POLICY_LINEAR(1.0, 0.0, 240),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 240) },
-  { "two_lp_fb_ramp_q10", 250, 259, 2, 10, 12, 0, 0,
-    0, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
+  { "two_lp_fb_ramp_q10", 250, 259, 2, 10, 18, 0, 0,
+    0, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 251),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 251) },
-  { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 12, 0, 0,
-    0, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
+  { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 18, 0, 0,
+    0, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260) },
+    SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
   { "two_lp_mid_ramp", 270, 299, 2, 11, 12, 0, 0,
-    0, 60, 60, 8, 0, 160, 96,
+    0, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.30621546, 0.000126151333, 270),
     SIQS_POLICY_LINEAR(1.0, 0.0, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150) },
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q11", 300, 304, 2, 11, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96,
     SIQS_POLICY_LINEAR(0.31, 0.0, 301),
     SIQS_POLICY_LINEAR(1.0, 0.0, 301),
     SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150) },
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96,
     SIQS_POLICY_LINEAR(0.31, 0.0, 305),
     SIQS_POLICY_LINEAR(1.0, 0.0, 305),
     SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150) }
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
 #undef SIQS_POLICY_LINEAR
@@ -1004,6 +1017,7 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits) {
                            ? band->two_lp_product_floor : 0U;
   policy->sieve_free_units = band->sieve_free_units;
   policy->sieve_start_prime_floor = band->sieve_start_prime_floor;
+  policy->sieve_start_index_exponent = band->sieve_start_index_exponent;
   policy->fb_floor = band->fb_floor;
   policy->relation_extra = band->relation_extra;
   policy->fb_coefficient =
@@ -1034,6 +1048,7 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n) {
   p->q_count = policy.q_count;
   p->sieve_free_units = policy.sieve_free_units;
   p->sieve_start_prime_floor = policy.sieve_start_prime_floor;
+  p->sieve_start_index_exponent = policy.sieve_start_index_exponent;
   p->fb_floor = policy.fb_floor;
   p->relation_extra = policy.relation_extra;
   p->fb_coefficient = policy.fb_coefficient;
@@ -2319,6 +2334,15 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
   ctx->params.sieve_start = (uint32_t)cbrt((double)ctx->params.fb_size);
   if (ctx->params.sieve_start < 1)
     ctx->params.sieve_start = 1;
+  if (ctx->params.sieve_start_index_exponent > 0.0) {
+    uint32_t index = (uint32_t)pow(
+        (double)ctx->params.fb_size,
+        ctx->params.sieve_start_index_exponent);
+    if (index >= ctx->params.fb_size)
+      croak("SIQS: first-sieved-prime index exceeds the factor base");
+    if (index > ctx->params.sieve_start)
+      ctx->params.sieve_start = index;
+  }
   /* At 300 bits cbrt(FB) still lands among very dense progressions.  A full
    * run improved by 6.8% when the exact postfilter handled primes below 384.
    * Treat this as a floor, not a replacement for cbrt(FB), so naturally
