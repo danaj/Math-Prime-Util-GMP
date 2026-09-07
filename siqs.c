@@ -314,6 +314,7 @@ typedef struct {
   uint32_t *root1;
   uint32_t *root2;
   uint32_t *fb_reciprocal;
+  uint32_t resieve_one_subtract_index;
   uint32_t largest_fb_prime;
   uint8_t *sieve;
   uint32_t sieve_length;
@@ -2434,6 +2435,42 @@ static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
   }
 }
 
+/* Fixed-hit large-prime tiers and their padded stores are inspired by JML's
+ * sieving.  If p > length/count, a root has at most count locations in the
+ * logical sieve.  The allocation below makes the final stores safe even when
+ * they fall beyond that sieve, eliminating a position-range test per store.
+ * Six locations over our combined +/- interval correspond to JML's three
+ * locations in each separately processed half. */
+static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
+                                     uint32_t root1, uint32_t root2,
+                                     uint32_t p, uint8_t logp,
+                                     uint32_t count) {
+  uint32_t i, pos;
+  pos = root1;
+  for (i = 0; i < count; i++, pos += p) {
+#ifdef SIQS_DEBUG
+    if (pos < length)
+      siqs_sieve_add(sieve + pos, logp);
+#else
+    siqs_sieve_add(sieve + pos, logp);
+#endif
+  }
+  if (root2 != SIQS_NO_ROOT) {
+    pos = root2;
+    for (i = 0; i < count; i++, pos += p) {
+#ifdef SIQS_DEBUG
+      if (pos < length)
+        siqs_sieve_add(sieve + pos, logp);
+#else
+      siqs_sieve_add(sieve + pos, logp);
+#endif
+    }
+  }
+#ifndef SIQS_DEBUG
+  (void)length;
+#endif
+}
+
 static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
   uint32_t initial = (uint32_t)ctx->active_sieve_initial
                    + ctx->params.stage1_bias;
@@ -2447,7 +2484,10 @@ static void siqs_run_sieve(siqs_ctx_t *ctx) {
   ctx->sieve_offset = 0;
   ctx->active_sieve_length = ctx->sieve_length;
   memset(ctx->sieve, siqs_physical_sieve_initial(ctx), ctx->sieve_length);
-  for (i = ctx->params.sieve_start; i < ctx->params.fb_size; i++) {
+  for (i = ctx->params.sieve_start;
+       i < ctx->params.fb_size && ctx->prime[i] <=
+           ctx->sieve_length / 6U;
+       i++) {
     siqs_fb_t *fb = &ctx->fb[i];
     if (ctx->root2[i] == SIQS_NO_ROOT) {
       siqs_sieve_one_root(ctx->sieve, ctx->sieve_length,
@@ -2458,6 +2498,21 @@ static void siqs_run_sieve(siqs_ctx_t *ctx) {
                            fb->logp);
     }
   }
+# define SIQS_SIEVE_LARGE_RANGE(bound, count) do {                         \
+    for (; i < ctx->params.fb_size && ctx->prime[i] <= (bound); i++) {     \
+      siqs_fb_t *fb = &ctx->fb[i];                                         \
+      siqs_sieve_large(ctx->sieve, ctx->sieve_length,                      \
+                       ctx->root1[i], ctx->root2[i], ctx->prime[i],         \
+                       fb->logp, (count));                                  \
+    }                                                                       \
+  } while (0)
+  SIQS_SIEVE_LARGE_RANGE(ctx->sieve_length / 5U, 6U);
+  SIQS_SIEVE_LARGE_RANGE(ctx->sieve_length / 4U, 5U);
+  SIQS_SIEVE_LARGE_RANGE(ctx->sieve_length / 3U, 4U);
+  SIQS_SIEVE_LARGE_RANGE(ctx->sieve_length / 2U, 3U);
+  SIQS_SIEVE_LARGE_RANGE(ctx->sieve_length,      2U);
+  SIQS_SIEVE_LARGE_RANGE(UINT32_MAX,             1U);
+# undef SIQS_SIEVE_LARGE_RANGE
 }
 
 static void siqs_clear_candidate_map(siqs_ctx_t *ctx) {
@@ -2848,7 +2903,7 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
                                     uint32_t progression_end,
                                     uint32_t bucket_begin,
                                     uint32_t bucket_end) {
-  uint32_t i, c, cutoff = factor_begin, cutoff_prime;
+  uint32_t i, c, cutoff = factor_begin, cutoff_prime, barrett_end;
   if (ctx->candidate_count == 0) {
     return;
   }
@@ -2864,18 +2919,26 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   while (cutoff < progression_end &&
          ctx->prime[cutoff] <= cutoff_prime)
     cutoff++;
+  barrett_end = cutoff < ctx->resieve_one_subtract_index
+              ? cutoff : ctx->resieve_one_subtract_index;
 
   /* Rewalking the dense progressions of the smallest primes costs more than
    * testing the handful of candidates directly. */
   for (c = 0; c < ctx->candidate_count; c++) {
     uint32_t pos = (uint32_t)(ctx->candidates[c].x
                             + (int32_t)ctx->params.half_interval);
-    for (i = factor_begin; i < cutoff; i++) {
+    for (i = factor_begin; i < barrett_end; i++) {
       uint32_t rem = siqs_reduce_u32(pos, ctx->prime[i],
                                     ctx->fb_reciprocal[i]);
-      if (rem == ctx->root1[i] || rem == ctx->root2[i]) {
+      if (rem == ctx->root1[i] || rem == ctx->root2[i])
         siqs_add_hit(ctx, c, i);
-      }
+    }
+    /* Since 0 <= pos < 2*M, p > M needs at most one subtraction. */
+    for (; i < cutoff; i++) {
+      uint32_t p = ctx->prime[i];
+      uint32_t rem = pos >= p ? pos - p : pos;
+      if (rem == ctx->root1[i] || rem == ctx->root2[i])
+        siqs_add_hit(ctx, c, i);
     }
   }
   if (ctx->candidate_wide) {
@@ -3774,7 +3837,13 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
   siqs_set_log_weights(ctx);
   ctx->sieve_length = 2 * ctx->params.half_interval;
   ctx->active_sieve_length = ctx->sieve_length;
-  ctx->sieve = (uint8_t *)siqs_malloc(ctx->sieve_length + 8);
+  {
+    size_t sieve_alloc = 2U * (size_t)ctx->sieve_length;
+    size_t pmax_alloc = (size_t)ctx->fb[ctx->params.fb_size - 1U].p + 1U;
+    if (sieve_alloc < pmax_alloc)
+      sieve_alloc = pmax_alloc;
+    ctx->sieve = (uint8_t *)siqs_calloc(sieve_alloc + 8U, 1U);
+  }
   ctx->candidate_at = (uint16_t *)siqs_calloc(ctx->sieve_length,
                                               sizeof(uint16_t));
   ctx->fb_reciprocal = (uint32_t *)siqs_malloc(
@@ -3786,6 +3855,11 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
       ctx->fb_reciprocal[i] =
           (uint32_t)(UINT64_C(0x100000000) / ctx->prime[i]);
     }
+    ctx->resieve_one_subtract_index = 0;
+    while (ctx->resieve_one_subtract_index < ctx->params.fb_size &&
+           ctx->prime[ctx->resieve_one_subtract_index] <=
+               ctx->params.half_interval)
+      ctx->resieve_one_subtract_index++;
   }
   ctx->use_block_sieve =
       ctx->sieve_length >= SIQS_SIEVE_BLOCK_MIN &&
