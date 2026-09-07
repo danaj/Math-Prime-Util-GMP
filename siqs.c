@@ -754,17 +754,19 @@ typedef struct {
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
- * the 145-bit bridge, then a second schedule starts at 185 and rises from
- * 0.325 to 0.330 at the 210/211 boundary.  After the larger interval was
- * selected, fresh full-factor tests also moved the 1LP residual multipliers
- * to K=5, 8, 16, and 48 at the existing 145, 151, 167, and 218-bit
- * structural boundaries.
+ * the 145-bit bridge, then a second schedule is used from 193 and rises from
+ * 0.3266 to 0.330 at the 210/211 boundary.  Its 185-bit interpolation origin
+ * is retained so the previously tuned values above the crossover do not
+ * change.  After the larger interval was selected, fresh full-factor tests
+ * also moved the 1LP residual multipliers to K=5, 8, 16, and 48 at the
+ * existing 145, 151, 167, and 218-bit structural boundaries.
  *
  * Joint geometry tests keep interval scale 2.5 through 130 bits and ramp it
  * to 3.0 at 140.
  * After the alternating-gap two-root sieve made each interval cheaper, fresh
- * full-factor tests selected 3.75--4.2 from 145 through 177, 3.3 from 178
- * through 184, and a 3.6--3.0 taper from 185 through 200.  The older taper
+ * full-factor tests selected 3.75--4.2 from 145 through 177 and 3.3 from 178
+ * through 192.  The retained upper taper starts at 3.28 at 193 and reaches
+ * 3.0 at 200.  The older taper
  * then reaches 2.5 at 206 and rejoins the established 211--217 schedule.  At
  * the low end, q=2 has the healthiest A supply through 49 bits, q=3 is faster
  * from 50 through 80, and q=4 takes over at 81.  The remaining adjacent
@@ -779,16 +781,20 @@ typedef struct {
  * from the dense sieve can pay even though the candidate postfilter then has
  * more work.  Its cutoff index grows approximately as FB^0.47.  Full-factor
  * sweeps here found a broad optimum from 0.43 through 0.45, so use 0.45 from
- * 96 through 184 bits.  Below 96 the smooth-only policies were inconsistent;
- * from 185 through 269 a prime-401 floor was both simpler and faster than
+ * 96 through 192 bits.  Below 96 the smooth-only policies were inconsistent;
+ * from 193 through 269 a prime-401 floor was both simpler and faster than
  * allowing the factor-base formula to keep growing.  At 270 the same floor
  * saved about 7% and provides a smooth bridge to the established prime-384
  * floor at 300, so carry it through 299.  Bias 10, 12, 14, 16, and 18 supply
  * the corresponding extra coarse-filter headroom.  Full-factor sweeps put
- * those transitions at existing 117, 130, 167, and 185-bit policy boundaries,
- * without adding narrow bands.  At the 269/270 q-count boundary, bias 18 won
- * on the q=10 side while 12 and 18 tied on the q=11 side, so only the prime
- * floor carries across.
+ * those transitions at existing 117, 130, and 167-bit policy boundaries.
+ * After the fixed-hit sieve and candidate-resieve improvements, a fresh
+ * full-factor comparison moved the coupled bias/cutoff/geometry transition
+ * from 185 to 193.  Results crossed noisily just below 193, but the best
+ * monotone boundary kept the lower profile through 192; the upper profile
+ * won clearly from 193 onward.  At the 269/270 q-count boundary, bias
+ * 18 won on the q=10 side while 12 and 18 tied on the q=11 side, so only the
+ * prime floor carries across.
  */
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
@@ -871,12 +877,12 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(4.2, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k16_q8", 178, 184, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q8", 178, 192, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(3.3, 0.0, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k16_q8", 185, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
+  { "one_lp_k16_q8", 193, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.6, -0.04, 185),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
