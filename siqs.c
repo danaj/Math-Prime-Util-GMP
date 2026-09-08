@@ -81,6 +81,7 @@
 #define SIQS_NO_ROOT       UINT32_MAX
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
+#define SIQS_A_FINAL_TOLERANCE_DEFAULT 8U
 #define SIQS_SIEVE_BLOCK_BITS      15U
 #define SIQS_SIEVE_BLOCK_SIZE  (1U << SIQS_SIEVE_BLOCK_BITS)
 #define SIQS_SIEVE_BLOCK_MASK  (SIQS_SIEVE_BLOCK_SIZE - 1U)
@@ -233,6 +234,8 @@ typedef struct {
   double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
+  uint32_t a_final_tolerance;
+  uint32_t fixed_half_interval;
   uint8_t sieve_initial;
   uint8_t stage1_bias;
   uint64_t large_prime_bound;
@@ -697,6 +700,8 @@ typedef struct {
   uint16_t sieve_start_prime_floor;
   uint16_t fb_floor;
   uint16_t relation_extra;
+  uint8_t a_final_tolerance;
+  uint32_t fixed_half_interval;
   siqs_policy_linear_t fb_coefficient;
   siqs_policy_linear_t interval_base_scale;
   siqs_policy_ratio_t interval_lp_scale;
@@ -717,6 +722,8 @@ typedef struct {
   double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
+  uint32_t a_final_tolerance;
+  uint32_t fixed_half_interval;
   uint8_t stage1_bias;
   double fb_coefficient;
   double interval_scale;
@@ -732,16 +739,17 @@ typedef struct {
   { (amount), (numerator), (step), (denominator) }
 
 /*
- * This is the single production bit-size policy.  Rows are meaningful bands
- * formed by actual structural changes or interpolation anchors; they are not
- * independently tuned bins.  The interval has two factors because the old
- * model's N-size taper and its 2LP pre-ramp overlap from 231 through 239 bits.
- * Keeping them separate preserves that established calculation exactly.
+ * This is the single primary production bit-size policy.  Rows are meaningful
+ * bands formed by actual structural changes or interpolation anchors; they
+ * are not independently tuned bins.  The interval has two factors because the
+ * old model's N-size taper and its 2LP pre-ramp overlap from 231 through 239
+ * bits.  Keeping them separate preserves that established calculation exactly.
  * Integer columns after the bit range are: LP count, q count, bias base,
  * bias step width/origin, 1LP K, conditional 2LP K/R floors, sieve byte
  * headroom, the first-sieved-prime floor, the factor-base floor, and the
- * initial relation surplus.  The final column is the optional factor-base
- * index exponent used to choose the first sieved prime.
+ * initial relation surplus, final A-product tolerance, and an optional fixed
+ * half interval.  The final column is the optional factor-base index exponent
+ * used to choose the first sieved prime.
  *
  * The LP count is part of each complete policy row rather than an independent
  * crossover knob: changing it also requires changing the smooth exponent,
@@ -753,12 +761,13 @@ typedef struct {
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
- * the 145-bit bridge, then a second schedule is used from 193 and rises from
- * 0.3266 to 0.330 at the 210/211 boundary.  Its 185-bit interpolation origin
- * is retained so the previously tuned values above the crossover do not
- * change.  After the larger interval was selected, fresh full-factor tests
- * also moved the 1LP residual multipliers to K=5, 8, 16, and 48 at the
- * existing 145, 151, 167, and 218-bit structural boundaries.
+ * the 145-bit bridge.  Fresh per-bit tests use 90% of the former factor base
+ * from 151 through 166 bits, expressed directly as a coefficient ramp.  A
+ * second schedule is used from 193 and rises from 0.3266 to 0.330 at the
+ * 210/211 boundary; its 185-bit interpolation origin preserves the tuned
+ * values above that crossover.  The 201--205 row likewise uses 90% of that
+ * schedule.  Full-factor tests select K=5, 8, 16, 20, 16, 24, and 48 at the
+ * 145, 151, 167, 178, 193, 201, and 218-bit boundaries.
  *
  * Joint geometry tests keep interval scale 2.5 through 130 bits and ramp it
  * to 3.0 at 140.
@@ -767,11 +776,14 @@ typedef struct {
  * through 192.  The retained upper taper starts at 3.28 at 193 and reaches
  * 3.0 at 200.  The older taper
  * then reaches 2.5 at 206 and rejoins the established 211--217 schedule.  At
- * the low end, q=1 with a wide interval covers inputs below 37 bits, q=2
- * takes over through 49, q=3 is faster from 50 through 80, and q=4 at 81.
+ * the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
+ * takes over at 37; a smaller factor base and wider final A tolerance improve
+ * it substantially from 42 through 49, with explicit q=1 recovery profiles
+ * for the rare exhausted primary.  q=3 is faster from 50 through 80, and q=4
+ * at 81.
  * The other adjacent full-factor tests put q-count changes at 96, 117, 145,
- * 178, 206, and 218 bits; those choices remain independent of the 231-bit
- * LP-mode boundary.
+ * 167, and 201 bits.  q=9 remains faster through the specialized 1LP range;
+ * q=10 begins with the 231-bit 2LP policy.
  * Upper-range checks keep q=10 through 269 bits and start q=11 at 270.  The
  * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
  * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
@@ -787,9 +799,10 @@ typedef struct {
  * saved about 7% and provides a smooth bridge to the established prime-384
  * floor at 300, so carry it through 299.  Bias 10, 12, 14, 16, and 18 supply
  * the corresponding extra coarse-filter headroom.  Full-factor sweeps put
- * those transitions at existing 117, 130, and 167-bit policy boundaries.
+ * the first transitions at existing 117, 130, and 167-bit policy boundaries;
+ * fresh per-bit tests start bias 18 with the K=20 row at 178 bits.
  * After the fixed-hit sieve and candidate-resieve improvements, a fresh
- * full-factor comparison moved the coupled bias/cutoff/geometry transition
+ * full-factor comparison moved the prime-cutoff and geometry transition
  * from 185 to 193.  Results crossed noisily just below 193, but the best
  * monotone boundary kept the lower profile through 192; the upper profile
  * won clearly from 193 onward.  At the 269/270 q-count boundary, bias
@@ -800,34 +813,42 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
    * K=1 sets the large-prime bound to pmax, so they deliberately collect
    * smooth relations only.  Below 37 bits, q=1 with a wider interval keeps
-   * the one available A family productive; q=2 then wins through 49 bits.
-   * q=3 wins until the measured 80/81 crossover.  Its interval ramp begins
-   * at the fixed 4096 floor and meets the established q=4 curve at that
-   * boundary.  Their matrices are too small for an early readiness check.
-   * Although direct target sweeps gave minimum CPU at 0/4/2 extra relations,
-   * using 2/4/4 cost only 0.3% over 90,000 inputs, cut matrix retries by 39%,
-   * and substantially reduced timing variance.  Full-factor sweeps put the
-   * return to q=5 and ordinary 1LP collection at the 95/96 boundary. */
+   * the one available A family productive; q=2 then wins at 37--41.  Fresh
+   * low-band tests select q=2, a 36-prime floor, bias 3, and four extra
+   * relations at 42--49.  This gives up a small part of the floor-34 timing
+   * win for better health.  Its final A-product tolerance is local to that
+   * row; the staged recovery policies below handle its very rare exhaustion
+   * tail.  q=3 wins from 50 until the measured 80/81 crossover.  Its interval
+   * ramp begins at the fixed 4096 floor and meets the established q=4 curve at
+   * that boundary.  Their matrices are too small for an early readiness check.
+   * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
+   * the 95/96 boundary. */
   { "smooth_k1_q1_low", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2,
+    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(4.0, 0.0, 1),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
-  { "smooth_k1_q2_low", 37, 49, 1, 2, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2,
+  { "smooth_k1_q2_low", 37, 41, 1, 2, 0, 0, 0,
+    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  { "smooth_k1_q2_fb36_bias3", 42, 49, 1, 2, 3, 0, 0,
+    1, 60, 60, 8, 0, 36, 4, 32, 4096,
+    SIQS_POLICY_LINEAR(0.315, 0.0, 42),
+    SIQS_POLICY_LINEAR(0.0, 0.0, 42),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 },
   { "smooth_k1_q3_floor40", 50, 64, 1, 3, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 4,
+    1, 60, 60, 8, 0, 40, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q3_fb_low", 65, 80, 1, 3, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4,
+    1, 60, 60, 8, 0, 48, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.306956091, 0.0000655453, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -836,7 +857,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * and a uniform 95% factor-base scale.  Express that scale as a shallow
    * coefficient ramp so the production policy needs no second FB knob. */
   { "smooth_k1_q4_fb_low", 81, 95, 1, 4, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4,
+    1, 60, 60, 8, 0, 48, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.311589139, 0.0000229912, 81),
     SIQS_POLICY_LINEAR(0.5, 0.05, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -844,13 +865,13 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   /* Two extra relations cost 0.1% over this band while cutting matrix retries
    * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
   { "one_lp_k2_q5_geometry_ramp", 96, 106, 1, 5, 10, 3, 96,
-    2, 60, 60, 8, 0, 160, 2,
+    2, 60, 60, 8, 0, 160, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, -0.0005929708, 96),
     SIQS_POLICY_LINEAR(1.7, 0.08, 96),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
   { "one_lp_k2_q5_geometry", 107, 116, 1, 5, 14, 0, 0,
-    2, 60, 60, 8, 0, 160, 2,
+    2, 60, 60, 8, 0, 160, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309104504, 0.0000317423, 107),
     SIQS_POLICY_LINEAR(2.5375, 0.0375, 107),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -860,7 +881,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * matrix attempts, while avoiding the fixed readiness surplus reduced
    * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
   { "one_lp_k4_q6_geometry_ramp", 117, 129, 1, 6, 16, 0, 0,
-    4, 60, 60, 8, 0, 160, 0,
+    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309419667, 0.00046502775, 117),
     SIQS_POLICY_LINEAR(3.125, 0.0, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -869,26 +890,26 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * 166 bits and saved about 1--5% across these bands.  The former 151--158
    * and 159--166 rows merge once they use the same filter bias. */
   { "one_lp_k4_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0,
+    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(2.8125, 0.05625, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
   { "one_lp_k4_q6", 140, 144, 1, 6, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0,
+    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(3.375, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
   { "one_lp_k5_q7", 145, 150, 1, 7, 14, 0, 0,
-    5, 60, 60, 8, 0, 160, 0,
+    5, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
     SIQS_POLICY_LINEAR(3.75, 0.09, 145),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 146), 0.45 },
-  { "one_lp_k8_q7", 151, 166, 1, 7, 14, 0, 0,
-    8, 60, 60, 8, 0, 160, 0,
-    SIQS_POLICY_LINEAR(0.32, 0.0, 151),
+  { "one_lp_k8_q7_fb_low", 151, 166, 1, 7, 14, 0, 0,
+    8, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
     SIQS_POLICY_LINEAR(4.2, 0.0, 151),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
@@ -896,87 +917,118 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * +32 and +96 produced identical work throughout a coarse 167--177
    * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
    * a fresh 600-input order-balanced confirmation, so retain +96. */
-  { "one_lp_k16_q7", 167, 177, 1, 7, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
     SIQS_POLICY_LINEAR(4.2, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k16_q8", 178, 192, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k20_q8", 178, 192, 1, 8, 18, 0, 0, 20, 60, 60, 8, 0, 160, 96,
+    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(3.3, 0.0, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k16_q8", 193, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
+    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.6, -0.04, 185),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k16_q8_interval_taper", 201, 205, 1, 8, 18, 0, 0,
-    16, 60, 60, 8, 401, 160, 96,
-    SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
+  { "one_lp_k24_q9_interval_taper", 201, 205, 1, 9, 18, 0, 0,
+    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.324182603342, 0.000211825641, 201),
     SIQS_POLICY_LINEAR(3.0, -0.0625, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k16_q9", 206, 210, 1, 9, 18, 0, 0,
-    16, 60, 60, 8, 401, 160, 96,
+  { "one_lp_k24_q9", 206, 210, 1, 9, 18, 0, 0,
+    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(2.5, 0.0, 208),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k16_q9_taper", 211, 217, 1, 9, 18, 0, 0,
-    16, 60, 60, 8, 401, 160, 96,
+  { "one_lp_k24_q9_taper", 211, 217, 1, 9, 18, 0, 0,
+    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
     SIQS_POLICY_LINEAR(3.0, -0.05, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k48_q10_interval_taper", 218, 230, 1, 10, 18, 0, 0,
-    48, 60, 60, 8, 401, 160, 96,
+  { "one_lp_k48_q9_interval_taper", 218, 230, 1, 9, 18, 0, 0,
+    48, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "two_lp_early_interval_taper", 231, 239, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
+    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 231),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 231), 0.0 },
   { "two_lp_early", 240, 249, 2, 10, 18, 0, 0, 0, 60, 60, 8, 401, 160, 96,
+    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
     SIQS_POLICY_LINEAR(1.0, 0.0, 240),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
   { "two_lp_fb_ramp_q10", 250, 259, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
+    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 251),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
   { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
+    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
   { "two_lp_mid_ramp", 270, 299, 2, 11, 12, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
+    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30621546, 0.000126151333, 270),
     SIQS_POLICY_LINEAR(1.0, 0.0, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q11", 300, 304, 2, 11, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96,
+    0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.31, 0.0, 301),
     SIQS_POLICY_LINEAR(1.0, 0.0, 301),
     SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96,
+    0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.31, 0.0, 305),
     SIQS_POLICY_LINEAR(1.0, 0.0, 305),
     SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
+
+/* A rare 42--49 primary exhaustion is retried under increasingly wide q=1
+ * policies.  Each fixed interval changes the q=1 A target; most tails
+ * therefore avoid the allocation and work of the deliberately large final
+ * profile.  K=60 admits one-large-prime pairs throughout. */
+#define SIQS_LOW_Q1_RECOVERY_POLICY(name, interval) \
+  { (name), 42, 49, 1, 1, 0, 0, 0, \
+    60, 0, 0, 8, 0, 40, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    SIQS_POLICY_LINEAR(0.315, 0.0, 42), \
+    SIQS_POLICY_LINEAR(0.0, 0.0, 42), \
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
+    SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 }
+static const siqs_policy_band_t siqs_low_q1_recovery_policies[] = {
+  SIQS_LOW_Q1_RECOVERY_POLICY(
+      "one_lp_k60_q1_low_recovery_96k", 96U * 1024U),
+  SIQS_LOW_Q1_RECOVERY_POLICY(
+      "one_lp_k60_q1_low_recovery_192k", 192U * 1024U),
+  SIQS_LOW_Q1_RECOVERY_POLICY(
+      "one_lp_k60_q1_low_recovery_384k", 384U * 1024U),
+  SIQS_LOW_Q1_RECOVERY_POLICY(
+      "one_lp_k60_q1_low_recovery_1m", 1U << 20)
+};
+#undef SIQS_LOW_Q1_RECOVERY_POLICY
+
+#define SIQS_LOW_Q1_RECOVERY_POLICY_COUNT \
+  ((uint32_t)(sizeof(siqs_low_q1_recovery_policies) / \
+              sizeof(siqs_low_q1_recovery_policies[0])))
 
 #undef SIQS_POLICY_LINEAR
 #undef SIQS_POLICY_STAGED_LINEAR
@@ -1028,10 +1080,13 @@ static const siqs_policy_band_t *siqs_policy_band(uint32_t bits) {
 }
 
 
-static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits) {
+static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits,
+                                const siqs_policy_band_t *profile) {
   const siqs_policy_band_t *band;
   memset(policy, 0, sizeof(*policy));
-  band = siqs_policy_band(bits);
+  band = profile != NULL ? profile : siqs_policy_band(bits);
+  if (bits < band->first_bits || bits > band->last_bits)
+    croak("SIQS: policy %s does not cover %u bits", band->name, bits);
   policy->band = band;
   policy->max_large_primes = band->production_large_primes;
   policy->q_count = band->q_count;
@@ -1051,6 +1106,8 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits) {
   policy->sieve_start_index_exponent = band->sieve_start_index_exponent;
   policy->fb_floor = band->fb_floor;
   policy->relation_extra = band->relation_extra;
+  policy->a_final_tolerance = band->a_final_tolerance;
+  policy->fixed_half_interval = band->fixed_half_interval;
   policy->fb_coefficient =
       siqs_policy_linear_value(&band->fb_coefficient, bits);
   policy->interval_scale =
@@ -1061,14 +1118,15 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits) {
       siqs_policy_linear_value(&band->sieve_hit_exponent, bits);
 }
 
-static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n) {
+static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
+                                   const siqs_policy_band_t *profile) {
   siqs_policy_t policy;
   double ln_n, ln_term, fb, interval, smooth;
   double sieve_hit_residual_multiplier;
   /* n is the post-trial cofactor handed to SIQS.  Size policies deliberately
    * use this N rather than the later multiplier product kN. */
   p->bits = (uint32_t)mpz_sizeinbase(n, 2);
-  siqs_resolve_policy(&policy, p->bits);
+  siqs_resolve_policy(&policy, p->bits, profile);
   p->policy_name = policy.band->name;
   p->policy_first_bits = policy.band->first_bits;
   p->policy_last_bits = policy.band->last_bits;
@@ -1082,6 +1140,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n) {
   p->sieve_start_index_exponent = policy.sieve_start_index_exponent;
   p->fb_floor = policy.fb_floor;
   p->relation_extra = policy.relation_extra;
+  p->a_final_tolerance = policy.a_final_tolerance;
+  p->fixed_half_interval = policy.fixed_half_interval;
   p->fb_coefficient = policy.fb_coefficient;
   p->interval_scale = policy.interval_scale;
   p->smooth_bound_exponent = policy.smooth_bound_exponent;
@@ -1094,13 +1154,21 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n) {
   if (fb < (double)p->fb_floor) fb = (double)p->fb_floor;
   p->fb_size = (uint32_t)fb;
 
-  interval = 6144.0 + exp(0.37 * ln_term);
-  interval *= p->interval_scale;
-  p->half_interval = (uint32_t)interval;
-  p->half_interval = (p->half_interval + SIQS_SIEVE_ALIGN - 1)
-                   & ~(SIQS_SIEVE_ALIGN - 1);
-  if (p->half_interval < 4096)
-    p->half_interval = 4096;
+  if (p->fixed_half_interval != 0) {
+    if (p->fixed_half_interval < 4096 ||
+        (p->fixed_half_interval & (SIQS_SIEVE_ALIGN - 1)) != 0)
+      croak("SIQS: invalid fixed half interval for policy %s",
+            p->policy_name);
+    p->half_interval = p->fixed_half_interval;
+  } else {
+    interval = 6144.0 + exp(0.37 * ln_term);
+    interval *= p->interval_scale;
+    p->half_interval = (uint32_t)interval;
+    p->half_interval = (p->half_interval + SIQS_SIEVE_ALIGN - 1)
+                     & ~(SIQS_SIEVE_ALIGN - 1);
+    if (p->half_interval < 4096)
+      p->half_interval = 4096;
+  }
 
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
@@ -1983,7 +2051,8 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
    * family rather than failing an otherwise healthy small input. */
   for (attempt = 0; attempt < attempt_limit; attempt++) {
     uint32_t tolerance = attempt < 10000U ? 2U
-                       : attempt < 20000U ? 4U : 8U;
+                       : attempt < 20000U ? 4U
+                       : ctx->params.a_final_tolerance;
     uint64_t fingerprint;
     int acceptable = poly->q_count == 1;
     mpz_set_ui(product, 1);
@@ -3774,7 +3843,8 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
 }
 
 static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
-                          const mpz_t n, siqs_factor_array_t *result) {
+                          const mpz_t n, siqs_factor_array_t *result,
+                          const siqs_policy_band_t *profile) {
   uint64_t seed;
   memset(ctx, 0, sizeof(*ctx));
   ctx->original_n = original;
@@ -3784,7 +3854,7 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
   mpz_init(ctx->eval.y);
   mpz_init(ctx->eval.q);
   mpz_init(ctx->eval.rest);
-  siqs_select_parameters(&ctx->params, n);
+  siqs_select_parameters(&ctx->params, n, profile);
   seed = (uint64_t)mpz_fdiv_ui(n, 4294967291UL);
   seed ^= (uint64_t)mpz_fdiv_ui(n, 4294967279UL) << 32;
   seed ^= (uint64_t)ctx->params.bits << 17;
@@ -4052,6 +4122,33 @@ static int siqs_run(siqs_ctx_t *ctx) {
   return ctx->factor_found;
 }
 
+/* Run one complete policy attempt.  Keeping context lifetime and the rare
+ * multiplier-square shortcut here lets the public entry cleanly retry an
+ * exhausted low-band primary under the named SIQS recovery profile. */
+static int siqs_try_policy(const mpz_t original, const mpz_t n,
+                           siqs_factor_array_t *result,
+                           const siqs_policy_band_t *profile,
+                           mpz_t divisor, mpz_t root) {
+  siqs_ctx_t ctx;
+  int factor_found = 0;
+
+  siqs_ctx_init(&ctx, original, n, result, profile);
+  /* If the selected square-free multiplier completes a square, the zero of
+   * the corresponding polynomial gives a factor directly and would receive
+   * an unbounded number of byte-sieve hits. */
+  if (mpz_perfect_square_p(ctx.kn)) {
+    mpz_sqrt(root, ctx.kn);
+    mpz_gcd(divisor, root, n);
+    if (mpz_cmp_ui(divisor, 1) > 0 && mpz_cmp(divisor, n) < 0)
+      factor_found = siqs_insert_divisor(result, divisor);
+  }
+  if (!factor_found)
+    factor_found = siqs_run(&ctx);
+  siqs_ctx_clear(&ctx);
+  siqs_verify_partition(original, result);
+  return factor_found;
+}
+
 /*----------------------------------------------------------------------------
  * Public entry point
  *----------------------------------------------------------------------------*/
@@ -4059,10 +4156,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
 mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
                   uint32_t trial_start) {
   siqs_factor_array_t result;
-  siqs_ctx_t ctx;
   mpz_t work, divisor, root;
   size_t input_bits;
-  uint32_t bits, trial_limit;
+  uint32_t bits, trial_limit, recovery_index;
+  int factor_found;
 
   if (nfactors == NULL)
     croak("SIQS: missing factor count output");
@@ -4118,22 +4215,18 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
       }
   }
 
-  siqs_ctx_init(&ctx, n, work, &result);
-  /* If the selected square-free multiplier completes a square, the zero of
-   * the corresponding polynomial gives a factor directly and would receive
-   * an unbounded number of byte-sieve hits. */
-  if (mpz_perfect_square_p(ctx.kn)) {
-    mpz_sqrt(root, ctx.kn);
-    mpz_gcd(divisor, root, work);
-    if (mpz_cmp_ui(divisor, 1) > 0 && mpz_cmp(divisor, work) < 0) {
-      siqs_insert_divisor(&result, divisor);
-      siqs_ctx_clear(&ctx);
-      siqs_verify_partition(n, &result);
-      goto finish;
-    }
+  factor_found = siqs_try_policy(n, work, &result, NULL, divisor, root);
+  if (!factor_found &&
+      bits >= siqs_low_q1_recovery_policies[0].first_bits &&
+      bits <= siqs_low_q1_recovery_policies[0].last_bits) {
+    for (recovery_index = 0;
+         recovery_index < SIQS_LOW_Q1_RECOVERY_POLICY_COUNT &&
+           !factor_found;
+         recovery_index++)
+      factor_found = siqs_try_policy(
+          n, work, &result,
+          &siqs_low_q1_recovery_policies[recovery_index], divisor, root);
   }
-  (void)siqs_run(&ctx);
-  siqs_ctx_clear(&ctx);
   siqs_verify_partition(n, &result);
 
 finish:

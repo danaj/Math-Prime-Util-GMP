@@ -36,7 +36,7 @@ plan tests => 0 + 57
                 + 3
                 + 2
                 + 23  # individual tests for factoring methods
-                + 7   # lower SIQS profile boundaries
+                + 10  # lower SIQS profile boundaries and recovery
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
@@ -218,9 +218,27 @@ is_deeply(
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '1215183359267', 0) ],
+  ['711133', '1708799'],
+  "SIQS factors a semiprime before the tuned q=2 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '2940346924309', 0) ],
+  ['1438849', '2043541'],
+  "SIQS factors a semiprime at the tuned q=2 profile start"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
       '311628784726421', 0) ],
   ['14574509', '21381769'],
   "SIQS factors a semiprime at the end of its q=2 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '307973812251397', 0) ],
+  ['15106783', '20386459'],
+  "SIQS q=1 recovery splits an exhausted q=2 input"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
