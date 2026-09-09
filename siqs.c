@@ -70,6 +70,10 @@
 #define SIQS_MATRIX_CHECK_MIN     32U
 #define SIQS_MATRIX_CHECK_MAX    512U
 #define SIQS_MATRIX_RETRY_BATCH_MAX 128U
+/* Low q=1/q=2 polynomials can produce far more relations than their tiny
+ * matrices need.  Check the matrix while consuming their candidate list so
+ * a successful dependency does not require finishing the whole polynomial. */
+#define SIQS_INLINE_MATRIX_Q2_MAX_BITS 43U
 #define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
 #define SIQS_EVAL_INITIAL_FACTORS   64U
 /* The packed dense solver wins consistently through about 1200 reduced
@@ -346,6 +350,11 @@ typedef struct {
   siqs_full_relation_t **full;
   uint32_t full_count;
   uint32_t full_alloc;
+  uint32_t matrix_next_target;
+  uint32_t matrix_last_count;
+  uint32_t matrix_retry_batch;
+  uint32_t matrix_target_limit;
+  int inline_matrix_solves;
   siqs_graph_t graph;
   siqs_one_lp_state_t one_lp;
   siqs_hashset_t relation_hashes;
@@ -369,6 +378,8 @@ typedef struct {
   uint64_t split_failures;
   int factor_found;
 } siqs_ctx_t;
+
+static int siqs_solve(siqs_ctx_t *ctx);
 
 static int siqs_use_one_lp_relation_path(const siqs_ctx_t *ctx) {
   return ctx->params.max_large_primes == 1;
@@ -3444,8 +3455,44 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
   }
 }
 
+/* Return true when the rest of the current polynomial should be skipped:
+ * either a dependency succeeded or the permitted retry targets are spent. */
+static int siqs_try_inline_matrix(siqs_ctx_t *ctx) {
+  if (ctx->factor_found ||
+      ctx->full_count < ctx->matrix_next_target ||
+      ctx->full_count <= ctx->matrix_last_count)
+    return ctx->factor_found;
+  ctx->matrix_last_count = ctx->full_count;
+  if (get_verbose_level() > 2)
+    printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+  if (siqs_solve(ctx))
+    return 1;
+  if (ctx->full_count >
+      ctx->matrix_target_limit - ctx->matrix_retry_batch) {
+    ctx->matrix_next_target = ctx->matrix_target_limit + 1U;
+    return 1;
+  }
+  ctx->matrix_next_target = ctx->full_count + ctx->matrix_retry_batch;
+  return 0;
+}
+
+static void siqs_evaluate_candidates(siqs_ctx_t *ctx,
+                                     const siqs_poly_t *poly) {
+  uint32_t i;
+  if (ctx->inline_matrix_solves) {
+    for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++) {
+      siqs_evaluate_candidate(ctx, poly, i);
+      if (siqs_try_inline_matrix(ctx))
+        break;
+    }
+  } else {
+    for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++)
+      siqs_evaluate_candidate(ctx, poly, i);
+  }
+}
+
 static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
-  uint32_t i, block;
+  uint32_t block;
   if (!ctx->use_block_sieve) {
     siqs_run_sieve(ctx);
     siqs_find_candidates(ctx);
@@ -3453,8 +3500,7 @@ static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     siqs_resieve_candidates(ctx,
         ctx->params.sieve_start,
         ctx->params.fb_size, 0, 0);
-    for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++)
-      siqs_evaluate_candidate(ctx, poly, i);
+    siqs_evaluate_candidates(ctx, poly);
     siqs_clear_candidate_map(ctx);
     return;
   }
@@ -3469,9 +3515,11 @@ static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
                             ctx->block_large_index,
                             ctx->bucket_bounds[block],
                             ctx->bucket_bounds[block + 1]);
-    for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++)
-      siqs_evaluate_candidate(ctx, poly, i);
+    siqs_evaluate_candidates(ctx, poly);
     siqs_clear_candidate_map(ctx);
+    if (ctx->inline_matrix_solves &&
+        ctx->matrix_next_target > ctx->matrix_target_limit)
+      break;
   }
 }
 
@@ -3812,6 +3860,11 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
   for (;;) {
     if (ctx->factor_found)
       break;
+    if (ctx->inline_matrix_solves) {
+      if (ctx->matrix_next_target > ctx->matrix_target_limit)
+        break;
+      target = ctx->matrix_next_target;
+    }
     if (ctx->full_count >= target)
       break;
 
@@ -3824,7 +3877,14 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
       siqs_sieve_polynomial(ctx, poly);
       (*poly_count)++;
 
-      if (ctx->full_count >= *next_matrix_check) {
+      if (ctx->inline_matrix_solves) {
+        target = ctx->matrix_next_target;
+        if (ctx->factor_found || target > ctx->matrix_target_limit)
+          break;
+      }
+
+      if (!ctx->inline_matrix_solves &&
+          ctx->full_count >= *next_matrix_check) {
         uint32_t core_rows, core_cols;
         int ready = siqs_matrix_ready(ctx, &core_rows, &core_cols);
         if (verbose > 3)
@@ -3856,7 +3916,9 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
     }
 
   }
-  return ctx->full_count >= target || ctx->factor_found;
+  return ctx->inline_matrix_solves
+       ? ctx->factor_found
+       : ctx->full_count >= target || ctx->factor_found;
 }
 
 static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
@@ -4060,6 +4122,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_t poly;
   uint32_t family_count = 0, poly_count = 0;
   uint32_t target = ctx->params.target_relations;
+  uint32_t target_limit = ctx->params.fb_size + 1 + SIQS_MAX_EXTRA_RELS;
   /* Small exact matrices need only a modest supply of new dependencies after
    * a rare trivial first result.  FB/16 with an eight-relation floor is
    * cheaper than FB/4; only two of 90,000 audited low-bit inputs needed a
@@ -4074,6 +4137,12 @@ static int siqs_run(siqs_ctx_t *ctx) {
     retry_batch = SIQS_MATRIX_RETRY_BATCH_MAX;
   if (next_matrix_check < 256)
     next_matrix_check = 256;
+  ctx->inline_matrix_solves = ctx->params.q_count == 1 ||
+      ctx->params.bits <= SIQS_INLINE_MATRIX_Q2_MAX_BITS;
+  ctx->matrix_next_target = target;
+  ctx->matrix_last_count = 0;
+  ctx->matrix_retry_batch = retry_batch;
+  ctx->matrix_target_limit = target_limit;
   if (!siqs_ctx_allocate(ctx)) {
     return ctx->factor_found;
   }
@@ -4101,21 +4170,36 @@ static int siqs_run(siqs_ctx_t *ctx) {
              ctx->block_large_index);
   }
 
-  while (!ctx->factor_found &&
-         target <= ctx->params.fb_size + 1 + SIQS_MAX_EXTRA_RELS) {
-    if (!siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
-                                &family_count, &poly_count))
-      break;
-    if (ctx->factor_found)
-      break;
-    if (verbose > 2)
-      printf("# siqs linear algebra with %u relations\n", ctx->full_count);
-    if (siqs_solve(ctx))
-      break;
-    /* Readiness may stop below target, while one polynomial may overshoot it.
-     * Anchor the retry to the relations actually present so it adds new work. */
-    target = ctx->full_count + retry_batch;
-    next_matrix_check = target;
+  if (ctx->inline_matrix_solves) {
+    (void)siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
+                                 &family_count, &poly_count);
+    /* An exhausted low family can leave a partial retry batch.  Give those
+     * new relations one final matrix attempt before a wider policy restart. */
+    if (!ctx->factor_found &&
+        ctx->full_count > ctx->matrix_last_count &&
+        ctx->full_count >= SIQS_MATRIX_EXTRA_RELS(ctx)) {
+      ctx->matrix_last_count = ctx->full_count;
+      if (verbose > 2)
+        printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+      (void)siqs_solve(ctx);
+    }
+  } else {
+    while (!ctx->factor_found && target <= target_limit) {
+      if (!siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
+                                  &family_count, &poly_count))
+        break;
+      if (ctx->factor_found)
+        break;
+      if (verbose > 2)
+        printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+      if (siqs_solve(ctx))
+        break;
+      /* Readiness may stop below target, while one polynomial may overshoot
+       * it.  Anchor the retry to the relations actually present so it adds
+       * new work. */
+      target = ctx->full_count + retry_batch;
+      next_matrix_check = target;
+    }
   }
   if (verbose > 2)
     printf("# siqs used %u families, %u polynomials, %llu candidates, "
