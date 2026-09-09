@@ -812,8 +812,9 @@ typedef struct {
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
    * K=1 sets the large-prime bound to pmax, so they deliberately collect
-   * smooth relations only.  Below 37 bits, q=1 with a wider interval keeps
-   * the one available A family productive; q=2 then wins at 37--41.  Fresh
+   * smooth relations only.  Below 37 bits, a compact q=1 interval normally
+   * fills the small matrix; increasing recovery intervals handle an unlucky
+   * choice for the one available A family.  q=2 then wins at 37--41.  Fresh
    * low-band tests select q=2, a 36-prime floor, bias 3, and four extra
    * relations at 42--49.  This gives up a small part of the floor-34 timing
    * win for better health.  Its final A-product tolerance is local to that
@@ -823,10 +824,10 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * that boundary.  Their matrices are too small for an early readiness check.
    * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
    * the 95/96 boundary. */
-  { "smooth_k1_q1_low", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+  { "smooth_k1_q1_low_4k", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
+    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 4096,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
-    SIQS_POLICY_LINEAR(4.0, 0.0, 1),
+    SIQS_POLICY_LINEAR(0.0, 0.0, 1),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q2_low", 37, 41, 1, 2, 0, 0, 0,
@@ -1003,32 +1004,48 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
-/* A rare 42--49 primary exhaustion is retried under increasingly wide q=1
- * policies.  Each fixed interval changes the q=1 A target; most tails
- * therefore avoid the allocation and work of the deliberately large final
- * profile.  K=60 admits one-large-prime pairs throughout. */
-#define SIQS_LOW_Q1_RECOVERY_POLICY(name, interval) \
+/* q=1 has only one A family.  A rare compact-polynomial underfill below 37
+ * bits is retried at 8K and 16K, then with the former interval formula as an
+ * exact terminal safety net.  Each interval changes the A target. */
+#define SIQS_LOW_SMOOTH_RECOVERY_POLICY(name, interval, scale) \
+  { (name), MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0, \
+    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    SIQS_POLICY_LINEAR(0.315, 0.0, 65), \
+    SIQS_POLICY_LINEAR((scale), 0.0, 1), \
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 }
+
+/* A rare 42--49 q=2 exhaustion needs one-large-prime pairs.  Most tails
+ * finish before reaching the deliberately large final profile. */
+#define SIQS_LOW_ONE_LP_RECOVERY_POLICY(name, interval) \
   { (name), 42, 49, 1, 1, 0, 0, 0, \
     60, 0, 0, 8, 0, 40, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 42), \
     SIQS_POLICY_LINEAR(0.0, 0.0, 42), \
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
     SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 }
-static const siqs_policy_band_t siqs_low_q1_recovery_policies[] = {
-  SIQS_LOW_Q1_RECOVERY_POLICY(
+static const siqs_policy_band_t siqs_recovery_policies[] = {
+  SIQS_LOW_SMOOTH_RECOVERY_POLICY(
+      "smooth_k1_q1_low_recovery_8k", 8U * 1024U, 0.0),
+  SIQS_LOW_SMOOTH_RECOVERY_POLICY(
+      "smooth_k1_q1_low_recovery_16k", 16U * 1024U, 0.0),
+  SIQS_LOW_SMOOTH_RECOVERY_POLICY(
+      "smooth_k1_q1_low_recovery_legacy", 0U, 4.0),
+  SIQS_LOW_ONE_LP_RECOVERY_POLICY(
       "one_lp_k60_q1_low_recovery_96k", 96U * 1024U),
-  SIQS_LOW_Q1_RECOVERY_POLICY(
+  SIQS_LOW_ONE_LP_RECOVERY_POLICY(
       "one_lp_k60_q1_low_recovery_192k", 192U * 1024U),
-  SIQS_LOW_Q1_RECOVERY_POLICY(
+  SIQS_LOW_ONE_LP_RECOVERY_POLICY(
       "one_lp_k60_q1_low_recovery_384k", 384U * 1024U),
-  SIQS_LOW_Q1_RECOVERY_POLICY(
+  SIQS_LOW_ONE_LP_RECOVERY_POLICY(
       "one_lp_k60_q1_low_recovery_1m", 1U << 20)
 };
-#undef SIQS_LOW_Q1_RECOVERY_POLICY
+#undef SIQS_LOW_SMOOTH_RECOVERY_POLICY
+#undef SIQS_LOW_ONE_LP_RECOVERY_POLICY
 
-#define SIQS_LOW_Q1_RECOVERY_POLICY_COUNT \
-  ((uint32_t)(sizeof(siqs_low_q1_recovery_policies) / \
-              sizeof(siqs_low_q1_recovery_policies[0])))
+#define SIQS_RECOVERY_POLICY_COUNT \
+  ((uint32_t)(sizeof(siqs_recovery_policies) / \
+              sizeof(siqs_recovery_policies[0])))
 
 #undef SIQS_POLICY_LINEAR
 #undef SIQS_POLICY_STAGED_LINEAR
@@ -4216,16 +4233,18 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
   }
 
   factor_found = siqs_try_policy(n, work, &result, NULL, divisor, root);
-  if (!factor_found &&
-      bits >= siqs_low_q1_recovery_policies[0].first_bits &&
-      bits <= siqs_low_q1_recovery_policies[0].last_bits) {
+  if (!factor_found) {
     for (recovery_index = 0;
-         recovery_index < SIQS_LOW_Q1_RECOVERY_POLICY_COUNT &&
+         recovery_index < SIQS_RECOVERY_POLICY_COUNT &&
            !factor_found;
-         recovery_index++)
+         recovery_index++) {
+      const siqs_policy_band_t *profile =
+          &siqs_recovery_policies[recovery_index];
+      if (bits < profile->first_bits || bits > profile->last_bits)
+        continue;
       factor_found = siqs_try_policy(
-          n, work, &result,
-          &siqs_low_q1_recovery_policies[recovery_index], divisor, root);
+          n, work, &result, profile, divisor, root);
+    }
   }
   siqs_verify_partition(n, &result);
 
