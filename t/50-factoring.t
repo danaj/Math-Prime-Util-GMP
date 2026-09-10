@@ -37,6 +37,7 @@ plan tests => 0 + 57
                 + 2
                 + 23  # individual tests for factoring methods
                 + 12  # lower SIQS profile boundaries and recovery
+                + 2   # SIQS upper-range gate
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
@@ -209,6 +210,26 @@ is_deeply(
       '382817662786062950145055216258782531227') ],
   ['13835058055282293901', '27670116110564585927'],
   "SIQS factors a balanced 129-bit semiprime"
+);
+# Prime squares exercise the upper gate and post-gate perfect-power shortcut
+# without turning this into a high-end SIQS collection test.
+my $siqs_366_root =
+  '9194973245195333150150082162901855101712434733101613307';
+my $siqs_366_square =
+  '84547532979857996204021301484416132985524571760699519961339044063216766279467149741424425001493909326159476249';
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      $siqs_366_square, 0) ],
+  [$siqs_366_root, $siqs_366_root],
+  "SIQS accepts its inclusive 366-bit upper boundary"
+);
+my $siqs_367_square =
+  '150306725297525326584926758194517569752043683130132476997051282756719050360048713778740327545087777305635370129';
+is_deeply(
+  [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
+      $siqs_367_square, 0) ],
+  [$siqs_367_square],
+  "SIQS leaves a 367-bit input outside its supported range"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('194927', 0) ],

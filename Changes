@@ -11,8 +11,12 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - The generic factor routine and qs_factor now use a new independent SIQS
       implementation with self-initializing polynomial families; combined
-      one- and two-large-prime relations; a dense solver and block Lanczos.
-      This quadratic sieve is faster at all sizes than the previous release.
+      one- and two-large-prime relations; and dense and block Lanczos solvers.
+      Benchmarks show it two to six times faster throughout the previous
+      implementation's range while using less than one quarter the memory.
+
+    - SIQS extends the practical quadratic-sieve limit from roughly 90 decimal
+      digits to 366 bits, covering every input of at most 110 digits.
 
     [OTHER]
 

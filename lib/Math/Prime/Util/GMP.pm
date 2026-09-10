@@ -2882,7 +2882,8 @@ self-initializing polynomial families, one- and two-large-prime relation
 combination, dynamic relation sufficiency checks,
 dense elimination for small matrices,
 and block Lanczos for larger matrices/fallback.
-It is intended for inputs of 40 to 350 bits.
+It is intended for inputs of 40 to 366 bits, covering every input of at most
+110 decimal digits.
 
 The optional implementation selector is 0 for SIQS (the default), 1 for the
 older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the

@@ -6,7 +6,7 @@
 
 /* While we work for small sizes, performance under 36-bits is suboptimal. */
 #define MPU_SIQS_MIN_BITS   1U
-#define MPU_SIQS_MAX_BITS 350U
+#define MPU_SIQS_MAX_BITS 366U
 
 /* n must be positive.  Return an allocated multiplicative partition of n.
  * Partition elements are not necessarily prime, and any partial splitting is
