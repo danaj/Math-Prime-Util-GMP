@@ -2885,11 +2885,20 @@ and block Lanczos for larger matrices/fallback.
 It is intended for inputs of 40 to 366 bits, covering every input of at most
 110 decimal digits.
 
+As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
+SIQS takes about one hour to factor a 98-digit balanced semiprime,
+one minute at 78 digits,
+one second at 61 digits,
+and one millisecond at 30 digits.
+The time for individual inputs can vary.
+All computations are single threaded.
+
 The optional implementation selector is 0 for SIQS (the default), 1 for the
 older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the
 requested QS directly and is useful for benchmarking or compatibility
 comparisons; it does not run the generic factoring routine's preliminary
 methods.  TinyQS is tuned for inputs no larger than 128 bits.
+All three are currently slower at all sizes than SIQS.
 
 =head2 todigits
 

@@ -62,6 +62,9 @@
 #endif
 
 #define SIQS_MAX_EXTRA_RELS      512U
+/* Normal collection stops at graph readiness.  This is only a terminal
+ * failure guard for unusually slow relation streams. */
+#define SIQS_MAX_POLYNOMIALS_PER_FB 192U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
  * older conservative surplus for the independently tuned 2LP path. */
@@ -799,6 +802,10 @@ typedef struct {
  * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
  * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
  * modestly faster at all five tested anchors, so those rows are merged.
+ * Full-factor checks leave the established factor-base ramps unchanged below
+ * 300 bits.  A short q=11 bridge rises from 0.310 at 300 to 0.314 at 304;
+ * q=12 continues smoothly at 0.315 and reaches the upper-screen choice 0.325
+ * at the inclusive 366-bit limit.
  *
  * JML SIQS showed that omitting substantially more small factor-base primes
  * from the dense sieve can pay even though the candidate postfilter then has
@@ -1001,15 +1008,15 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(1.0, 0.0, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  { "two_lp_high_q11", 300, 304, 2, 11, 12, 0, 0,
+  { "two_lp_high_q11_fb_bridge", 300, 304, 2, 11, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.31, 0.0, 301),
+    SIQS_POLICY_LINEAR(0.31, 0.001, 300),
     SIQS_POLICY_LINEAR(1.0, 0.0, 301),
     SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  { "two_lp_high_q12", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
+  { "two_lp_high_q12_fb_ramp", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.31, 0.0, 305),
+    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(1.0, 0.0, 305),
     SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
@@ -3846,9 +3853,10 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
   int verbose = get_verbose_level();
   int family_ok, have_next;
   uint32_t check_interval = ctx->params.fb_size / 128;
-  uint32_t max_polynomials = ctx->params.fb_size > UINT32_MAX / 128U
-                           ? UINT32_MAX
-                           : ctx->params.fb_size * 128U;
+  uint32_t max_polynomials =
+      ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
+          ? UINT32_MAX
+          : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
   uint32_t next_report = ctx->full_count + (target - ctx->full_count) / 20 + 1;
   if (max_polynomials < 1000000U)
     max_polynomials = 1000000U;
