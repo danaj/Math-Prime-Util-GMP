@@ -1,107 +1,110 @@
-/*============================================================================
-    Block Lanczos code Copyright 2006 Jason Papadopoulos
+/*
+ * Independent sparse block-Lanczos solver for Math::Prime::Util::GMP.
+ *
+ * The recurrence follows Peter Montgomery's block-Lanczos algorithm over
+ * GF(2).  The cache layout and post-Lanczos treatment of dense rows were
+ * informed by the public-domain msieve implementation, but this code is
+ * written for MPU's smaller, single-process SIQS matrices and API.
+ *
+ * Copyright (c) 2026 Dana Jacobsen.  See LICENSE for redistribution terms.
+ */
 
-    This file is part of FLINT.
-
-    FLINT is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    FLINT is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with FLINT; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-
-===============================================================================
-
-Optionally, please be nice and tell me if you find this source to be
-useful. Again optionally, if you add to the functionality present here
-please consider making those additions public too, so that others may
-benefit from your work.
-                       --jasonp@boo.net 9/8/06
---------------------------------------------------------------------*/
-
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "ptypes.h"
 #include "lanczos.h"
 #include "utility.h"
 
-#define NUM_EXTRA_RELATIONS 64
+#ifndef UINT32_MAX
+#define UINT32_MAX ((uint32_t)-1)
+#endif
+#ifndef UINT64_MAX
+#define UINT64_MAX ((uint64_t)-1)
+#endif
+#ifndef UINT64_C
+#define UINT64_C(value) ((uint64_t)(value))
+#endif
 
-/* A run fails about 4% of the time, and repeated failures on the same matrix
- * appear correlated, so retry generously before reporting failure. */
-#define BL_MAX_FAIL 100
+#define NLA_EXTRA_COLUMNS 64UL
+#define NLA_MAX_ATTEMPTS 100U
+#define NLA_RAND_MULT 2131995753U
 
-/* Marsaglia multiply-with-carry generator, with a period of about 2^63. */
-#define RAND_MULT 2131995753U
+/* Packing pays for its conversion at about 1024 active rows and is fastest
+ * across the matrix sizes SIQS commonly reaches.  By roughly 40K columns the
+ * input's column layout is faster.  A round 32K crossover avoids a second
+ * packed format.  On the measured SIQS workloads near this crossover,
+ * subsecond linear-algebra differences are immaterial next to the sieving
+ * time; the upper cutoff also keeps the representation and kernels simple. */
+#define NLA_PACK_MIN_ROWS 1024UL
+#define NLA_PACK_MAX_COLS 32768UL
+#define NLA_POST_ROWS 48U
+#define NLA_PACKED_DENSE_ROWS 64U
+#define NLA_DENSE_PANEL_BITS 8U
+#if NLA_DENSE_PANEL_BITS < 2 || NLA_DENSE_PANEL_BITS > 8
+#error "NLA_DENSE_PANEL_BITS must be between 2 and 8"
+#endif
+#define NLA_DENSE_PANEL_COMBINATIONS (1U << NLA_DENSE_PANEL_BITS)
+#define NLA_BIT(i) (UINT64_C(1) << (i))
 
-#define BIT(x) (((uint64_t)1) << (x))
+typedef struct {
+  unsigned long row;
+  unsigned long count;
+} nla_row_info_t;
 
-static const uint64_t bitmask[64] = {
-  BIT( 0), BIT( 1), BIT( 2), BIT( 3), BIT( 4), BIT( 5), BIT( 6), BIT( 7),
-  BIT( 8), BIT( 9), BIT(10), BIT(11), BIT(12), BIT(13), BIT(14), BIT(15),
-  BIT(16), BIT(17), BIT(18), BIT(19), BIT(20), BIT(21), BIT(22), BIT(23),
-  BIT(24), BIT(25), BIT(26), BIT(27), BIT(28), BIT(29), BIT(30), BIT(31),
-  BIT(32), BIT(33), BIT(34), BIT(35), BIT(36), BIT(37), BIT(38), BIT(39),
-  BIT(40), BIT(41), BIT(42), BIT(43), BIT(44), BIT(45), BIT(46), BIT(47),
-  BIT(48), BIT(49), BIT(50), BIT(51), BIT(52), BIT(53), BIT(54), BIT(55),
-  BIT(56), BIT(57), BIT(58), BIT(59), BIT(60), BIT(61), BIT(62), BIT(63),
-};
+typedef struct {
+  const la_col_t *cols;
+  unsigned long input_rows;
+  unsigned long input_dense_rows;
+  unsigned long ncols;
+  unsigned long active_rows;
+  unsigned long iteration_rows;
+  unsigned long image_rows;
+  unsigned int post_rows;
+  unsigned int packed_dense_rows;
+  unsigned int sparse_rows;
+  int packed;
+  uint64_t *post_bits;
+  uint64_t *dense_bits;
+  size_t *row_offsets;
+  uint16_t *row_columns;
+} nla_matrix_t;
 
-static uint32_t lanczos_rand32(uint32_t *seed1, uint32_t *seed2) {
-  uint64_t t = (uint64_t)(*seed1) * RAND_MULT + *seed2;
-  *seed1 = (uint32_t)t;
-  *seed2 = (uint32_t)(t >> 32);
-  return *seed1;
-}
-
-static size_t lanczos_array_bytes(unsigned long count, size_t item_size) {
+static size_t nla_array_bytes(size_t count, size_t item_size) {
   if (item_size != 0 && count > (size_t)-1 / item_size)
     croak("lanczos: allocation size overflow");
-  return (size_t)count * item_size;
+  return count * item_size;
 }
 
-static void *lanczos_malloc_array(unsigned long count, size_t item_size) {
-  size_t bytes = lanczos_array_bytes(count, item_size);
-  void *allocation = malloc(bytes != 0 ? bytes : 1);
-  if (allocation == NULL)
+static unsigned long nla_ceil_div(unsigned long value,
+                                  unsigned long divisor) {
+  return value / divisor + (value % divisor != 0);
+}
+
+static void *nla_malloc(size_t count, size_t item_size) {
+  size_t bytes = nla_array_bytes(count, item_size);
+  void *p = malloc(bytes != 0 ? bytes : 1);
+  if (p == NULL)
     croak("lanczos: unable to allocate memory");
-  return allocation;
+  return p;
 }
 
-static void *lanczos_calloc_array(unsigned long count, size_t item_size) {
-  void *allocation;
-  (void)lanczos_array_bytes(count, item_size);
-  allocation = calloc(count != 0 ? (size_t)count : 1, item_size);
-  if (allocation == NULL)
+static void *nla_calloc(size_t count, size_t item_size) {
+  void *p;
+  (void)nla_array_bytes(count, item_size);
+  p = calloc(count != 0 ? count : 1, item_size);
+  if (p == NULL)
     croak("lanczos: unable to allocate memory");
-  return allocation;
+  return p;
 }
 
-/* Returns true if the entry with indices i,l is 1 in the
- * supplied 64xN matrix. This is used to read the nullspace
- * vectors which are output by the Lanczos routine
- */
-uint64_t getNullEntry(const uint64_t *nullrows, unsigned long i,
-                      unsigned long l) {
-  return nullrows[i] & bitmask[l];
-}
-
-/* Return the index of the least significant set bit. */
-static unsigned int dense_ctz64(uint64_t value) {
+static unsigned int nla_ctz64(uint64_t value) {
 #if defined(__GNUC__) || defined(__clang__)
   return (unsigned int)__builtin_ctzll(value);
 #else
   unsigned int bit = 0;
-  while ((value & BIT(0)) == 0) {
+  while ((value & UINT64_C(1)) == 0) {
     value >>= 1;
     bit++;
   }
@@ -109,956 +112,1399 @@ static unsigned int dense_ctz64(uint64_t value) {
 #endif
 }
 
+static uint64_t nla_low_mask(unsigned int bits) {
+  return bits >= 64U ? UINT64_MAX : (NLA_BIT(bits) - UINT64_C(1));
+}
+
+static uint32_t nla_rand32(uint32_t *low, uint32_t *high) {
+  uint64_t product = (uint64_t)(*low) * NLA_RAND_MULT + *high;
+  *low = (uint32_t)product;
+  *high = (uint32_t)(product >> 32);
+  return *low;
+}
+
+static int nla_compare_columns(const void *a, const void *b) {
+  const la_col_t *x = (const la_col_t *)a;
+  const la_col_t *y = (const la_col_t *)b;
+  if (x->weight < y->weight) return -1;
+  if (x->weight > y->weight) return 1;
+  if (x->orig < y->orig) return -1;
+  if (x->orig > y->orig) return 1;
+  return 0;
+}
+
+typedef struct {
+  unsigned long nrows;
+  unsigned long ncols;
+  la_col_t *cols;
+  unsigned long *counts;
+  size_t *offsets;
+  unsigned long *incidence;
+  unsigned long *queue;
+  unsigned long queue_head;
+  unsigned long queue_tail;
+  unsigned char *alive;
+  unsigned long live_cols;
+} nla_prune_t;
+
+static void nla_prune_column(nla_prune_t *p, unsigned long column) {
+  unsigned long i;
+  la_col_t *c;
+  if (!p->alive[column])
+    return;
+  p->alive[column] = 0;
+  p->live_cols--;
+  c = p->cols + column;
+  for (i = 0; i < c->weight; i++) {
+    unsigned long row = c->data[i];
+    if (p->counts[row] == 0)
+      croak("lanczos: inconsistent matrix row count");
+    p->counts[row]--;
+    if (p->counts[row] == 1) {
+      if (p->queue_tail >= p->nrows)
+        croak("lanczos: singleton queue overflow");
+      p->queue[p->queue_tail++] = row;
+    }
+  }
+}
+
+static void nla_prune_singletons(nla_prune_t *p) {
+  while (p->queue_head < p->queue_tail) {
+    unsigned long row = p->queue[p->queue_head++];
+    size_t i;
+    if (p->counts[row] != 1)
+      continue;
+    for (i = p->offsets[row]; i < p->offsets[row + 1]; i++) {
+      unsigned long column = p->incidence[i];
+      if (p->alive[column]) {
+        nla_prune_column(p, column);
+        break;
+      }
+    }
+  }
+}
+
 /*
- * Solve a small sparse-column matrix by first packing its active rows, then
- * applying ordinary column-oriented Gaussian elimination over GF(2).
- *
- * Pivot-row bits are retained in later columns as the coefficients expressing
- * those columns in terms of earlier pivot columns.  A column with no unused
- * pivot is therefore a dependency: its retained pivot bits, together with
- * the column itself, give one exact nullspace basis vector.  Up to 64 such
- * vectors are packed across the bits of the returned word for each column.
- * This avoids augmenting the dense matrix with a full identity matrix.
+ * Peel singleton rows, then discard the heaviest excess columns until the
+ * remaining 2-core has at most 64 more columns than active rows.  Row numbers
+ * are intentionally left unchanged: SIQS debug checks still refer to factor-
+ * base row numbers.  The solver builds its own compact row map later.
  */
-uint64_t *dense_nullspace64(unsigned long nrows, unsigned long ncols,
-                            const la_col_t *cols, uint64_t *mask) {
-  const unsigned long no_row = ~0UL;
-  uint8_t *row_active = NULL;
-  unsigned long *row_map = NULL, *pivot_row = NULL;
-  uint64_t *matrix = NULL, *used_rows = NULL;
-  uint64_t *result = NULL, *check = NULL;
-  unsigned long active_rows = 0, row_words = 0;
-  unsigned long dependencies = 0;
-  unsigned long c, i, j, word;
-  size_t matrix_words = 0;
+void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
+                      la_col_t *cols) {
+  nla_prune_t p;
+  unsigned long row, column, i;
+  unsigned long live_rows;
+  size_t entries = 0;
+  size_t *next;
+
+  if (*ncols == 0)
+    return;
+  qsort(cols, (size_t)*ncols, sizeof(*cols), nla_compare_columns);
+
+  memset(&p, 0, sizeof(p));
+  p.nrows = *nrows;
+  p.ncols = *ncols;
+  p.cols = cols;
+  p.live_cols = *ncols;
+  p.counts = (unsigned long *)nla_calloc((size_t)*nrows,
+                                         sizeof(*p.counts));
+  p.offsets = (size_t *)nla_calloc((size_t)*nrows + 1,
+                                    sizeof(*p.offsets));
+  p.queue = (unsigned long *)nla_malloc((size_t)*nrows,
+                                        sizeof(*p.queue));
+  p.alive = (unsigned char *)nla_malloc((size_t)*ncols,
+                                        sizeof(*p.alive));
+  memset(p.alive, 1, (size_t)*ncols);
+
+  for (column = 0; column < *ncols; column++) {
+    const la_col_t *c = cols + column;
+    if ((size_t)c->weight > (size_t)-1 - entries)
+      croak("lanczos: matrix weight overflow");
+    entries += (size_t)c->weight;
+    for (i = 0; i < c->weight; i++) {
+      row = c->data[i];
+      if (row >= *nrows)
+        croak("lanczos: matrix row is out of range");
+      p.counts[row]++;
+    }
+  }
+
+  for (row = 0; row < *nrows; row++)
+    p.offsets[row + 1] = p.offsets[row] + (size_t)p.counts[row];
+  p.incidence = (unsigned long *)nla_malloc(entries,
+                                             sizeof(*p.incidence));
+  next = (size_t *)nla_malloc((size_t)*nrows, sizeof(*next));
+  if (*nrows != 0)
+    memcpy(next, p.offsets, (size_t)*nrows * sizeof(*next));
+  for (column = 0; column < *ncols; column++) {
+    const la_col_t *c = cols + column;
+    for (i = 0; i < c->weight; i++) {
+      row = c->data[i];
+      p.incidence[next[row]++] = column;
+    }
+  }
+  free(next);
+
+  for (row = 0; row < *nrows; row++)
+    if (p.counts[row] == 1)
+      p.queue[p.queue_tail++] = row;
+
+  for (;;) {
+    unsigned long remove_count;
+    nla_prune_singletons(&p);
+    live_rows = 0;
+    for (row = 0; row < *nrows; row++)
+      if (p.counts[row] != 0)
+        live_rows++;
+
+    if (p.live_cols <= live_rows ||
+        p.live_cols - live_rows <= NLA_EXTRA_COLUMNS)
+      break;
+
+    remove_count = p.live_cols - live_rows - NLA_EXTRA_COLUMNS;
+    for (column = *ncols; column-- > 0 && remove_count != 0;) {
+      if (p.alive[column]) {
+        nla_prune_column(&p, column);
+        remove_count--;
+      }
+    }
+  }
+
+  for (column = i = 0; column < *ncols; column++) {
+    if (!p.alive[column]) {
+      free(cols[column].data);
+      cols[column].data = NULL;
+      continue;
+    }
+    if (i != column) {
+      cols[i] = cols[column];
+      cols[column].data = NULL;
+    }
+    i++;
+  }
+  *ncols = i;
+
+  if (get_verbose_level() > 3)
+    printf("Lanczos reduced to %lu active rows x %lu columns\n",
+           live_rows, *ncols);
+
+  free(p.alive);
+  free(p.queue);
+  free(p.incidence);
+  free(p.offsets);
+  free(p.counts);
+}
+
+static int nla_verify_sparse(unsigned long nrows, unsigned long ncols,
+                             const la_col_t *cols,
+                             const uint64_t *dependencies) {
+  uint64_t *parity = (uint64_t *)calloc(nrows != 0 ? (size_t)nrows : 1,
+                                        sizeof(*parity));
+  unsigned long column, i;
+  int valid = 1;
+  if (parity == NULL)
+    return 0;
+  for (column = 0; column < ncols; column++) {
+    uint64_t bits = dependencies[column];
+    if (bits == 0)
+      continue;
+    for (i = 0; i < cols[column].weight; i++)
+      parity[cols[column].data[i]] ^= bits;
+  }
+  for (i = 0; i < nrows; i++) {
+    if (parity[i] != 0) {
+      valid = 0;
+      break;
+    }
+  }
+  free(parity);
+  return valid;
+}
+
+/*
+ * Exact elimination for small matrices.  A row-major echelon form has two
+ * useful properties here: elimination can start at the pivot word, and all
+ * selected dependencies can be back-substituted together in uint64_t lanes.
+ */
+uint64_t *la_dense_nullspace(unsigned long nrows,
+                             unsigned long ncols,
+                             const la_col_t *cols,
+                             uint64_t *mask) {
+  unsigned char *row_used = NULL;
+  unsigned long *row_map = NULL, *pivot_columns = NULL;
+  uint64_t *matrix = NULL, *result = NULL, *back_tables = NULL;
+  uint64_t *panel_table = NULL;
+  unsigned long active_rows = 0, column_words;
+  unsigned long rank = 0, column, row, word, other;
+  unsigned int dependency_count = 0;
+  size_t matrix_words;
 
   *mask = 0;
   if (ncols == 0)
     return NULL;
-  if (nrows > (unsigned long)((size_t)-1) / sizeof(*row_active) ||
-      nrows > (unsigned long)((size_t)-1) / sizeof(*row_map) ||
-      ncols > (unsigned long)((size_t)-1) / sizeof(*pivot_row) ||
-      ncols > (unsigned long)((size_t)-1) / sizeof(*result))
+
+  if (nrows > (unsigned long)((size_t)-1 / sizeof(*row_used)) ||
+      nrows > (unsigned long)((size_t)-1 / sizeof(*row_map)) ||
+      ncols > (unsigned long)((size_t)-1 / sizeof(*pivot_columns)) ||
+      ncols > (unsigned long)((size_t)-1 / sizeof(*result)))
+    return NULL;
+  row_used = (unsigned char *)calloc(nrows != 0 ? (size_t)nrows : 1,
+                                     sizeof(*row_used));
+  row_map = (unsigned long *)malloc(
+      nrows != 0 ? (size_t)nrows * sizeof(*row_map) : 1);
+  pivot_columns = (unsigned long *)malloc(
+      ncols != 0 ? (size_t)ncols * sizeof(*pivot_columns) : 1);
+  result = (uint64_t *)calloc(ncols != 0 ? (size_t)ncols : 1,
+                              sizeof(*result));
+  if (row_used == NULL || row_map == NULL ||
+      pivot_columns == NULL || result == NULL)
     goto allocation_failure;
 
-  row_active = (uint8_t *)calloc((size_t)nrows, sizeof(*row_active));
-  row_map = (unsigned long *)malloc((size_t)nrows * sizeof(*row_map));
-  pivot_row = (unsigned long *)malloc((size_t)ncols * sizeof(*pivot_row));
-  result = (uint64_t *)calloc((size_t)ncols, sizeof(*result));
-  if ((nrows != 0 && (row_active == NULL || row_map == NULL)) ||
-      pivot_row == NULL || result == NULL)
-    goto allocation_failure;
-
-  for (c = 0; c < ncols; c++) {
-    const la_col_t *column = cols + c;
-    for (i = 0; i < column->weight; i++) {
-      unsigned long row = column->data[i];
-      if (row >= nrows)
-        croak("dense solver: matrix row is out of range");
-      row_active[row] = 1;
+  for (column = 0; column < ncols; column++) {
+    for (row = 0; row < cols[column].weight; row++) {
+      unsigned long index = cols[column].data[row];
+      if (index >= nrows)
+        croak("lanczos: dense solver matrix row is out of range");
+      row_used[index] = 1;
     }
   }
-  for (i = 0; i < nrows; i++)
-    if (row_active[i])
-      row_map[i] = active_rows++;
-  row_words = (active_rows + 63UL) / 64UL;
-  if (row_words != 0 &&
-      ncols > (unsigned long)(((size_t)-1) / sizeof(*matrix) / row_words))
+  for (row = 0; row < nrows; row++)
+    if (row_used[row])
+      row_map[row] = active_rows++;
+
+  column_words = nla_ceil_div(ncols, 64UL);
+  if (column_words != 0 &&
+      (size_t)active_rows > (size_t)-1 / (size_t)column_words)
     goto allocation_failure;
-  matrix_words = (size_t)ncols * (size_t)row_words;
+  matrix_words = (size_t)active_rows * (size_t)column_words;
+  if (matrix_words > (size_t)-1 / sizeof(*matrix))
+    goto allocation_failure;
   matrix = (uint64_t *)calloc(matrix_words != 0 ? matrix_words : 1,
                               sizeof(*matrix));
-  used_rows = (uint64_t *)calloc(row_words != 0 ? (size_t)row_words : 1,
-                                 sizeof(*used_rows));
-  if (matrix == NULL || used_rows == NULL)
+  if (matrix == NULL)
+    goto allocation_failure;
+  if ((size_t)column_words >
+      (size_t)-1 / NLA_DENSE_PANEL_COMBINATIONS / sizeof(*panel_table))
+    goto allocation_failure;
+  panel_table = (uint64_t *)calloc(
+      (size_t)column_words * NLA_DENSE_PANEL_COMBINATIONS,
+      sizeof(*panel_table));
+  if (panel_table == NULL)
     goto allocation_failure;
 
-  for (c = 0; c < ncols; c++) {
-    uint64_t *dense_column = matrix + (size_t)c * row_words;
-    const la_col_t *column = cols + c;
-    pivot_row[c] = no_row;
-    for (i = 0; i < column->weight; i++) {
-      unsigned long row = row_map[column->data[i]];
-      dense_column[row >> 6] ^= BIT(row & 63);
+  for (column = 0; column < ncols; column++)
+    for (row = 0; row < cols[column].weight; row++) {
+      unsigned long mapped = row_map[cols[column].data[row]];
+      matrix[(size_t)mapped * column_words + (column >> 6)] ^=
+          NLA_BIT(column & 63UL);
     }
-  }
-  for (c = 0; c < ncols; c++) {
-    uint64_t *pivot_column = matrix + (size_t)c * row_words;
-    unsigned long pivot = no_row;
-    uint64_t pivot_bit;
-    unsigned long pivot_word;
 
-    for (word = 0; word < row_words; word++) {
-      uint64_t available = pivot_column[word] & ~used_rows[word];
-      if (available != 0) {
-        pivot = word * 64UL + dense_ctz64(available);
-        break;
+  for (column = 0; column < ncols && rank < active_rows;) {
+    uint64_t pivot_bits[NLA_DENSE_PANEL_BITS];
+    unsigned int panel_count = 0;
+    unsigned long panel_word = column >> 6;
+    unsigned long word_end = (panel_word + 1U) << 6;
+    unsigned int entry;
+
+    if (word_end > ncols)
+      word_end = ncols;
+    for (; column < word_end && rank + panel_count < active_rows &&
+           panel_count < NLA_DENSE_PANEL_BITS; column++) {
+      unsigned long selected = active_rows;
+      uint64_t pivot_bit = NLA_BIT(column & 63UL);
+      for (row = rank + panel_count; row < active_rows; row++) {
+        const uint64_t *candidate = matrix + (size_t)row * column_words;
+        uint64_t reduced = candidate[panel_word];
+        unsigned int pivot;
+        for (pivot = 0; pivot < panel_count; pivot++)
+          if (reduced & pivot_bits[pivot])
+            reduced ^= matrix[(size_t)(rank + pivot) * column_words +
+                              panel_word];
+        if (reduced & pivot_bit) {
+          selected = row;
+          break;
+        }
+      }
+      if (selected != active_rows) {
+        uint64_t *pivot_row =
+            matrix + (size_t)(rank + panel_count) * column_words;
+        unsigned int pivot;
+        if (selected != rank + panel_count) {
+          uint64_t *selected_row =
+              matrix + (size_t)selected * column_words;
+          for (word = panel_word; word < column_words; word++) {
+            uint64_t temporary = pivot_row[word];
+            pivot_row[word] = selected_row[word];
+            selected_row[word] = temporary;
+          }
+        }
+        for (pivot = 0; pivot < panel_count; pivot++) {
+          const uint64_t *earlier =
+              matrix + (size_t)(rank + pivot) * column_words;
+          if (pivot_row[panel_word] & pivot_bits[pivot])
+            for (word = panel_word; word < column_words; word++)
+              pivot_row[word] ^= earlier[word];
+        }
+        pivot_columns[rank + panel_count] = column;
+        pivot_bits[panel_count++] = pivot_bit;
       }
     }
-    if (pivot == no_row)
+    if (panel_count == 0)
       continue;
 
-    pivot_row[c] = pivot;
-    pivot_word = pivot >> 6;
-    pivot_bit = BIT(pivot & 63);
-    used_rows[pivot_word] |= pivot_bit;
-
-    /* Preserve the coefficient in later columns while eliminating the
-     * remaining, as-yet-unpivoted portion of this pivot column. */
-    pivot_column[pivot_word] &= ~pivot_bit;
-    for (i = c + 1; i < ncols; i++) {
-      uint64_t *other = matrix + (size_t)i * row_words;
-      if (other[pivot_word] & pivot_bit)
-        for (j = 0; j < row_words; j++)
-          other[j] ^= pivot_column[j];
+    /* Make the small pivot block an identity.  The remaining rows can then
+     * select a precomputed pivot-row combination directly from their bits. */
+    for (entry = panel_count; entry-- > 0;) {
+      const uint64_t *later =
+          matrix + (size_t)(rank + entry) * column_words;
+      unsigned int earlier;
+      for (earlier = 0; earlier < entry; earlier++) {
+        uint64_t *earlier_row =
+            matrix + (size_t)(rank + earlier) * column_words;
+        if (earlier_row[panel_word] & pivot_bits[entry])
+          for (word = panel_word; word < column_words; word++)
+            earlier_row[word] ^= later[word];
+      }
     }
-    pivot_column[pivot_word] |= pivot_bit;
-  }
-  for (c = 0; c < ncols && dependencies < 64; c++) {
-    const uint64_t *column;
-    uint64_t dependency_bit;
-    if (pivot_row[c] != no_row)
-      continue;
-    dependency_bit = BIT(dependencies);
-    result[c] |= dependency_bit;
-    column = matrix + (size_t)c * row_words;
-    for (i = 0; i < c; i++) {
-      unsigned long pivot = pivot_row[i];
-      if (pivot != no_row &&
-          (column[pivot >> 6] & BIT(pivot & 63)))
-        result[i] |= dependency_bit;
+
+    for (entry = 1; entry < (1U << panel_count); entry++) {
+      unsigned int pivot = nla_ctz64(entry);
+      unsigned int previous = entry & (entry - 1U);
+      const uint64_t *pivot_row =
+          matrix + (size_t)(rank + pivot) * column_words;
+      uint64_t *combination =
+          panel_table + (size_t)entry * column_words;
+      const uint64_t *previous_combination =
+          panel_table + (size_t)previous * column_words;
+      for (word = panel_word; word < column_words; word++)
+        combination[word] = previous_combination[word] ^ pivot_row[word];
     }
-    dependencies++;
-  }
-  if (dependencies == 0)
-    goto no_dependencies;
 
-  check = (uint64_t *)calloc((size_t)nrows, sizeof(*check));
-  if (nrows != 0 && check == NULL)
-    goto allocation_failure;
-  for (c = 0; c < ncols; c++) {
-    const la_col_t *column = cols + c;
-    uint64_t value = result[c];
-    if (value == 0)
+    for (other = rank + panel_count; other < active_rows; other++) {
+      uint64_t *candidate = matrix + (size_t)other * column_words;
+      unsigned int selected = 0;
+      for (entry = 0; entry < panel_count; entry++)
+        if (candidate[panel_word] & pivot_bits[entry])
+          selected |= 1U << entry;
+      if (selected != 0) {
+        const uint64_t *combination =
+            panel_table + (size_t)selected * column_words;
+        for (word = panel_word; word < column_words; word++)
+          candidate[word] ^= combination[word];
+      }
+    }
+    rank += panel_count;
+  }
+
+  for (column = 0, other = 0;
+       column < ncols && dependency_count < 64U; column++) {
+    if (other < rank && pivot_columns[other] == column) {
+      other++;
       continue;
-    for (i = 0; i < column->weight; i++)
-      check[column->data[i]] ^= value;
+    }
+    result[column] = NLA_BIT(dependency_count);
+    dependency_count++;
   }
-  for (i = 0; i < nrows; i++)
-    if (check[i] != 0)
-      goto no_dependencies;
 
-  *mask = dependencies == 64
-        ? (uint64_t)-1 : BIT(dependencies) - 1;
-  free(check);
-  free(used_rows);
+  /* Each row says pivot + later columns = 0.  Solve all selected free
+   * variables together, from the last column toward the first.  Four-column
+   * tables replace the many indexed result loads in the dense tail. */
+  if (dependency_count != 0) {
+    unsigned long group_count = nla_ceil_div(ncols, 4UL);
+    if ((size_t)group_count > (size_t)-1 / 16U / sizeof(*back_tables))
+      goto allocation_failure;
+    back_tables = (uint64_t *)calloc((size_t)group_count * 16U,
+                                     sizeof(*back_tables));
+    if (back_tables == NULL)
+      goto allocation_failure;
+
+    for (column = ncols; column-- > 0;) {
+      unsigned long group = column >> 2;
+      unsigned long base = group << 2;
+      if (rank != 0 && pivot_columns[rank - 1U] == column) {
+        const uint64_t *pivot_row;
+        uint64_t dependencies = 0;
+        unsigned long limit = base + 4UL;
+        unsigned long scan_group;
+        rank--;
+        if (limit > ncols)
+          limit = ncols;
+        pivot_row = matrix + (size_t)rank * column_words;
+        for (other = column + 1U; other < limit; other++)
+          if (pivot_row[other >> 6] & NLA_BIT(other & 63UL))
+            dependencies ^= result[other];
+        for (scan_group = group + 1U;
+             scan_group < group_count; scan_group++) {
+          unsigned long group_base = scan_group << 2;
+          unsigned int nibble = (unsigned int)
+              ((pivot_row[group_base >> 6] >> (group_base & 63UL)) & 0xfU);
+          dependencies ^= back_tables[scan_group * 16UL + nibble];
+        }
+        result[column] = dependencies;
+      }
+
+      if ((column & 3UL) == 0) {
+        uint64_t *one_table = back_tables + group * 16UL;
+        unsigned int value;
+        for (value = 1; value < 16U; value++) {
+          unsigned int bit = nla_ctz64(value);
+          unsigned long result_column = base + bit;
+          one_table[value] = one_table[value & (value - 1U)];
+          if (result_column < ncols)
+            one_table[value] ^= result[result_column];
+        }
+      }
+    }
+  }
+
+  free(back_tables);
+  free(panel_table);
   free(matrix);
-  free(pivot_row);
+  free(pivot_columns);
   free(row_map);
-  free(row_active);
+  free(row_used);
+
+  if (dependency_count == 0 ||
+      !nla_verify_sparse(nrows, ncols, cols, result)) {
+    free(result);
+    return NULL;
+  }
+  *mask = nla_low_mask(dependency_count);
   return result;
 
 allocation_failure:
-no_dependencies:
-  free(check);
-  free(result);
-  free(used_rows);
+  free(back_tables);
+  free(panel_table);
   free(matrix);
-  free(pivot_row);
+  free(result);
+  free(pivot_columns);
   free(row_map);
-  free(row_active);
+  free(row_used);
   return NULL;
 }
 
-/* Returns the maximum of two unsigned long's */
-static unsigned long max_ul(unsigned long a, unsigned long b) {
-   return (a < b) ? b : a;
+static int nla_compare_rows(const void *a, const void *b) {
+  const nla_row_info_t *x = (const nla_row_info_t *)a;
+  const nla_row_info_t *y = (const nla_row_info_t *)b;
+  if (x->count > y->count) return -1;
+  if (x->count < y->count) return 1;
+  if (x->row < y->row) return -1;
+  if (x->row > y->row) return 1;
+  return 0;
 }
 
-/* Perform light filtering on the nrows x ncols matrix specified by cols[].
- * The processing here is limited to deleting columns that contain a singleton
- * row, then resizing the matrix to have a few more columns than rows.
- * Because deleting a column reduces the counts in several different rows,
- * the process must iterate to convergence.
- *
- * Note that this step is not intended to make the Lanczos iteration run
- * any faster (though it will); it's just that if we don't go to this trouble
- * then there are factorizations for which the matrix step will fail outright.
- */
-void reduce_matrix(unsigned long *nrows, unsigned long *ncols, la_col_t *cols) {
-  unsigned long previous_rows, previous_cols, c, i, j, k;
-  unsigned long passes;
+static void nla_matrix_append_mapped(nla_matrix_t *matrix,
+                                     size_t *row_cursor,
+                                     unsigned long column,
+                                     uint32_t mapped) {
+  unsigned int dense_end = matrix->post_rows + matrix->packed_dense_rows;
+
+  if (mapped < matrix->post_rows) {
+    matrix->post_bits[column] ^= NLA_BIT(mapped);
+  } else if (mapped < dense_end) {
+    matrix->dense_bits[column] ^=
+        NLA_BIT(mapped - matrix->post_rows);
+  } else {
+    size_t row = (size_t)(mapped - dense_end);
+    size_t position = row_cursor[row]++;
+    if (position >= matrix->row_offsets[row + 1U])
+      croak("lanczos: packed matrix count mismatch");
+    matrix->row_columns[position] = (uint16_t)column;
+  }
+}
+
+static int nla_input_dense_bit(const la_col_t *column,
+                               unsigned long row) {
+  const unsigned long *words = column->data + column->weight;
+  return (words[row >> 5] & ((unsigned long)1 << (row & 31UL))) != 0;
+}
+
+static void nla_matrix_init(nla_matrix_t *matrix,
+                            unsigned long nrows,
+                            unsigned long dense_rows,
+                            unsigned long ncols,
+                            const la_col_t *cols) {
   unsigned long *counts;
-  unsigned long reduced_rows;
-  unsigned long reduced_cols;
+  uint32_t *row_map;
+  nla_row_info_t *row_info;
+  size_t *row_cursor = NULL;
+  size_t offset = 0;
+  unsigned long row, column, i, active = 0;
 
-  /* count the number of nonzero entries in each row */
-  counts = (unsigned long *)lanczos_calloc_array(*nrows, sizeof(*counts));
-  for (i = 0; i < *ncols; ++i)
-    for (j = 0; j < cols[i].weight; ++j)
-      ++counts[cols[i].data[j]];
+  memset(matrix, 0, sizeof(*matrix));
+  matrix->cols = cols;
+  matrix->input_rows = nrows;
+  matrix->input_dense_rows = dense_rows;
+  matrix->ncols = ncols;
+  matrix->iteration_rows = nrows;
+  matrix->image_rows = nrows;
 
-  reduced_rows = *nrows;
-  reduced_cols = *ncols;
-  passes = 0;
+  if (dense_rows > nrows)
+    croak("lanczos: dense row count exceeds matrix row count");
+  if (nrows > UINT32_MAX || ncols > UINT32_MAX)
+    croak("lanczos: matrix dimensions exceed internal index range");
 
-  do {
-    previous_rows = reduced_rows;
-    previous_cols = reduced_cols;
-
-    /* remove any columns that contain the only entry in one or more rows,
-     * then update the row counts to reflect the missing column.
-     * Iterate until no more columns can be deleted */
-    do {
-      c = reduced_cols;
-      for (i = j = 0; i < reduced_cols; ++i) {
-        la_col_t *col = cols + i;
-        for (k = 0; k < col->weight; ++k)
-          if (counts[col->data[k]] < 2)
-            break;
-
-        if (k < col->weight) {
-          for (k = 0; k < col->weight; ++k)
-            --counts[col->data[k]];
-          free(col->data);
-          col->data = NULL;
-        } else {
-          if (j != i) {
-            /* j lags i, will never have data to free */
-            cols[j] = cols[i];
-            cols[i].data = NULL;
-          }
-          ++j;
-        }
-      }
-      reduced_cols = j;
-    } while (c != reduced_cols);
-
-    /* count the number of rows that contain a nonzero entry */
-    for (i = reduced_rows = 0; i < *nrows; ++i)
-      if (counts[i])
-        ++reduced_rows;
-
-    /* Because deleting a column reduces the weight of many rows, the
-     * number of nonzero rows may be much less than the number of columns.
-     * Delete more columns until the matrix has the correct aspect ratio.
-     * Columns at the end of cols[] are the heaviest, so delete those
-     * (and update the row counts again) */
-    if (reduced_cols > reduced_rows &&
-        reduced_cols - reduced_rows > NUM_EXTRA_RELATIONS) {
-      for (i = reduced_rows + NUM_EXTRA_RELATIONS;
-        i < reduced_cols; ++i
-      ) {
-        la_col_t *col = &cols[i];
-        for (j = 0; j < col->weight; ++j)
-          --counts[col->data[j]];
-        free(col->data);
-        col->data = NULL;
-      }
-      reduced_cols = reduced_rows + NUM_EXTRA_RELATIONS;
+  counts = (unsigned long *)nla_calloc((size_t)nrows, sizeof(*counts));
+  for (column = 0; column < ncols; column++) {
+    const la_col_t *c = cols + column;
+    for (i = 0; i < c->weight; i++) {
+      row = c->data[i];
+      if (row >= nrows)
+        croak("lanczos: matrix row is out of range");
+      counts[row]++;
     }
+    for (row = 0; row < dense_rows; row++)
+      if (nla_input_dense_bit(c, row))
+        counts[row]++;
+  }
+  for (row = 0; row < nrows; row++)
+    if (counts[row] != 0)
+      active++;
+  matrix->active_rows = active;
 
-    /* if any columns were deleted in the previous step, then the matrix
-     * is less dense and more columns can be deleted; iterate until no
-     * further deletions are possible */
-    ++passes;
-  } while (previous_rows != reduced_rows || previous_cols != reduced_cols);
+  /* Small matrices avoid conversion overhead and use the input columns.  The
+   * second test also guarantees that packed matrix-vector kernels always have
+   * at least 64 iteration rows for their fixed-size dense operations. */
+  if (active < NLA_PACK_MIN_ROWS || active <= NLA_POST_ROWS + 64U ||
+      ncols > NLA_PACK_MAX_COLS) {
+    free(counts);
+    return;
+  }
 
-  if (get_verbose_level() > 3)
-    printf("reduced to %lu x %lu in %lu passes\n",
-        reduced_rows, reduced_cols, passes);
+#if NLA_PACK_MAX_COLS > 65536UL
+#error "NLA_PACK_MAX_COLS must fit uint16_t column indexes"
+#endif
+#if NLA_POST_ROWS > 64 || NLA_PACKED_DENSE_ROWS > 64
+#error "packed and post-Lanczos row groups must fit in uint64_t"
+#endif
 
+  matrix->packed = 1;
+  matrix->post_rows = NLA_POST_ROWS;
+  matrix->packed_dense_rows = NLA_PACKED_DENSE_ROWS;
+  if (matrix->packed_dense_rows > active - matrix->post_rows)
+    matrix->packed_dense_rows = (unsigned int)(active - matrix->post_rows);
+  matrix->iteration_rows = active - matrix->post_rows;
+  matrix->image_rows = active;
+  matrix->sparse_rows = (unsigned int)(matrix->iteration_rows -
+                                       matrix->packed_dense_rows);
+
+  row_info = (nla_row_info_t *)nla_malloc((size_t)active,
+                                           sizeof(*row_info));
+  for (row = i = 0; row < nrows; row++) {
+    if (counts[row] != 0) {
+      row_info[i].row = row;
+      row_info[i].count = counts[row];
+      i++;
+    }
+  }
+  qsort(row_info, (size_t)active, sizeof(*row_info), nla_compare_rows);
+  row_map = (uint32_t *)nla_malloc((size_t)nrows, sizeof(*row_map));
+  for (i = 0; i < active; i++)
+    row_map[row_info[i].row] = (uint32_t)i;
+
+  matrix->post_bits = (uint64_t *)nla_calloc((size_t)ncols,
+                                              sizeof(*matrix->post_bits));
+  matrix->dense_bits = (uint64_t *)nla_calloc((size_t)ncols,
+                                               sizeof(*matrix->dense_bits));
+  matrix->row_offsets = (size_t *)nla_malloc(
+      (size_t)matrix->sparse_rows + 1U, sizeof(*matrix->row_offsets));
+
+  matrix->row_offsets[0] = 0;
+  for (row = 0; row < matrix->sparse_rows; row++) {
+    size_t count = (size_t)row_info[matrix->post_rows +
+                                        matrix->packed_dense_rows + row].count;
+    if (count > (size_t)-1 - offset)
+      croak("lanczos: packed matrix weight overflow");
+    offset += count;
+    matrix->row_offsets[row + 1U] = offset;
+  }
+  matrix->row_columns = (uint16_t *)nla_malloc(
+      offset, sizeof(*matrix->row_columns));
+  row_cursor = (size_t *)nla_malloc((size_t)matrix->sparse_rows,
+                                    sizeof(*row_cursor));
+  if (matrix->sparse_rows != 0)
+    memcpy(row_cursor, matrix->row_offsets,
+           (size_t)matrix->sparse_rows * sizeof(*row_cursor));
+
+  for (column = 0; column < ncols; column++) {
+    const la_col_t *c = cols + column;
+    for (i = 0; i < c->weight; i++)
+      nla_matrix_append_mapped(matrix, row_cursor, column,
+                               row_map[c->data[i]]);
+    for (row = 0; row < dense_rows; row++)
+      if (nla_input_dense_bit(c, row))
+        nla_matrix_append_mapped(matrix, row_cursor,
+                                 column, row_map[row]);
+  }
+  for (row = 0; row < matrix->sparse_rows; row++)
+    if (row_cursor[row] != matrix->row_offsets[row + 1U])
+      croak("lanczos: packed matrix count mismatch");
+
+  if (get_verbose_level() > 3) {
+    double mb = ((double)offset * sizeof(*matrix->row_columns) +
+                 ((double)matrix->sparse_rows + 1.0) *
+                     sizeof(*matrix->row_offsets) +
+                 2.0 * (double)ncols * sizeof(uint64_t)) / 1048576.0;
+    printf("Lanczos packed %lu x %lu matrix: %u post rows, "
+           "%u packed-dense rows, %u sparse rows and %lu entries "
+           "(%.1f MB)\n",
+           matrix->iteration_rows, ncols, matrix->post_rows,
+           matrix->packed_dense_rows, matrix->sparse_rows,
+           (unsigned long)offset, mb);
+  }
+
+  free(row_cursor);
+  free(row_map);
+  free(row_info);
   free(counts);
-
-  /* Record the final matrix size. Note that we can't touch nrows because
-   * all the column data (and the sieving relations that produced it) would
-   * have to be updated */
-  *ncols = reduced_cols;
 }
 
-/* c[][] := x[][] * y[][], where all operands are 64 x 64 (i.e. contain 64
- * words of 64 bits each). The result may overwrite a or b.
- */
-static void mul_64x64_64x64(uint64_t *a, uint64_t *b, uint64_t *c) {
-  uint64_t ai, accum;
-  uint64_t tmp[64];
-  unsigned long i, j;
-
-  for (i = 0; i < 64; ++i) {
-    j = 0;
-    accum = 0;
-    ai = a[i];
-    while (ai) {
-      if (ai & 1)
-        accum ^= b[j];
-      ai >>= 1;
-      ++j;
-    }
-    tmp[i] = accum;
-  }
-  memcpy(c, tmp, sizeof(tmp));
+static void nla_matrix_clear(nla_matrix_t *matrix) {
+  free(matrix->row_columns);
+  free(matrix->row_offsets);
+  free(matrix->dense_bits);
+  free(matrix->post_bits);
+  memset(matrix, 0, sizeof(*matrix));
 }
 
-/* Let x[][] be a 64 x 64 matrix in GF(2), represented as 64 words of 64 bits
- * each. Let c[][] be an 8 x 256 matrix of 64-bit words. This code fills c[][]
- * with a bunch of "partial matrix multiplies". For 0 <= i < 256, the j_th row
- * of c[][] contains the matrix product:
- *
- *   (i << (8 * j)) * x[][]
- *
- * where the quantity in parentheses is considered a 1 x 64 vector of elements
- * in GF(2). The resulting table can dramatically speed up matrix multiplies
- * by x[][].
- */
-static void precompute_Nx64_64x64(uint64_t *x, uint64_t *c) {
-  uint64_t accum;
-  unsigned long i, j, k, index;
-
-  for (j = 0; j < 8; ++j) {
-    for (i = 0; i < 256; ++i) {
-      k = 0;
-      index = i;
-      accum = 0;
-      while (index) {
-        if (index & 1)
-          accum ^= x[k];
-        index >>= 1;
-        ++k;
-      }
-      c[i] = accum;
+/* Build the eight byte-index tables in Gray-code order (255 XORs each). */
+static void nla_precompute_small(const uint64_t *matrix, uint64_t *table) {
+  unsigned int byte;
+  for (byte = 0; byte < 8U; byte++) {
+    uint64_t accum = 0;
+    unsigned int previous = 0;
+    unsigned int i;
+    table[byte * 256U] = 0;
+    for (i = 1; i < 256U; i++) {
+      unsigned int gray = i ^ (i >> 1);
+      unsigned int changed = gray ^ previous;
+      accum ^= matrix[byte * 8U + nla_ctz64(changed)];
+      table[byte * 256U + gray] = accum;
+      previous = gray;
     }
-    x += 8;
-    c += 256;
   }
 }
 
-/* Let v[][] be an n x 64 matrix with elements in GF(2), represented as an
- * array of n 64-bit words. Let c[][] be an 8 x 256 scratch matrix of 64-bit
- * words. This code multiplies v[][] by the 64x64 matrix x[][], then XORs
- * the n x 64 result into y[][].
- */
-static void mul_Nx64_64x64_acc(
-  uint64_t *v, uint64_t *x, uint64_t *c, uint64_t *y, unsigned long n
-) {
+static uint64_t nla_apply_small(uint64_t row, const uint64_t *table) {
+  return table[0U * 256U + (unsigned int)( row        & 0xffU)] ^
+         table[1U * 256U + (unsigned int)((row >>  8) & 0xffU)] ^
+         table[2U * 256U + (unsigned int)((row >> 16) & 0xffU)] ^
+         table[3U * 256U + (unsigned int)((row >> 24) & 0xffU)] ^
+         table[4U * 256U + (unsigned int)((row >> 32) & 0xffU)] ^
+         table[5U * 256U + (unsigned int)((row >> 40) & 0xffU)] ^
+         table[6U * 256U + (unsigned int)((row >> 48) & 0xffU)] ^
+         table[7U * 256U + (unsigned int)( row >> 56)];
+}
+
+/* Fixed 64x64 products do not amortize the larger byte tables. */
+static void nla_precompute_nibbles(const uint64_t *matrix,
+                                   uint64_t *table) {
+  unsigned int nibble;
+  for (nibble = 0; nibble < 16U; nibble++) {
+    uint64_t accum = 0;
+    unsigned int previous = 0;
+    unsigned int i;
+    table[nibble * 16U] = 0;
+    for (i = 1; i < 16U; i++) {
+      unsigned int gray = i ^ (i >> 1);
+      unsigned int changed = gray ^ previous;
+      accum ^= matrix[nibble * 4U + nla_ctz64(changed)];
+      table[nibble * 16U + gray] = accum;
+      previous = gray;
+    }
+  }
+}
+
+static uint64_t nla_apply_nibbles(uint64_t row, const uint64_t *table) {
+  return table[ 0U * 16U + (unsigned int)( row        & 0xfU)] ^
+         table[ 1U * 16U + (unsigned int)((row >>  4) & 0xfU)] ^
+         table[ 2U * 16U + (unsigned int)((row >>  8) & 0xfU)] ^
+         table[ 3U * 16U + (unsigned int)((row >> 12) & 0xfU)] ^
+         table[ 4U * 16U + (unsigned int)((row >> 16) & 0xfU)] ^
+         table[ 5U * 16U + (unsigned int)((row >> 20) & 0xfU)] ^
+         table[ 6U * 16U + (unsigned int)((row >> 24) & 0xfU)] ^
+         table[ 7U * 16U + (unsigned int)((row >> 28) & 0xfU)] ^
+         table[ 8U * 16U + (unsigned int)((row >> 32) & 0xfU)] ^
+         table[ 9U * 16U + (unsigned int)((row >> 36) & 0xfU)] ^
+         table[10U * 16U + (unsigned int)((row >> 40) & 0xfU)] ^
+         table[11U * 16U + (unsigned int)((row >> 44) & 0xfU)] ^
+         table[12U * 16U + (unsigned int)((row >> 48) & 0xfU)] ^
+         table[13U * 16U + (unsigned int)((row >> 52) & 0xfU)] ^
+         table[14U * 16U + (unsigned int)((row >> 56) & 0xfU)] ^
+         table[15U * 16U + (unsigned int)( row >> 60)];
+}
+
+static void nla_small_multiply(const uint64_t *left,
+                               const uint64_t *right,
+                               uint64_t *product,
+                               uint64_t *table) {
+  uint64_t temporary[64];
+  unsigned int i;
+  nla_precompute_nibbles(right, table);
+  for (i = 0; i < 64U; i++)
+    temporary[i] = nla_apply_nibbles(left[i], table);
+  memcpy(product, temporary, sizeof(temporary));
+}
+
+/* Input and output must not alias. */
+static void nla_small_transpose(const uint64_t *input, uint64_t *output) {
+  static const uint64_t masks[6] = {
+    UINT64_C(0x00000000ffffffff), UINT64_C(0x0000ffff0000ffff),
+    UINT64_C(0x00ff00ff00ff00ff), UINT64_C(0x0f0f0f0f0f0f0f0f),
+    UINT64_C(0x3333333333333333), UINT64_C(0x5555555555555555)
+  };
+  unsigned int stage;
+  memcpy(output, input, 64U * sizeof(*output));
+  for (stage = 0; stage < 6U; stage++) {
+    unsigned int shift = 32U >> stage;
+    unsigned int row;
+    uint64_t mask = masks[stage];
+    for (row = 0; row < 64U; row = (row + shift + 1U) & ~shift) {
+      uint64_t low = output[row];
+      uint64_t high = output[row + shift];
+      uint64_t swap = ((low >> shift) ^ high) & mask;
+      output[row] = low ^ (swap << shift);
+      output[row + shift] = high ^ swap;
+    }
+  }
+}
+
+static void nla_vector_small_mask_acc(const uint64_t *vector,
+                                      const uint64_t *small,
+                                      uint64_t *output,
+                                      unsigned long length,
+                                      uint64_t mask,
+                                      uint64_t *table) {
   unsigned long i;
-  uint64_t word;
-
-  precompute_Nx64_64x64(x, c);
-  for (i = 0; i < n; ++i) {
-    word = v[i];
-    y[i] ^=  c[0 * 256 + ((word >>  0) & 0xff)]
-           ^ c[1 * 256 + ((word >>  8) & 0xff)]
-           ^ c[2 * 256 + ((word >> 16) & 0xff)]
-           ^ c[3 * 256 + ((word >> 24) & 0xff)]
-           ^ c[4 * 256 + ((word >> 32) & 0xff)]
-           ^ c[5 * 256 + ((word >> 40) & 0xff)]
-           ^ c[6 * 256 + ((word >> 48) & 0xff)]
-           ^ c[7 * 256 + ((word >> 56)       )];
-  }
+  nla_precompute_small(small, table);
+  for (i = 0; i < length; i++)
+    output[i] = (output[i] & mask) ^ nla_apply_small(vector[i], table);
 }
 
-/* Let x and y be n x 64 matrices. This routine computes the 64 x 64 matrix
- * xy[][] given by transpose(x) * y. c[][] is a 256 x 8 scratch matrix of
- * 64-bit words.
-*/
-static void mul_64xN_Nx64(
-  uint64_t *x, uint64_t *y, uint64_t *c, uint64_t *xy, unsigned long n
-) {
+/* Compute transpose(left) * right for two length-n arrays of 64-bit rows. */
+static void nla_inner_product(const uint64_t *left,
+                              const uint64_t *right,
+                              uint64_t *product,
+                              unsigned long length,
+                              uint64_t *bins) {
   unsigned long i;
-
-  memset(c, 0, 256 * 8 * sizeof(uint64_t));
-  memset(xy, 0, 64 * sizeof(uint64_t));
-
-  for (i = 0; i < n; ++i) {
-    uint64_t xi = x[i];
-    uint64_t yi = y[i];
-    c[0 * 256 + ( xi        & 0xff)] ^= yi;
-    c[1 * 256 + ((xi >>  8) & 0xff)] ^= yi;
-    c[2 * 256 + ((xi >> 16) & 0xff)] ^= yi;
-    c[3 * 256 + ((xi >> 24) & 0xff)] ^= yi;
-    c[4 * 256 + ((xi >> 32) & 0xff)] ^= yi;
-    c[5 * 256 + ((xi >> 40) & 0xff)] ^= yi;
-    c[6 * 256 + ((xi >> 48) & 0xff)] ^= yi;
-    c[7 * 256 + ((xi >> 56)       )] ^= yi;
+  unsigned int byte;
+  memset(bins, 0, 8U * 256U * sizeof(*bins));
+  for (i = 0; i < length; i++) {
+    uint64_t x = left[i];
+    uint64_t y = right[i];
+    bins[0U * 256U + (unsigned int)( x        & 0xffU)] ^= y;
+    bins[1U * 256U + (unsigned int)((x >>  8) & 0xffU)] ^= y;
+    bins[2U * 256U + (unsigned int)((x >> 16) & 0xffU)] ^= y;
+    bins[3U * 256U + (unsigned int)((x >> 24) & 0xffU)] ^= y;
+    bins[4U * 256U + (unsigned int)((x >> 32) & 0xffU)] ^= y;
+    bins[5U * 256U + (unsigned int)((x >> 40) & 0xffU)] ^= y;
+    bins[6U * 256U + (unsigned int)((x >> 48) & 0xffU)] ^= y;
+    bins[7U * 256U + (unsigned int)( x >> 56)] ^= y;
   }
-
-  for (i = 0; i < 8; ++i) {
-    unsigned long j;
-    uint64_t a0, a1, a2, a3, a4, a5, a6, a7;
-
-    a0 = a1 = a2 = a3 = 0;
-    a4 = a5 = a6 = a7 = 0;
-    for (j = 0; j < 256; ++j) {
-      if ((j >> i) & 1) {
-        a0 ^= c[0 * 256 + j];
-        a1 ^= c[1 * 256 + j];
-        a2 ^= c[2 * 256 + j];
-        a3 ^= c[3 * 256 + j];
-        a4 ^= c[4 * 256 + j];
-        a5 ^= c[5 * 256 + j];
-        a6 ^= c[6 * 256 + j];
-        a7 ^= c[7 * 256 + j];
+  for (byte = 0; byte < 8U; byte++) {
+    uint64_t *byte_bins = bins + byte * 256U;
+    unsigned int bit;
+    for (bit = 8U; bit-- > 1U;) {
+      uint64_t accum = 0;
+      unsigned int half = 1U << bit;
+      unsigned int value;
+      for (value = 0; value < half; value++) {
+        uint64_t high = byte_bins[half + value];
+        accum ^= high;
+        byte_bins[value] ^= high;
       }
+      product[byte * 8U + bit] = accum;
     }
-
-    xy[ 0] = a0; xy[ 8] = a1; xy[16] = a2; xy[24] = a3;
-    xy[32] = a4; xy[40] = a5; xy[48] = a6; xy[56] = a7;
-    ++xy;
+    product[byte * 8U] = byte_bins[1];
   }
 }
 
-/* Given a 64x64 matrix t[][] (i.e. sixty-four 64-bit words) and a list of
- * 'last_dim' column indices enumerated in last_s[]:
- *  - find a submatrix of t that is invertible
- *  - invert it and copy to w[][]
- *  - enumerate in s[] the columns represented in w[][]
- */
-static unsigned long find_nonsingular_sub(
-  uint64_t *t, unsigned long *s, unsigned long *last_s,
-  unsigned long last_dim, uint64_t *w
-) {
-  unsigned long i, j;
-  unsigned long dim;
-  unsigned long cols[64];
-  uint64_t M[64][2];
-  uint64_t mask, *row_i, *row_j;
-  uint64_t m0, m1;
+static void nla_matrix_mul(const nla_matrix_t *matrix,
+                           const uint64_t *input,
+                           uint64_t *output,
+                           uint64_t *table) {
+  unsigned long column;
+  unsigned int dense_rows, sparse_row, sparse_rows;
+  const size_t *row_offsets;
+  const uint16_t *row_columns;
 
-  /* M = [t | I] for I the 64x64 identity matrix */
-  for (i = 0; i < 64; ++i) {
-    M[i][0] = t[i];
-    M[i][1] = bitmask[i];
+  if (!matrix->packed) {
+    const la_col_t *cols = matrix->cols;
+    unsigned long input_rows = matrix->input_rows;
+    unsigned long input_dense_rows = matrix->input_dense_rows;
+    unsigned long ncols = matrix->ncols;
+    memset(output, 0, (size_t)input_rows * sizeof(*output));
+    for (column = 0; column < ncols; column++) {
+      const la_col_t *c = cols + column;
+      const unsigned long *data = c->data;
+      unsigned long weight = c->weight;
+      const unsigned long *dense = input_dense_rows != 0 ?
+                                    data + weight : NULL;
+      uint64_t value = input[column];
+      unsigned long i, row;
+      for (i = 0; i < weight; i++)
+        output[data[i]] ^= value;
+      for (row = 0; row < input_dense_rows; row++)
+        if (dense[row >> 5] & ((unsigned long)1 << (row & 31UL)))
+          output[row] ^= value;
+    }
+    return;
   }
 
-  /* put the column indices from last_s[] into the back of cols[], and copy
-   * to the beginning of cols[] any column indices not in last_s[] */
-  mask = 0;
-  for (i = 0; i < last_dim; ++i) {
-    cols[63 - i] = last_s[i];
-    mask |= bitmask[last_s[i]];
+  if (matrix->packed_dense_rows != 0)
+    nla_inner_product(matrix->dense_bits, input, output,
+                      matrix->ncols, table);
+
+  dense_rows = matrix->packed_dense_rows;
+  sparse_rows = matrix->sparse_rows;
+  row_offsets = matrix->row_offsets;
+  row_columns = matrix->row_columns;
+  for (sparse_row = 0; sparse_row < sparse_rows; sparse_row++) {
+    size_t i = row_offsets[sparse_row];
+    size_t end = row_offsets[sparse_row + 1U];
+    uint64_t accum = 0;
+    for (; i < end; i++)
+      accum ^= input[row_columns[i]];
+    output[dense_rows + sparse_row] = accum;
   }
-  for (i = j = 0; i < 64; ++i)
-    if (!(mask & bitmask[i]))
-      cols[j++] = i;
+}
 
-  /* compute the inverse of t[][] */
-  for (i = dim = 0; i < 64; ++i) {
-    /* find the next pivot row and put in row i */
-    mask = bitmask[cols[i]];
-    row_i = M[cols[i]];
+static void nla_matrix_mul_transpose(const nla_matrix_t *matrix,
+                                     const uint64_t *input,
+                                     uint64_t *output,
+                                     uint64_t *table) {
+  unsigned long column;
+  unsigned int dense_rows, sparse_row, sparse_rows;
+  const size_t *row_offsets;
+  const uint16_t *row_columns;
 
-    for (j = i; j < 64; ++j) {
-      row_j = M[cols[j]];
-      if (row_j[0] & mask) {
-        m0 = row_j[0];
-        m1 = row_j[1];
-        row_j[0] = row_i[0];
-        row_j[1] = row_i[1];
-        row_i[0] = m0;
-        row_i[1] = m1;
+  if (!matrix->packed) {
+    const la_col_t *cols = matrix->cols;
+    unsigned long input_dense_rows = matrix->input_dense_rows;
+    unsigned long ncols = matrix->ncols;
+    for (column = 0; column < ncols; column++) {
+      const la_col_t *c = cols + column;
+      const unsigned long *data = c->data;
+      unsigned long weight = c->weight;
+      const unsigned long *dense = input_dense_rows != 0 ?
+                                    data + weight : NULL;
+      uint64_t accum = 0;
+      unsigned long i, row;
+      for (i = 0; i < weight; i++)
+        accum ^= input[data[i]];
+      for (row = 0; row < input_dense_rows; row++)
+        if (dense[row >> 5] & ((unsigned long)1 << (row & 31UL)))
+          accum ^= input[row];
+      output[column] = accum;
+    }
+    return;
+  }
+
+  if (matrix->packed_dense_rows != 0) {
+    nla_precompute_small(input, table);
+    for (column = 0; column < matrix->ncols; column++)
+      output[column] = nla_apply_small(matrix->dense_bits[column], table);
+  } else {
+    memset(output, 0, (size_t)matrix->ncols * sizeof(*output));
+  }
+
+  dense_rows = matrix->packed_dense_rows;
+  sparse_rows = matrix->sparse_rows;
+  row_offsets = matrix->row_offsets;
+  row_columns = matrix->row_columns;
+  for (sparse_row = 0; sparse_row < sparse_rows; sparse_row++) {
+    size_t i = row_offsets[sparse_row];
+    size_t end = row_offsets[sparse_row + 1U];
+    uint64_t value = input[dense_rows + sparse_row];
+    for (; i < end; i++)
+      output[row_columns[i]] ^= value;
+  }
+}
+
+static void nla_matrix_mul_symmetric(const nla_matrix_t *matrix,
+                                     const uint64_t *input,
+                                     uint64_t *output,
+                                     uint64_t *row_scratch,
+                                     uint64_t *table) {
+  nla_matrix_mul(matrix, input, row_scratch, table);
+  nla_matrix_mul_transpose(matrix, row_scratch, output, table);
+}
+
+/* Invert a maximal nonsingular 64x64 submatrix, preferring new columns. */
+static unsigned int nla_find_nonsingular(const uint64_t *input,
+                                         unsigned int *selected,
+                                         const unsigned int *previous,
+                                         unsigned int previous_count,
+                                         uint64_t *inverse) {
+  uint64_t augmented[64][2];
+  unsigned int order[64];
+  uint64_t used = 0;
+  unsigned int i, j, count = 0;
+
+  if (previous_count > 64U)
+    return 0;
+  for (i = 0; i < 64U; i++) {
+    augmented[i][0] = input[i];
+    augmented[i][1] = NLA_BIT(i);
+  }
+  for (i = 0; i < previous_count; i++) {
+    order[63U - i] = previous[i];
+    used |= NLA_BIT(previous[i]);
+  }
+  for (i = j = 0; i < 64U; i++)
+    if ((used & NLA_BIT(i)) == 0)
+      order[j++] = i;
+
+  for (i = 0; i < 64U; i++) {
+    unsigned int pivot_column = order[i];
+    uint64_t *pivot_row = augmented[pivot_column];
+
+    for (j = i; j < 64U; j++) {
+      uint64_t *candidate = augmented[order[j]];
+      if (candidate[0] & NLA_BIT(pivot_column)) {
+        uint64_t a = candidate[0], b = candidate[1];
+        candidate[0] = pivot_row[0];
+        candidate[1] = pivot_row[1];
+        pivot_row[0] = a;
+        pivot_row[1] = b;
         break;
       }
     }
 
-    /* if a pivot row was found, eliminate the pivot column from all
-     * other rows */
-    if (j < 64) {
-      for (j = 0; j < 64; ++j) {
-        row_j = M[cols[j]];
-        if ((row_i != row_j) && (row_j[0] & mask)) {
-          row_j[0] ^= row_i[0];
-          row_j[1] ^= row_i[1];
+    if (j < 64U) {
+      for (j = 0; j < 64U; j++) {
+        uint64_t *candidate = augmented[order[j]];
+        if (candidate != pivot_row &&
+            (candidate[0] & NLA_BIT(pivot_column))) {
+          candidate[0] ^= pivot_row[0];
+          candidate[1] ^= pivot_row[1];
         }
       }
-
-      /* add the pivot column to the list of accepted columns */
-      s[dim++] = cols[i];
+      selected[count++] = pivot_column;
       continue;
     }
 
-    /* otherwise, use the right-hand half of M[] to compensate for
-     * the absence of a pivot column */
-    for (j = i; j < 64; ++j) {
-      row_j = M[cols[j]];
-      if (row_j[1] & mask) {
-        m0 = row_j[0];
-        m1 = row_j[1];
-        row_j[0] = row_i[0];
-        row_j[1] = row_i[1];
-        row_i[0] = m0;
-        row_i[1] = m1;
+    /* Complete the inverse even when this column is outside the submatrix. */
+    for (j = i; j < 64U; j++) {
+      uint64_t *candidate = augmented[order[j]];
+      if (candidate[1] & NLA_BIT(pivot_column)) {
+        uint64_t a = candidate[0], b = candidate[1];
+        candidate[0] = pivot_row[0];
+        candidate[1] = pivot_row[1];
+        pivot_row[0] = a;
+        pivot_row[1] = b;
         break;
       }
     }
-
-    if (j == 64) {
-      printf("lanczos error: submatrix is not invertible\n");
+    if (j == 64U)
       return 0;
-    }
-
-    /* eliminate the pivot column from the other rows of the inverse */
-    for (j = 0; j < 64; ++j) {
-      row_j = M[cols[j]];
-      if (row_i != row_j && (row_j[1] & mask)) {
-        row_j[0] ^= row_i[0];
-        row_j[1] ^= row_i[1];
+    for (j = 0; j < 64U; j++) {
+      uint64_t *candidate = augmented[order[j]];
+      if (candidate != pivot_row &&
+          (candidate[1] & NLA_BIT(pivot_column))) {
+        candidate[0] ^= pivot_row[0];
+        candidate[1] ^= pivot_row[1];
       }
     }
-
-    /* wipe out the pivot row */
-    row_i[0] = row_i[1] = 0;
+    pivot_row[0] = 0;
+    pivot_row[1] = 0;
   }
 
-  /* the right-hand half of M[] is the desired inverse */
-  for (i = 0; i < 64; ++i)
-    w[i] = M[i][1];
-
-  /* The block Lanczos recurrence depends on all columns of t[][] appearing
-   * in s[] and/or last_s[]. Verify that condition here */
-  mask = 0;
-  for (i = 0; i < dim; ++i)
-    mask |= bitmask[s[i]];
-  for (i = 0; i < last_dim; ++i)
-    mask |= bitmask[last_s[i]];
-  if (mask != (uint64_t)(-1)) {
-    if (get_verbose_level() > 3)
-      printf("lanczos error: not all columns used\n");
-    return 0;
-  }
-  return dim;
+  for (i = 0; i < 64U; i++)
+    inverse[i] = augmented[i][1];
+  return count;
 }
 
-/* Multiply the vector x[] by the matrix A (stored columnwise) and put
- * the result in b[]. vsize refers to the number of uint64_t's allocated for
- * x[] and b[]; vsize is probably different from ncols.
- */
-static void mul_MxN_Nx64(
-  unsigned long vsize, unsigned long dense_rows, unsigned long ncols,
-  la_col_t *A, uint64_t *x, uint64_t *b
-) {
-  unsigned long i, j;
-
-  memset(b, 0, vsize * sizeof(uint64_t));
-
-  for (i = 0; i < ncols; ++i) {
-    la_col_t *col = &A[i];
-    unsigned long *row_entries = col->data;
-    uint64_t tmp = x[i];
-
-    for (j = 0; j < col->weight; ++j)
-      b[row_entries[j]] ^= tmp;
-  }
-
-  if (dense_rows)
-    for (i = 0; i < ncols; ++i) {
-      la_col_t *col = &A[i];
-      unsigned long *row_entries = col->data + col->weight;
-      uint64_t tmp = x[i];
-
-      for (j = 0; j < dense_rows; ++j)
-        if (row_entries[j / 32] & ((unsigned long)1 << (j % 32)))
-          b[j] ^= tmp;
-    }
-}
-
-/* Multiply the vector x[] by the transpose of the matrix A and put the result
- * in b[]. Since A is stored by columns, this is just a matrix-vector product.
- */
-static void mul_trans_MxN_Nx64(
-  unsigned long dense_rows, unsigned long ncols,
-  la_col_t *A, uint64_t *x, uint64_t *b
-) {
-  unsigned long i, j;
-
-  for (i = 0; i < ncols; ++i) {
-    la_col_t *col = &A[i];
-    unsigned long *row_entries = col->data;
-    uint64_t accum = 0;
-
-    for (j = 0; j < col->weight; ++j)
-      accum ^= x[row_entries[j]];
-    b[i] = accum;
-  }
-
-  if (dense_rows)
-    for (i = 0; i < ncols; ++i) {
-      la_col_t *col = &A[i];
-      unsigned long *row_entries = col->data + col->weight;
-      uint64_t accum = b[i];
-
-      for (j = 0; j < dense_rows; ++j)
-        if (row_entries[j / 32] & ((unsigned long)1 << (j % 32)))
-          accum ^= x[j];
-      b[i] = accum;
-    }
-}
-
-/* Hideously inefficent routine to transpose a vector v[] of 64-bit words
- * into a 2-D array trans[][] of 64-bit words.
- */
-static void transpose_vector(
-  unsigned long ncols, uint64_t *v, uint64_t **trans
-) {
-  unsigned long i, j;
-  unsigned long col;
-  uint64_t mask, word;
-
-  for (i = 0; i < ncols; ++i) {
-    col = i / 64;
-    mask = bitmask[i % 64];
-    word = v[i];
-    j = 0;
-    while (word) {
-      if (word & 1)
-        trans[j][col] |= mask;
-      word = word >> 1;
-      ++j;
+static void nla_transpose_candidates(unsigned long rows,
+                                     const uint64_t *input,
+                                     uint64_t **output) {
+  unsigned long row;
+  for (row = 0; row < rows; row++) {
+    uint64_t bits = input[row];
+    unsigned long word = row >> 6;
+    uint64_t mask = NLA_BIT(row & 63UL);
+    while (bits != 0) {
+      unsigned int candidate = nla_ctz64(bits);
+      output[candidate][word] |= mask;
+      bits &= bits - 1;
     }
   }
 }
 
-/* Once the block Lanczos iteration has finished, x[] and v[] will contain
- * mostly nullspace vectors between them, as well as possibly some columns
- * that are linear combinations of nullspace vectors. Given vectors ax[]
- * and av[] that are the result of multiplying x[] and v[] by the matrix,
- * this routine will use Gauss elimination on the columns of [ax | av]
- * to find all of the linearly dependent columns. The column operations
- * needed to accomplish this are mirrored in [x | v] and the columns that
- * are independent are skipped. Finally, the dependent columns are copied
- * back into x[] and represent the nullspace vector output of the block
- * Lanczos code.
- *
- * v[] and av[] can be NULL, in which case the elimination process assumes
- * 64 dependencies instead of 128.
+/*
+ * Eliminate the images of 128 candidate vectors, applying the same row
+ * operations to the candidates themselves.  Every zero-image, nonzero
+ * candidate after elimination is an exact dependency of the represented
+ * matrix.  Return up to 64 of them in low packed bits.
  */
-static void combine_cols(
-  unsigned long ncols, unsigned long nrows, uint64_t *x, uint64_t *v,
-  uint64_t *ax, uint64_t *av
-) {
-  unsigned long i, j, k, bitpos, col, vector_words, image_words, num_deps;
-  uint64_t mask;
-  uint64_t *matrix[128], *amatrix[128], *tmp;
+static unsigned int nla_combine_candidates(unsigned long ncols,
+                                            unsigned long image_rows,
+                                            uint64_t *x,
+                                            const uint64_t *v,
+                                            const uint64_t *bx,
+                                            const uint64_t *bv) {
+  const unsigned int candidate_count = 128U;
+  unsigned long vector_words = nla_ceil_div(ncols, 64UL);
+  unsigned long image_words = nla_ceil_div(image_rows, 64UL);
+  uint64_t *vector_store, *image_store;
+  uint64_t *vectors[128], *images[128];
+  uint64_t *dependencies[64];
+  unsigned long dependency_pivots[64];
+  unsigned int rank = 0, dependency_count = 0;
+  unsigned int i, j;
+  unsigned long bit_position, column, word;
 
-  num_deps = 128;
-  if (v == NULL || av == NULL)
-    num_deps = 64;
-  vector_words = ncols / 64 + (ncols % 64 != 0);
-  image_words = nrows / 64 + (nrows % 64 != 0);
-
-  for (i = 0; i < num_deps; ++i) {
-    matrix[i] = (uint64_t *)lanczos_calloc_array(vector_words,
-                                                  sizeof(**matrix));
-    amatrix[i] = (uint64_t *)lanczos_calloc_array(image_words,
-                                                   sizeof(**amatrix));
+  if (vector_words != 0 &&
+      candidate_count > (size_t)-1 / sizeof(uint64_t) / vector_words)
+    croak("lanczos: candidate vector size overflow");
+  if (image_words != 0 &&
+      candidate_count > (size_t)-1 / sizeof(uint64_t) / image_words)
+    croak("lanczos: candidate image size overflow");
+  vector_store = (uint64_t *)nla_calloc(
+      (size_t)candidate_count * vector_words, sizeof(*vector_store));
+  image_store = (uint64_t *)nla_calloc(
+      (size_t)candidate_count * image_words, sizeof(*image_store));
+  for (i = 0; i < candidate_count; i++) {
+    vectors[i] = vector_store + (size_t)i * vector_words;
+    images[i] = image_store + (size_t)i * image_words;
   }
 
-  /* operations on columns can more conveniently become operations on rows
-   * if all the vectors are first transposed */
-  transpose_vector(ncols, x, matrix);
-  transpose_vector(nrows, ax, amatrix);
-  if (num_deps == 128) {
-    transpose_vector(ncols, v, matrix + 64);
-    transpose_vector(nrows, av, amatrix + 64);
-  }
+  nla_transpose_candidates(ncols, x, vectors);
+  nla_transpose_candidates(ncols, v, vectors + 64);
+  nla_transpose_candidates(image_rows, bx, images);
+  nla_transpose_candidates(image_rows, bv, images + 64);
 
-  /* Keep eliminating rows until the unprocessed part of amatrix[][] is
-   * all zero. The rows where this happens correspond to linearly dependent
-   * vectors in the nullspace */
-  for (i = bitpos = 0; i < num_deps && bitpos < nrows; ++bitpos) {
-    /* find the next pivot row */
-    mask = bitmask[bitpos % 64];
-    col = bitpos / 64;
-    for (j = i; j < num_deps; ++j)
-      if (amatrix[j][col] & mask) {
-        tmp = matrix[i];
-        matrix[i] = matrix[j];
-        matrix[j] = tmp;
-        tmp = amatrix[i];
-        amatrix[i] = amatrix[j];
-        amatrix[j] = tmp;
+  for (bit_position = 0;
+       bit_position < image_rows && rank < candidate_count;
+       bit_position++) {
+    unsigned long pivot_word = bit_position >> 6;
+    uint64_t pivot_bit = NLA_BIT(bit_position & 63UL);
+    for (j = rank; j < candidate_count; j++)
+      if (images[j][pivot_word] & pivot_bit)
         break;
-      }
-    if (j == num_deps)
+    if (j == candidate_count)
       continue;
-
-    /* a pivot was found; eliminate it from the remaining rows */
-    for (++j; j < num_deps; ++j)
-      if (amatrix[j][col] & mask) {
-        /* Note that the entire row, *not* just the nonzero part of it,
-         * must be eliminated; this is because the corresponding (dense)
-         * row of matrix[][] must have the same operation applied */
-        for (k = 0; k < image_words; ++k)
-          amatrix[j][k] ^= amatrix[i][k];
-        for (k = 0; k < vector_words; ++k)
-          matrix[j][k] ^= matrix[i][k];
+    if (j != rank) {
+      uint64_t *temporary = images[rank];
+      images[rank] = images[j];
+      images[j] = temporary;
+      temporary = vectors[rank];
+      vectors[rank] = vectors[j];
+      vectors[j] = temporary;
+    }
+    for (j = rank + 1U; j < candidate_count; j++) {
+      if (images[j][pivot_word] & pivot_bit) {
+        for (word = 0; word < image_words; word++)
+          images[j][word] ^= images[rank][word];
+        for (word = 0; word < vector_words; word++)
+          vectors[j][word] ^= vectors[rank][word];
       }
-    ++i;
+    }
+    rank++;
   }
 
-  /* transpose rows i to 64 back into x[] */
-  for (j = 0; j < ncols; ++j) {
-    uint64_t word = 0;
-
-    col = j / 64;
-    mask = bitmask[j % 64];
-
-    for (k = i; k < 64; ++k)
-      if (matrix[k][col] & mask)
-        word |= bitmask[k];
-    x[j] = word;
+  /* The zero-image candidates need not themselves be independent.  Reduce
+   * them once more so all returned bits represent a useful basis vector. */
+  for (i = rank; i < candidate_count && dependency_count < 64U; i++) {
+    for (j = 0; j < dependency_count; j++) {
+      unsigned long pivot = dependency_pivots[j];
+      if (vectors[i][pivot >> 6] & NLA_BIT(pivot & 63UL))
+        for (word = 0; word < vector_words; word++)
+          vectors[i][word] ^= dependencies[j][word];
+    }
+    for (word = 0; word < vector_words; word++) {
+      if (vectors[i][word] != 0) {
+        dependency_pivots[dependency_count] =
+            word * 64UL + nla_ctz64(vectors[i][word]);
+        break;
+      }
+    }
+    if (word == vector_words)
+      continue;
+    dependencies[dependency_count] = vectors[i];
+    dependency_count++;
   }
 
-  for (i = 0; i < num_deps; ++i) {
-    free(matrix[i]);
-    free(amatrix[i]);
+  memset(x, 0, (size_t)ncols * sizeof(*x));
+  for (i = 0; i < dependency_count; i++) {
+    for (column = 0; column < ncols; column++) {
+      if (dependencies[i][column >> 6] & NLA_BIT(column & 63UL))
+        x[column] |= NLA_BIT(i);
+    }
   }
+
+  free(image_store);
+  free(vector_store);
+  return dependency_count;
 }
 
-/* Solve Bx = 0 for some nonzero x; the computed solution, containing up to
- * 64 of these nullspace vectors, is returned.
- */
-static uint64_t * block_lanczos_once(
-  unsigned long nrows, unsigned long dense_rows, unsigned long ncols,
-  la_col_t *B, uint32_t *seed1, uint32_t *seed2
-) {
-  uint64_t *vnext, *v[3], *x, *v0;
-  uint64_t *winv[3];
-  uint64_t *vt_a_v[2], *vt_a2_v[2];
-  uint64_t *scratch;
-  uint64_t *d, *e, *f, *f2;
-  uint64_t *tmp;
-  unsigned long s[2][64];
-  unsigned long i, iter;
-  unsigned long n = ncols;
-  unsigned long dim0, dim1;
-  uint64_t mask0, mask1, randword;
-  unsigned long vsize;
-  int inversion_failed = 0;
-
-  /* allocate all of the size-n variables. Note that because B has been
-   * preprocessed to ignore singleton rows, the number of rows may really
-   * be less than nrows and may be greater than ncols. vsize is the maximum
-   * of these two numbers. */
-  vsize = max_ul(nrows, ncols);
-  v[0] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[0]));
-  v[1] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[1]));
-  v[2] = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v[2]));
-  vnext = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*vnext));
-  x = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*x));
-  v0 = (uint64_t *)lanczos_malloc_array(vsize, sizeof(*v0));
-  scratch = (uint64_t *)lanczos_malloc_array(max_ul(vsize, 256 * 8),
-                                               sizeof(*scratch));
-
-  /* allocate all the 64x64 variables */
-  winv[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[0]));
-  winv[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[1]));
-  winv[2] = (uint64_t *)lanczos_malloc_array(64, sizeof(*winv[2]));
-  vt_a_v[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a_v[0]));
-  vt_a_v[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a_v[1]));
-  vt_a2_v[0] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a2_v[0]));
-  vt_a2_v[1] = (uint64_t *)lanczos_malloc_array(64, sizeof(*vt_a2_v[1]));
-  d = (uint64_t *)lanczos_malloc_array(64, sizeof(*d));
-  e = (uint64_t *)lanczos_malloc_array(64, sizeof(*e));
-  f = (uint64_t *)lanczos_malloc_array(64, sizeof(*f));
-  f2 = (uint64_t *)lanczos_malloc_array(64, sizeof(*f2));
-
-  /* The iterations computes v[0], vt_a_v[0], vt_a2_v[0], s[0] and winv[0].
-   * Subscripts larger than zero represent past versions of these
-   * quantities, which start off empty (except for the past version of s[],
-   * which contains all the column indices */
-  memset(v[1], 0, vsize * sizeof(uint64_t));
-  memset(v[2], 0, vsize * sizeof(uint64_t));
-  for (i = 0; i < 64; ++i) {
-    s[1][i] = i;
-    vt_a_v[1][i] = 0;
-    vt_a2_v[1][i] = 0;
-    winv[1][i] = 0;
-    winv[2][i] = 0;
+static int nla_verify_input_matrix(const nla_matrix_t *matrix,
+                                   const uint64_t *dependencies) {
+  uint64_t *parity = (uint64_t *)nla_calloc((size_t)matrix->input_rows,
+                                             sizeof(*parity));
+  unsigned long column, row, i;
+  int valid = 1;
+  for (column = 0; column < matrix->ncols; column++) {
+    const la_col_t *c = matrix->cols + column;
+    uint64_t bits = dependencies[column];
+    if (bits == 0)
+      continue;
+    for (i = 0; i < c->weight; i++)
+      parity[c->data[i]] ^= bits;
+    for (row = 0; row < matrix->input_dense_rows; row++)
+      if (nla_input_dense_bit(c, row))
+        parity[row] ^= bits;
   }
-  dim0 = 0;
-  dim1 = 64;
-  mask1 = (uint64_t)-1;
-  iter = 0;
-
-  /* The computed solution 'x' starts off random, and v[0] starts off
-   * as B*x. This initial copy of v[0] must be saved off separately */
-  for (i = 0; i < n; ++i) {
-    randword = lanczos_rand32(seed1, seed2);
-    v[0][i] = (randword << 32) | lanczos_rand32(seed1, seed2);
-  }
-
-  memcpy(x, v[0], vsize * sizeof(uint64_t));
-  mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], scratch);
-  mul_trans_MxN_Nx64(dense_rows, ncols, B, scratch, v[0]);
-  memcpy(v0, v[0], vsize * sizeof(uint64_t));
-
-  /* perform the iteration */
-  while (1) {
-    ++iter;
-
-    /* multiply the current v[0] by a symmetrized version of B,
-     * or B'B (apostrophe means transpose). Use "A" to refer to B'B  */
-    mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], scratch);
-    mul_trans_MxN_Nx64(dense_rows, ncols, B, scratch, vnext);
-
-    /* compute v0'*A*v0 and (A*v0)'(A*v0) */
-    mul_64xN_Nx64(v[0], vnext, scratch, vt_a_v[0], n);
-    mul_64xN_Nx64(vnext, vnext, scratch, vt_a2_v[0], n);
-
-    /* if the former is orthogonal to itself, then the iteration has
-     * finished */
-    for (i = 0; i < 64; ++i)
-      if (vt_a_v[0][i] != 0)
-        break;
-    if (i == 64)
-      break;
-
-    /* Find the size-'dim0' nonsingular submatrix of v0'*A*v0, invert it,
-     * and list the column indices present in the submatrix */
-    dim0 = find_nonsingular_sub(vt_a_v[0], s[0], s[1], dim1, winv[0]);
-    if (dim0 == 0) {
-      inversion_failed = 1;
+  for (row = 0; row < matrix->input_rows; row++) {
+    if (parity[row] != 0) {
+      valid = 0;
       break;
     }
+  }
+  free(parity);
+  return valid;
+}
 
-    /* mask0 contains one set bit for every column that participates
-     * in the inverted submatrix computed above */
+static int nla_all_zero(const uint64_t *matrix) {
+  unsigned int i;
+  for (i = 0; i < 64U; i++)
+    if (matrix[i] != 0)
+      return 0;
+  return 1;
+}
+
+static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
+                                        uint32_t *seed1,
+                                        uint32_t *seed2,
+                                        uint64_t *result_mask) {
+  uint64_t *v[3], *vnext, *x, *initial;
+  uint64_t *row_scratch, *table;
+  uint64_t winv_store[3][64], vt_a_v_store[2][64];
+  uint64_t vt_a2_v_store[2][64], vt_v0_store[4][64];
+  uint64_t *winv[3], *vt_a_v[2], *vt_a2_v[2], *vt_v0[3], *vt_v0_next;
+  uint64_t d[64], e[64], f[64], temporary[64];
+  unsigned int selected[2][64];
+  unsigned int dim0 = 0, dim1 = 64U;
+  uint64_t mask0 = 0, mask1 = UINT64_MAX;
+  unsigned long i, iteration = 0, dimensions_solved = 0;
+  int failed = 0;
+
+  *result_mask = 0;
+  winv[0] = winv_store[0]; winv[1] = winv_store[1];
+  winv[2] = winv_store[2];
+  vt_a_v[0] = vt_a_v_store[0]; vt_a_v[1] = vt_a_v_store[1];
+  vt_a2_v[0] = vt_a2_v_store[0]; vt_a2_v[1] = vt_a2_v_store[1];
+  vt_v0[0] = vt_v0_store[0]; vt_v0[1] = vt_v0_store[1];
+  vt_v0[2] = vt_v0_store[2]; vt_v0_next = vt_v0_store[3];
+  memset(winv_store, 0, sizeof(winv_store));
+  memset(vt_a_v_store, 0, sizeof(vt_a_v_store));
+  memset(vt_a2_v_store, 0, sizeof(vt_a2_v_store));
+  memset(vt_v0_store, 0, sizeof(vt_v0_store));
+  for (i = 0; i < 64UL; i++)
+    selected[1][i] = (unsigned int)i;
+
+  v[0] = (uint64_t *)nla_malloc((size_t)matrix->ncols, sizeof(*v[0]));
+  v[1] = (uint64_t *)nla_calloc((size_t)matrix->ncols, sizeof(*v[1]));
+  v[2] = (uint64_t *)nla_calloc((size_t)matrix->ncols, sizeof(*v[2]));
+  vnext = (uint64_t *)nla_malloc((size_t)matrix->ncols, sizeof(*vnext));
+  x = (uint64_t *)nla_malloc((size_t)matrix->ncols, sizeof(*x));
+  initial = (uint64_t *)nla_malloc((size_t)matrix->ncols, sizeof(*initial));
+  row_scratch = (uint64_t *)nla_malloc((size_t)matrix->iteration_rows,
+                                        sizeof(*row_scratch));
+  table = (uint64_t *)nla_malloc(8U * 256U, sizeof(*table));
+
+  for (i = 0; i < matrix->ncols; i++) {
+    uint64_t high = nla_rand32(seed1, seed2);
+    x[i] = (high << 32) | nla_rand32(seed1, seed2);
+  }
+  nla_matrix_mul_symmetric(matrix, x, v[0], row_scratch, table);
+  memcpy(initial, v[0], (size_t)matrix->ncols * sizeof(*initial));
+
+  for (;;) {
+    uint64_t *swap;
+    iteration++;
+    nla_matrix_mul_symmetric(matrix, v[0], vnext, row_scratch, table);
+    nla_inner_product(v[0], vnext, vt_a_v[0], matrix->ncols, table);
+    if (nla_all_zero(vt_a_v[0]))
+      break;
+    nla_inner_product(vnext, vnext, vt_a2_v[0], matrix->ncols, table);
+
+    dim0 = nla_find_nonsingular(vt_a_v[0], selected[0], selected[1],
+                                dim1, winv[0]);
+    if (dim0 == 0) {
+      failed = 1;
+      break;
+    }
     mask0 = 0;
-    for (i = 0; i < dim0; ++i)
-      mask0 |= bitmask[s[0][i]];
+    for (i = 0; i < dim0; i++)
+      mask0 |= NLA_BIT(selected[0][i]);
 
-    /* compute d */
-    for (i = 0; i < 64; ++i)
-      d[i] = (vt_a2_v[0][i] & mask0) ^ vt_a_v[0][i];
-    mul_64x64_64x64(winv[0], d, d);
-    for (i = 0; i < 64; ++i)
-      d[i] = d[i] ^ bitmask[i];
+    /* The coverage condition is unreliable only in the terminal region. */
+    if (matrix->active_rows > matrix->post_rows + 64UL &&
+        dimensions_solved < matrix->active_rows - matrix->post_rows - 64UL &&
+        (mask0 | mask1) != UINT64_MAX) {
+      failed = 1;
+      break;
+    }
+    dimensions_solved += dim0;
 
-    /* compute e */
-    mul_64x64_64x64(winv[1], vt_a_v[0], e);
-    for (i = 0; i < 64; ++i)
-      e[i] = e[i] & mask0;
+    if (iteration <= 3)
+      nla_inner_product(v[0], initial, vt_v0[0], matrix->ncols, table);
 
-    /* compute f */
-    mul_64x64_64x64(vt_a_v[1], winv[1], f);
-    for (i = 0; i < 64; ++i)
-      f[i] = f[i] ^ bitmask[i];
-    mul_64x64_64x64(winv[2], f, f);
-    for (i = 0; i < 64; ++i)
-      f2[i] = ((vt_a2_v[1][i] & mask1) ^ vt_a_v[1][i]) & mask0;
-    mul_64x64_64x64(f, f2, f);
+    for (i = 0; i < 64UL; i++)
+      d[i] = vt_a_v[0][i] ^ (vt_a2_v[0][i] & mask0);
+    nla_small_multiply(winv[0], d, d, table);
+    for (i = 0; i < 64UL; i++)
+      d[i] ^= NLA_BIT(i);
+    nla_vector_small_mask_acc(v[0], d, vnext, matrix->ncols,
+                              mask0, table);
+    nla_small_transpose(d, temporary);
+    nla_small_multiply(temporary, vt_v0[0], vt_v0_next, table);
 
-    /* compute the next v */
-    for (i = 0; i < n; ++i)
-      vnext[i] = vnext[i] & mask0;
-    mul_Nx64_64x64_acc(v[0], d, scratch, vnext, n);
-    mul_Nx64_64x64_acc(v[1], e, scratch, vnext, n);
-    mul_Nx64_64x64_acc(v[2], f, scratch, vnext, n);
+    nla_small_multiply(winv[1], vt_a_v[0], e, table);
+    for (i = 0; i < 64UL; i++)
+      e[i] &= mask0;
+    nla_vector_small_mask_acc(v[1], e, vnext, matrix->ncols,
+                              UINT64_MAX, table);
+    nla_small_transpose(e, temporary);
+    nla_small_multiply(temporary, vt_v0[1], e, table);
+    for (i = 0; i < 64UL; i++)
+      vt_v0_next[i] ^= e[i];
 
-    /* update the computed solution 'x' */
-    mul_64xN_Nx64(v[0], v0, scratch, d, n);
-    mul_64x64_64x64(winv[0], d, d);
-    mul_Nx64_64x64_acc(v[0], d, scratch, x, n);
+    if (mask1 != UINT64_MAX) {
+      nla_small_multiply(vt_a_v[1], winv[1], f, table);
+      for (i = 0; i < 64UL; i++)
+        f[i] ^= NLA_BIT(i);
+      nla_small_multiply(winv[2], f, f, table);
+      for (i = 0; i < 64UL; i++)
+        temporary[i] = mask0 &
+            (vt_a_v[1][i] ^ (vt_a2_v[1][i] & mask1));
+      nla_small_multiply(f, temporary, f, table);
+      nla_vector_small_mask_acc(v[2], f, vnext, matrix->ncols,
+                                UINT64_MAX, table);
+      nla_small_transpose(f, temporary);
+      nla_small_multiply(temporary, vt_v0[2], f, table);
+      for (i = 0; i < 64UL; i++)
+        vt_v0_next[i] ^= f[i];
+    }
 
-    /* rotate all the variables */
-    tmp = v[2];
-    v[2] = v[1];
-    v[1] = v[0];
-    v[0] = vnext;
-    vnext = tmp;
-    tmp = winv[2];
-    winv[2] = winv[1];
-    winv[1] = winv[0];
-    winv[0] = tmp;
-    tmp = vt_a_v[1]; vt_a_v[1] = vt_a_v[0]; vt_a_v[0] = tmp;
-    tmp = vt_a2_v[1]; vt_a2_v[1] = vt_a2_v[0]; vt_a2_v[0] = tmp;
-    memcpy(s[1], s[0], 64 * sizeof(unsigned long));
-    mask1 = mask0;
+    nla_small_multiply(winv[0], vt_v0[0], d, table);
+    nla_vector_small_mask_acc(v[0], d, x, matrix->ncols,
+                              UINT64_MAX, table);
+
+    swap = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = vnext; vnext = swap;
+    swap = winv[2]; winv[2] = winv[1]; winv[1] = winv[0]; winv[0] = swap;
+    swap = vt_v0[2]; vt_v0[2] = vt_v0[1]; vt_v0[1] = vt_v0[0];
+    vt_v0[0] = vt_v0_next; vt_v0_next = swap;
+    swap = vt_a_v[1]; vt_a_v[1] = vt_a_v[0]; vt_a_v[0] = swap;
+    swap = vt_a2_v[1]; vt_a2_v[1] = vt_a2_v[0]; vt_a2_v[0] = swap;
+    memcpy(selected[1], selected[0], sizeof(selected[0]));
     dim1 = dim0;
+    mask1 = mask0;
+
+    if (iteration == 3) {
+      free(initial);
+      initial = NULL;
+    }
+    if (iteration > matrix->ncols + 64UL) {
+      failed = 1;
+      break;
+    }
   }
 
   if (get_verbose_level() > 3)
-    printf("lanczos halted after %lu iterations\n", iter);
+    printf("Lanczos halted after %lu iterations (dimension %lu)%s\n",
+           iteration, dimensions_solved, failed ? ", retrying" : "");
 
-  /* free unneeded storage */
+  free(initial);
+  free(row_scratch);
+  free(table);
   free(vnext);
-  free(scratch);
-  free(v0);
-  free(vt_a_v[0]);
-  free(vt_a_v[1]);
-  free(vt_a2_v[0]);
-  free(vt_a2_v[1]);
-  free(winv[0]);
-  free(winv[1]);
-  free(winv[2]);
-  free(d);
-  free(e);
-  free(f);
-  free(f2);
-
-  /* if a recoverable failure occurred, start everything over again */
-  if (inversion_failed) {
-    if (get_verbose_level() > 3)
-      printf("linear algebra failed; retrying...\n");
+  if (failed) {
     free(x);
-    free(v[0]);
-    free(v[1]);
-    free(v[2]);
+    free(v[0]); free(v[1]); free(v[2]);
     return NULL;
   }
 
-  /* convert the output of the iteration to an actual collection of
-   * nullspace vectors */
-  mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[1]);
-  mul_MxN_Nx64(vsize, dense_rows, ncols, B, v[0], v[2]);
-  combine_cols(ncols, nrows, x, v[0], v[1], v[2]);
+  {
+    uint64_t *bx = (uint64_t *)nla_calloc((size_t)matrix->image_rows,
+                                           sizeof(*bx));
+    uint64_t *bv = (uint64_t *)nla_calloc((size_t)matrix->image_rows,
+                                           sizeof(*bv));
+    uint64_t post_x[64], post_v[64];
+    unsigned int dependencies;
+    uint64_t actual_mask = 0;
 
-  /* verify that these really are linear dependencies of B */
-  mul_MxN_Nx64(vsize, dense_rows, ncols, B, x, v[0]);
-  for (i = 0; i < nrows; ++i)
-    if (v[0][i] != 0)
-      break;
-  if (i < nrows)
-    croak("lanczos error: dependencies don't work");
+    table = (uint64_t *)nla_malloc(8U * 256U, sizeof(*table));
+    nla_matrix_mul(matrix, x, bx, table);
+    nla_matrix_mul(matrix, v[0], bv, table);
+    if (matrix->post_rows != 0) {
+      nla_inner_product(matrix->post_bits, x, post_x,
+                        matrix->ncols, table);
+      nla_inner_product(matrix->post_bits, v[0], post_v,
+                        matrix->ncols, table);
+      memcpy(bx + matrix->iteration_rows, post_x,
+             matrix->post_rows * sizeof(*post_x));
+      memcpy(bv + matrix->iteration_rows, post_v,
+             matrix->post_rows * sizeof(*post_v));
+    }
+    dependencies = nla_combine_candidates(matrix->ncols,
+                                           matrix->image_rows,
+                                           x, v[0], bx, bv);
+    free(table);
+    free(bv);
+    free(bx);
+    free(v[0]); free(v[1]); free(v[2]);
 
-  free(v[0]);
-  free(v[1]);
-  free(v[2]);
-  return x;
+    if (dependencies == 0) {
+      free(x);
+      return NULL;
+    }
+    for (i = 0; i < matrix->ncols; i++)
+      actual_mask |= x[i];
+    if (actual_mask == 0) {
+      free(x);
+      return NULL;
+    }
+    if (!nla_verify_input_matrix(matrix, x))
+      croak("lanczos: computed dependencies failed verification");
+    *result_mask = actual_mask;
+    return x;
+  }
 }
 
-uint64_t *block_lanczos(
-  unsigned long nrows, unsigned long dense_rows, unsigned long ncols,
-  la_col_t *B, uint32_t seed1, uint32_t seed2, uint64_t *mask
-) {
-  uint64_t *x;
-  unsigned long i;
-  unsigned int fail_count;
+uint64_t *la_block_lanczos(unsigned long nrows,
+                           unsigned long dense_rows,
+                           unsigned long ncols,
+                           la_col_t *cols,
+                           uint32_t seed1,
+                           uint32_t seed2,
+                           uint64_t *mask) {
+  nla_matrix_t matrix;
+  uint64_t *result = NULL;
+  unsigned int attempt;
 
-  /* The MWC recurrence has two fixed states.  Neither provides the
-   * independent starting vectors needed by retries. */
+  *mask = 0;
+  if (ncols == 0)
+    return NULL;
   if ((seed1 | seed2) == 0 ||
-      (seed1 == UINT32_MAX && seed2 == RAND_MULT - 1U)) {
+      (seed1 == UINT32_MAX && seed2 == NLA_RAND_MULT - 1U)) {
     seed1 = 11111111U;
     seed2 = 22222222U;
   }
 
-  for (fail_count = 0; fail_count < BL_MAX_FAIL; fail_count++) {
-    x = block_lanczos_once(nrows, dense_rows, ncols, B, &seed1, &seed2);
-    if (x == NULL)
-      continue;
-
-    *mask = 0;
-    for (i = 0; i < ncols; i++)
-      *mask |= x[i];
-    if (*mask != 0)
-      return x;
-
+  nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols);
+  for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
+    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask);
+    if (result != NULL && *mask != 0)
+      break;
+    free(result);
+    result = NULL;
     if (get_verbose_level() > 3)
-      printf("linear algebra produced no dependencies; retrying...\n");
-    free(x);
+      printf("linear algebra retry %u\n", attempt + 1U);
   }
-
-  *mask = 0;
-  return NULL;
+  nla_matrix_clear(&matrix);
+  return result;
 }

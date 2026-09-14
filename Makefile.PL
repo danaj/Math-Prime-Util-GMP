@@ -30,7 +30,6 @@ WriteMakefile1(
                     'tinyqs.o '         .
                     'simpqs.o '         .
                     'lanczos.o '        .
-                    'nlanczos.o '       .
                     'simpqs2.o '        .
                     'siqs.o '           .
                     'primality.o '      .

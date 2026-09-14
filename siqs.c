@@ -4,7 +4,7 @@
 
   This is an independent implementation for Math::Prime::Util::GMP.  Its
   polynomial, sieve, relation graph, and matrix interfaces are deliberately
-  local to this file.  The linear algebra is supplied by nlanczos.c.
+  local to this file.  The linear algebra is supplied by lanczos.c.
 
   For a polynomial family we choose square-free a, d in {1,2}, D = d*a,
   and B so that the following normalized polynomial is integral:
@@ -37,7 +37,7 @@
 #include "ptypes.h"
 #include "siqs.h"
 #include "factor.h"
-#include "nlanczos.h"
+#include "lanczos.h"
 #include "pbrent63.h"
 #include "primality.h"
 #include "prime_iterator.h"
@@ -3535,14 +3535,6 @@ static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
  * Sparse matrix and square-root phase
  *----------------------------------------------------------------------------*/
 
-#ifndef MPU_LANCZOS_REDUCER_SORTS_COLUMNS
-static int siqs_column_cmp(const void *va, const void *vb) {
-  const la_col_t *a = (const la_col_t *)va;
-  const la_col_t *b = (const la_col_t *)vb;
-  return a->weight < b->weight ? -1 : a->weight > b->weight ? 1 : 0;
-}
-#endif
-
 #ifdef SIQS_DEBUG
 static void siqs_verify_full_relation(const siqs_ctx_t *ctx,
                                       const siqs_full_relation_t *r) {
@@ -3599,14 +3591,11 @@ static la_col_t *siqs_build_matrix(siqs_ctx_t *ctx,
       if (r->factors[j].exponent & 1U)
         columns[i].data[columns[i].weight++] = r->factors[j].row;
   }
-#ifndef MPU_LANCZOS_REDUCER_SORTS_COLUMNS
-  qsort(columns, ctx->full_count, sizeof(*columns), siqs_column_cmp);
-#endif
   return columns;
 }
 
 /* Determine whether singleton removal leaves enough columns for Lanczos.
- * This is the same 2-core that reduce_matrix() starts from, but is computed
+ * This is the same 2-core that la_reduce_matrix() starts from, but is computed
  * without changing or copying the full relations.  Keeping an incidence list
  * from rows to columns makes the peeling pass linear in the number of odd
  * factor-base exponents. */
@@ -3726,7 +3715,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
     mpz_set_ui(lhs, 1);
     mpz_set_ui(rhs, 1);
     for (i = 0; i < ncols; i++) {
-      if (!getNullEntry(nullrows, i, dependency))
+      if (!la_get_null_entry(nullrows, i, dependency))
         continue;
       {
         const siqs_full_relation_t *r = ctx->full[columns[i].orig];
@@ -3745,7 +3734,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
         uint32_t matrix_parity = 0;
         unsigned long c, k;
         for (c = 0; c < ncols; c++) {
-          if (!getNullEntry(nullrows, c, dependency))
+          if (!la_get_null_entry(nullrows, c, dependency))
             continue;
           for (k = 0; k < columns[c].weight; k++)
             if (columns[c].data[k] == row)
@@ -3807,7 +3796,7 @@ static int siqs_solve(siqs_ctx_t *ctx) {
     return 0;
   columns = siqs_build_matrix(ctx, &nrows, &ncols);
   original_cols = ncols;
-  reduce_matrix(&nrows, &ncols, columns);
+  la_reduce_matrix(&nrows, &ncols, columns);
   if (ncols == 0) {
     for (i = 0; i < original_cols; i++)
       free(columns[i].data);
@@ -3816,7 +3805,7 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   }
   dense_selected = siqs_use_dense_solver(ncols);
   if (dense_selected) {
-    nullrows = dense_nullspace64(nrows, ncols, columns, &mask);
+    nullrows = la_dense_nullspace(nrows, ncols, columns, &mask);
     dense_result = nullrows != NULL;
   }
 
@@ -3833,8 +3822,8 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   if (!dense_result || !ctx->factor_found) {
     seed1 = (uint32_t)siqs_rand64(&ctx->la_rng);
     seed2 = (uint32_t)siqs_rand64(&ctx->la_rng);
-    nullrows = block_lanczos(nrows, 0, ncols, columns,
-                             seed1, seed2, &mask);
+    nullrows = la_block_lanczos(nrows, 0, ncols, columns,
+                                seed1, seed2, &mask);
   }
   if (nullrows != NULL) {
     siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);

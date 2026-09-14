@@ -9,7 +9,7 @@ cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] real.[ch] standalone/
 cp -p factor.[ch] squfof126.[ch] pbrent63.[ch] standalone/
-cp -p siqs.[ch] lanczos.[ch] nlanczos.[ch] standalone/
+cp -p siqs.[ch] lanczos.[ch] standalone/
 cp -p utility.[ch] isaac.[ch] random_prime.[ch] standalone/
 cp -p primality.[ch] rootmod.[ch] znlog.[ch] misc_ui.[ch] lucas_seq.[ch] standalone/
 cp -p poly.[ch] standalone
@@ -35,7 +35,7 @@ CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
-      factor.o squfof126.o pbrent63.o siqs.o nlanczos.o lanczos.o \
+      factor.o squfof126.o pbrent63.o siqs.o lanczos.o \
       real.o isaac.o random_prime.o utility.o expr.o \
       rootmod.o znlog.o lucas_seq.o misc_ui.o poly.o
 HEADERS = ptypes.h class_poly_data.h

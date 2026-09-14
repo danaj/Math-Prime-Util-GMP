@@ -74,7 +74,7 @@
 #include "utility.h"
 #include "misc_ui.h"
 #include "rootmod.h"
-#include "nlanczos.h"
+#include "lanczos.h"
 
 typedef struct qs_factor_array_s qs_factor_array_t;
 static void insert_factor(qs_factor_array_t *fa, const mpz_t f);
@@ -1706,7 +1706,7 @@ static void mainRoutine(
   mpz_clear(test3);
 #endif
 
-  reduce_matrix(&nrows, &ncols, colarray);
+  la_reduce_matrix(&nrows, &ncols, colarray);
 
 #ifdef ERRORS
   exps = (unsigned int *)malloc(numPrimes * sizeof(unsigned int));
@@ -1732,12 +1732,12 @@ static void mainRoutine(
   free(exps);
 #endif
 
-  nullrows = block_lanczos(
+  nullrows = la_block_lanczos(
     nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
   );
   if (nullrows == NULL) {
     gmp_printf(
-      "block_lanczos failed repeatedly on target %Zd (multiplier %d) from randval %lu, giving up",
+      "block Lanczos failed repeatedly on target %Zd (multiplier %d) from randval %lu, giving up",
       n, multiplier, init_randval
     );
     croak("assert");
@@ -1787,7 +1787,7 @@ static void mainRoutine(
     mpz_set_ui(temp2, 1);
     memset(primecount, 0, numPrimes * sizeof(unsigned int));
     for (i = 0; i < ncols; ++i) {
-      if (getNullEntry(nullrows, i, l)) {
+      if (la_get_null_entry(nullrows, i, l)) {
         unsigned int index = colarray[i].orig;
         rel_t *r = frels->r[index];
         mpz_mul(temp2, temp2, r->X);

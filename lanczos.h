@@ -4,26 +4,36 @@
 #include "ptypes.h"
 
 typedef struct {
-  unsigned long *data;        /* The list of occupied rows in this column */
-  unsigned long weight;       /* Number of nonzero entries in this column */
-  unsigned long orig;         /* Original relation number */
+  unsigned long *data;
+  unsigned long weight;
+  unsigned long orig;
 } la_col_t;
 
-extern uint64_t getNullEntry(const uint64_t *nullrows, unsigned long i,
-                             unsigned long l);
-extern void reduce_matrix(unsigned long *nrows, unsigned long *ncols,
-                          la_col_t *cols);
-/* Return up to 64 exact dependencies, using the same per-column packed result
- * and mask convention as block_lanczos().  The input columns are unchanged. */
-extern uint64_t *dense_nullspace64(unsigned long nrows,
+/* Return the bit showing whether a column belongs to a dependency. */
+static INLINE uint64_t la_get_null_entry(const uint64_t *nullrows,
+                                         unsigned long column,
+                                         unsigned long dependency) {
+  return nullrows[column] & ((uint64_t)1 << dependency);
+}
+
+/* Peel singleton rows and trim excess columns before solving. */
+extern void la_reduce_matrix(unsigned long *nrows,
+                             unsigned long *ncols,
+                             la_col_t *cols);
+
+/* Find up to 64 exact nullspace dependencies by dense elimination. */
+extern uint64_t *la_dense_nullspace(unsigned long nrows,
                                     unsigned long ncols,
                                     const la_col_t *cols,
                                     uint64_t *mask);
-/* Returns dependency vectors and a nonzero mask, or NULL after all retries. */
-extern uint64_t *block_lanczos(unsigned long nrows,
-                               unsigned long dense_rows,
-                               unsigned long ncols, la_col_t *cols,
-                               uint32_t seed1, uint32_t seed2,
-                               uint64_t *mask);
+
+/* Find nullspace dependencies with the sparse block-Lanczos solver. */
+extern uint64_t *la_block_lanczos(unsigned long nrows,
+                                  unsigned long dense_rows,
+                                  unsigned long ncols,
+                                  la_col_t *cols,
+                                  uint32_t seed1,
+                                  uint32_t seed2,
+                                  uint64_t *mask);
 
 #endif
