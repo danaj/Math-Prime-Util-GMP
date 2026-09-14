@@ -2882,8 +2882,7 @@ self-initializing polynomial families, one- and two-large-prime relation
 combination, dynamic relation sufficiency checks,
 dense elimination for small matrices,
 and block Lanczos for larger matrices/fallback.
-It is intended for inputs of 40 to 366 bits, covering every input of at most
-110 decimal digits.
+It handles inputs from 1 to 110 decimal digits.
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
 SIQS takes about one hour to factor a 98-digit balanced semiprime,
@@ -3146,8 +3145,7 @@ TinyQS has since been expanded and tuned for 50- to 128-bit inputs.
 William Hart wrote SIMPQS, which is the basis for SIMPQS2.  Hugo van der
 Sanden added combined partial relations, integrated block Lanczos, and made
 substantial memory and performance improvements for SIMPQS2.
-The independent SIQS implementation uses Jason Papadopoulos's block Lanczos
-code for its linear algebra step with large matrices.
+The independent SIQS uses it's own dense and block Lanczos implementations.
 
 
 =head1 ACKNOWLEDGEMENTS

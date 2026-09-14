@@ -4,7 +4,7 @@
 
   This is an independent implementation for Math::Prime::Util::GMP.  Its
   polynomial, sieve, relation graph, and matrix interfaces are deliberately
-  local to this file.  The linear algebra is supplied by lanczos.c.
+  local to this file.  The linear algebra is supplied by nlanczos.c.
 
   For a polynomial family we choose square-free a, d in {1,2}, D = d*a,
   and B so that the following normalized polynomial is integral:
@@ -37,7 +37,7 @@
 #include "ptypes.h"
 #include "siqs.h"
 #include "factor.h"
-#include "lanczos.h"
+#include "nlanczos.h"
 #include "pbrent63.h"
 #include "primality.h"
 #include "prime_iterator.h"
@@ -79,10 +79,11 @@
 #define SIQS_INLINE_MATRIX_Q2_MAX_BITS 43U
 #define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
 #define SIQS_EVAL_INITIAL_FACTORS   64U
-/* The packed dense solver wins consistently through about 1200 reduced
- * columns and reaches parity before 1300.  Select by the matrix we actually
- * have, rather than using N bits as a proxy; larger cores use block Lanczos. */
-#define SIQS_DENSE_SOLVER_MAX_COLS 1280U
+/* The panel dense solver wins consistently through about 1500 reduced
+ * columns; fresh real-matrix tests near 1670 slightly favor block Lanczos.
+ * A conservative round cutoff selects by the matrix we actually have rather
+ * than using N bits as a proxy; larger cores use block Lanczos. */
+#define SIQS_DENSE_SOLVER_MAX_COLS 1536U
 #define SIQS_LP_MAX UINT64_C(0x0000000fffffffff)
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0x7fffffffffffffff)
 #define SIQS_NO_ROOT       UINT32_MAX
@@ -3534,11 +3535,13 @@ static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
  * Sparse matrix and square-root phase
  *----------------------------------------------------------------------------*/
 
+#ifndef MPU_LANCZOS_REDUCER_SORTS_COLUMNS
 static int siqs_column_cmp(const void *va, const void *vb) {
   const la_col_t *a = (const la_col_t *)va;
   const la_col_t *b = (const la_col_t *)vb;
   return a->weight < b->weight ? -1 : a->weight > b->weight ? 1 : 0;
 }
+#endif
 
 #ifdef SIQS_DEBUG
 static void siqs_verify_full_relation(const siqs_ctx_t *ctx,
@@ -3596,7 +3599,9 @@ static la_col_t *siqs_build_matrix(siqs_ctx_t *ctx,
       if (r->factors[j].exponent & 1U)
         columns[i].data[columns[i].weight++] = r->factors[j].row;
   }
+#ifndef MPU_LANCZOS_REDUCER_SORTS_COLUMNS
   qsort(columns, ctx->full_count, sizeof(*columns), siqs_column_cmp);
+#endif
   return columns;
 }
 

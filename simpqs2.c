@@ -74,7 +74,7 @@
 #include "utility.h"
 #include "misc_ui.h"
 #include "rootmod.h"
-#include "lanczos.h"
+#include "nlanczos.h"
 
 typedef struct qs_factor_array_s qs_factor_array_t;
 static void insert_factor(qs_factor_array_t *fa, const mpz_t f);
