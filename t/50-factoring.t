@@ -35,7 +35,7 @@ plan tests => 0 + 57
                 + 24
                 + 3
                 + 2
-                + 23  # individual tests for factoring methods
+                + 25  # individual tests for factoring methods
                 + 12  # lower SIQS profile boundaries and recovery
                 + 2   # SIQS upper-range gate
                 + 1*$extra # SQUFOF fail case
@@ -176,6 +176,20 @@ is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pplus1_factor('2209531120999
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::ecm_factor('16049407357301026788959025956634678743968244330856613525782006075043') ], [qw/99151111 161868154531329727500068314480456792299263740280798402004613/], "ECM factors p8*p60" );
 
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('22095311209999409685885162322219') ], ['3916587618943361', '5641469912004779'], "QS factors 22095311209999409685885162322219" );
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '77011005453696420840689', 0) ],
+  [qw/525299 526289 527291 528289/],
+  "SIQS harvests multiple factors from one nullspace"
+);
+# This matrix gave only trivial dependencies when SIMPQS2 unconditionally
+# used block Lanczos.  It is below the shared dense/block crossover.
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '86330643327524340820125730777784147009', 2) ],
+  ['6780070737255642557', '12733000387908673237'],
+  "SIMPQS2 uses dense elimination below the solver crossover"
+);
 for my $implementation (0, 1, 2, 3) {
   is_deeply(
     [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(

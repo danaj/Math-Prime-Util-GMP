@@ -2899,6 +2899,13 @@ comparisons; it does not run the generic factoring routine's preliminary
 methods.  TinyQS is tuned for inputs no larger than 128 bits.
 All three are currently slower at all sizes than SIQS.
 
+With SIQS, verbose setting 3 gives output describing the parameters chosen
+before the factoring starts, then when all relations have been collected,
+additional lines of output describing the work done.
+
+For particularly long factoring with SIQS, verbose setting 4 may be of
+interest, as it gives periodic status updates as factoring proceeds.
+
 =head2 todigits
 
 Given an integer C<n>, return an array of digits of C<|n|>.  An optional

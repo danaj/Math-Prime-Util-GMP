@@ -624,7 +624,8 @@ static void nla_matrix_init(nla_matrix_t *matrix,
                             unsigned long nrows,
                             unsigned long dense_rows,
                             unsigned long ncols,
-                            const la_col_t *cols) {
+                            const la_col_t *cols,
+                            unsigned int post_rows) {
   unsigned long *counts;
   uint32_t *row_map;
   nla_row_info_t *row_info;
@@ -642,6 +643,8 @@ static void nla_matrix_init(nla_matrix_t *matrix,
 
   if (dense_rows > nrows)
     croak("lanczos: dense row count exceeds matrix row count");
+  if (post_rows > 64U)
+    croak("lanczos: post row count exceeds block width");
   if (nrows > UINT32_MAX || ncols > UINT32_MAX)
     croak("lanczos: matrix dimensions exceed internal index range");
 
@@ -666,7 +669,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
   /* Small matrices avoid conversion overhead and use the input columns.  The
    * second test also guarantees that packed matrix-vector kernels always have
    * at least 64 iteration rows for their fixed-size dense operations. */
-  if (active < NLA_PACK_MIN_ROWS || active <= NLA_POST_ROWS + 64U ||
+  if (active < NLA_PACK_MIN_ROWS || active <= post_rows + 64U ||
       ncols > NLA_PACK_MAX_COLS) {
     free(counts);
     return;
@@ -680,7 +683,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
 #endif
 
   matrix->packed = 1;
-  matrix->post_rows = NLA_POST_ROWS;
+  matrix->post_rows = post_rows;
   matrix->packed_dense_rows = NLA_PACKED_DENSE_ROWS;
   if (matrix->packed_dense_rows > active - matrix->post_rows)
     matrix->packed_dense_rows = (unsigned int)(active - matrix->post_rows);
@@ -1475,13 +1478,14 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
   }
 }
 
-uint64_t *la_block_lanczos(unsigned long nrows,
-                           unsigned long dense_rows,
-                           unsigned long ncols,
-                           la_col_t *cols,
-                           uint32_t seed1,
-                           uint32_t seed2,
-                           uint64_t *mask) {
+static uint64_t *nla_block_lanczos(unsigned long nrows,
+                                  unsigned long dense_rows,
+                                  unsigned long ncols,
+                                  la_col_t *cols,
+                                  uint32_t seed1,
+                                  uint32_t seed2,
+                                  uint64_t *mask,
+                                  unsigned int post_rows) {
   nla_matrix_t matrix;
   uint64_t *result = NULL;
   unsigned int attempt;
@@ -1495,7 +1499,7 @@ uint64_t *la_block_lanczos(unsigned long nrows,
     seed2 = 22222222U;
   }
 
-  nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols);
+  nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows);
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
     result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask);
     if (result != NULL && *mask != 0)
@@ -1507,4 +1511,26 @@ uint64_t *la_block_lanczos(unsigned long nrows,
   }
   nla_matrix_clear(&matrix);
   return result;
+}
+
+uint64_t *la_block_lanczos(unsigned long nrows,
+                           unsigned long dense_rows,
+                           unsigned long ncols,
+                           la_col_t *cols,
+                           uint32_t seed1,
+                           uint32_t seed2,
+                           uint64_t *mask) {
+  return nla_block_lanczos(nrows, dense_rows, ncols, cols,
+                           seed1, seed2, mask, NLA_POST_ROWS);
+}
+
+uint64_t *la_block_lanczos_wide(unsigned long nrows,
+                                unsigned long dense_rows,
+                                unsigned long ncols,
+                                la_col_t *cols,
+                                uint32_t seed1,
+                                uint32_t seed2,
+                                uint64_t *mask) {
+  return nla_block_lanczos(nrows, dense_rows, ncols, cols,
+                           seed1, seed2, mask, 0U);
 }

@@ -3,6 +3,10 @@
 
 #include "ptypes.h"
 
+/* The panel dense solver wins through this measured reduced-column
+ * crossover.  Both solvers remain valid on either side of it. */
+#define LA_DENSE_CROSSOVER_COLS 1536UL
+
 typedef struct {
   unsigned long *data;
   unsigned long weight;
@@ -35,5 +39,14 @@ extern uint64_t *la_block_lanczos(unsigned long nrows,
                                   uint32_t seed1,
                                   uint32_t seed2,
                                   uint64_t *mask);
+
+/* Find a wider dependency sample by retaining all rows in the iteration. */
+extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
+                                       unsigned long dense_rows,
+                                       unsigned long ncols,
+                                       la_col_t *cols,
+                                       uint32_t seed1,
+                                       uint32_t seed2,
+                                       uint64_t *mask);
 
 #endif

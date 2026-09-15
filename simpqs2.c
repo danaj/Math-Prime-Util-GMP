@@ -1270,6 +1270,76 @@ static int allprime_factor_array(const qs_factor_array_t *fa) {
   return 1;
 }
 
+/* Refine the result partition with every useful dependency in one solver
+ * result.  Return true when at least one partition entry was split. */
+static int simpqs2_test_dependencies(const uint64_t *nullrows, uint64_t mask,
+    unsigned long ncols, const la_col_t *colarray, const arel_t *frels,
+    unsigned long numPrimes, const mpz_t n, qs_factor_array_t *factors,
+    const mpz_t original_n, int verbose) {
+  uint32_t factor_count = factors->count;
+  unsigned long i, j, dependency;
+  unsigned int *primecount;
+  mpz_t lhs, rhs, power;
+
+  if (verbose > 3) {
+    for (i = j = 0; i < 64; ++i)
+      if (mask & ((uint64_t)1 << i))
+        ++j;
+    printf("%lu nullspace vectors found.\n", j);
+  }
+
+  New(0, primecount, numPrimes, unsigned int);
+  if (primecount == NULL)
+    croak("SIMPQS2: Unable to allocate dependency workspace!\n");
+  mpz_init(lhs);
+  mpz_init(rhs);
+  mpz_init(power);
+
+  for (dependency = 0; dependency < 64; ++dependency) {
+    if (!(mask & ((uint64_t)1 << dependency)))
+      continue;
+    mpz_set_ui(rhs, 1);
+    mpz_set_ui(lhs, 1);
+    memset(primecount, 0, numPrimes * sizeof(unsigned int));
+    for (i = 0; i < ncols; ++i) {
+      if (la_get_null_entry(nullrows, i, dependency)) {
+        unsigned int index = colarray[i].orig;
+        rel_t *r = frels->r[index];
+        mpz_mul(lhs, lhs, r->X);
+        for (j = 0; j < r->f.count; ++j)
+          primecount[r->f.fact[j].p] += r->f.fact[j].e;
+      }
+      if (((i + 1) % 16) == 0)
+        mpz_mod(lhs, lhs, n);
+    }
+    for (j = 0; j < numPrimes; ++j) {
+      if (primecount[j]) {
+        mpz_set_ui(power, factorBase[j]);
+        mpz_pow_ui(power, power, primecount[j] / 2);
+        mpz_mul(rhs, rhs, power);
+      }
+      if (((j + 1) % 16) == 0)
+        mpz_mod(rhs, rhs, n);
+    }
+    mpz_sub(lhs, lhs, rhs);
+    mpz_gcd(lhs, lhs, n);
+    if (mpz_cmp_ui(lhs, 1) && mpz_cmp(lhs, n)) {
+      if (verbose > 4)
+        gmp_printf("# qs factor %Zd\n", lhs);
+      insert_factor(factors, lhs);
+      verify_factor_array(original_n, factors);
+      if (allprime_factor_array(factors))
+        break;
+    }
+  }
+
+  mpz_clear(lhs);
+  mpz_clear(rhs);
+  mpz_clear(power);
+  Safefree(primecount);
+  return factors->count != factor_count;
+}
+
 static mpz_t *factor_array_release(qs_factor_array_t *fa,
                                    uint32_t *nfactors) {
   *nfactors = fa->count;
@@ -1301,13 +1371,14 @@ static void mainRoutine(
   unsigned long multiplier
 ) {
   mpz_t A, B, C, D, Bdivp2, nsqrtdiv, temp, temp2, temp3, temp4;
-  int i, j, k, l, s, fact, span, min, verbose, polyindex;
+  int i, j, k, s, fact, span, min, verbose, polyindex;
+  int have_solver_result, partition_refined;
+  unsigned int block_attempts;
   uint64_t mask;
   uint32_t lanczos_seed1, lanczos_seed2;
   unsigned long u1, p, reps, M, Mq, Mr, ncols, nrows, relsFound;
   unsigned long curves = 0;
   uint64_t *nullrows;
-  unsigned int   *primecount;
   unsigned char  *sieve;
   unsigned long  *aind;
   unsigned long  *amodp;
@@ -1732,24 +1803,6 @@ static void mainRoutine(
   free(exps);
 #endif
 
-  nullrows = la_block_lanczos(
-    nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
-  );
-  if (nullrows == NULL) {
-    gmp_printf(
-      "block Lanczos failed repeatedly on target %Zd (multiplier %d) from randval %lu, giving up",
-      n, multiplier, init_randval
-    );
-    croak("assert");
-  }
-
-  if (verbose > 3) {
-    for (i = j = 0; i < 64; ++i)
-      if (mask & ((uint64_t)1 << i))
-        ++j;
-    printf("%d nullspace vectors found.\n", j);
-  }
-
 #ifdef ERRORS
   exps = (unsigned int *)malloc(numPrimes * sizeof(unsigned int));
   for (j = 0; j < ncols; ++j) {
@@ -1774,53 +1827,60 @@ static void mainRoutine(
   /* We want factors of n, not kn, so divide out by the multiplier */
   mpz_divexact_ui(n, n, multiplier);
 
-  /* Now refine the factor array via square root and gcd */
-  New(0, primecount, numPrimes, unsigned int);
-  if (primecount == 0)
-    croak("SIMPQS: Unable to allocate memory!\n");
-  for (l = 0; l < 64; ++l) {
-    while (l < 64 && !(mask & ((uint64_t)1 << l)))
-      ++l;
-    if (l == 64)
-      break;
-    mpz_set_ui(temp, 1);
-    mpz_set_ui(temp2, 1);
-    memset(primecount, 0, numPrimes * sizeof(unsigned int));
-    for (i = 0; i < ncols; ++i) {
-      if (la_get_null_entry(nullrows, i, l)) {
-        unsigned int index = colarray[i].orig;
-        rel_t *r = frels->r[index];
-        mpz_mul(temp2, temp2, r->X);
-        for (j = 0; j < r->f.count; ++j)
-          primecount[r->f.fact[j].p] += r->f.fact[j].e;
-      }
-      if (((i + 1) % 16) == 0)
-        mpz_mod(temp2, temp2, n);
+  /* Use the measured crossover for the first solver.  If its whole
+   * dependency set is trivial or a solver fails internally, try the fast
+   * packed Lanczos path and then a fresh all-row iteration that recovers the
+   * full dependency width. */
+  have_solver_result = 0;
+  partition_refined = 0;
+  nullrows = NULL;
+  if (LA_DENSE_CROSSOVER_COLS != 0 &&
+      ncols <= LA_DENSE_CROSSOVER_COLS)
+    nullrows = la_dense_nullspace(nrows, ncols, colarray, &mask);
+  if (nullrows != NULL) {
+    have_solver_result = 1;
+    partition_refined = simpqs2_test_dependencies(
+        nullrows, mask, ncols, colarray, frels, numPrimes, n,
+        factors, original_n, verbose);
+    free(nullrows);
+    nullrows = NULL;
+  }
+
+  for (block_attempts = 0;
+       !partition_refined && block_attempts < 2;
+       block_attempts++) {
+    if (block_attempts != 0) {
+      lanczos_seed1 ^= 0x9e3779b9U;
+      lanczos_seed2 ^= 0x85ebca6bU;
+      if (verbose > 3)
+        printf("Lanczos did not refine factors; retrying with all rows.\n");
     }
-    for (j = 0; j < numPrimes; ++j) {
-      if (primecount[j]) {
-        mpz_set_ui(temp3, factorBase[j]);
-        mpz_pow_ui(temp3, temp3, primecount[j] / 2);
-        mpz_mul(temp, temp, temp3);
-      }
-      if (((j + 1) % 16) == 0)
-        mpz_mod(temp, temp, n);
-    }
-    mpz_sub(temp, temp2, temp);
-    mpz_gcd(temp, temp, n);
-    /* only non-trivial factors */
-    if (mpz_cmp_ui(temp, 1) && mpz_cmp(temp, n)) {
-      if (verbose > 4)
-        gmp_printf("# qs factor %Zd\n", temp);
-      insert_factor(factors, temp);
-      verify_factor_array(original_n, factors);
-      if (allprime_factor_array(factors))
-        break;
-    }
+    if (block_attempts == 0)
+      nullrows = la_block_lanczos(
+        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
+      );
+    else
+      nullrows = la_block_lanczos_wide(
+        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
+      );
+    if (nullrows == NULL)
+      continue;
+    have_solver_result = 1;
+    partition_refined = simpqs2_test_dependencies(
+        nullrows, mask, ncols, colarray, frels, numPrimes, n,
+        factors, original_n, verbose);
+    free(nullrows);
+    nullrows = NULL;
+  }
+  if (!have_solver_result) {
+    gmp_printf(
+      "block Lanczos failed repeatedly on target %Zd (multiplier %d) from randval %lu, giving up",
+      original_n, multiplier, init_randval
+    );
+    croak("assert");
   }
 
   /* Free everything remaining */
-  free(nullrows);
   free_arel(frels);
   free_arel(rels);
   free_arel(lprels);
@@ -1828,7 +1888,6 @@ static void mainRoutine(
   for (i = 0; i < relSought; ++i)
     free(colarray[i].data);
   Safefree(colarray);
-  Safefree(primecount);
   mpz_clear(temp);  mpz_clear(temp2);  mpz_clear(temp3);  mpz_clear(temp4);
 
 }

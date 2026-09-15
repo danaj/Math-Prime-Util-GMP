@@ -79,11 +79,6 @@
 #define SIQS_INLINE_MATRIX_Q2_MAX_BITS 43U
 #define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
 #define SIQS_EVAL_INITIAL_FACTORS   64U
-/* The panel dense solver wins consistently through about 1500 reduced
- * columns; fresh real-matrix tests near 1670 slightly favor block Lanczos.
- * A conservative round cutoff selects by the matrix we actually have rather
- * than using N bits as a proxy; larger cores use block Lanczos. */
-#define SIQS_DENSE_SOLVER_MAX_COLS 1536U
 #define SIQS_LP_MAX UINT64_C(0x0000000fffffffff)
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0x7fffffffffffffff)
 #define SIQS_NO_ROOT       UINT32_MAX
@@ -218,9 +213,14 @@ typedef struct {
 
 typedef struct {
   mpz_t *values;
+  uint8_t *primality;
   uint32_t count;
   uint32_t alloc;
 } siqs_factor_array_t;
+
+#define SIQS_FACTOR_UNKNOWN   0U
+#define SIQS_FACTOR_PRIME     1U
+#define SIQS_FACTOR_COMPOSITE 2U
 
 typedef struct {
   const char *policy_name;
@@ -562,6 +562,7 @@ static void siqs_factor_array_init(siqs_factor_array_t *fa, const mpz_t n) {
   fa->alloc = 16;
   fa->count = 1;
   fa->values = (mpz_t *)siqs_malloc(fa->alloc * sizeof(mpz_t));
+  fa->primality = (uint8_t *)siqs_calloc(fa->alloc, sizeof(uint8_t));
   mpz_init_set(fa->values[0], n);
 }
 
@@ -570,8 +571,11 @@ static void siqs_factor_array_append(siqs_factor_array_t *fa, const mpz_t n) {
     fa->alloc *= 2;
     fa->values = (mpz_t *)siqs_realloc(fa->values,
                                        fa->alloc * sizeof(mpz_t));
+    fa->primality = (uint8_t *)siqs_realloc(
+        fa->primality, fa->alloc * sizeof(uint8_t));
   }
-  mpz_init_set(fa->values[fa->count++], n);
+  mpz_init_set(fa->values[fa->count], n);
+  fa->primality[fa->count++] = SIQS_FACTOR_UNKNOWN;
 }
 
 /* Refine the represented multiplicative partition by every copy of d. */
@@ -584,11 +588,14 @@ static int siqs_insert_divisor(siqs_factor_array_t *fa, const mpz_t d) {
   mpz_init(g);
   mpz_init(q);
   for (i = 0; i < fa->count; i++) {
+    if (fa->primality[i] == SIQS_FACTOR_PRIME)
+      continue;
     mpz_gcd(g, fa->values[i], d);
     if (mpz_cmp_ui(g, 1) <= 0 || mpz_cmp(g, fa->values[i]) == 0)
       continue;
     mpz_divexact(q, fa->values[i], g);
     mpz_set(fa->values[i], g);
+    fa->primality[i] = SIQS_FACTOR_UNKNOWN;
     siqs_factor_array_append(fa, q);
     changed = 1;
   }
@@ -597,12 +604,17 @@ static int siqs_insert_divisor(siqs_factor_array_t *fa, const mpz_t d) {
   return changed;
 }
 
-static int siqs_all_factors_prime(const siqs_factor_array_t *fa) {
+static int siqs_all_factors_prime(siqs_factor_array_t *fa) {
   uint32_t i;
-  for (i = 0; i < fa->count; i++)
-    if (!_GMP_is_prob_prime(fa->values[i]))
-      return 0;
-  return 1;
+  int all_prime = 1;
+  for (i = 0; i < fa->count; i++) {
+    if (fa->primality[i] == SIQS_FACTOR_UNKNOWN)
+      fa->primality[i] = _GMP_is_prob_prime(fa->values[i])
+                       ? SIQS_FACTOR_PRIME : SIQS_FACTOR_COMPOSITE;
+    if (fa->primality[i] != SIQS_FACTOR_PRIME)
+      all_prime = 0;
+  }
+  return all_prime;
 }
 
 static void siqs_verify_partition(const mpz_t n,
@@ -618,6 +630,15 @@ static void siqs_verify_partition(const mpz_t n,
   if (mpz_cmp(product, n) != 0)
     croak("SIQS: result factors do not multiply to the input");
   mpz_clear(product);
+}
+
+static mpz_t *siqs_factor_array_release(siqs_factor_array_t *fa,
+                                        uint32_t *nfactors) {
+  mpz_t *values = fa->values;
+  *nfactors = fa->count;
+  free(fa->primality);
+  fa->primality = NULL;
+  return values;
 }
 
 void _GMP_siqs_free(mpz_t *factors, uint32_t nfactors) {
@@ -3706,7 +3727,10 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
   mpz_init(delta);
   mpz_init(divisor);
 
-  for (dependency = 0; dependency < 64 && !ctx->factor_found; dependency++) {
+  /* Harvest every useful split already present in this nullspace.  The
+   * factor_found flag records progress for the collection driver, but only a
+   * completely prime partition makes further dependencies unnecessary. */
+  for (dependency = 0; dependency < 64; dependency++) {
     unsigned long i;
     uint32_t j;
     if (!(mask & (UINT64_C(1) << dependency)))
@@ -3769,6 +3793,10 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
         siqs_insert_divisor(ctx->result, divisor)) {
       ctx->factor_found = 1;
       siqs_verify_partition(ctx->original_n, ctx->result);
+      if (siqs_all_factors_prime(ctx->result)) {
+        siqs_reset_touched_factors(ctx);
+        break;
+      }
     }
     siqs_reset_touched_factors(ctx);
   }
@@ -3781,13 +3809,13 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
 }
 
 static int siqs_use_dense_solver(unsigned long ncols) {
-  return SIQS_DENSE_SOLVER_MAX_COLS != 0 &&
-         ncols <= SIQS_DENSE_SOLVER_MAX_COLS;
+  return LA_DENSE_CROSSOVER_COLS != 0 &&
+         ncols <= LA_DENSE_CROSSOVER_COLS;
 }
 
 static int siqs_solve(siqs_ctx_t *ctx) {
   unsigned long original_cols, nrows, ncols, i;
-  uint32_t seed1, seed2;
+  uint32_t seed1, seed2, block_attempt;
   uint64_t mask = 0;
   uint64_t *nullrows = NULL;
   la_col_t *columns;
@@ -3816,18 +3844,31 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   }
 
   /* A valid exact basis can, in principle, consist entirely of trivial
-   * congruences.  Randomized Lanczos combinations give the same matrix one
-   * more chance before relation collection is resumed; this also handles a
-   * dense allocation or verification failure. */
+   * congruences.  Try the fast packed solver first.  If its compact dependency
+   * sample does not split the input, retain every row in a fresh Lanczos
+   * iteration to recover the dependency width before collecting more
+   * relations.  This also handles a dense allocation or verification failure. */
   if (!dense_result || !ctx->factor_found) {
-    seed1 = (uint32_t)siqs_rand64(&ctx->la_rng);
-    seed2 = (uint32_t)siqs_rand64(&ctx->la_rng);
-    nullrows = la_block_lanczos(nrows, 0, ncols, columns,
-                                seed1, seed2, &mask);
-  }
-  if (nullrows != NULL) {
-    siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
-    free(nullrows);
+    for (block_attempt = 0;
+         block_attempt < 2 && !ctx->factor_found;
+         block_attempt++) {
+      seed1 = (uint32_t)siqs_rand64(&ctx->la_rng);
+      seed2 = (uint32_t)siqs_rand64(&ctx->la_rng);
+      if (block_attempt == 0) {
+        nullrows = la_block_lanczos(nrows, 0, ncols, columns,
+                                    seed1, seed2, &mask);
+      } else {
+        if (get_verbose_level() > 3)
+          printf("Lanczos did not refine factors; retrying with all rows.\n");
+        nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
+                                         seed1, seed2, &mask);
+      }
+      if (nullrows != NULL) {
+        siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
+        free(nullrows);
+        nullrows = NULL;
+      }
+    }
   }
   for (i = 0; i < original_cols; i++)
     free(columns[i].data);
@@ -3889,7 +3930,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
           ctx->full_count >= *next_matrix_check) {
         uint32_t core_rows, core_cols;
         int ready = siqs_matrix_ready(ctx, &core_rows, &core_cols);
-        if (verbose > 3)
+        if ((ready && verbose > 3) || verbose > 4)
           printf("# siqs matrix core %u columns, %u rows%s\n",
                  core_cols, core_rows, ready ? ", ready" : "");
         *next_matrix_check = ctx->full_count + check_interval;
@@ -4267,10 +4308,8 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
   if (nfactors == NULL)
     croak("SIQS: missing factor count output");
   siqs_factor_array_init(&result, n);
-  if (mpz_cmp_ui(n, 1) <= 0) {
-    *nfactors = result.count;
-    return result.values;
-  }
+  if (mpz_cmp_ui(n, 1) <= 0)
+    return siqs_factor_array_release(&result, nfactors);
   mpz_init_set(work, n);
   mpz_init(divisor);
   mpz_init(root);
@@ -4338,6 +4377,5 @@ finish:
   mpz_clear(work);
   mpz_clear(divisor);
   mpz_clear(root);
-  *nfactors = result.count;
-  return result.values;
+  return siqs_factor_array_release(&result, nfactors);
 }
