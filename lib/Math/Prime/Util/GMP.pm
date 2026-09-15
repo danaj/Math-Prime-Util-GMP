@@ -3172,6 +3172,9 @@ module quite a bit for testing against.
 Paul Zimmermann's papers and GMP-ECM code were of great value for my projective
 ECM implementation, as well as the many papers by Brent and Montgomery.
 
+Hugo van der Sanden’s work on SIMPQS2, performance results, and encouragement
+provided the impetus for the new SIQS implementation.
+
 
 =head1 COPYRIGHT
 
