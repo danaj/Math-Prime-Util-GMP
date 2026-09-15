@@ -107,12 +107,16 @@
  * d=2 is healthy below the range where that preference most often matters. */
 #define SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS 3U
 /* Multiplier selection is worth shortening while it is a material part of a
- * full factorization.  Fresh full-factor sweeps selected all odd square-free
- * k <= 255 scored through FB/20 at 100--177 bits.  From 178 bits onward the
- * smaller k <= 127 set scored through min(FB,1000) was more stable; extending
- * the shallow search through 184 gained less than 1% and lost most pairwise
- * comparisons.  The 177/178 boundary also coincides with an existing policy
- * transition rather than introducing a new one solely for this selector. */
+ * full factorization.  The shallow path initially scores all odd square-free
+ * k <= 255 through FB/20.  Per-band refinement can then rescore its best four
+ * candidates more deeply: fresh order-balanced sweeps found up to 3% mean
+ * gains and cut 4--10% from the baseline's slowest decile at 65--144 bits.  A
+ * constant divisor tied an in-band ramp, while refinement below 65 or above
+ * 144 did not repay its cost.  From 178 bits onward the smaller k <= 127 set
+ * is already scored through min(FB,1000); extending the shallow search through
+ * 184 gained less than 1% and lost most pairwise comparisons.  The 177/178
+ * boundary also coincides with an existing policy transition rather than
+ * introducing a new one solely for this selector. */
 #ifndef SIQS_MULTIPLIER_MAX
 # define SIQS_MULTIPLIER_MAX 255U
 #endif
@@ -157,6 +161,7 @@
 # error "SIQS_MULTIPLIER_SEARCH_FLOOR must be positive"
 #endif
 #define SIQS_MULTIPLIER_CAPACITY ((SIQS_MULTIPLIER_MAX + 1U) / 2U)
+#define SIQS_MULTIPLIER_REFINE_FINALISTS 4U
 #define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
@@ -242,6 +247,7 @@ typedef struct {
   double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
+  uint32_t multiplier_refine_divisor;
   uint32_t a_final_tolerance;
   uint32_t fixed_half_interval;
   uint8_t sieve_initial;
@@ -736,6 +742,7 @@ typedef struct {
   uint16_t sieve_start_prime_floor;
   uint16_t fb_floor;
   uint16_t relation_extra;
+  uint8_t multiplier_refine_divisor;
   uint8_t a_final_tolerance;
   uint32_t fixed_half_interval;
   siqs_policy_linear_t fb_coefficient;
@@ -758,6 +765,7 @@ typedef struct {
   double sieve_start_index_exponent;
   uint32_t fb_floor;
   uint32_t relation_extra;
+  uint32_t multiplier_refine_divisor;
   uint32_t a_final_tolerance;
   uint32_t fixed_half_interval;
   uint8_t stage1_bias;
@@ -782,10 +790,11 @@ typedef struct {
  * bits.  Keeping them separate preserves that established calculation exactly.
  * Integer columns after the bit range are: LP count, q count, bias base,
  * bias step width/origin, 1LP K, conditional 2LP K/R floors, sieve byte
- * headroom, the first-sieved-prime floor, the factor-base floor, and the
- * initial relation surplus, final A-product tolerance, and an optional fixed
- * half interval.  The final column is the optional factor-base index exponent
- * used to choose the first sieved prime.
+ * headroom, the first-sieved-prime floor, the factor-base floor, the initial
+ * relation surplus, the multiplier-refinement divisor, final A-product
+ * tolerance, and an optional fixed half interval.  A zero refinement divisor
+ * disables the second multiplier-scoring stage.  The final column is the
+ * optional factor-base index exponent used to choose the first sieved prime.
  *
  * The LP count is part of each complete policy row rather than an independent
  * crossover knob: changing it also requires changing the smooth exponent,
@@ -865,31 +874,31 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
    * the 95/96 boundary. */
   { "smooth_k1_q1_low_4k", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 4096,
+    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 4096,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.0, 1),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q2_low", 37, 41, 1, 2, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q2_fb36_bias3", 42, 49, 1, 2, 3, 0, 0,
-    1, 60, 60, 8, 0, 36, 4, 32, 4096,
+    1, 60, 60, 8, 0, 36, 4, 0, 32, 4096,
     SIQS_POLICY_LINEAR(0.315, 0.0, 42),
     SIQS_POLICY_LINEAR(0.0, 0.0, 42),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 },
   { "smooth_k1_q3_floor40", 50, 64, 1, 3, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    1, 60, 60, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q3_fb_low", 65, 80, 1, 3, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    1, 60, 60, 8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.306956091, 0.0000655453, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -898,7 +907,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * and a uniform 95% factor-base scale.  Express that scale as a shallow
    * coefficient ramp so the production policy needs no second FB knob. */
   { "smooth_k1_q4_fb_low", 81, 95, 1, 4, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    1, 60, 60, 8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.311589139, 0.0000229912, 81),
     SIQS_POLICY_LINEAR(0.5, 0.05, 65),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -906,13 +915,13 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   /* Two extra relations cost 0.1% over this band while cutting matrix retries
    * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
   { "one_lp_k2_q5_geometry_ramp", 96, 106, 1, 5, 10, 3, 96,
-    2, 60, 60, 8, 0, 160, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    2, 60, 60, 8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, -0.0005929708, 96),
     SIQS_POLICY_LINEAR(1.7, 0.08, 96),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
   { "one_lp_k2_q5_geometry", 107, 116, 1, 5, 14, 0, 0,
-    2, 60, 60, 8, 0, 160, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    2, 60, 60, 8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309104504, 0.0000317423, 107),
     SIQS_POLICY_LINEAR(2.5375, 0.0375, 107),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -922,7 +931,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * matrix attempts, while avoiding the fixed readiness surplus reduced
    * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
   { "one_lp_k4_q6_geometry_ramp", 117, 129, 1, 6, 16, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309419667, 0.00046502775, 117),
     SIQS_POLICY_LINEAR(3.125, 0.0, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -931,25 +940,25 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * 166 bits and saved about 1--5% across these bands.  The former 151--158
    * and 159--166 rows merge once they use the same filter bias. */
   { "one_lp_k4_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(2.8125, 0.05625, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
   { "one_lp_k4_q6", 140, 144, 1, 6, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(3.375, 0.0, 140),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
   { "one_lp_k5_q7", 145, 150, 1, 7, 14, 0, 0,
-    5, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    5, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
     SIQS_POLICY_LINEAR(3.75, 0.09, 145),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 146), 0.45 },
   { "one_lp_k8_q7_fb_low", 151, 166, 1, 7, 14, 0, 0,
-    8, 60, 60, 8, 0, 160, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
     SIQS_POLICY_LINEAR(4.2, 0.0, 151),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
@@ -959,85 +968,85 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
    * a fresh 600-input order-balanced confirmation, so retain +96. */
   { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
-    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
     SIQS_POLICY_LINEAR(4.2, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k20_q8", 178, 192, 1, 8, 18, 0, 0, 20, 60, 60, 8, 0, 160, 96,
-    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(3.3, 0.0, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k16_q8", 193, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
-    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(3.6, -0.04, 185),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_interval_taper", 201, 205, 1, 9, 18, 0, 0,
-    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.324182603342, 0.000211825641, 201),
     SIQS_POLICY_LINEAR(3.0, -0.0625, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9", 206, 210, 1, 9, 18, 0, 0,
-    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
     SIQS_POLICY_LINEAR(2.5, 0.0, 208),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_taper", 211, 217, 1, 9, 18, 0, 0,
-    24, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
     SIQS_POLICY_LINEAR(3.0, -0.05, 200),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k48_q9_interval_taper", 218, 230, 1, 9, 18, 0, 0,
-    48, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "two_lp_early_interval_taper", 231, 239, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 231),
     SIQS_POLICY_LINEAR(2.5, -0.05, 210),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 231), 0.0 },
   { "two_lp_early", 240, 249, 2, 10, 18, 0, 0, 0, 60, 60, 8, 401, 160, 96,
-    SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
     SIQS_POLICY_LINEAR(1.0, 0.0, 240),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
   { "two_lp_fb_ramp_q10", 250, 259, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 251),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
   { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
     SIQS_POLICY_LINEAR(1.0, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
   { "two_lp_mid_ramp", 270, 299, 2, 11, 12, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30621546, 0.000126151333, 270),
     SIQS_POLICY_LINEAR(1.0, 0.0, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q11_fb_bridge", 300, 304, 2, 11, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.31, 0.001, 300),
     SIQS_POLICY_LINEAR(1.0, 0.0, 301),
     SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12_fb_ramp", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(1.0, 0.0, 305),
     SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
@@ -1049,7 +1058,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
  * exact terminal safety net.  Each interval changes the A target. */
 #define SIQS_LOW_SMOOTH_RECOVERY_POLICY(name, interval, scale) \
   { (name), MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0, \
-    1, 60, 60, 8, 0, 40, 2, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 65), \
     SIQS_POLICY_LINEAR((scale), 0.0, 1), \
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
@@ -1059,7 +1068,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
  * finish before reaching the deliberately large final profile. */
 #define SIQS_LOW_ONE_LP_RECOVERY_POLICY(name, interval) \
   { (name), 42, 49, 1, 1, 0, 0, 0, \
-    60, 0, 0, 8, 0, 40, 4, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 42), \
     SIQS_POLICY_LINEAR(0.0, 0.0, 42), \
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
@@ -1163,6 +1172,7 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits,
   policy->sieve_start_index_exponent = band->sieve_start_index_exponent;
   policy->fb_floor = band->fb_floor;
   policy->relation_extra = band->relation_extra;
+  policy->multiplier_refine_divisor = band->multiplier_refine_divisor;
   policy->a_final_tolerance = band->a_final_tolerance;
   policy->fixed_half_interval = band->fixed_half_interval;
   policy->fb_coefficient =
@@ -1197,6 +1207,7 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->sieve_start_index_exponent = policy.sieve_start_index_exponent;
   p->fb_floor = policy.fb_floor;
   p->relation_extra = policy.relation_extra;
+  p->multiplier_refine_divisor = policy.multiplier_refine_divisor;
   p->a_final_tolerance = policy.a_final_tolerance;
   p->fixed_half_interval = policy.fixed_half_interval;
   p->fb_coefficient = policy.fb_coefficient;
@@ -1257,15 +1268,26 @@ static int siqs_squarefree_small(uint32_t n) {
   return 1;
 }
 
-static unsigned long siqs_choose_multiplier(const mpz_t n,
-                                            uint32_t fb_size) {
+/* Return the analytic part of a candidate multiplier's score. */
+static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
+  unsigned long mod8 = (nmod8 * k) & 7UL;
+  double score = -SIQS_MULTIPLIER_SIZE_PENALTY * log((double)k);
+  score += mod8 == 1 ? 2.0 * M_LN2
+           : mod8 == 5 ? M_LN2 : 0.5 * M_LN2;
+  if (mod8 == 1)
+    score += SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS * M_LN2 / 16.0;
+  return score;
+}
+
+static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
+                                            uint32_t refine_divisor) {
   uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
   uint32_t accepted[SIQS_MULTIPLIER_CAPACITY] = { 0 };
   uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
   uint32_t max_multiplier = bits <= SIQS_MULTIPLIER_SHALLOW_LAST_BITS
                           ? SIQS_MULTIPLIER_MAX
                           : SIQS_MULTIPLIER_FULL_MAX;
-  uint32_t kcount = 0, k, i, unfinished, wanted;
+  uint32_t kcount = 0, k, i, unfinished, wanted, refine_wanted = 0;
 #if SIQS_MULTIPLIER_SEARCH_DIVISOR > 0
   if (bits <= SIQS_MULTIPLIER_SHALLOW_LAST_BITS)
     wanted = fb_size / SIQS_MULTIPLIER_SEARCH_DIVISOR;
@@ -1277,8 +1299,7 @@ static unsigned long siqs_choose_multiplier(const mpz_t n,
          ? fb_size : SIQS_MULTIPLIER_SEARCH_DEPTH;
 #endif
   double score[SIQS_MULTIPLIER_CAPACITY], best_score;
-  const uint32_t d2_bonus_sixteenths =
-      (uint32_t)SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS;
+  unsigned long nmod8 = mpz_fdiv_ui(n, 8);
   unsigned long best;
   PRIME_ITERATOR(iter);
 
@@ -1286,21 +1307,23 @@ static unsigned long siqs_choose_multiplier(const mpz_t n,
     wanted = SIQS_MULTIPLIER_SEARCH_FLOOR;
   if (wanted > fb_size)
     wanted = fb_size;
+  if (bits > SIQS_MULTIPLIER_SHALLOW_LAST_BITS)
+    refine_divisor = 0;
+  if (refine_divisor != 0) {
+    refine_wanted = fb_size / refine_divisor;
+    if (refine_wanted < SIQS_MULTIPLIER_SEARCH_FLOOR)
+      refine_wanted = SIQS_MULTIPLIER_SEARCH_FLOOR;
+    if (refine_wanted > fb_size)
+      refine_wanted = fb_size;
+    if (refine_wanted <= wanted)
+      refine_divisor = 0;
+  }
 
   for (k = 1; k <= max_multiplier; k += 2) {
-    unsigned long mod8;
     if (!siqs_squarefree_small(k))
       continue;
     kval[kcount] = k;
-    mod8 = (mpz_fdiv_ui(n, 8) * k) & 7UL;
-    score[kcount] = -SIQS_MULTIPLIER_SIZE_PENALTY * log((double)k);
-    score[kcount] += mod8 == 1 ? 2.0 * M_LN2
-                     : mod8 == 5 ? M_LN2 : 0.5 * M_LN2;
-    /* Sweep a small extra preference for the residue class that permits the
-     * d=2 polynomial.  Integer sixteenths express the planned fractions of
-     * ln2 exactly at compile time. */
-    if (mod8 == 1)
-      score[kcount] += d2_bonus_sixteenths * M_LN2 / 16.0;
+    score[kcount] = siqs_multiplier_base_score(nmod8, k);
     kcount++;
   }
 
@@ -1328,6 +1351,75 @@ static unsigned long siqs_choose_multiplier(const mpz_t n,
     }
   }
   prime_iterator_destroy(&iter);
+
+  /* A shallow score is cheap for the complete multiplier set but occasionally
+   * misorders its best few candidates.  Rescore only those finalists from the
+   * analytic baseline; this captures most of the benefit of a deep global
+   * search without paying its cost for every multiplier. */
+  if (refine_divisor != 0) {
+    uint8_t chosen[SIQS_MULTIPLIER_CAPACITY] = { 0 };
+    uint32_t finalist[SIQS_MULTIPLIER_REFINE_FINALISTS];
+    uint32_t finalist_count = SIQS_MULTIPLIER_REFINE_FINALISTS;
+    uint32_t selected;
+    PRIME_ITERATOR(refine_iter);
+
+    if (finalist_count > kcount)
+      finalist_count = kcount;
+
+    for (selected = 0; selected < finalist_count; selected++) {
+      uint32_t best_index = UINT32_MAX;
+      for (i = 0; i < kcount; i++)
+        if (!chosen[i] &&
+            (best_index == UINT32_MAX || score[i] > score[best_index]))
+          best_index = i;
+      chosen[best_index] = 1;
+      finalist[selected] = best_index;
+      accepted[best_index] = 0;
+      score[best_index] =
+          siqs_multiplier_base_score(nmod8, kval[best_index]);
+    }
+
+    unfinished = finalist_count;
+    prime_iterator_setprime(&refine_iter, 2);
+    while (unfinished != 0) {
+      uint32_t p = (uint32_t)prime_iterator_next(&refine_iter);
+      uint32_t nmod = (uint32_t)mpz_fdiv_ui(n, p);
+      int nsymbol = nmod == 0 ? 0 : siqs_jacobi_odd_u32(nmod, p);
+      double logp = log((double)p);
+      for (selected = 0; selected < finalist_count; selected++) {
+        uint32_t index = finalist[selected];
+        uint32_t km;
+        if (accepted[index] == refine_wanted)
+          continue;
+        km = kval[index] % p;
+        if (km == 0) {
+          score[index] += logp / p;
+          accepted[index]++;
+        } else if (nsymbol != 0 &&
+                   siqs_jacobi_odd_u32(km, p) == nsymbol) {
+          score[index] += 2.0 * logp / (p - 1);
+          accepted[index]++;
+        }
+        if (accepted[index] == refine_wanted)
+          unfinished--;
+      }
+    }
+    prime_iterator_destroy(&refine_iter);
+
+    i = finalist[0];
+    best = kval[i];
+    best_score = score[i];
+    for (selected = 1; selected < finalist_count; selected++) {
+      uint32_t index = finalist[selected];
+      if (score[index] > best_score ||
+          (score[index] == best_score && index < i)) {
+        i = index;
+        best_score = score[index];
+        best = kval[index];
+      }
+    }
+    return best;
+  }
 
   best = kval[0];
   best_score = score[0];
@@ -3988,7 +4080,8 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
       seed ^ UINT64_C(0x6a09e667f3bcc909));
   ctx->la_rng.state = siqs_mix64(
       seed ^ UINT64_C(0xbb67ae8584caa73b));
-  ctx->multiplier = siqs_choose_multiplier(n, ctx->params.fb_size);
+  ctx->multiplier = siqs_choose_multiplier(
+      n, ctx->params.fb_size, ctx->params.multiplier_refine_divisor);
   mpz_mul_ui(ctx->kn, n, ctx->multiplier);
   ctx->params.poly_d = mpz_fdiv_ui(ctx->kn, 8) == 1 ? 2U : 1U;
   if (ctx->params.poly_d == 2 && mpz_fdiv_ui(ctx->kn, 8) != 1)
