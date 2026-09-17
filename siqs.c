@@ -165,6 +165,14 @@
 #define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
+/* Retained partials dominate relation-side storage.  Pack their factor-base
+ * row and exponent into one checked word, while leaving smooth relations wide
+ * so their factor vectors can move directly into the full-relation array. */
+#define SIQS_PACKED_FACTOR_ROW_BITS 20U
+#define SIQS_PACKED_FACTOR_ROW_MASK \
+  ((1U << SIQS_PACKED_FACTOR_ROW_BITS) - 1U)
+#define SIQS_PACKED_FACTOR_EXP_MAX \
+  (UINT32_MAX >> SIQS_PACKED_FACTOR_ROW_BITS)
 
 typedef struct {
   uint32_t p;
@@ -178,6 +186,11 @@ typedef struct {
   uint32_t exponent;
 } siqs_factor_t;
 
+typedef union {
+  siqs_factor_t *wide;
+  uint32_t *packed;
+} siqs_raw_factors_t;
+
 typedef struct {
   mpz_t y;
   mpz_t q;
@@ -188,7 +201,7 @@ typedef struct {
 
 typedef struct {
   mpz_t y;
-  siqs_factor_t *factors;
+  siqs_raw_factors_t factors;
   uint32_t nfactors;
   uint64_t lp1;
   uint64_t lp2;
@@ -1221,6 +1234,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   fb = exp(p->fb_coefficient * ln_term);
   if (fb < (double)p->fb_floor) fb = (double)p->fb_floor;
   p->fb_size = (uint32_t)fb;
+  if (p->fb_size > SIQS_PACKED_FACTOR_ROW_MASK)
+    croak("SIQS: factor base is too large for packed partial relations");
 
   if (p->fixed_half_interval != 0) {
     if (p->fixed_half_interval < 4096 ||
@@ -1478,16 +1493,38 @@ static int siqs_u32_cmp(const void *va, const void *vb) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+static int siqs_raw_factors_are_packed(const siqs_raw_relation_t *r) {
+  return r->lp2 != 1;
+}
+
+static uint32_t siqs_pack_raw_factor(uint32_t row, uint32_t exponent) {
+  if (row > SIQS_PACKED_FACTOR_ROW_MASK ||
+      exponent > SIQS_PACKED_FACTOR_EXP_MAX)
+    croak("SIQS: raw relation factor does not fit packed storage");
+  return row | (exponent << SIQS_PACKED_FACTOR_ROW_BITS);
+}
+
+static uint32_t siqs_raw_factor_row(const siqs_raw_relation_t *r,
+                                    uint32_t index) {
+  if (siqs_raw_factors_are_packed(r))
+    return r->factors.packed[index] & SIQS_PACKED_FACTOR_ROW_MASK;
+  return r->factors.wide[index].row;
+}
+
+static uint32_t siqs_raw_factor_exponent(const siqs_raw_relation_t *r,
+                                         uint32_t index) {
+  if (siqs_raw_factors_are_packed(r))
+    return r->factors.packed[index] >> SIQS_PACKED_FACTOR_ROW_BITS;
+  return r->factors.wide[index].exponent;
+}
+
 static siqs_raw_relation_t *siqs_raw_relation_new(const mpz_t y,
     const siqs_factor_t *factors, uint32_t nfactors,
     uint64_t lp1, uint64_t lp2) {
+  uint32_t i;
   siqs_raw_relation_t *r =
       (siqs_raw_relation_t *)siqs_malloc(sizeof(*r));
   mpz_init_set(r->y, y);
-  r->factors = (siqs_factor_t *)siqs_malloc(
-      (size_t)nfactors * sizeof(*r->factors));
-  memcpy(r->factors, factors, (size_t)nfactors * sizeof(*r->factors));
-  r->nfactors = nfactors;
   if (lp1 > lp2) {
     uint64_t t = lp1;
     lp1 = lp2;
@@ -1495,6 +1532,19 @@ static siqs_raw_relation_t *siqs_raw_relation_new(const mpz_t y,
   }
   r->lp1 = lp1;
   r->lp2 = lp2;
+  r->nfactors = nfactors;
+  if (siqs_raw_factors_are_packed(r)) {
+    r->factors.packed = (uint32_t *)siqs_malloc(
+        (size_t)nfactors * sizeof(*r->factors.packed));
+    for (i = 0; i < nfactors; i++)
+      r->factors.packed[i] = siqs_pack_raw_factor(
+          factors[i].row, factors[i].exponent);
+  } else {
+    r->factors.wide = (siqs_factor_t *)siqs_malloc(
+        (size_t)nfactors * sizeof(*r->factors.wide));
+    memcpy(r->factors.wide, factors,
+           (size_t)nfactors * sizeof(*r->factors.wide));
+  }
   r->fingerprint = 0;
   return r;
 }
@@ -1503,7 +1553,10 @@ static void siqs_raw_relation_free(siqs_raw_relation_t *r) {
   if (r == NULL)
     return;
   mpz_clear(r->y);
-  free(r->factors);
+  if (siqs_raw_factors_are_packed(r))
+    free(r->factors.packed);
+  else
+    free(r->factors.wide);
   free(r);
 }
 
@@ -1523,8 +1576,8 @@ static uint64_t siqs_relation_fingerprint(const siqs_raw_relation_t *r) {
   h ^= siqs_mix64(r->lp1 + UINT64_C(0x243f6a8885a308d3));
   h ^= siqs_mix64(r->lp2 + UINT64_C(0x13198a2e03707344));
   for (i = 0; i < r->nfactors; i++)
-    h = siqs_mix64(h ^ ((uint64_t)r->factors[i].row << 32)
-                     ^ r->factors[i].exponent);
+    h = siqs_mix64(h ^ ((uint64_t)siqs_raw_factor_row(r, i) << 32)
+                     ^ siqs_raw_factor_exponent(r, i));
   return h;
 }
 
@@ -1539,13 +1592,14 @@ static void siqs_verify_raw_relation(const siqs_ctx_t *ctx,
   mpz_mul(lhs, r->y, r->y);
   mpz_mod(lhs, lhs, ctx->n);
   for (i = 0; i < r->nfactors; i++) {
-    uint32_t row = r->factors[i].row;
+    uint32_t row = siqs_raw_factor_row(r, i);
+    uint32_t exponent = siqs_raw_factor_exponent(r, i);
     if (row == 0) {
-      if (r->factors[i].exponent & 1U)
+      if (exponent & 1U)
         mpz_neg(rhs, rhs);
     } else {
       mpz_set_ui(t, ctx->fb[row - 1].p);
-      mpz_powm_ui(t, t, r->factors[i].exponent, ctx->n);
+      mpz_powm_ui(t, t, exponent, ctx->n);
       mpz_mul(rhs, rhs, t);
       mpz_mod(rhs, rhs, ctx->n);
     }
@@ -1595,11 +1649,13 @@ static void siqs_materialize_smooth_relation(siqs_ctx_t *ctx,
                                               siqs_raw_relation_t *raw) {
   siqs_full_relation_t *full =
       (siqs_full_relation_t *)siqs_malloc(sizeof(*full));
+  if (siqs_raw_factors_are_packed(raw))
+    croak("SIQS: smooth relation unexpectedly has packed factors");
   mpz_init(full->y);
   mpz_swap(full->y, raw->y);
-  full->factors = raw->factors;
+  full->factors = raw->factors.wide;
   full->nfactors = raw->nfactors;
-  raw->factors = NULL;
+  raw->factors.wide = NULL;
   raw->nfactors = 0;
   siqs_raw_relation_free(raw);
   siqs_store_full(ctx, full);
@@ -1616,10 +1672,12 @@ static siqs_factor_t *siqs_merge_relation_factors(
   while (li < left->nfactors || ri < right->nfactors) {
     if (ri == right->nfactors ||
         (li < left->nfactors &&
-         left->factors[li].row < right->factors[ri].row)) {
+         siqs_raw_factor_row(left, li) <
+             siqs_raw_factor_row(right, ri))) {
       li++;
     } else if (li == left->nfactors ||
-               right->factors[ri].row < left->factors[li].row) {
+               siqs_raw_factor_row(right, ri) <
+                   siqs_raw_factor_row(left, li)) {
       ri++;
     } else {
       li++;
@@ -1634,17 +1692,26 @@ static siqs_factor_t *siqs_merge_relation_factors(
   while (li < left->nfactors || ri < right->nfactors) {
     if (ri == right->nfactors ||
         (li < left->nfactors &&
-         left->factors[li].row < right->factors[ri].row)) {
-      merged[count++] = left->factors[li++];
+         siqs_raw_factor_row(left, li) <
+             siqs_raw_factor_row(right, ri))) {
+      merged[count].row = siqs_raw_factor_row(left, li);
+      merged[count].exponent = siqs_raw_factor_exponent(left, li);
+      count++;
+      li++;
     } else if (li == left->nfactors ||
-               right->factors[ri].row < left->factors[li].row) {
-      merged[count++] = right->factors[ri++];
+               siqs_raw_factor_row(right, ri) <
+                   siqs_raw_factor_row(left, li)) {
+      merged[count].row = siqs_raw_factor_row(right, ri);
+      merged[count].exponent = siqs_raw_factor_exponent(right, ri);
+      count++;
+      ri++;
     } else {
-      uint32_t exponent = left->factors[li].exponent
-                        + right->factors[ri].exponent;
-      if (exponent < left->factors[li].exponent)
+      uint32_t left_exponent = siqs_raw_factor_exponent(left, li);
+      uint32_t exponent = left_exponent
+                        + siqs_raw_factor_exponent(right, ri);
+      if (exponent < left_exponent)
         croak("SIQS: relation factor exponent overflow");
-      merged[count].row = left->factors[li].row;
+      merged[count].row = siqs_raw_factor_row(left, li);
       merged[count].exponent = exponent;
       count++;
       li++;
@@ -1892,8 +1959,8 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
     mpz_mul(y, y, r->y);
     mpz_mod(y, y, ctx->n);
     for (j = 0; j < r->nfactors; j++)
-      siqs_touch_factor(ctx, r->factors[j].row,
-                       r->factors[j].exponent);
+      siqs_touch_factor(ctx, siqs_raw_factor_row(r, j),
+                       siqs_raw_factor_exponent(r, j));
   }
   for (i = 0; i < vertex_count; i++) {
     uint64_t lp = ctx->graph.vertices[vertices[i]].value;
@@ -2026,6 +2093,14 @@ static void siqs_graph_add_relation(siqs_ctx_t *ctx, uint32_t edge) {
     siqs_materialize_cycle(ctx, edges, ec, vertices, vc);
     free(edges);
     free(vertices);
+    /* The closing edge produced its one fundamental cycle and never enters
+     * the spanning forest, so no later cycle can reference it.  It is also
+     * the newest raw slot, allowing that slot to be reclaimed immediately. */
+    if (edge + 1U != ctx->raw_count)
+      croak("SIQS: cycle-closing edge is not the newest raw relation");
+    siqs_raw_relation_free(rel);
+    ctx->raw[edge] = NULL;
+    ctx->raw_count--;
   }
 }
 
