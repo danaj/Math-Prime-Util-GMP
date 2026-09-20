@@ -205,7 +205,6 @@ typedef struct {
   uint32_t nfactors;
   uint64_t lp1;
   uint64_t lp2;
-  uint64_t fingerprint;
 } siqs_raw_relation_t;
 
 typedef struct {
@@ -1547,7 +1546,6 @@ static siqs_raw_relation_t *siqs_raw_relation_new(const mpz_t y,
     memcpy(r->factors.wide, factors,
            (size_t)nfactors * sizeof(*r->factors.wide));
   }
-  r->fingerprint = 0;
   return r;
 }
 
@@ -2133,8 +2131,8 @@ static void siqs_accept_one_lp_relation(siqs_ctx_t *ctx,
 
 static void siqs_accept_raw_relation(siqs_ctx_t *ctx,
                                      siqs_raw_relation_t *r) {
-  r->fingerprint = siqs_relation_fingerprint(r);
-  if (!siqs_hashset_insert(&ctx->relation_hashes, r->fingerprint)) {
+  uint64_t fingerprint = siqs_relation_fingerprint(r);
+  if (!siqs_hashset_insert(&ctx->relation_hashes, fingerprint)) {
     siqs_raw_relation_free(r);
     return;
   }
@@ -3023,7 +3021,10 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   uint32_t original_count = ctx->candidate_count;
   uint32_t read, out = 0;
   uint32_t small_hits[SIQS_POSTFILTER_MAX_SMALL];
-  mpz_t q, twice_b;
+  /* Filtering and evaluation do not overlap, so reuse the evaluation GMP
+   * workspace instead of allocating two temporaries for every sieve block. */
+  mpz_ptr q = ctx->eval.q;
+  mpz_ptr twice_b = ctx->eval.y;
   double log_smooth = log((double)ctx->params.smooth_bound);
 
   if (ctx->params.sieve_start > SIQS_POSTFILTER_MAX_SMALL)
@@ -3032,8 +3033,6 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   if (ctx->hit_count != 0)
     croak("SIQS: candidate postfilter started with resieve hits");
 #endif
-  mpz_init(q);
-  mpz_init(twice_b);
   mpz_mul_2exp(twice_b, poly->B, 1);
 
   for (read = 0; read < original_count; read++) {
@@ -3091,8 +3090,6 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
     }
   }
   ctx->candidate_count = out;
-  mpz_clear(q);
-  mpz_clear(twice_b);
 }
 
 /* Translate a whole-interval root to the current block without changing the
