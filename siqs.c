@@ -173,6 +173,8 @@
   ((1U << SIQS_PACKED_FACTOR_ROW_BITS) - 1U)
 #define SIQS_PACKED_FACTOR_EXP_MAX \
   (UINT32_MAX >> SIQS_PACKED_FACTOR_ROW_BITS)
+#define SIQS_RAW_BLOCK_INITIAL (1U << 14)
+#define SIQS_RAW_BLOCK_MAX     (1U << 20)
 
 typedef struct {
   uint32_t p;
@@ -206,6 +208,17 @@ typedef struct {
   uint64_t lp1;
   uint64_t lp2;
 } siqs_raw_relation_t;
+
+typedef struct siqs_raw_block_t {
+  struct siqs_raw_block_t *previous;
+  size_t used;
+  size_t capacity;
+  uint64_t payload_alignment;  /* Align the immediately following payload. */
+} siqs_raw_block_t;
+
+typedef struct {
+  siqs_raw_block_t *current;
+} siqs_raw_arena_t;
 
 typedef struct {
   mpz_t y;
@@ -369,6 +382,7 @@ typedef struct {
   siqs_raw_relation_t **raw;
   uint32_t raw_count;
   uint32_t raw_alloc;
+  siqs_raw_arena_t raw_arena;
   siqs_full_relation_t **full;
   uint32_t full_count;
   uint32_t full_alloc;
@@ -432,6 +446,76 @@ static void *siqs_realloc(void *old, size_t size) {
   if (p == NULL)
     croak("SIQS: unable to grow allocation");
   return p;
+}
+
+/* Packed partials live for most of a factorization and otherwise disappear
+ * immediately in allocation order.  Coalesce their headers and factor words
+ * into bump blocks, with a LIFO rewind for rejected and cycle-closing
+ * relations. */
+static size_t siqs_raw_allocation_size(uint32_t nfactors) {
+  size_t size = sizeof(siqs_raw_relation_t);
+  if ((size_t)nfactors > (SIZE_MAX - size) / sizeof(uint32_t))
+    croak("SIQS: raw relation factor storage is too large");
+  return size + (size_t)nfactors * sizeof(uint32_t);
+}
+
+static void *siqs_raw_arena_alloc(siqs_raw_arena_t *arena, size_t size) {
+  const size_t alignment = sizeof(uint64_t);
+  siqs_raw_block_t *block = arena->current;
+  unsigned char *data;
+  void *result;
+  if (size > SIZE_MAX - (alignment - 1U))
+    croak("SIQS: raw relation allocation is too large");
+  size = (size + alignment - 1U) & ~(alignment - 1U);
+  if (block == NULL || size > block->capacity - block->used) {
+    size_t allocation = SIQS_RAW_BLOCK_INITIAL;
+    if (block != NULL) {
+      size_t previous = block->capacity + sizeof(*block);
+      allocation = previous <= SIQS_RAW_BLOCK_MAX / 4U
+                 ? previous * 4U : SIQS_RAW_BLOCK_MAX;
+    }
+    if (allocation < sizeof(*block) ||
+        allocation - sizeof(*block) < size) {
+      if (size > SIZE_MAX - sizeof(*block))
+        croak("SIQS: raw relation block is too large");
+      allocation = sizeof(*block) + size;
+    }
+    block = (siqs_raw_block_t *)siqs_malloc(allocation);
+    block->previous = arena->current;
+    block->used = 0;
+    block->capacity = allocation - sizeof(*block);
+    block->payload_alignment = 0;
+    arena->current = block;
+  }
+  data = (unsigned char *)(block + 1);
+  result = data + block->used;
+  block->used += size;
+  return result;
+}
+
+static void siqs_raw_arena_discard_last(siqs_raw_arena_t *arena,
+                                        void *allocation, size_t size) {
+  const size_t alignment = sizeof(uint64_t);
+  siqs_raw_block_t *block = arena->current;
+  unsigned char *data;
+  if (block == NULL || size > SIZE_MAX - (alignment - 1U))
+    return;
+  size = (size + alignment - 1U) & ~(alignment - 1U);
+  if (size > block->used)
+    return;
+  data = (unsigned char *)(block + 1);
+  if ((unsigned char *)allocation == data + block->used - size)
+    block->used -= size;
+}
+
+static void siqs_raw_arena_clear(siqs_raw_arena_t *arena) {
+  siqs_raw_block_t *block = arena->current;
+  while (block != NULL) {
+    siqs_raw_block_t *previous = block->previous;
+    free(block);
+    block = previous;
+  }
+  arena->current = NULL;
 }
 
 static uint64_t siqs_mix64(uint64_t x) {
@@ -1519,24 +1603,30 @@ static uint32_t siqs_raw_factor_exponent(const siqs_raw_relation_t *r,
   return r->factors.wide[index].exponent;
 }
 
-static siqs_raw_relation_t *siqs_raw_relation_new(const mpz_t y,
-    const siqs_factor_t *factors, uint32_t nfactors,
+static siqs_raw_relation_t *siqs_raw_relation_new(siqs_ctx_t *ctx,
+    const mpz_t y, const siqs_factor_t *factors, uint32_t nfactors,
     uint64_t lp1, uint64_t lp2) {
+  size_t allocation;
   uint32_t i;
-  siqs_raw_relation_t *r =
-      (siqs_raw_relation_t *)siqs_malloc(sizeof(*r));
-  mpz_init_set(r->y, y);
+  siqs_raw_relation_t *r;
   if (lp1 > lp2) {
     uint64_t t = lp1;
     lp1 = lp2;
     lp2 = t;
   }
+  allocation = lp2 != 1
+             ? siqs_raw_allocation_size(nfactors)
+             : sizeof(*r);
+  r = lp2 != 1
+    ? (siqs_raw_relation_t *)siqs_raw_arena_alloc(
+          &ctx->raw_arena, allocation)
+    : (siqs_raw_relation_t *)siqs_malloc(allocation);
+  mpz_init_set(r->y, y);
   r->lp1 = lp1;
   r->lp2 = lp2;
   r->nfactors = nfactors;
   if (siqs_raw_factors_are_packed(r)) {
-    r->factors.packed = (uint32_t *)siqs_malloc(
-        (size_t)nfactors * sizeof(*r->factors.packed));
+    r->factors.packed = (uint32_t *)(r + 1);
     for (i = 0; i < nfactors; i++)
       r->factors.packed[i] = siqs_pack_raw_factor(
           factors[i].row, factors[i].exponent);
@@ -1549,15 +1639,18 @@ static siqs_raw_relation_t *siqs_raw_relation_new(const mpz_t y,
   return r;
 }
 
-static void siqs_raw_relation_free(siqs_raw_relation_t *r) {
+static void siqs_raw_relation_free(siqs_ctx_t *ctx,
+                                   siqs_raw_relation_t *r) {
   if (r == NULL)
     return;
   mpz_clear(r->y);
-  if (siqs_raw_factors_are_packed(r))
-    free(r->factors.packed);
-  else
+  if (siqs_raw_factors_are_packed(r)) {
+    siqs_raw_arena_discard_last(
+        &ctx->raw_arena, r, siqs_raw_allocation_size(r->nfactors));
+  } else {
     free(r->factors.wide);
-  free(r);
+    free(r);
+  }
 }
 
 static void siqs_full_relation_free(siqs_full_relation_t *r) {
@@ -1657,7 +1750,7 @@ static void siqs_materialize_smooth_relation(siqs_ctx_t *ctx,
   full->nfactors = raw->nfactors;
   raw->factors.wide = NULL;
   raw->nfactors = 0;
-  siqs_raw_relation_free(raw);
+  siqs_raw_relation_free(ctx, raw);
   siqs_store_full(ctx, full);
 }
 
@@ -1739,13 +1832,14 @@ static void siqs_one_lp_init(siqs_one_lp_state_t *state) {
   state->initialized = 1;
 }
 
-static void siqs_one_lp_clear(siqs_one_lp_state_t *state) {
+static void siqs_one_lp_clear(siqs_ctx_t *ctx) {
+  siqs_one_lp_state_t *state = &ctx->one_lp;
   uint32_t i;
   if (!state->initialized)
     return;
   for (i = 0; i < state->alloc; i++)
     if (state->anchors[i].label != 0)
-      siqs_raw_relation_free(state->anchors[i].relation);
+      siqs_raw_relation_free(ctx, state->anchors[i].relation);
   free(state->anchors);
   mpz_clear(state->y);
   mpz_clear(state->large_prime);
@@ -2098,7 +2192,7 @@ static void siqs_graph_add_relation(siqs_ctx_t *ctx, uint32_t edge) {
      * the newest raw slot, allowing that slot to be reclaimed immediately. */
     if (edge + 1U != ctx->raw_count)
       croak("SIQS: cycle-closing edge is not the newest raw relation");
-    siqs_raw_relation_free(rel);
+    siqs_raw_relation_free(ctx, rel);
     ctx->raw[edge] = NULL;
     ctx->raw_count--;
   }
@@ -2126,14 +2220,14 @@ static void siqs_accept_one_lp_relation(siqs_ctx_t *ctx,
 
   (void)siqs_materialize_one_lp_pair(
       ctx, anchor, relation, relation->lp2);
-  siqs_raw_relation_free(relation);
+  siqs_raw_relation_free(ctx, relation);
 }
 
 static void siqs_accept_raw_relation(siqs_ctx_t *ctx,
                                      siqs_raw_relation_t *r) {
   uint64_t fingerprint = siqs_relation_fingerprint(r);
   if (!siqs_hashset_insert(&ctx->relation_hashes, fingerprint)) {
-    siqs_raw_relation_free(r);
+    siqs_raw_relation_free(ctx, r);
     return;
   }
 #ifdef SIQS_DEBUG
@@ -3645,7 +3739,7 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
   if (siqs_resolve_cofactor(ctx, rest, &lp1, &lp2)) {
     siqs_raw_relation_t *relation;
     mpz_mod(y, y, ctx->n);
-    relation = siqs_raw_relation_new(y, factors, count, lp1, lp2);
+    relation = siqs_raw_relation_new(ctx, y, factors, count, lp1, lp2);
     siqs_accept_raw_relation(ctx, relation);
   }
 }
@@ -4316,7 +4410,7 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
 static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   uint32_t i;
   for (i = 0; i < ctx->raw_count; i++)
-    siqs_raw_relation_free(ctx->raw[i]);
+    siqs_raw_relation_free(ctx, ctx->raw[i]);
   for (i = 0; i < ctx->full_count; i++)
     siqs_full_relation_free(ctx->full[i]);
   free(ctx->raw);
@@ -4338,7 +4432,8 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->factor_counts);
   free(ctx->factor_touched);
   free(ctx->matrix_ready_incidence);
-  siqs_one_lp_clear(&ctx->one_lp);
+  siqs_one_lp_clear(ctx);
+  siqs_raw_arena_clear(&ctx->raw_arena);
   siqs_graph_clear(&ctx->graph);
   siqs_hashset_clear(&ctx->relation_hashes);
   siqs_hashset_clear(&ctx->a_hashes);
