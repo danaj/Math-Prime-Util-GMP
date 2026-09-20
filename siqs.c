@@ -4003,6 +4003,13 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   int dense_selected, dense_result = 0;
   if (ctx->full_count < SIQS_MATRIX_EXTRA_RELS(ctx))
     return 0;
+  /* The retained incidence array amortizes repeated readiness checks while
+   * collecting relations, but is dead once a solve begins.  Release it
+   * before constructing the matrix; a rare return to collection rebuilds it
+   * lazily on the next readiness check. */
+  free(ctx->matrix_ready_incidence);
+  ctx->matrix_ready_incidence = NULL;
+  ctx->matrix_ready_incidence_alloc = 0;
   columns = siqs_build_matrix(ctx, &nrows, &ncols);
   original_cols = ncols;
   la_reduce_matrix(&nrows, &ncols, columns);
