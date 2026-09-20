@@ -377,6 +377,8 @@ typedef struct {
   uint32_t matrix_last_count;
   uint32_t matrix_retry_batch;
   uint32_t matrix_target_limit;
+  uint32_t *matrix_ready_incidence;
+  size_t matrix_ready_incidence_alloc;
   int inline_matrix_solves;
   siqs_graph_t graph;
   siqs_one_lp_state_t one_lp;
@@ -3787,7 +3789,7 @@ static la_col_t *siqs_build_matrix(siqs_ctx_t *ctx,
  * without changing or copying the full relations.  Keeping an incidence list
  * from rows to columns makes the peeling pass linear in the number of odd
  * factor-base exponents. */
-static int siqs_matrix_ready(const siqs_ctx_t *ctx,
+static int siqs_matrix_ready(siqs_ctx_t *ctx,
                              uint32_t *surviving_rows,
                              uint32_t *surviving_cols) {
   const uint32_t nrows = ctx->params.fb_size + 1;
@@ -3819,7 +3821,23 @@ static int siqs_matrix_ready(const siqs_ctx_t *ctx,
   for (row = 0; row < nrows; row++)
     offsets[row + 1] = offsets[row] + counts[row];
   memcpy(next, offsets, (size_t)nrows * sizeof(*next));
-  incidence = (uint32_t *)siqs_malloc(entries * sizeof(*incidence));
+  /* Readiness is checked repeatedly near the end of collection.  Retain and
+   * grow its largest buffer so allocators do not accumulate freed large
+   * regions; the spare capacity normally avoids every subsequent growth. */
+  if (entries > ctx->matrix_ready_incidence_alloc) {
+    size_t new_alloc;
+    if (entries > SIZE_MAX - 1024U ||
+        entries / 2U > SIZE_MAX - 1024U - entries)
+      croak("SIQS: matrix readiness incidence is too large");
+    new_alloc = entries + entries / 2U + 1024U;
+    if (new_alloc > SIZE_MAX / sizeof(*incidence))
+      croak("SIQS: matrix readiness incidence is too large");
+    ctx->matrix_ready_incidence = (uint32_t *)siqs_realloc(
+        ctx->matrix_ready_incidence,
+        new_alloc * sizeof(*ctx->matrix_ready_incidence));
+    ctx->matrix_ready_incidence_alloc = new_alloc;
+  }
+  incidence = ctx->matrix_ready_incidence;
   for (col = 0; col < ncols; col++) {
     const siqs_full_relation_t *r = ctx->full[col];
     uint32_t i;
@@ -3875,7 +3893,6 @@ static int siqs_matrix_ready(const siqs_ctx_t *ctx,
 
   free(queue);
   free(removed);
-  free(incidence);
   free(offsets);
   free(counts);
 
@@ -4316,6 +4333,7 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->eval.factors);
   free(ctx->factor_counts);
   free(ctx->factor_touched);
+  free(ctx->matrix_ready_incidence);
   siqs_one_lp_clear(&ctx->one_lp);
   siqs_graph_clear(&ctx->graph);
   siqs_hashset_clear(&ctx->relation_hashes);
