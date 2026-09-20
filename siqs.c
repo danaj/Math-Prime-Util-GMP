@@ -3770,8 +3770,8 @@ static la_col_t *siqs_build_matrix(siqs_ctx_t *ctx,
     for (j = 0; j < r->nfactors; j++)
       if (r->factors[j].exponent & 1U)
         weight++;
-    columns[i].data = (unsigned long *)siqs_malloc(
-        (size_t)weight * sizeof(unsigned long));
+    columns[i].data = (uint32_t *)siqs_malloc(
+        (size_t)weight * sizeof(*columns[i].data));
     columns[i].weight = 0;
     columns[i].orig = i;
     for (j = 0; j < r->nfactors; j++)

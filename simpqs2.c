@@ -249,20 +249,22 @@ static INLINE void insertColEntry(
   la_col_t *colarray, unsigned long colNum, unsigned long entry
 ) {
   unsigned long i;
-  unsigned long *temp;
+  uint32_t *temp;
 
+  if (entry > UINT32_MAX || colNum > UINT32_MAX)
+    croak("SIMPQS2: matrix index exceeds 32-bit storage");
   if ((colarray[colNum].weight & 0x0f) == 0) {
     temp = colarray[colNum].data;
-    colarray[colNum].data = (unsigned long *)malloc(
-        (colarray[colNum].weight + 16) * sizeof(unsigned long));
+    colarray[colNum].data = (uint32_t *)malloc(
+        ((size_t)colarray[colNum].weight + 16U) * sizeof(uint32_t));
     for (i = 0; i < colarray[colNum].weight; ++i)
       colarray[colNum].data[i] = temp[i];
     free(temp);
   }
 
-  colarray[colNum].data[colarray[colNum].weight] = entry;
+  colarray[colNum].data[colarray[colNum].weight] = (uint32_t)entry;
   ++colarray[colNum].weight;
-  colarray[colNum].orig = colNum;
+  colarray[colNum].orig = (uint32_t)colNum;
 }
 
 /* Toggle an occupied row in a matrix column. */
@@ -1736,7 +1738,8 @@ static void mainRoutine(
   for (j = 0; j < relSought; ++j)
     for (i = 0; i < colarray[j].weight; ++i)
       if (colarray[j].data[i] > numPrimes)
-        printf("Error prime too large: %lu\n", colarray[j].data[i]);
+        printf("Error prime too large: %u\n",
+               (unsigned int)colarray[j].data[i]);
 
   mpz_init(test1);
   mpz_init(test2);

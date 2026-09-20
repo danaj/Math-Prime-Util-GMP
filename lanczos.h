@@ -8,9 +8,10 @@
 #define LA_DENSE_CROSSOVER_COLS 1536UL
 
 typedef struct {
-  unsigned long *data;
-  unsigned long weight;
-  unsigned long orig;
+  /* SIQS tops out below 200K rows and columns at its 366-bit limit. */
+  uint32_t *data;
+  uint32_t weight;
+  uint32_t orig;
 } la_col_t;
 
 /* Return the bit showing whether a column belongs to a dependency. */

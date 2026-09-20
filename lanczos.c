@@ -49,8 +49,8 @@
 #define NLA_BIT(i) (UINT64_C(1) << (i))
 
 typedef struct {
-  unsigned long row;
-  unsigned long count;
+  uint32_t row;
+  uint32_t count;
 } nla_row_info_t;
 
 typedef struct {
@@ -137,14 +137,14 @@ typedef struct {
   unsigned long nrows;
   unsigned long ncols;
   la_col_t *cols;
-  unsigned long *counts;
+  uint32_t *counts;
   size_t *offsets;
-  unsigned long *incidence;
-  unsigned long *queue;
-  unsigned long queue_head;
-  unsigned long queue_tail;
+  uint32_t *incidence;
+  uint32_t *queue;
+  uint32_t queue_head;
+  uint32_t queue_tail;
   unsigned char *alive;
-  unsigned long live_cols;
+  uint32_t live_cols;
 } nla_prune_t;
 
 static void nla_prune_column(nla_prune_t *p, unsigned long column) {
@@ -163,19 +163,19 @@ static void nla_prune_column(nla_prune_t *p, unsigned long column) {
     if (p->counts[row] == 1) {
       if (p->queue_tail >= p->nrows)
         croak("lanczos: singleton queue overflow");
-      p->queue[p->queue_tail++] = row;
+      p->queue[p->queue_tail++] = (uint32_t)row;
     }
   }
 }
 
 static void nla_prune_singletons(nla_prune_t *p) {
   while (p->queue_head < p->queue_tail) {
-    unsigned long row = p->queue[p->queue_head++];
+    uint32_t row = p->queue[p->queue_head++];
     size_t i;
     if (p->counts[row] != 1)
       continue;
     for (i = p->offsets[row]; i < p->offsets[row + 1]; i++) {
-      unsigned long column = p->incidence[i];
+      uint32_t column = p->incidence[i];
       if (p->alive[column]) {
         nla_prune_column(p, column);
         break;
@@ -200,19 +200,21 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
 
   if (*ncols == 0)
     return;
+  if (*nrows > UINT32_MAX || *ncols > UINT32_MAX)
+    croak("lanczos: matrix dimensions exceed internal index range");
   qsort(cols, (size_t)*ncols, sizeof(*cols), nla_compare_columns);
 
   memset(&p, 0, sizeof(p));
   p.nrows = *nrows;
   p.ncols = *ncols;
   p.cols = cols;
-  p.live_cols = *ncols;
-  p.counts = (unsigned long *)nla_calloc((size_t)*nrows,
-                                         sizeof(*p.counts));
+  p.live_cols = (uint32_t)*ncols;
+  p.counts = (uint32_t *)nla_calloc((size_t)*nrows,
+                                    sizeof(*p.counts));
   p.offsets = (size_t *)nla_calloc((size_t)*nrows + 1,
                                     sizeof(*p.offsets));
-  p.queue = (unsigned long *)nla_malloc((size_t)*nrows,
-                                        sizeof(*p.queue));
+  p.queue = (uint32_t *)nla_malloc((size_t)*nrows,
+                                   sizeof(*p.queue));
   p.alive = (unsigned char *)nla_malloc((size_t)*ncols,
                                         sizeof(*p.alive));
   memset(p.alive, 1, (size_t)*ncols);
@@ -232,8 +234,7 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
 
   for (row = 0; row < *nrows; row++)
     p.offsets[row + 1] = p.offsets[row] + (size_t)p.counts[row];
-  p.incidence = (unsigned long *)nla_malloc(entries,
-                                             sizeof(*p.incidence));
+  p.incidence = (uint32_t *)nla_malloc(entries, sizeof(*p.incidence));
   next = (size_t *)nla_malloc((size_t)*nrows, sizeof(*next));
   if (*nrows != 0)
     memcpy(next, p.offsets, (size_t)*nrows * sizeof(*next));
@@ -241,14 +242,14 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
     const la_col_t *c = cols + column;
     for (i = 0; i < c->weight; i++) {
       row = c->data[i];
-      p.incidence[next[row]++] = column;
+      p.incidence[next[row]++] = (uint32_t)column;
     }
   }
   free(next);
 
   for (row = 0; row < *nrows; row++)
     if (p.counts[row] == 1)
-      p.queue[p.queue_tail++] = row;
+      p.queue[p.queue_tail++] = (uint32_t)row;
 
   for (;;) {
     unsigned long remove_count;
@@ -616,8 +617,8 @@ static void nla_matrix_append_mapped(nla_matrix_t *matrix,
 
 static int nla_input_dense_bit(const la_col_t *column,
                                unsigned long row) {
-  const unsigned long *words = column->data + column->weight;
-  return (words[row >> 5] & ((unsigned long)1 << (row & 31UL))) != 0;
+  const uint32_t *words = column->data + column->weight;
+  return (words[row >> 5] & ((uint32_t)1U << (row & 31UL))) != 0;
 }
 
 static void nla_matrix_init(nla_matrix_t *matrix,
@@ -626,7 +627,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
                             unsigned long ncols,
                             const la_col_t *cols,
                             unsigned int post_rows) {
-  unsigned long *counts;
+  uint32_t *counts;
   uint32_t *row_map;
   nla_row_info_t *row_info;
   size_t *row_cursor = NULL;
@@ -648,7 +649,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
   if (nrows > UINT32_MAX || ncols > UINT32_MAX)
     croak("lanczos: matrix dimensions exceed internal index range");
 
-  counts = (unsigned long *)nla_calloc((size_t)nrows, sizeof(*counts));
+  counts = (uint32_t *)nla_calloc((size_t)nrows, sizeof(*counts));
   for (column = 0; column < ncols; column++) {
     const la_col_t *c = cols + column;
     for (i = 0; i < c->weight; i++) {
@@ -696,7 +697,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
                                            sizeof(*row_info));
   for (row = i = 0; row < nrows; row++) {
     if (counts[row] != 0) {
-      row_info[i].row = row;
+      row_info[i].row = (uint32_t)row;
       row_info[i].count = counts[row];
       i++;
     }
@@ -941,16 +942,16 @@ static void nla_matrix_mul(const nla_matrix_t *matrix,
     memset(output, 0, (size_t)input_rows * sizeof(*output));
     for (column = 0; column < ncols; column++) {
       const la_col_t *c = cols + column;
-      const unsigned long *data = c->data;
+      const uint32_t *data = c->data;
       unsigned long weight = c->weight;
-      const unsigned long *dense = input_dense_rows != 0 ?
-                                    data + weight : NULL;
+      const uint32_t *dense = input_dense_rows != 0 ?
+                              data + weight : NULL;
       uint64_t value = input[column];
       unsigned long i, row;
       for (i = 0; i < weight; i++)
         output[data[i]] ^= value;
       for (row = 0; row < input_dense_rows; row++)
-        if (dense[row >> 5] & ((unsigned long)1 << (row & 31UL)))
+        if (dense[row >> 5] & ((uint32_t)1U << (row & 31UL)))
           output[row] ^= value;
     }
     return;
@@ -989,16 +990,16 @@ static void nla_matrix_mul_transpose(const nla_matrix_t *matrix,
     unsigned long ncols = matrix->ncols;
     for (column = 0; column < ncols; column++) {
       const la_col_t *c = cols + column;
-      const unsigned long *data = c->data;
+      const uint32_t *data = c->data;
       unsigned long weight = c->weight;
-      const unsigned long *dense = input_dense_rows != 0 ?
-                                    data + weight : NULL;
+      const uint32_t *dense = input_dense_rows != 0 ?
+                              data + weight : NULL;
       uint64_t accum = 0;
       unsigned long i, row;
       for (i = 0; i < weight; i++)
         accum ^= input[data[i]];
       for (row = 0; row < input_dense_rows; row++)
-        if (dense[row >> 5] & ((unsigned long)1 << (row & 31UL)))
+        if (dense[row >> 5] & ((uint32_t)1U << (row & 31UL)))
           accum ^= input[row];
       output[column] = accum;
     }
