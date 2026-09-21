@@ -124,18 +124,78 @@ static void print_usage(FILE *stream, const char *program) {
           program);
 }
 
-static void sort_factors(mpz_t *factors, uint32_t count) {
-  uint32_t i, j;
-  for (i = 1; i < count; i++) {
-    for (j = i; j > 0 && mpz_cmp(factors[j], factors[j - 1]) < 0; j--)
-      mpz_swap(factors[j], factors[j - 1]);
+typedef struct {
+  mpz_t *values;
+  size_t count;
+  size_t allocated;
+} siqs_factor_list_t;
+
+static void append_factor(siqs_factor_list_t *list, const mpz_t factor) {
+  if (list->count == list->allocated) {
+    size_t next = list->allocated ? list->allocated * 2 : 16;
+    mpz_t *values;
+    if (next < list->allocated ||
+        next > ((size_t)-1) / sizeof(*values)) {
+      fprintf(stderr, "mpu-siqs: too many factors\n");
+      exit(3);
+    }
+    values = (mpz_t *)realloc(list->values, next * sizeof(*values));
+    if (values == NULL) {
+      fprintf(stderr, "mpu-siqs: unable to allocate factors\n");
+      exit(3);
+    }
+    list->values = values;
+    list->allocated = next;
+  }
+  mpz_init_set(list->values[list->count++], factor);
+}
+
+/* Revisit only strictly smaller composites, never an unsplit cofactor. */
+static int collect_factors(const mpz_t n, siqs_factor_list_t *output) {
+  siqs_factor_list_t pending = {NULL, 0, 0};
+  mpz_t current;
+  int complete = 1;
+
+  mpz_init(current);
+  append_factor(&pending, n);
+  while (pending.count != 0) {
+    mpz_t *partition;
+    uint32_t count, i;
+
+    mpz_swap(current, pending.values[--pending.count]);
+    mpz_clear(pending.values[pending.count]);
+    partition = _GMP_siqs(current, &count, 2);
+    for (i = 0; i < count; i++) {
+      if (siqs_is_prob_prime(partition[i])) {
+        append_factor(output, partition[i]);
+      } else if (mpz_cmp_ui(partition[i], 1) > 0 &&
+                 mpz_cmp(partition[i], current) < 0) {
+        append_factor(&pending, partition[i]);
+      } else {
+        append_factor(output, partition[i]);
+        complete = 0;
+      }
+    }
+    _GMP_siqs_free(partition, count);
+  }
+  mpz_clear(current);
+  free(pending.values);
+  return complete;
+}
+
+static void sort_factors(siqs_factor_list_t *output) {
+  size_t i, j;
+  for (i = 1; i < output->count; i++) {
+    for (j = i; j > 0 &&
+         mpz_cmp(output->values[j], output->values[j - 1]) < 0; j--)
+      mpz_swap(output->values[j], output->values[j - 1]);
   }
 }
 
 static int factor_number(const mpz_t n) {
-  mpz_t *factors;
-  uint32_t count, i;
-  int complete = 1;
+  siqs_factor_list_t output = {NULL, 0, 0};
+  size_t i;
+  int complete;
 
   if (mpz_sgn(n) <= 0) {
     gmp_fprintf(stderr, "mpu-siqs: input must be positive: %Zd\n", n);
@@ -146,17 +206,20 @@ static int factor_number(const mpz_t n) {
     return 0;
   }
 
-  factors = _GMP_siqs(n, &count, 2);
-  sort_factors(factors, count);
+  complete = collect_factors(n, &output);
+  sort_factors(&output);
+  /* Print only after processing every cofactor; SIQS's verbose lines therefore
+   * cannot interrupt the final result line. */
   gmp_printf("%Zd:", n);
-  for (i = 0; i < count; i++) {
-    gmp_printf(" %Zd", factors[i]);
-    if (!siqs_is_prob_prime(factors[i]))
-      complete = 0;
-  }
+  for (i = 0; i < output.count; i++)
+    gmp_printf(" %Zd", output.values[i]);
+  if (!complete)
+    printf(" [incomplete]");
   putchar('\n');
   fflush(stdout);
-  _GMP_siqs_free(factors, count);
+  for (i = 0; i < output.count; i++)
+    mpz_clear(output.values[i]);
+  free(output.values);
 
   if (!complete) {
     gmp_fprintf(stderr, "mpu-siqs: incomplete factorization of %Zd\n", n);

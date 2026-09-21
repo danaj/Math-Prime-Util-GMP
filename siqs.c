@@ -1550,8 +1550,12 @@ static int siqs_build_factor_base(siqs_ctx_t *ctx) {
       continue;
     if (r == 0 && mpz_divisible_ui_p(ctx->n, p)) {
       mpz_set_ui(divisor, p);
-      if (siqs_insert_divisor(ctx->result, divisor))
+      if (siqs_insert_divisor(ctx->result, divisor)) {
         ctx->factor_found = 1;
+        if (siqs_verbose_level() > 2)
+          gmp_printf("# siqs factor-base found divisor %u of %Zd before "
+                     "sieving\n", p, ctx->original_n);
+      }
       prime_iterator_destroy(&iter);
       mpz_clear(divisor);
       return 0;

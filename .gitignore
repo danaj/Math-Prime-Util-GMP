@@ -5,6 +5,7 @@ Makefile.old
 MYMETA.*
 GMP.bs
 XS.c
+/mpu-siqs
 *.o
 *.obj
 *.dSYM

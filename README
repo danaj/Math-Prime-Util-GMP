@@ -56,6 +56,11 @@ To build the standalone SIQS executable after running "perl Makefile.PL":
 
 With no integer arguments, mpu-siqs reads whitespace-separated decimal
 integers from standard input.  It supports positive inputs through 366 bits.
+It retries any composite cofactors it splits off; an unsplit composite is
+marked [incomplete] on the result line, reported on stderr, and makes the
+program exit unsuccessfully.  Use -v for progress or -vv for relation updates;
+the final factorization is printed as one line after progress output.
+
 For a local optimized build, use:
 
    make siqs SIQS_CFLAGS='-O3 -march=native'
