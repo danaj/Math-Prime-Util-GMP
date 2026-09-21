@@ -15,7 +15,7 @@
 #include <string.h>
 
 #include "lanczos.h"
-#include "utility.h"
+#include "siqs_dep.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX ((uint32_t)-1)
@@ -286,7 +286,7 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
   }
   *ncols = i;
 
-  if (get_verbose_level() > 3)
+  if (siqs_verbose_level() > 3)
     printf("Lanczos reduced to %lu active rows x %lu columns\n",
            live_rows, *ncols);
 
@@ -745,7 +745,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
     if (row_cursor[row] != matrix->row_offsets[row + 1U])
       croak("lanczos: packed matrix count mismatch");
 
-  if (get_verbose_level() > 3) {
+  if (siqs_verbose_level() > 3) {
     double mb = ((double)offset * sizeof(*matrix->row_columns) +
                  ((double)matrix->sparse_rows + 1.0) *
                      sizeof(*matrix->row_offsets) +
@@ -1418,7 +1418,7 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     }
   }
 
-  if (get_verbose_level() > 3)
+  if (siqs_verbose_level() > 3)
     printf("Lanczos halted after %lu iterations (dimension %lu)%s\n",
            iteration, dimensions_solved, failed ? ", retrying" : "");
 
@@ -1507,7 +1507,7 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
       break;
     free(result);
     result = NULL;
-    if (get_verbose_level() > 3)
+    if (siqs_verbose_level() > 3)
       printf("linear algebra retry %u\n", attempt + 1U);
   }
   nla_matrix_clear(&matrix);

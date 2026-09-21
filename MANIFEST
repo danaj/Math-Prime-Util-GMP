@@ -40,7 +40,9 @@ lanczos.c
 simpqs2.h
 simpqs2.c
 siqs.h
+siqs_dep.h
 siqs.c
+mpu-siqs.c
 tinyqs.h
 tinyqs.c
 isaac.h

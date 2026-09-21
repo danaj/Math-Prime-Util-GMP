@@ -54,6 +54,7 @@ WriteMakefile1(
                     'perfect_powers.o ' .
                     'powerfree.o',
     LIBS         => ['-lgmp -lm'],
+    clean        => { FILES => 'mpu-siqs' },
 
     TEST_REQUIRES=> {
                       'Math::BigInt'     => '1.88',  # try && bug fixes
@@ -122,4 +123,22 @@ sub WriteMakefile1 {   # Cribbed from eumm-upgrade by Alexandr Ciornii
   delete $params{BINARY_LOCATION} if $] < 5.005;
 
   WriteMakefile(%params);
+}
+
+sub MY::postamble {
+  return <<'MAKE_FRAG';
+
+SIQS_STANDALONE_SOURCES = mpu-siqs.c siqs.c lanczos.c prime_iterator.c \
+	squfof126.c pbrent63.c
+SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h \
+	prime_iterator.h squfof126.h pbrent63.h utility.h misc_ui.h
+SIQS_CFLAGS = -O3
+
+.PHONY: siqs
+siqs: mpu-siqs
+
+mpu-siqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
+
+MAKE_FRAG
 }

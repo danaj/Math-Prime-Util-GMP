@@ -49,6 +49,23 @@ is to run the xt/create-standalone.sh script, which will create a standalone/
 directory with Makefile and README.  You should make sure you have the large
 discrimiment set (https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/).
 
+To build the standalone SIQS executable after running "perl Makefile.PL":
+
+   make siqs
+   ./mpu-siqs 22095311209999409685885162322219
+
+With no integer arguments, mpu-siqs reads whitespace-separated decimal
+integers from standard input.  It supports positive inputs through 366 bits.
+For a local optimized build, use:
+
+   make siqs SIQS_CFLAGS='-O3 -march=native'
+
+It can also be compiled directly without Perl or a generated Makefile:
+
+   cc -O3 -DSTANDALONE -o mpu-siqs \
+      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
+      -lgmp -lm
+
 
 DEPENDENCIES
 

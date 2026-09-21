@@ -36,13 +36,11 @@
 
 #include "ptypes.h"
 #include "siqs.h"
-#include "factor.h"
+#include "siqs_dep.h"
 #include "lanczos.h"
 #include "pbrent63.h"
-#include "primality.h"
 #include "prime_iterator.h"
 #include "squfof126.h"
-#include "utility.h"
 
 #ifndef UINT8_MAX
 # define UINT8_MAX 255U
@@ -713,7 +711,7 @@ static int siqs_all_factors_prime(siqs_factor_array_t *fa) {
   int all_prime = 1;
   for (i = 0; i < fa->count; i++) {
     if (fa->primality[i] == SIQS_FACTOR_UNKNOWN)
-      fa->primality[i] = _GMP_is_prob_prime(fa->values[i])
+      fa->primality[i] = siqs_is_prob_prime(fa->values[i])
                        ? SIQS_FACTOR_PRIME : SIQS_FACTOR_COMPOSITE;
     if (fa->primality[i] != SIQS_FACTOR_PRIME)
       all_prime = 0;
@@ -3530,7 +3528,7 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
       if (success) {
         ctx->split_squfof++;
       } else {
-        success = _GMP_pbrent_factor(
+        success = siqs_pbrent_factor(
             rest, factor,
             (UV)(3 + (siqs_rand64(&ctx->cofactor_rng) & 0xffffU)),
             250000);
@@ -3752,7 +3750,7 @@ static int siqs_try_inline_matrix(siqs_ctx_t *ctx) {
       ctx->full_count <= ctx->matrix_last_count)
     return ctx->factor_found;
   ctx->matrix_last_count = ctx->full_count;
-  if (get_verbose_level() > 2)
+  if (siqs_verbose_level() > 2)
     printf("# siqs linear algebra with %u relations\n", ctx->full_count);
   if (siqs_solve(ctx))
     return 1;
@@ -4140,7 +4138,7 @@ static int siqs_solve(siqs_ctx_t *ctx) {
         nullrows = la_block_lanczos(nrows, 0, ncols, columns,
                                     seed1, seed2, &mask);
       } else {
-        if (get_verbose_level() > 3)
+        if (siqs_verbose_level() > 3)
           printf("Lanczos did not refine factors; retrying with all rows.\n");
         nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
                                          seed1, seed2, &mask);
@@ -4167,7 +4165,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t *next_matrix_check,
                                   uint32_t *family_count,
                                   uint32_t *poly_count) {
-  int verbose = get_verbose_level();
+  int verbose = siqs_verbose_level();
   int family_ok, have_next;
   uint32_t check_interval = ctx->params.fb_size / 128;
   uint32_t max_polynomials =
@@ -4458,7 +4456,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
   uint32_t retry_batch = ctx->params.fb_size / 16;
   uint32_t next_matrix_check = ctx->params.fb_size
                              - ctx->params.fb_size / 4;
-  int verbose = get_verbose_level();
+  int verbose = siqs_verbose_level();
   if (retry_batch < 8)
     retry_batch = 8;
   if (retry_batch > SIQS_MATRIX_RETRY_BATCH_MAX)
@@ -4624,7 +4622,7 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
 
   if (mpz_cmp_ui(work, 1) == 0 || siqs_all_factors_prime(&result))
     goto finish;
-  if (_GMP_is_prob_prime(work))
+  if (siqs_is_prob_prime(work))
     goto finish;
 
   bits = (uint32_t)mpz_sizeinbase(work, 2);
