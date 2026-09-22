@@ -201,8 +201,10 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds)
   SQUFOF_TYPE i, mult, f64, f64red, sqrtnn64, rounds_done = 0;
   int mults_racing = NSQUFOF_MULT;
   const uint32_t max_bits = 2 * sizeof(SQUFOF_TYPE)*8 - 2;
+  const size_t nbits = mpz_sizeinbase(n, 2);
+  const double batch_scale = nbits <= 60 ? 0.3 : 0.5;
 
-  if (sizeof(SQUFOF_TYPE) <  8 || mpz_sizeinbase(n,2) > max_bits) {
+  if (sizeof(SQUFOF_TYPE) <  8 || nbits > max_bits) {
     mpz_set(f, n);
     return 0;
   }
@@ -214,7 +216,7 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds)
   }
   mpz_init(t);  mpz_init(nn64);
 
-  /* Process the multipliers a little at a time: 0.5 * (n*mult)^1/5 */
+  /* Short batches help through 60 bits; larger inputs favor fewer long tails. */
   while (mults_racing > 0 && rounds_done < rounds) {
     for (i = 0; i < NSQUFOF_MULT && rounds_done < rounds; i++) {
       if (mult_save[i].valid == 0)  continue;
@@ -244,7 +246,7 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds)
         mult_save[i].bn    = (2 * sqrtnn64) / mult_save[i].Qn; /* n < 127-bit */
         mult_save[i].it    = 0;
         mult_save[i].mult  = mult;
-        mult_save[i].imax  = (SQUFOF_TYPE) (0.5 * mpz_get64(t));
+        mult_save[i].imax  = (SQUFOF_TYPE) (batch_scale * mpz_get64(t));
         if (mult_save[i].imax < 20)
           mult_save[i].imax = 20;
       }
