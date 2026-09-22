@@ -408,8 +408,7 @@ typedef struct {
   uint64_t accepted_one_lp;
   uint64_t accepted_two_lp;
   uint64_t split_attempts;
-  uint64_t split_squares;
-  uint64_t split_squfof;
+  uint64_t split_squfof_or_square;
   uint64_t split_rho;
   uint64_t split_failures;
   int factor_found;
@@ -3441,7 +3440,8 @@ static int siqs_u64_probable_prime(uint64_t n) {
 /* Resolve a cofactor into zero, one, or two graph large primes. */
 static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
                                  uint64_t *lp1, uint64_t *lp2) {
-  uint64_t n, pmax2;
+  uint64_t n, pmax2, a = 0, b = 0;
+  int valid, used_squfof_or_square = 0;
   *lp1 = *lp2 = 1;
   if (mpz_cmp_ui(rest, 1) == 0)
     return 1;
@@ -3477,112 +3477,66 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
 #if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
   {
     UV factors[2];
-    int count = uvpbrent63((UV)n, factors, 20000,
+    int count = uvpbrent63((UV)n, factors, 30000,
                            (UV)(siqs_rand64(&ctx->cofactor_rng) | 1U));
-    uint64_t a, b;
-    if (count != 2) {
-      ctx->split_failures++;
-      return 0;
+    if (count == 2) {
+      a = factors[0];
+      b = factors[1];
     }
-    a = factors[0];
-    b = factors[1];
-    if (a == 0 || n % a != 0 || n / a != b) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a <= ctx->largest_fb_prime || b <= ctx->largest_fb_prime) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a > ctx->params.large_prime_bound ||
-        b > ctx->params.large_prime_bound) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (!siqs_u64_probable_prime(a) || !siqs_u64_probable_prime(b)) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a > b) {
-      uint64_t t = a; a = b; b = t;
-    }
-    *lp1 = a;
-    *lp2 = b;
-    ctx->split_rho++;
-    return 1;
   }
 #else
   {
-    mpz_t factor, quotient;
+    mpz_t factor;
     uint32_t nbits = (uint32_t)mpz_sizeinbase(rest, 2);
     UV rounds = nbits <= 40 ? 20000
               : nbits <= 44 ? 50000
               : nbits <= 48 ? 100000
               : nbits <= 52 ? 200000 : 500000;
-    uint64_t a, b;
     int success;
     mpz_init(factor);
-    mpz_init(quotient);
     if (mpz_perfect_square_p(rest)) {
       mpz_sqrt(factor, rest);
       success = 1;
-      ctx->split_squares++;
+      used_squfof_or_square = 1;
     } else {
       success = squfof126(rest, factor, rounds);
       if (success) {
-        ctx->split_squfof++;
+        used_squfof_or_square = 1;
       } else {
         success = siqs_pbrent_factor(
             rest, factor,
             (UV)(3 + (siqs_rand64(&ctx->cofactor_rng) & 0xffffU)),
             250000);
-        if (success)
-          ctx->split_rho++;
       }
     }
-    if (!success) {
-      ctx->split_failures++;
-      mpz_clear(factor);
-      mpz_clear(quotient);
-      return 0;
-    }
-    if (!mpz_divisible_p(rest, factor)) {
-      ctx->split_failures++;
-      mpz_clear(factor);
-      mpz_clear(quotient);
-      return 0;
-    }
-    mpz_divexact(quotient, rest, factor);
-    success = siqs_mpz_to_u64(factor, &a)
-           && siqs_mpz_to_u64(quotient, &b);
+    if (success && siqs_mpz_to_u64(factor, &a) && a > 1 && n % a == 0)
+      b = n / a;
     mpz_clear(factor);
-    mpz_clear(quotient);
-    if (!success) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a <= ctx->largest_fb_prime || b <= ctx->largest_fb_prime) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a > ctx->params.large_prime_bound ||
-        b > ctx->params.large_prime_bound) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (ctx->params.smooth_bound / pmax2 >= ctx->largest_fb_prime &&
-        (!siqs_u64_probable_prime(a) || !siqs_u64_probable_prime(b))) {
-      ctx->split_failures++;
-      return 0;
-    }
-    if (a > b) {
-      uint64_t t = a; a = b; b = t;
-    }
-    *lp1 = a;
-    *lp2 = b;
-    return 1;
   }
 #endif
+
+  valid = a > 1 && b > 1 && n % a == 0 && n / a == b &&
+          a > ctx->largest_fb_prime && b > ctx->largest_fb_prime &&
+          a <= ctx->params.large_prime_bound &&
+          b <= ctx->params.large_prime_bound;
+  /* All factor-base primes were removed.  Below pmax^3, neither of two
+   * remaining factors can itself be composite. */
+  if (valid && ctx->params.smooth_bound / pmax2 >= ctx->largest_fb_prime)
+    valid = siqs_u64_probable_prime(a) && siqs_u64_probable_prime(b);
+  if (!valid) {
+    ctx->split_failures++;
+    return 0;
+  }
+  if (a > b) {
+    uint64_t t = a; a = b; b = t;
+  }
+  *lp1 = a;
+  *lp2 = b;
+  if (used_squfof_or_square)
+    ctx->split_squfof_or_square++;
+  else
+    ctx->split_rho++;
+  return 1;
 }
 
 static siqs_factor_t *siqs_eval_reserve_factors(siqs_ctx_t *ctx,
@@ -4542,11 +4496,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
            (unsigned long long)ctx->accepted_one_lp,
            (unsigned long long)ctx->accepted_two_lp);
   if (verbose > 2 && ctx->split_attempts != 0)
-    printf("# siqs split %llu composites: %llu squares, %llu SQUFOF, "
+    printf("# siqs split %llu composites: %llu square/SQUFOF, "
            "%llu rho, %llu rejected\n",
            (unsigned long long)ctx->split_attempts,
-           (unsigned long long)ctx->split_squares,
-           (unsigned long long)ctx->split_squfof,
+           (unsigned long long)ctx->split_squfof_or_square,
            (unsigned long long)ctx->split_rho,
            (unsigned long long)ctx->split_failures);
   siqs_poly_clear(ctx, &poly);
