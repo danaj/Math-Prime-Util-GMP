@@ -105,13 +105,15 @@
  * d=2 is healthy below the range where that preference most often matters. */
 #define SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS 3U
 /* Multiplier selection is worth shortening while it is a material part of a
- * full factorization.  The shallow path initially scores all odd square-free
- * k <= 255 through FB/20.  Per-band refinement can then rescore its best four
- * candidates more deeply: fresh order-balanced sweeps found up to 3% mean
- * gains and cut 4--10% from the baseline's slowest decile at 65--144 bits.  A
- * constant divisor tied an in-band ramp, while refinement below 65 or above
- * 144 did not repay its cost.  From 178 bits onward the smaller k <= 127 set
- * is already scored through min(FB,1000); extending the shallow search through
+ * full factorization.  The shallow path initially scores 2 and all odd
+ * square-free k <= 255 through FB/20.  Per-band refinement can then rescore
+ * its best five candidates more deeply.  Fresh order-balanced sweeps of the
+ * original four-finalist form found up to 3% mean gains and cut 4--10% from
+ * the baseline's slowest decile at 65--144 bits.  A later corpus pass found
+ * the fifth finalist inexpensive and favorable in aggregate.  A constant
+ * divisor tied an in-band ramp, while refinement below 65 or above 144 did
+ * not repay its cost.  From 178 bits onward the smaller k <= 127 set is
+ * already scored through min(FB,1000); extending the shallow search through
  * 184 gained less than 1% and lost most pairwise comparisons.  The 177/178
  * boundary also coincides with an existing policy transition rather than
  * introducing a new one solely for this selector. */
@@ -158,8 +160,8 @@
 #if SIQS_MULTIPLIER_SEARCH_FLOOR < 1
 # error "SIQS_MULTIPLIER_SEARCH_FLOOR must be positive"
 #endif
-#define SIQS_MULTIPLIER_CAPACITY ((SIQS_MULTIPLIER_MAX + 1U) / 2U)
-#define SIQS_MULTIPLIER_REFINE_FINALISTS 4U
+#define SIQS_MULTIPLIER_CAPACITY (((SIQS_MULTIPLIER_MAX + 1U) / 2U) + 1U)
+#define SIQS_MULTIPLIER_REFINE_FINALISTS 5U
 #define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
@@ -1369,6 +1371,11 @@ static int siqs_squarefree_small(uint32_t n) {
 static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
   unsigned long mod8 = (nmod8 * k) & 7UL;
   double score = -SIQS_MULTIPLIER_SIZE_PENALTY * log((double)k);
+  /* The mod-8 terms below describe odd kN and do not apply to k=2.  Full
+   * factor sweeps favored this conservative even score over adding the
+   * nominal half-ln(2) contribution from the normalized Q values. */
+  if (k == 2)
+    return score;
   score += mod8 == 1 ? 2.0 * M_LN2
            : mod8 == 5 ? M_LN2 : 0.5 * M_LN2;
   if (mod8 == 1)
@@ -1416,7 +1423,13 @@ static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
       refine_divisor = 0;
   }
 
-  for (k = 1; k <= max_multiplier; k += 2) {
+  kval[kcount] = 1;
+  score[kcount] = siqs_multiplier_base_score(nmod8, 1);
+  kcount++;
+  kval[kcount] = 2;
+  score[kcount] = siqs_multiplier_base_score(nmod8, 2);
+  kcount++;
+  for (k = 3; k <= max_multiplier; k += 2) {
     if (!siqs_squarefree_small(k))
       continue;
     kval[kcount] = k;

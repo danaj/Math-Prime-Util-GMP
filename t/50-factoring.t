@@ -37,6 +37,7 @@ plan tests => 0 + 57
                 + 2
                 + 25  # individual tests for factoring methods
                 + 12  # lower SIQS profile boundaries and recovery
+                + 1   # SIQS even multiplier
                 + 2   # SIQS upper-range gate
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
@@ -297,6 +298,12 @@ is_deeply(
       '24879201358173668903', 0) ],
   ['2947412801', '8441030503'],
   "SIQS factors a semiprime in its q=3 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
+      '79656741141532225127', 0) ],
+  ['7870904351', '10120405177'],
+  "SIQS factors with an even multiplier"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
