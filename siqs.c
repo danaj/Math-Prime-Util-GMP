@@ -99,11 +99,9 @@
 /* The bucket sieve remains available for substantially larger intervals.
  * Contiguous sieving wins throughout the production-tuned bit range. */
 #define SIQS_SIEVE_BLOCK_MIN UINT32_MAX
-/* Automatic d retains d=1 unless the selected kN is 1 modulo 8.  A
- * boundary-enriched full-run sweep favored a 3/16*ln(2) preference for the
- * eligible multipliers; ordinary 160-220-bit samples confirmed that allowing
- * d=2 is healthy below the range where that preference most often matters. */
-#define SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS 3U
+/* Automatic d retains d=1 unless the selected kN is 1 modulo 8.  For that
+ * residue, the d=2 normalized polynomial has expected 2-adic valuation 3,
+ * rather than 2 for d=1, so its complete local score is 3*ln(2). */
 /* Multiplier selection is worth shortening while it is a material part of a
  * full factorization.  The shallow path initially scores 2 and all odd
  * square-free k <= 255 through FB/20.  Per-band refinement can then rescore
@@ -134,16 +132,6 @@
 #endif
 #ifndef SIQS_MULTIPLIER_SEARCH_FLOOR
 # define SIQS_MULTIPLIER_SEARCH_FLOOR 1U
-#endif
-/* The standard Knuth--Schroeppel size term is 0.5*ln(k).  Our smaller
- * historical 0.5*ln(2)*ln(k) penalty performed better in full-factor sweeps,
- * despite favoring larger k while the parameter policy is indexed by N rather
- * than kN, so retain it deliberately.
- * TODO: Retest the standard coefficient together with retuned FB, interval,
- * and large-prime parameters; changing this term alone is not a fair test of
- * a policy whose other parameters were tuned around the current k choices. */
-#ifndef SIQS_MULTIPLIER_SIZE_PENALTY
-# define SIQS_MULTIPLIER_SIZE_PENALTY (0.5 * M_LN2)
 #endif
 #if SIQS_MULTIPLIER_MAX < 1 || SIQS_MULTIPLIER_MAX > 4095 || \
     !(SIQS_MULTIPLIER_MAX & 1)
@@ -1370,19 +1358,22 @@ static int siqs_squarefree_small(uint32_t n) {
 /* Return the analytic part of a candidate multiplier's score. */
 static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
   unsigned long mod8 = (nmod8 * k) & 7UL;
-  double score = -SIQS_MULTIPLIER_SIZE_PENALTY * log((double)k);
-  /* The mod-8 terms below describe odd kN and do not apply to k=2.  Full
-   * factor sweeps favored this conservative even score over adding the
-   * nominal half-ln(2) contribution from the normalized Q values. */
+  double score = -0.5 * log((double)k);
+  /* For k=2, exactly half the normalized polynomial values have one factor
+   * of two and half are odd, giving the exact local score 0.5*ln(2). */
   if (k == 2)
-    return score;
-  score += mod8 == 1 ? 2.0 * M_LN2
+    return score + 0.5 * M_LN2;
+  score += mod8 == 1 ? 3.0 * M_LN2
            : mod8 == 5 ? M_LN2 : 0.5 * M_LN2;
-  if (mod8 == 1)
-    score += SIQS_MULTIPLIER_D2_BONUS_SIXTEENTHS * M_LN2 / 16.0;
   return score;
 }
 
+/* The odd-prime score below credits each admissible factor-base prime as a
+ * two-root prime.  The q primes later selected into polynomial A have only
+ * one root in the normalized polynomial, so this slightly overcredits them.
+ * Their identities depend on the candidate factor base and the family A;
+ * estimates based only on target_A were not reliable enough, especially at
+ * low q, so leave this small correction out until it can be predicted well. */
 static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
                                             uint32_t refine_divisor) {
   uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
