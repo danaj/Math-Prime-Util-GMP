@@ -103,32 +103,35 @@
  * residue, the d=2 normalized polynomial has expected 2-adic valuation 3,
  * rather than 2 for d=1, so its complete local score is 3*ln(2). */
 /* Multiplier selection is worth shortening while it is a material part of a
- * full factorization.  The shallow path initially scores 2 and all odd
- * square-free k <= 255 through FB/20.  Per-band refinement can then rescore
- * its best five candidates more deeply.  Fresh order-balanced sweeps of the
- * original four-finalist form found up to 3% mean gains and cut 4--10% from
- * the baseline's slowest decile at 65--144 bits.  A later corpus pass found
- * the fifth finalist inexpensive and favorable in aggregate.  A constant
- * divisor tied an in-band ramp, while refinement below 65 or above 144 did
- * not repay its cost.  From 178 bits onward the smaller k <= 127 set is
- * already scored through min(FB,1000); extending the shallow search through
- * 184 gained less than 1% and lost most pairwise comparisons.  The 177/178
- * boundary also coincides with an existing policy transition rather than
- * introducing a new one solely for this selector. */
+ * full factorization.  Through 177 bits, score 1, 2, and all odd square-free
+ * k <= 255 through FB/20.  Per-band refinement can then rescore its best five
+ * candidates more deeply.  Fresh order-balanced sweeps of the original
+ * four-finalist form found up to 3% mean gains and cut 4--10% from the
+ * baseline's slowest decile at 65--144 bits.  A later corpus pass found the
+ * fifth finalist inexpensive and favorable in aggregate.  A constant divisor
+ * tied an in-band ramp, while refinement below 65 or above 144 did not repay
+ * its cost.
+ *
+ * From 178 bits onward, use the complete set in a fixed-depth cascade:
+ * 64 -> top 8 -> 512 -> top 3 plus 0.05 near-ties -> 2000.  The corrected
+ * analytic score makes odd multipliers through 255 useful at every size;
+ * they supply the depth-2000 winner in about 5% of high-bit inputs.  On
+ * 61,440 test inputs the cascade retained every depth-2000 winner, while a
+ * fixed top 7 at depth 64 missed two.  It also does substantially less work
+ * than scoring the former k <= 127 set through depth 1000.  The 177/178
+ * boundary retains the existing policy transition; extending the cascade
+ * downward with factor-base-relative depths is a separate tuning problem. */
 #ifndef SIQS_MULTIPLIER_MAX
 # define SIQS_MULTIPLIER_MAX 255U
 #endif
-#ifndef SIQS_MULTIPLIER_FULL_MAX
-# define SIQS_MULTIPLIER_FULL_MAX 127U
-#endif
-#ifndef SIQS_MULTIPLIER_SHALLOW_LAST_BITS
-# define SIQS_MULTIPLIER_SHALLOW_LAST_BITS 177U
-#endif
-#ifndef SIQS_MULTIPLIER_SEARCH_DEPTH
-# define SIQS_MULTIPLIER_SEARCH_DEPTH 1000U
+#ifndef SIQS_MULTIPLIER_CASCADE_FIRST_BITS
+# define SIQS_MULTIPLIER_CASCADE_FIRST_BITS 178U
 #endif
 #ifndef SIQS_MULTIPLIER_SEARCH_DIVISOR
 # define SIQS_MULTIPLIER_SEARCH_DIVISOR 20U
+#endif
+#ifndef SIQS_MULTIPLIER_SEARCH_DEPTH
+# define SIQS_MULTIPLIER_SEARCH_DEPTH 1000U
 #endif
 #ifndef SIQS_MULTIPLIER_SEARCH_FLOOR
 # define SIQS_MULTIPLIER_SEARCH_FLOOR 1U
@@ -137,19 +140,20 @@
     !(SIQS_MULTIPLIER_MAX & 1)
 # error "SIQS_MULTIPLIER_MAX must be an odd value from 1 through 4095"
 #endif
-#if SIQS_MULTIPLIER_FULL_MAX < 1 || \
-    SIQS_MULTIPLIER_FULL_MAX > SIQS_MULTIPLIER_MAX || \
-    !(SIQS_MULTIPLIER_FULL_MAX & 1)
-# error "SIQS_MULTIPLIER_FULL_MAX must be odd and no larger than MAX"
+#if SIQS_MULTIPLIER_SEARCH_FLOOR < 1
+# error "SIQS_MULTIPLIER_SEARCH_FLOOR must be positive"
 #endif
 #if SIQS_MULTIPLIER_SEARCH_DEPTH < 1
 # error "SIQS_MULTIPLIER_SEARCH_DEPTH must be positive"
 #endif
-#if SIQS_MULTIPLIER_SEARCH_FLOOR < 1
-# error "SIQS_MULTIPLIER_SEARCH_FLOOR must be positive"
-#endif
 #define SIQS_MULTIPLIER_CAPACITY (((SIQS_MULTIPLIER_MAX + 1U) / 2U) + 1U)
 #define SIQS_MULTIPLIER_REFINE_FINALISTS 5U
+#define SIQS_MULTIPLIER_CASCADE_DEPTH1 64U
+#define SIQS_MULTIPLIER_CASCADE_KEEP1 8U
+#define SIQS_MULTIPLIER_CASCADE_DEPTH2 512U
+#define SIQS_MULTIPLIER_CASCADE_KEEP2 3U
+#define SIQS_MULTIPLIER_CASCADE_GAP2 0.05
+#define SIQS_MULTIPLIER_CASCADE_DEPTH3 2000U
 #define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
@@ -572,12 +576,12 @@ static int siqs_legendre_u32(uint32_t a, uint32_t p) {
   return r == 1 ? 1 : r == p - 1 ? -1 : 0;
 }
 
-/* Jacobi(a,n) for an odd n.  The multiplier search uses this only with a
- * prime n, where it is exactly the Legendre symbol, but the binary form is
- * substantially cheaper than modular exponentiation for every candidate. */
-static int siqs_jacobi_odd_u32(uint32_t a, uint32_t n) {
+/* Jacobi(a,n) for an odd n and an already reduced 0 <= a < n.  The
+ * multiplier search uses this only with a prime n, where it is exactly the
+ * Legendre symbol, but the binary form is substantially cheaper than modular
+ * exponentiation for every candidate. */
+static int siqs_jacobi_reduced_odd_u32(uint32_t a, uint32_t n) {
   int symbol = 1;
-  a %= n;
   while (a != 0) {
     while (!(a & 1U)) {
       a >>= 1;
@@ -1374,162 +1378,201 @@ static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
  * Their identities depend on the candidate factor base and the family A;
  * estimates based only on target_A were not reliable enough, especially at
  * low q, so leave this small correction out until it can be predicted well. */
-static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
-                                            uint32_t refine_divisor) {
-  uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
+static void siqs_score_multiplier_list(
+    const mpz_t n, unsigned long nmod8, const uint32_t *kval,
+    const uint32_t *candidate, uint32_t count, uint32_t wanted,
+    double *score) {
   uint32_t accepted[SIQS_MULTIPLIER_CAPACITY] = { 0 };
-  uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
-  uint32_t max_multiplier = bits <= SIQS_MULTIPLIER_SHALLOW_LAST_BITS
-                          ? SIQS_MULTIPLIER_MAX
-                          : SIQS_MULTIPLIER_FULL_MAX;
-  uint32_t kcount = 0, k, i, unfinished, wanted, refine_wanted = 0;
-#if SIQS_MULTIPLIER_SEARCH_DIVISOR > 0
-  if (bits <= SIQS_MULTIPLIER_SHALLOW_LAST_BITS)
-    wanted = fb_size / SIQS_MULTIPLIER_SEARCH_DIVISOR;
-  else
-    wanted = fb_size < SIQS_MULTIPLIER_SEARCH_DEPTH
-           ? fb_size : SIQS_MULTIPLIER_SEARCH_DEPTH;
-#else
-  wanted = fb_size < SIQS_MULTIPLIER_SEARCH_DEPTH
-         ? fb_size : SIQS_MULTIPLIER_SEARCH_DEPTH;
-#endif
-  double score[SIQS_MULTIPLIER_CAPACITY], best_score;
-  unsigned long nmod8 = mpz_fdiv_ui(n, 8);
-  unsigned long best;
+  uint32_t unfinished = count, pos;
   PRIME_ITERATOR(iter);
 
-  if (wanted < SIQS_MULTIPLIER_SEARCH_FLOOR)
-    wanted = SIQS_MULTIPLIER_SEARCH_FLOOR;
-  if (wanted > fb_size)
-    wanted = fb_size;
-  if (bits > SIQS_MULTIPLIER_SHALLOW_LAST_BITS)
-    refine_divisor = 0;
-  if (refine_divisor != 0) {
-    refine_wanted = fb_size / refine_divisor;
-    if (refine_wanted < SIQS_MULTIPLIER_SEARCH_FLOOR)
-      refine_wanted = SIQS_MULTIPLIER_SEARCH_FLOOR;
-    if (refine_wanted > fb_size)
-      refine_wanted = fb_size;
-    if (refine_wanted <= wanted)
-      refine_divisor = 0;
+  for (pos = 0; pos < count; pos++) {
+    uint32_t index = candidate == NULL ? pos : candidate[pos];
+    score[index] = siqs_multiplier_base_score(nmod8, kval[index]);
   }
 
-  kval[kcount] = 1;
-  score[kcount] = siqs_multiplier_base_score(nmod8, 1);
-  kcount++;
-  kval[kcount] = 2;
-  score[kcount] = siqs_multiplier_base_score(nmod8, 2);
-  kcount++;
-  for (k = 3; k <= max_multiplier; k += 2) {
-    if (!siqs_squarefree_small(k))
-      continue;
-    kval[kcount] = k;
-    score[kcount] = siqs_multiplier_base_score(nmod8, k);
-    kcount++;
-  }
-
-  unfinished = kcount;
   prime_iterator_setprime(&iter, 2);
   while (unfinished != 0) {
     uint32_t p = (uint32_t)prime_iterator_next(&iter);
     uint32_t nmod = (uint32_t)mpz_fdiv_ui(n, p);
-    int nsymbol = nmod == 0 ? 0 : siqs_jacobi_odd_u32(nmod, p);
+    int nsymbol = nmod == 0 ? 0 : siqs_jacobi_reduced_odd_u32(nmod, p);
     double logp = log((double)p);
-    for (i = 0; i < kcount; i++) {
-      uint32_t km = kval[i] % p;
-      if (accepted[i] == wanted)
+    for (pos = 0; pos < count; pos++) {
+      uint32_t index, k, km;
+      if (accepted[pos] == wanted)
         continue;
+      index = candidate == NULL ? pos : candidate[pos];
+      k = kval[index];
+      km = k < p ? k : k % p;
       if (km == 0) {
-        score[i] += logp / p;
-        accepted[i]++;
+        score[index] += logp / p;
+        accepted[pos]++;
       } else if (nsymbol != 0 &&
-                 siqs_jacobi_odd_u32(km, p) == nsymbol) {
-        score[i] += 2.0 * logp / (p - 1);
-        accepted[i]++;
+                 siqs_jacobi_reduced_odd_u32(km, p) == nsymbol) {
+        score[index] += 2.0 * logp / (p - 1);
+        accepted[pos]++;
       }
-      if (accepted[i] == wanted)
+      if (accepted[pos] == wanted)
         unfinished--;
     }
   }
   prime_iterator_destroy(&iter);
+}
+
+/* Rank WANTED candidates by score, preserving the original candidate order
+ * for exact ties.  CANDIDATE may be NULL for the complete 0..COUNT-1 list. */
+static uint32_t siqs_top_multipliers(
+    const double *score, const uint32_t *candidate, uint32_t count,
+    uint32_t wanted, uint32_t *selected) {
+  uint8_t chosen[SIQS_MULTIPLIER_CAPACITY] = { 0 };
+  uint32_t rank;
+  if (wanted > count)
+    wanted = count;
+  for (rank = 0; rank < wanted; rank++) {
+    uint32_t pos, best_pos = UINT32_MAX, best_index = UINT32_MAX;
+    for (pos = 0; pos < count; pos++) {
+      uint32_t index = candidate == NULL ? pos : candidate[pos];
+      if (!chosen[pos] &&
+          (best_pos == UINT32_MAX || score[index] > score[best_index] ||
+           (score[index] == score[best_index] && index < best_index))) {
+        best_pos = pos;
+        best_index = index;
+      }
+    }
+    chosen[best_pos] = 1;
+    selected[rank] = best_index;
+  }
+  return wanted;
+}
+
+static void siqs_sort_multiplier_indices(uint32_t *index, uint32_t count) {
+  uint32_t i;
+  for (i = 1; i < count; i++) {
+    uint32_t value = index[i], j = i;
+    while (j != 0 && index[j - 1] > value) {
+      index[j] = index[j - 1];
+      j--;
+    }
+    index[j] = value;
+  }
+}
+
+static uint32_t siqs_best_multiplier_index(
+    const double *score, const uint32_t *candidate, uint32_t count) {
+  uint32_t pos, best = candidate == NULL ? 0 : candidate[0];
+  for (pos = 1; pos < count; pos++) {
+    uint32_t index = candidate == NULL ? pos : candidate[pos];
+    if (score[index] > score[best] ||
+        (score[index] == score[best] && index < best))
+      best = index;
+  }
+  return best;
+}
+
+static uint32_t siqs_multiplier_depth(uint32_t wanted, uint32_t fb_size) {
+  if (wanted < SIQS_MULTIPLIER_SEARCH_FLOOR)
+    wanted = SIQS_MULTIPLIER_SEARCH_FLOOR;
+  if (wanted > fb_size)
+    wanted = fb_size;
+  return wanted;
+}
+
+static uint32_t siqs_multiplier_fixed_depth(uint32_t wanted,
+                                            uint32_t fb_size) {
+  return wanted < fb_size ? wanted : fb_size;
+}
+
+static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
+                                            uint32_t refine_divisor) {
+  uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
+  double score[SIQS_MULTIPLIER_CAPACITY];
+  uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
+  uint32_t kcount = 0, k, i, wanted, refine_wanted = 0;
+  unsigned long nmod8 = mpz_fdiv_ui(n, 8);
+
+  kval[kcount++] = 1;
+  kval[kcount++] = 2;
+  for (k = 3; k <= SIQS_MULTIPLIER_MAX; k += 2)
+    if (siqs_squarefree_small(k))
+      kval[kcount++] = k;
+
+  if (bits >= SIQS_MULTIPLIER_CASCADE_FIRST_BITS) {
+    uint32_t first[SIQS_MULTIPLIER_CASCADE_KEEP1];
+    uint32_t middle_rank[SIQS_MULTIPLIER_CASCADE_KEEP1];
+    uint32_t finalist[SIQS_MULTIPLIER_CASCADE_KEEP1];
+    uint32_t first_count, minimum_finalists, finalist_count, best_index;
+    double cutoff;
+
+    wanted = siqs_multiplier_fixed_depth(
+        SIQS_MULTIPLIER_CASCADE_DEPTH1, fb_size);
+    siqs_score_multiplier_list(
+        n, nmod8, kval, NULL, kcount, wanted, score);
+    first_count = siqs_top_multipliers(
+        score, NULL, kcount, SIQS_MULTIPLIER_CASCADE_KEEP1, first);
+    siqs_sort_multiplier_indices(first, first_count);
+
+    wanted = siqs_multiplier_fixed_depth(
+        SIQS_MULTIPLIER_CASCADE_DEPTH2, fb_size);
+    siqs_score_multiplier_list(
+        n, nmod8, kval, first, first_count, wanted, score);
+    siqs_top_multipliers(
+        score, first, first_count, first_count, middle_rank);
+
+    minimum_finalists = SIQS_MULTIPLIER_CASCADE_KEEP2 < first_count
+                      ? SIQS_MULTIPLIER_CASCADE_KEEP2 : first_count;
+    finalist_count = minimum_finalists;
+    cutoff = score[middle_rank[minimum_finalists - 1]] -
+             SIQS_MULTIPLIER_CASCADE_GAP2;
+    while (finalist_count < first_count &&
+           score[middle_rank[finalist_count]] >= cutoff)
+      finalist_count++;
+    for (i = 0; i < finalist_count; i++)
+      finalist[i] = middle_rank[i];
+    siqs_sort_multiplier_indices(finalist, finalist_count);
+
+    wanted = siqs_multiplier_fixed_depth(
+        SIQS_MULTIPLIER_CASCADE_DEPTH3, fb_size);
+    siqs_score_multiplier_list(
+        n, nmod8, kval, finalist, finalist_count, wanted, score);
+    best_index =
+        siqs_best_multiplier_index(score, finalist, finalist_count);
+    return kval[best_index];
+  }
+
+#if SIQS_MULTIPLIER_SEARCH_DIVISOR > 0
+  wanted = fb_size / SIQS_MULTIPLIER_SEARCH_DIVISOR;
+#else
+  wanted = fb_size < SIQS_MULTIPLIER_SEARCH_DEPTH
+         ? fb_size : SIQS_MULTIPLIER_SEARCH_DEPTH;
+#endif
+  wanted = siqs_multiplier_depth(wanted, fb_size);
+  if (refine_divisor != 0) {
+    refine_wanted =
+        siqs_multiplier_depth(fb_size / refine_divisor, fb_size);
+    if (refine_wanted <= wanted)
+      refine_divisor = 0;
+  }
+
+  siqs_score_multiplier_list(n, nmod8, kval, NULL, kcount, wanted, score);
 
   /* A shallow score is cheap for the complete multiplier set but occasionally
    * misorders its best few candidates.  Rescore only those finalists from the
    * analytic baseline; this captures most of the benefit of a deep global
    * search without paying its cost for every multiplier. */
   if (refine_divisor != 0) {
-    uint8_t chosen[SIQS_MULTIPLIER_CAPACITY] = { 0 };
     uint32_t finalist[SIQS_MULTIPLIER_REFINE_FINALISTS];
-    uint32_t finalist_count = SIQS_MULTIPLIER_REFINE_FINALISTS;
-    uint32_t selected;
-    PRIME_ITERATOR(refine_iter);
-
-    if (finalist_count > kcount)
-      finalist_count = kcount;
-
-    for (selected = 0; selected < finalist_count; selected++) {
-      uint32_t best_index = UINT32_MAX;
-      for (i = 0; i < kcount; i++)
-        if (!chosen[i] &&
-            (best_index == UINT32_MAX || score[i] > score[best_index]))
-          best_index = i;
-      chosen[best_index] = 1;
-      finalist[selected] = best_index;
-      accepted[best_index] = 0;
-      score[best_index] =
-          siqs_multiplier_base_score(nmod8, kval[best_index]);
-    }
-
-    unfinished = finalist_count;
-    prime_iterator_setprime(&refine_iter, 2);
-    while (unfinished != 0) {
-      uint32_t p = (uint32_t)prime_iterator_next(&refine_iter);
-      uint32_t nmod = (uint32_t)mpz_fdiv_ui(n, p);
-      int nsymbol = nmod == 0 ? 0 : siqs_jacobi_odd_u32(nmod, p);
-      double logp = log((double)p);
-      for (selected = 0; selected < finalist_count; selected++) {
-        uint32_t index = finalist[selected];
-        uint32_t km;
-        if (accepted[index] == refine_wanted)
-          continue;
-        km = kval[index] % p;
-        if (km == 0) {
-          score[index] += logp / p;
-          accepted[index]++;
-        } else if (nsymbol != 0 &&
-                   siqs_jacobi_odd_u32(km, p) == nsymbol) {
-          score[index] += 2.0 * logp / (p - 1);
-          accepted[index]++;
-        }
-        if (accepted[index] == refine_wanted)
-          unfinished--;
-      }
-    }
-    prime_iterator_destroy(&refine_iter);
-
-    i = finalist[0];
-    best = kval[i];
-    best_score = score[i];
-    for (selected = 1; selected < finalist_count; selected++) {
-      uint32_t index = finalist[selected];
-      if (score[index] > best_score ||
-          (score[index] == best_score && index < i)) {
-        i = index;
-        best_score = score[index];
-        best = kval[index];
-      }
-    }
-    return best;
+    uint32_t finalist_count = siqs_top_multipliers(
+        score, NULL, kcount, SIQS_MULTIPLIER_REFINE_FINALISTS, finalist);
+    uint32_t best_index;
+    siqs_sort_multiplier_indices(finalist, finalist_count);
+    siqs_score_multiplier_list(
+        n, nmod8, kval, finalist, finalist_count, refine_wanted, score);
+    best_index =
+        siqs_best_multiplier_index(score, finalist, finalist_count);
+    return kval[best_index];
   }
 
-  best = kval[0];
-  best_score = score[0];
-  for (i = 1; i < kcount; i++)
-    if (score[i] > best_score) {
-      best_score = score[i];
-      best = kval[i];
-    }
-  return best;
+  return kval[siqs_best_multiplier_index(score, NULL, kcount)];
 }
 
 /* Returns zero when a factor of N was encountered during base construction. */
