@@ -103,7 +103,7 @@
  * residue, the d=2 normalized polynomial has expected 2-adic valuation 3,
  * rather than 2 for d=1, so its complete local score is 3*ln(2). */
 /* Multiplier selection is worth shortening while it is a material part of a
- * full factorization.  Through 177 bits, score 1, 2, and all odd square-free
+ * full factorization.  Through 144 bits, score 1, 2, and all odd square-free
  * k <= 255 through FB/20.  Per-band refinement can then rescore its best five
  * candidates more deeply.  Fresh order-balanced sweeps of the original
  * four-finalist form found up to 3% mean gains and cut 4--10% from the
@@ -112,20 +112,23 @@
  * tied an in-band ramp, while refinement below 65 or above 144 did not repay
  * its cost.
  *
- * From 178 bits onward, use the complete set in a fixed-depth cascade:
- * 64 -> top 8 -> 512 -> top 3 plus 0.05 near-ties -> 2000.  The corrected
- * analytic score makes odd multipliers through 255 useful at every size;
- * they supply the depth-2000 winner in about 5% of high-bit inputs.  On
- * 61,440 test inputs the cascade retained every depth-2000 winner, while a
- * fixed top 7 at depth 64 missed two.  It also does substantially less work
- * than scoring the former k <= 127 set through depth 1000.  The 177/178
- * boundary retains the existing policy transition; extending the cascade
- * downward with factor-base-relative depths is a separate tuning problem. */
+ * From 145 bits, use the complete set in a cascade.  Through 200 bits its
+ * depths grow with the factor base, clamped to the eventual fixed values:
+ * FB/40 [32,64] -> top 8 -> FB/12 [128,512] -> top 3 plus 0.05 near-ties ->
+ * FB/3 [1,2000].  From the 201-bit band onward use fixed 64/512/2000 depths.
+ * Fresh order-balanced 1,000-input sweeps favored the relative depths at
+ * 178, 183, 188, and 193 bits and were effectively tied at 198 bits.  The
+ * corrected analytic score makes odd multipliers through 255 useful at every
+ * size; the cascade also does substantially less work than scoring the former
+ * k <= 127 set through depth 1000. */
 #ifndef SIQS_MULTIPLIER_MAX
 # define SIQS_MULTIPLIER_MAX 255U
 #endif
 #ifndef SIQS_MULTIPLIER_CASCADE_FIRST_BITS
-# define SIQS_MULTIPLIER_CASCADE_FIRST_BITS 178U
+# define SIQS_MULTIPLIER_CASCADE_FIRST_BITS 145U
+#endif
+#ifndef SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS
+# define SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS 201U
 #endif
 #ifndef SIQS_MULTIPLIER_SEARCH_DIVISOR
 # define SIQS_MULTIPLIER_SEARCH_DIVISOR 20U
@@ -148,12 +151,25 @@
 #endif
 #define SIQS_MULTIPLIER_CAPACITY (((SIQS_MULTIPLIER_MAX + 1U) / 2U) + 1U)
 #define SIQS_MULTIPLIER_REFINE_FINALISTS 5U
-#define SIQS_MULTIPLIER_CASCADE_DEPTH1 64U
-#define SIQS_MULTIPLIER_CASCADE_KEEP1 8U
-#define SIQS_MULTIPLIER_CASCADE_DEPTH2 512U
-#define SIQS_MULTIPLIER_CASCADE_KEEP2 3U
-#define SIQS_MULTIPLIER_CASCADE_GAP2 0.05
-#define SIQS_MULTIPLIER_CASCADE_DEPTH3 2000U
+#if SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS < \
+    SIQS_MULTIPLIER_CASCADE_FIRST_BITS
+# error "fixed multiplier cascade must not precede the relative cascade"
+#endif
+
+typedef struct {
+  uint32_t divisor1, minimum1, maximum1, keep1;
+  uint32_t divisor2, minimum2, maximum2, keep2;
+  double gap2;
+  uint32_t divisor3, maximum3;
+} siqs_multiplier_cascade_t;
+
+#ifndef SIQS_MULTIPLIER_CASCADE
+# define SIQS_MULTIPLIER_CASCADE \
+    40U, 32U, 64U, 8U, 12U, 128U, 512U, 3U, 0.05, 3U, 2000U
+#endif
+static const siqs_multiplier_cascade_t siqs_multiplier_cascade = {
+  SIQS_MULTIPLIER_CASCADE
+};
 #define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
@@ -1482,6 +1498,21 @@ static uint32_t siqs_multiplier_fixed_depth(uint32_t wanted,
   return wanted < fb_size ? wanted : fb_size;
 }
 
+static uint32_t siqs_multiplier_cascade_depth(uint32_t fb_size,
+                                              uint32_t maximum,
+                                              uint32_t divisor,
+                                              uint32_t minimum) {
+  uint32_t wanted = maximum;
+  if (divisor != 0) {
+    uint32_t relative = fb_size / divisor;
+    if (relative < minimum)
+      relative = minimum;
+    if (relative < wanted)
+      wanted = relative;
+  }
+  return siqs_multiplier_fixed_depth(wanted, fb_size);
+}
+
 static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
                                             uint32_t refine_divisor) {
   uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
@@ -1497,45 +1528,54 @@ static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
       kval[kcount++] = k;
 
   if (bits >= SIQS_MULTIPLIER_CASCADE_FIRST_BITS) {
-    uint32_t first[SIQS_MULTIPLIER_CASCADE_KEEP1];
-    uint32_t middle_rank[SIQS_MULTIPLIER_CASCADE_KEEP1];
-    uint32_t finalist[SIQS_MULTIPLIER_CASCADE_KEEP1];
+    const siqs_multiplier_cascade_t *cascade = &siqs_multiplier_cascade;
+    uint32_t first[SIQS_MULTIPLIER_CAPACITY];
+    uint32_t middle_rank[SIQS_MULTIPLIER_CAPACITY];
     uint32_t first_count, minimum_finalists, finalist_count, best_index;
+    uint32_t depth1, depth2, depth3;
+    int relative = bits < SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS;
     double cutoff;
 
-    wanted = siqs_multiplier_fixed_depth(
-        SIQS_MULTIPLIER_CASCADE_DEPTH1, fb_size);
+    depth1 = siqs_multiplier_cascade_depth(
+        fb_size, cascade->maximum1,
+        relative ? cascade->divisor1 : 0U, cascade->minimum1);
+    depth2 = siqs_multiplier_cascade_depth(
+        fb_size, cascade->maximum2,
+        relative ? cascade->divisor2 : 0U, cascade->minimum2);
+    depth3 = siqs_multiplier_cascade_depth(
+        fb_size, cascade->maximum3,
+        relative ? cascade->divisor3 : 0U, 1U);
+
+    wanted = depth1;
     siqs_score_multiplier_list(
         n, nmod8, kval, NULL, kcount, wanted, score);
     first_count = siqs_top_multipliers(
-        score, NULL, kcount, SIQS_MULTIPLIER_CASCADE_KEEP1, first);
+        score, NULL, kcount, cascade->keep1, first);
     siqs_sort_multiplier_indices(first, first_count);
 
-    wanted = siqs_multiplier_fixed_depth(
-        SIQS_MULTIPLIER_CASCADE_DEPTH2, fb_size);
+    wanted = depth2;
     siqs_score_multiplier_list(
         n, nmod8, kval, first, first_count, wanted, score);
     siqs_top_multipliers(
         score, first, first_count, first_count, middle_rank);
 
-    minimum_finalists = SIQS_MULTIPLIER_CASCADE_KEEP2 < first_count
-                      ? SIQS_MULTIPLIER_CASCADE_KEEP2 : first_count;
+    minimum_finalists = cascade->keep2 < first_count
+                      ? cascade->keep2 : first_count;
     finalist_count = minimum_finalists;
     cutoff = score[middle_rank[minimum_finalists - 1]] -
-             SIQS_MULTIPLIER_CASCADE_GAP2;
+             cascade->gap2;
     while (finalist_count < first_count &&
            score[middle_rank[finalist_count]] >= cutoff)
       finalist_count++;
     for (i = 0; i < finalist_count; i++)
-      finalist[i] = middle_rank[i];
-    siqs_sort_multiplier_indices(finalist, finalist_count);
+      first[i] = middle_rank[i];
+    siqs_sort_multiplier_indices(first, finalist_count);
 
-    wanted = siqs_multiplier_fixed_depth(
-        SIQS_MULTIPLIER_CASCADE_DEPTH3, fb_size);
+    wanted = depth3;
     siqs_score_multiplier_list(
-        n, nmod8, kval, finalist, finalist_count, wanted, score);
+        n, nmod8, kval, first, finalist_count, wanted, score);
     best_index =
-        siqs_best_multiplier_index(score, finalist, finalist_count);
+        siqs_best_multiplier_index(score, first, finalist_count);
     return kval[best_index];
   }
 
