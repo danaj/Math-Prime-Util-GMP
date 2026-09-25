@@ -79,7 +79,6 @@
 #define SIQS_EVAL_INITIAL_FACTORS   64U
 #define SIQS_LP_MAX UINT64_C(0x0000000fffffffff)
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0x7fffffffffffffff)
-#define SIQS_NO_ROOT       UINT32_MAX
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
 #define SIQS_A_FINAL_TOLERANCE_DEFAULT 8U
@@ -382,7 +381,7 @@ typedef struct {
   siqs_fb_t *fb;
   uint32_t *prime;
   uint32_t *root1;
-  uint32_t *root2;
+  uint32_t *root2;  /* Equal to root1 for a one-root factor-base prime. */
   uint32_t *fb_reciprocal;
   uint32_t resieve_one_subtract_index;
   uint32_t largest_fb_prime;
@@ -2603,7 +2602,7 @@ static void siqs_set_special_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     ctx->root2[0] = 1;
   } else {
     ctx->root1[0] = ((uint32_t)mpz_fdiv_ui(poly->C, 2) + (m & 1U)) & 1U;
-    ctx->root2[0] = SIQS_NO_ROOT;
+    ctx->root2[0] = ctx->root1[0];
   }
   for (i = 0; i < poly->q_count; i++) {
     uint32_t index = poly->a_index[i];
@@ -2617,7 +2616,7 @@ static void siqs_set_special_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
       croak("SIQS: singular polynomial root");
     x = (uint32_t)((uint64_t)(c ? p - c : 0) * inv % p);
     ctx->root1[index] = (x + m % p) % p;
-    ctx->root2[index] = SIQS_NO_ROOT;
+    ctx->root2[index] = ctx->root1[index];
   }
 }
 
@@ -2685,7 +2684,7 @@ static void siqs_verify_polynomial(const siqs_ctx_t *ctx,
       if (ctx->root2[i] >= p || ctx->root2[i] == ctx->root1[i] ||
           siqs_debug_polynomial_at_root(ctx, poly, i, ctx->root2[i]) != 0)
         croak("SIQS: second polynomial root invariant failed");
-    } else if (ctx->root2[i] != SIQS_NO_ROOT) {
+    } else if (ctx->root2[i] != ctx->root1[i]) {
       croak("SIQS: polynomial unexpectedly has a second root");
     }
   }
@@ -2739,7 +2738,7 @@ static void siqs_first_B_and_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
       uint32_t x2 = (uint32_t)((uint64_t)((negb + p - s) % p) * inva % p);
       ctx->root1[j] = (x1 + ctx->params.half_interval % p) % p;
       if (x1 == x2)
-        ctx->root2[j] = SIQS_NO_ROOT;
+        ctx->root2[j] = ctx->root1[j];
       else
         ctx->root2[j] = (x2 + ctx->params.half_interval % p) % p;
       for (i = 0; i + 1 < poly->q_count; i++) {
@@ -2772,7 +2771,7 @@ static void siqs_set_family_sieve_initial(siqs_ctx_t *ctx) {
   if (ctx->params.poly_d == 2)
     expected += ctx->fb[0].logp;
   for (i = 0; i < ctx->params.sieve_start; i++) {
-    uint32_t roots = ctx->root2[i] == SIQS_NO_ROOT ? 1U : 2U;
+    uint32_t roots = ctx->root2[i] == ctx->root1[i] ? 1U : 2U;
     expected += roots * (double)ctx->fb[i].logp / ctx->fb[i].p;
   }
   initial = (uint32_t)(expected + 0.5);
@@ -2812,10 +2811,8 @@ static INLINE void siqs_update_roots(siqs_ctx_t *ctx,
       uint32_t corr = corrections[j];
       root1[j] += corr;
       if (root1[j] >= p) root1[j] -= p;
-      if (root2[j] != SIQS_NO_ROOT) {
-        root2[j] += corr;
-        if (root2[j] >= p) root2[j] -= p;
-      }
+      root2[j] += corr;
+      if (root2[j] >= p) root2[j] -= p;
     }
   } else {
     for (j = first; j < end; j++) {
@@ -2824,10 +2821,9 @@ static INLINE void siqs_update_roots(siqs_ctx_t *ctx,
       root1[j] = root1[j] >= corr
                ? root1[j] - corr
                : root1[j] + p - corr;
-      if (root2[j] != SIQS_NO_ROOT)
-        root2[j] = root2[j] >= corr
-                 ? root2[j] - corr
-                 : root2[j] + p - corr;
+      root2[j] = root2[j] >= corr
+               ? root2[j] - corr
+               : root2[j] + p - corr;
     }
   }
 }
@@ -3026,7 +3022,7 @@ static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
     siqs_sieve_add(sieve + pos, logp);
 #endif
   }
-  if (root2 != SIQS_NO_ROOT) {
+  if (root2 != root1) {
     pos = root2;
     for (i = 0; i < count; i++, pos += p) {
 #ifdef SIQS_DEBUG
@@ -3058,7 +3054,7 @@ static void siqs_run_sieve_kernel(
   uint32_t i;
   for (i = first; i < end && prime[i] <= length / 6U;
        i++) {
-    if (root2[i] == SIQS_NO_ROOT) {
+    if (root2[i] == root1[i]) {
       siqs_sieve_one_root(sieve, length, root1[i], prime[i], fb[i].logp);
     } else {
       siqs_sieve_two_roots(sieve, length, root1[i], root2[i], prime[i],
@@ -3398,7 +3394,7 @@ static void siqs_build_buckets(siqs_ctx_t *ctx) {
   for (i = bucket_start; i < ctx->params.fb_size; i++) {
     uint32_t p = ctx->prime[i];
     siqs_bucket_count_root(ctx, ctx->root1[i], p);
-    if (ctx->root2[i] != SIQS_NO_ROOT)
+    if (ctx->root2[i] != ctx->root1[i])
       siqs_bucket_count_root(ctx, ctx->root2[i], p);
   }
   for (block = 0; block < ctx->block_count; block++) {
@@ -3427,7 +3423,7 @@ static void siqs_build_buckets(siqs_ctx_t *ctx) {
   for (i = bucket_start; i < ctx->params.fb_size; i++) {
     uint32_t p = ctx->prime[i];
     siqs_bucket_fill_root(ctx, i, ctx->root1[i], p);
-    if (ctx->root2[i] != SIQS_NO_ROOT)
+    if (ctx->root2[i] != ctx->root1[i])
       siqs_bucket_fill_root(ctx, i, ctx->root2[i], p);
   }
 #ifdef SIQS_DEBUG
@@ -3450,7 +3446,7 @@ static void siqs_run_sieve_block(siqs_ctx_t *ctx, uint32_t block) {
   for (i = ctx->params.sieve_start; i < ctx->block_large_index; i++) {
     uint32_t p = ctx->prime[i];
     uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
-    if (ctx->root2[i] == SIQS_NO_ROOT) {
+    if (ctx->root2[i] == ctx->root1[i]) {
       siqs_sieve_one_root(ctx->sieve, length, root1, p, ctx->fb[i].logp);
     } else {
       uint32_t root2 = siqs_local_root(ctx, i, ctx->root2[i]);
@@ -3530,7 +3526,7 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
     for (i = cutoff; i < progression_end; i++) {
       uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
       siqs_resieve_one_root32(ctx, i, root1, ctx->prime[i]);
-      if (ctx->root2[i] != SIQS_NO_ROOT) {
+      if (ctx->root2[i] != ctx->root1[i]) {
         siqs_resieve_one_root32(ctx, i,
             siqs_local_root(ctx, i, ctx->root2[i]), ctx->prime[i]);
       }
@@ -3539,7 +3535,7 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
     for (i = cutoff; i < progression_end; i++) {
       uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
       siqs_resieve_one_root16(ctx, i, root1, ctx->prime[i]);
-      if (ctx->root2[i] != SIQS_NO_ROOT) {
+      if (ctx->root2[i] != ctx->root1[i]) {
         siqs_resieve_one_root16(ctx, i,
             siqs_local_root(ctx, i, ctx->root2[i]), ctx->prime[i]);
       }
