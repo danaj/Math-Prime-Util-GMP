@@ -380,8 +380,10 @@ typedef struct {
   siqs_parameters_t params;
   siqs_fb_t *fb;
   uint32_t *prime;
+  /* Roots stay ordered; equality represents a one-root factor-base prime. */
   uint32_t *root1;
-  uint32_t *root2;  /* Equal to root1 for a one-root factor-base prime. */
+  uint32_t *root2;
+  uint8_t *sieve_logp;
   uint32_t *fb_reciprocal;
   uint32_t resieve_one_subtract_index;
   uint32_t largest_fb_prime;
@@ -2680,6 +2682,8 @@ static void siqs_verify_polynomial(const siqs_ctx_t *ctx,
     if (ctx->root1[i] >= p ||
         siqs_debug_polynomial_at_root(ctx, poly, i, ctx->root1[i]) != 0)
       croak("SIQS: first polynomial root invariant failed");
+    if (ctx->root1[i] > ctx->root2[i])
+      croak("SIQS: polynomial roots are not ordered");
     if (expect_two) {
       if (ctx->root2[i] >= p || ctx->root2[i] == ctx->root1[i] ||
           siqs_debug_polynomial_at_root(ctx, poly, i, ctx->root2[i]) != 0)
@@ -2736,11 +2740,10 @@ static void siqs_first_B_and_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
       uint32_t s = ctx->fb[j].sqrt_kn;
       uint32_t x1 = (uint32_t)((uint64_t)((negb + s) % p) * inva % p);
       uint32_t x2 = (uint32_t)((uint64_t)((negb + p - s) % p) * inva % p);
-      ctx->root1[j] = (x1 + ctx->params.half_interval % p) % p;
-      if (x1 == x2)
-        ctx->root2[j] = ctx->root1[j];
-      else
-        ctx->root2[j] = (x2 + ctx->params.half_interval % p) % p;
+      x1 = (x1 + ctx->params.half_interval % p) % p;
+      x2 = (x2 + ctx->params.half_interval % p) % p;
+      ctx->root1[j] = x1 < x2 ? x1 : x2;
+      ctx->root2[j] = x1 < x2 ? x2 : x1;
       for (i = 0; i + 1 < poly->q_count; i++) {
         uint32_t hmod = (uint32_t)mpz_fdiv_ui(poly->H[i], p);
         poly->corrections[(size_t)i * ctx->params.fb_size + j] =
@@ -2813,6 +2816,11 @@ static INLINE void siqs_update_roots(siqs_ctx_t *ctx,
       if (root1[j] >= p) root1[j] -= p;
       root2[j] += corr;
       if (root2[j] >= p) root2[j] -= p;
+      {
+        uint32_t r1 = root1[j], r2 = root2[j];
+        root1[j] = r1 < r2 ? r1 : r2;
+        root2[j] = r1 < r2 ? r2 : r1;
+      }
     }
   } else {
     for (j = first; j < end; j++) {
@@ -2824,6 +2832,11 @@ static INLINE void siqs_update_roots(siqs_ctx_t *ctx,
       root2[j] = root2[j] >= corr
                ? root2[j] - corr
                : root2[j] + p - corr;
+      {
+        uint32_t r1 = root1[j], r2 = root2[j];
+        root1[j] = r1 < r2 ? r1 : r2;
+        root2[j] = r1 < r2 ? r2 : r1;
+      }
     }
   }
 }
@@ -2973,12 +2986,6 @@ static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
   uint32_t pos, gap1, gap2;
   uint32_t p4 = 4 * p;
 
-  if (root1 > root2) {
-    uint32_t tmp = root1;
-    root1 = root2;
-    root2 = tmp;
-  }
-
   pos = root1;
   gap1 = root2 - root1;
   gap2 = p - gap1;
@@ -3050,21 +3057,21 @@ static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
 static void siqs_run_sieve_kernel(
     uint8_t *sieve, uint32_t length,
     const uint32_t *prime, const uint32_t *root1, const uint32_t *root2,
-    const siqs_fb_t *fb, uint32_t first, uint32_t end) {
+    const uint8_t *logp, uint32_t first, uint32_t end) {
   uint32_t i;
   for (i = first; i < end && prime[i] <= length / 6U;
        i++) {
     if (root2[i] == root1[i]) {
-      siqs_sieve_one_root(sieve, length, root1[i], prime[i], fb[i].logp);
+      siqs_sieve_one_root(sieve, length, root1[i], prime[i], logp[i]);
     } else {
       siqs_sieve_two_roots(sieve, length, root1[i], root2[i], prime[i],
-                           fb[i].logp);
+                           logp[i]);
     }
   }
 # define SIQS_SIEVE_LARGE_RANGE(bound, count) do {                         \
     for (; i < end && prime[i] <= (bound); i++) {                           \
       siqs_sieve_large(sieve, length, root1[i], root2[i], prime[i],         \
-                       fb[i].logp, (count));                                \
+                       logp[i], (count));                                   \
     }                                                                       \
   } while (0)
   SIQS_SIEVE_LARGE_RANGE(length / 5U, 6U);
@@ -3083,7 +3090,7 @@ static void siqs_run_sieve(siqs_ctx_t *ctx) {
   ctx->active_sieve_length = length;
   memset(sieve, siqs_physical_sieve_initial(ctx), length);
   siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
-                        ctx->fb, ctx->params.sieve_start,
+                        ctx->sieve_logp, ctx->params.sieve_start,
                         ctx->params.fb_size);
 }
 
@@ -3447,11 +3454,17 @@ static void siqs_run_sieve_block(siqs_ctx_t *ctx, uint32_t block) {
     uint32_t p = ctx->prime[i];
     uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
     if (ctx->root2[i] == ctx->root1[i]) {
-      siqs_sieve_one_root(ctx->sieve, length, root1, p, ctx->fb[i].logp);
+      siqs_sieve_one_root(ctx->sieve, length, root1, p,
+                          ctx->sieve_logp[i]);
     } else {
       uint32_t root2 = siqs_local_root(ctx, i, ctx->root2[i]);
+      if (root1 > root2) {
+        uint32_t tmp = root1;
+        root1 = root2;
+        root2 = tmp;
+      }
       siqs_sieve_two_roots(ctx->sieve, length, root1, root2, p,
-                           ctx->fb[i].logp);
+                           ctx->sieve_logp[i]);
     }
   }
 
@@ -3471,7 +3484,7 @@ static void siqs_run_sieve_block(siqs_ctx_t *ctx, uint32_t block) {
     if (rem != ctx->root1[fb_index] && rem != ctx->root2[fb_index])
       croak("SIQS: sieve bucket event is not a polynomial root");
 #endif
-    siqs_sieve_add(ctx->sieve + pos, ctx->fb[fb_index].logp);
+    siqs_sieve_add(ctx->sieve + pos, ctx->sieve_logp[fb_index]);
   }
 }
 
@@ -4459,6 +4472,7 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
       (size_t)ctx->params.fb_size * sizeof(uint32_t));
   ctx->root2 = (uint32_t *)siqs_malloc(
       (size_t)ctx->params.fb_size * sizeof(uint32_t));
+  ctx->sieve_logp = (uint8_t *)siqs_malloc(ctx->params.fb_size);
   siqs_set_log_weights(ctx);
   ctx->sieve_length = 2 * ctx->params.half_interval;
   ctx->active_sieve_length = ctx->sieve_length;
@@ -4477,6 +4491,7 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
     uint32_t i;
     for (i = 0; i < ctx->params.fb_size; i++) {
       ctx->prime[i] = ctx->fb[i].p;
+      ctx->sieve_logp[i] = ctx->fb[i].logp;
       ctx->fb_reciprocal[i] =
           (uint32_t)(UINT64_C(0x100000000) / ctx->prime[i]);
     }
@@ -4525,6 +4540,7 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->prime);
   free(ctx->root1);
   free(ctx->root2);
+  free(ctx->sieve_logp);
   free(ctx->fb_reciprocal);
   free(ctx->sieve);
   free(ctx->bucket_bounds);
