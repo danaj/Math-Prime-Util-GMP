@@ -114,15 +114,24 @@
  *
  * From 145 bits, use the complete set in a cascade.  Through 200 bits its
  * depths grow with the factor base, clamped to the eventual fixed values:
- * FB/40 [32,64] -> top 8 -> FB/12 [128,512] -> top 3 plus 0.05 near-ties ->
- * FB/3 [1,2000].  From the 201-bit band onward use fixed 64/512/2000 depths.
+ * FB/40 [32,64] -> top 8/12 -> FB/12 [128,512] -> top 3 plus 0.05 near-ties
+ * -> FB/3 [1,2000].  From the 201-bit band onward use fixed 64/512/2000
+ * depths.
  * Fresh order-balanced 1,000-input sweeps favored the relative depths at
  * 178, 183, 188, and 193 bits and were effectively tied at 198 bits.  The
- * corrected analytic score makes odd multipliers through 255 useful at every
- * size; the cascade also does substantially less work than scoring the former
- * k <= 127 set through depth 1000. */
+ * cascade also does substantially less work than scoring the former k <= 127
+ * set through depth 1000.
+ *
+ * Candidate limits grow only where their measured savings repay the fixed
+ * selector cost.  Odd/even ceilings are 255/26 at 145--166 bits, 511/26 at
+ * 167--200, 1023/26 at 201--230, and 2047/100 from 231 bits.  The first-stage
+ * survivor count grows from 8 to 12 at 167 bits.  Below 145 bits retain the
+ * old odd <= 255 pool and multiplier 2 alone among the evens. */
 #ifndef SIQS_MULTIPLIER_MAX
-# define SIQS_MULTIPLIER_MAX 255U
+# define SIQS_MULTIPLIER_MAX 2047U
+#endif
+#ifndef SIQS_MULTIPLIER_EVEN_MAX
+# define SIQS_MULTIPLIER_EVEN_MAX 100U
 #endif
 #ifndef SIQS_MULTIPLIER_CASCADE_FIRST_BITS
 # define SIQS_MULTIPLIER_CASCADE_FIRST_BITS 145U
@@ -143,14 +152,26 @@
     !(SIQS_MULTIPLIER_MAX & 1)
 # error "SIQS_MULTIPLIER_MAX must be an odd value from 1 through 4095"
 #endif
+#if SIQS_MULTIPLIER_EVEN_MAX < 0 || SIQS_MULTIPLIER_EVEN_MAX > 4094 || \
+    (SIQS_MULTIPLIER_EVEN_MAX & 1)
+# error "SIQS_MULTIPLIER_EVEN_MAX must be a nonnegative even value through 4094"
+#endif
 #if SIQS_MULTIPLIER_SEARCH_FLOOR < 1
 # error "SIQS_MULTIPLIER_SEARCH_FLOOR must be positive"
 #endif
 #if SIQS_MULTIPLIER_SEARCH_DEPTH < 1
 # error "SIQS_MULTIPLIER_SEARCH_DEPTH must be positive"
 #endif
-#define SIQS_MULTIPLIER_CAPACITY (((SIQS_MULTIPLIER_MAX + 1U) / 2U) + 1U)
+#define SIQS_MULTIPLIER_CAPACITY \
+    (((SIQS_MULTIPLIER_MAX + 1U) / 2U) + 1U + \
+     SIQS_MULTIPLIER_EVEN_MAX / 2U)
 #define SIQS_MULTIPLIER_REFINE_FINALISTS 5U
+#ifndef SIQS_MULTIPLIER_CASCADE_WIDE_KEEP1
+# define SIQS_MULTIPLIER_CASCADE_WIDE_KEEP1 12U
+#endif
+#if SIQS_MULTIPLIER_CASCADE_WIDE_KEEP1 < 1
+# error "SIQS_MULTIPLIER_CASCADE_WIDE_KEEP1 must be positive"
+#endif
 #if SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS < \
     SIQS_MULTIPLIER_CASCADE_FIRST_BITS
 # error "fixed multiplier cascade must not precede the relative cascade"
@@ -1367,9 +1388,18 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->log_scale = 0.0; /* Set after the factor base and kN are known. */
 }
 
+static const uint32_t siqs_squarefree_mask[8] = {
+  3840601326U, 1856556782U, 3941394158U, 2362371810U,
+  3970362990U, 3471729898U, 4008603310U, 3938642668U
+};
 static int siqs_squarefree_small(uint32_t n) {
   uint32_t p;
-  for (p = 3; p * p <= n; p += 2)
+  if (n < 256U)
+    return (siqs_squarefree_mask[n >> 5] & (1U << (n & 31U))) != 0;
+  if (n % 4U == 0 || n % 9U == 0 || n % 25U == 0 ||
+      n % 49U == 0 || n % 121U == 0 || n % 169U == 0)
+    return 0;
+  for (p = 17; p * p <= n; p += 2)
     if (n % (p * p) == 0)
       return 0;
   return 1;
@@ -1379,10 +1409,7 @@ static int siqs_squarefree_small(uint32_t n) {
 static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
   unsigned long mod8 = (nmod8 * k) & 7UL;
   double score = -0.5 * log((double)k);
-  /* For k=2, exactly half the normalized polynomial values have one factor
-   * of two and half are odd, giving the exact local score 0.5*ln(2). */
-  if (k == 2)
-    return score + 0.5 * M_LN2;
+  /* This also gives multiplier 2 its exact 0.5*ln(2) local score. */
   score += mod8 == 1 ? 3.0 * M_LN2
            : mod8 == 5 ? M_LN2 : 0.5 * M_LN2;
   return score;
@@ -1398,10 +1425,11 @@ static void siqs_score_multiplier_list(
     const mpz_t n, unsigned long nmod8, const uint32_t *kval,
     const uint32_t *candidate, uint32_t count, uint32_t wanted,
     double *score) {
-  uint32_t accepted[SIQS_MULTIPLIER_CAPACITY] = { 0 };
+  uint32_t accepted[SIQS_MULTIPLIER_CAPACITY];
   uint32_t unfinished = count, pos;
   PRIME_ITERATOR(iter);
 
+  memset(accepted, 0, count * sizeof(*accepted));
   for (pos = 0; pos < count; pos++) {
     uint32_t index = candidate == NULL ? pos : candidate[pos];
     score[index] = siqs_multiplier_base_score(nmod8, kval[index]);
@@ -1440,8 +1468,9 @@ static void siqs_score_multiplier_list(
 static uint32_t siqs_top_multipliers(
     const double *score, const uint32_t *candidate, uint32_t count,
     uint32_t wanted, uint32_t *selected) {
-  uint8_t chosen[SIQS_MULTIPLIER_CAPACITY] = { 0 };
+  uint8_t chosen[SIQS_MULTIPLIER_CAPACITY];
   uint32_t rank;
+  memset(chosen, 0, count * sizeof(*chosen));
   if (wanted > count)
     wanted = count;
   for (rank = 0; rank < wanted; rank++) {
@@ -1513,17 +1542,46 @@ static uint32_t siqs_multiplier_cascade_depth(uint32_t fb_size,
   return siqs_multiplier_fixed_depth(wanted, fb_size);
 }
 
+/* Select the measured candidate pool and first cascade width for BITS. */
+static void siqs_multiplier_policy(uint32_t bits, uint32_t *odd_max,
+                                   uint32_t *even_max, uint32_t *keep1) {
+  if (bits >= 231) {
+    *odd_max = 2047;
+    *even_max = 100;
+  } else if (bits >= 201) {
+    *odd_max = 1023;
+    *even_max = 26;
+  } else if (bits >= 167) {
+    *odd_max = 511;
+    *even_max = 26;
+  } else {
+    *odd_max = 255;
+    *even_max = bits >= 145 ? 26 : 0;
+  }
+  if (*odd_max > SIQS_MULTIPLIER_MAX)
+    *odd_max = SIQS_MULTIPLIER_MAX;
+  if (*even_max > SIQS_MULTIPLIER_EVEN_MAX)
+    *even_max = SIQS_MULTIPLIER_EVEN_MAX;
+  *keep1 = *odd_max > 255U ? SIQS_MULTIPLIER_CASCADE_WIDE_KEEP1
+                           : siqs_multiplier_cascade.keep1;
+}
+
 static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
                                             uint32_t refine_divisor) {
   uint32_t kval[SIQS_MULTIPLIER_CAPACITY];
   double score[SIQS_MULTIPLIER_CAPACITY];
   uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
+  uint32_t odd_max, even_max, cascade_keep1;
   uint32_t kcount = 0, k, i, wanted, refine_wanted = 0;
   unsigned long nmod8 = mpz_fdiv_ui(n, 8);
 
+  siqs_multiplier_policy(bits, &odd_max, &even_max, &cascade_keep1);
   kval[kcount++] = 1;
   kval[kcount++] = 2;
-  for (k = 3; k <= SIQS_MULTIPLIER_MAX; k += 2)
+  for (k = 3; k <= odd_max; k += 2)
+    if (siqs_squarefree_small(k))
+      kval[kcount++] = k;
+  for (k = 6; k <= even_max; k += 2)
     if (siqs_squarefree_small(k))
       kval[kcount++] = k;
 
@@ -1550,7 +1608,7 @@ static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
     siqs_score_multiplier_list(
         n, nmod8, kval, NULL, kcount, wanted, score);
     first_count = siqs_top_multipliers(
-        score, NULL, kcount, cascade->keep1, first);
+        score, NULL, kcount, cascade_keep1, first);
     siqs_sort_multiplier_indices(first, first_count);
 
     wanted = depth2;
