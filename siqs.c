@@ -941,27 +941,33 @@ typedef struct {
  * schedule.  Full-factor tests select K=5, 8, 16, 20, 16, 24, and 48 at the
  * 145, 151, 167, 178, 193, 201, and 218-bit boundaries.
  *
- * Joint geometry tests keep interval scale 2.5 through 130 bits and ramp it
- * to 3.0 at 140.
- * After the alternating-gap two-root sieve made each interval cheaper, fresh
- * full-factor tests selected 3.75--4.2 from 145 through 177 and 3.3 from 178
- * through 192.  The retained upper taper starts at 3.28 at 193 and reaches
- * 3.0 at 200.  The older taper
- * then reaches 2.5 at 206 and rejoins the established 211--217 schedule.  At
- * the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
- * takes over at 37; a smaller factor base and wider final A tolerance improve
- * it substantially from 42 through 49, with explicit q=1 recovery profiles
- * for the rare exhausted primary.  q=3 is faster from 50 through 80, and q=4
- * at 81.
- * The other adjacent full-factor tests put q-count changes at 96, 117, 145,
- * 167, and 201 bits.  q=9 remains faster through the specialized 1LP range;
- * q=10 begins with the 231-bit 2LP policy.
- * Upper-range checks keep q=10 through 269 bits and start q=11 at 270.  The
- * former 260--266 and 267--269 rows otherwise differed only by a tiny sieve
- * score release.  A single shallow 0.205--0.20535 ramp across 260--269 was
- * modestly faster at all five tested anchors, so those rows are merged.
- * Full-factor checks leave the established factor-base ramps unchanged below
- * 300 bits.  A short q=11 bridge rises from 0.310 at 300 to 0.314 at 304;
+ * Cheap root updates changed the best q-count/interval balance substantially.
+ * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 134, 157,
+ * 188, 219, and 242 bits.  Shorter intervals accompany each earlier q-count
+ * transition: scales range from 1.5 to 2.5 through the 1LP bands, taper from
+ * 1.5 to 1.0 before 231, and reach 0.5 in the upper two-LP bands.  The new
+ * policy won at every sampled changed or structural boundary through 269
+ * bits.  A later factor-base pass after the multiplier and hot-path changes
+ * retained the existing schedule through 249, then selected a gradual
+ * reduction through 259 and about 0.85 times the former size through 275.
+ * The upper continuation releases that reduction smoothly before the
+ * established 300-bit schedule.  A per-bit local FB/interval pass retained
+ * this simple ramp: a 5% smaller FB won often but only about half a percent
+ * overall, and carrying the full step through 299 would break the clean join.
+ * An upper-band pass keeps q=11 through 304 bits and q=12 thereafter.  Its
+ * interval multiplier tapers from 0.5 at 270 bits to 0.25 at 304, remains
+ * 0.25 through 310, rises to the measured 0.6 choice at 330, then returns
+ * conservatively to the established 1.0 high-end value at 366.  q=13 was
+ * slower than q=12 in the 330-bit screen.  At the low end, q=1 with a wide
+ * interval covers inputs below 37 bits.  q=2 takes over at 37; a smaller
+ * factor base and wider final A tolerance improve it substantially from 42
+ * through 49, with explicit q=1 recovery profiles for the rare exhausted
+ * primary.  q=3 is faster from 50 through 80, and q=4 at 81.
+ * Earlier adjacent full-factor tests put q-count changes at 96 and 117 bits.
+ * The former 260--266 and 267--269 rows otherwise differed only by a tiny
+ * sieve score release.  A single shallow 0.205--0.20535 ramp across 260--269
+ * was modestly faster at all five tested anchors, so those rows are merged.
+ * A short q=11 factor-base bridge rises from 0.310 at 300 to 0.314 at 304;
  * q=12 continues smoothly at 0.315 and reaches the upper-screen choice 0.325
  * at the inclusive 366-bit limit.
  *
@@ -981,9 +987,9 @@ typedef struct {
  * full-factor comparison moved the prime-cutoff and geometry transition
  * from 185 to 193.  Results crossed noisily just below 193, but the best
  * monotone boundary kept the lower profile through 192; the upper profile
- * won clearly from 193 onward.  At the 269/270 q-count boundary, bias
- * 18 won on the q=10 side while 12 and 18 tied on the q=11 side, so only the
- * prime floor carries across.
+ * won clearly from 193 onward.  At the 269/270 policy boundary, bias 18 won
+ * below it while 12 and 18 tied above it, so only the prime floor carries
+ * across.
  */
 static const siqs_policy_band_t siqs_policy_bands[] = {
   /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
@@ -1064,30 +1070,35 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 117), 0.45 },
   /* Stopping at the first full-rank-sized matrix remained healthy through
-   * 166 bits and saved about 1--5% across these bands.  The former 151--158
-   * and 159--166 rows merge once they use the same filter bias. */
-  { "one_lp_k4_q6_interval_ramp", 130, 139, 1, 6, 14, 0, 0,
+   * 166 bits and saved about 1--5% across these bands. */
+  { "one_lp_k4_q6_interval_ramp", 130, 133, 1, 6, 14, 0, 0,
     4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(2.8125, 0.05625, 130),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
-  { "one_lp_k4_q6", 140, 144, 1, 6, 14, 0, 0,
+  { "one_lp_k4_q7_interval_ramp", 134, 144, 1, 7, 14, 0, 0,
     4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
-    SIQS_POLICY_LINEAR(3.375, 0.0, 140),
+    SIQS_POLICY_LINEAR(1.8, 0.04, 134),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
   { "one_lp_k5_q7", 145, 150, 1, 7, 14, 0, 0,
     5, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 146),
-    SIQS_POLICY_LINEAR(3.75, 0.09, 145),
+    SIQS_POLICY_LINEAR(2.5, 0.0, 145),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 146), 0.45 },
-  { "one_lp_k8_q7_fb_low", 151, 166, 1, 7, 14, 0, 0,
+  { "one_lp_k8_q7_fb_low", 151, 156, 1, 7, 14, 0, 0,
     8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
-    SIQS_POLICY_LINEAR(4.2, 0.0, 151),
+    SIQS_POLICY_LINEAR(2.35, 0.0, 151),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+  { "one_lp_k8_q8_interval_ramp", 157, 166, 1, 8, 14, 0, 0,
+    8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
+    SIQS_POLICY_LINEAR(1.55, 0.035, 157),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   /* The readiness check makes the nominal 96 surplus nearly free here:
@@ -1097,86 +1108,128 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
-    SIQS_POLICY_LINEAR(4.2, 0.0, 167),
+    SIQS_POLICY_LINEAR(1.9, 0.0, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k20_q8", 178, 192, 1, 8, 18, 0, 0, 20, 60, 60, 8, 0, 160, 96,
+  { "one_lp_k20_q8_interval_ramp", 178, 187, 1, 8, 18, 0, 0,
+    20, 60, 60, 8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
-    SIQS_POLICY_LINEAR(3.3, 0.0, 178),
+    SIQS_POLICY_LINEAR(2.0, 0.07, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k16_q8", 193, 200, 1, 8, 18, 0, 0, 16, 60, 60, 8, 401, 160, 96,
+  { "one_lp_k20_q9", 188, 192, 1, 9, 18, 0, 0,
+    20, 60, 60, 8, 0, 160, 96,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.32, 0.0, 178),
+    SIQS_POLICY_LINEAR(1.5, 0.0, 188),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+  { "one_lp_k16_q9", 193, 200, 1, 9, 18, 0, 0,
+    16, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
-    SIQS_POLICY_LINEAR(3.6, -0.04, 185),
+    SIQS_POLICY_LINEAR(1.5, 0.0, 193),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_interval_taper", 201, 205, 1, 9, 18, 0, 0,
     24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.324182603342, 0.000211825641, 201),
-    SIQS_POLICY_LINEAR(3.0, -0.0625, 200),
+    SIQS_POLICY_LINEAR(1.5, 0.0, 201),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9", 206, 210, 1, 9, 18, 0, 0,
     24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
-    SIQS_POLICY_LINEAR(2.5, 0.0, 208),
+    SIQS_POLICY_LINEAR(1.7, 0.0, 206),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_taper", 211, 217, 1, 9, 18, 0, 0,
     24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
-    SIQS_POLICY_LINEAR(3.0, -0.05, 200),
+    SIQS_POLICY_LINEAR(1.7, -0.033333333333333333, 211),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k48_q9_interval_taper", 218, 230, 1, 9, 18, 0, 0,
+  { "one_lp_k48_q9", 218, 218, 1, 9, 18, 0, 0,
     48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
-    SIQS_POLICY_LINEAR(2.5, -0.05, 210),
+    SIQS_POLICY_LINEAR(1.5, 0.0, 218),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "one_lp_k48_q10_interval_taper", 219, 230, 1, 10, 18, 0, 0,
+    48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.332, -0.001, 218),
+    SIQS_POLICY_LINEAR(1.5, -0.045454545454545455, 219),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "two_lp_early_interval_taper", 231, 239, 2, 10, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 231),
-    SIQS_POLICY_LINEAR(2.5, -0.05, 210),
+    SIQS_POLICY_LINEAR(0.85, -0.02125, 231),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 231), 0.0 },
-  { "two_lp_early", 240, 249, 2, 10, 18, 0, 0, 0, 60, 60, 8, 401, 160, 96,
+  { "two_lp_early_q10", 240, 241, 2, 10, 18, 0, 0,
+    0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 240),
+    SIQS_POLICY_LINEAR(0.68, 0.0, 240),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
-  { "two_lp_fb_ramp_q10", 250, 259, 2, 10, 18, 0, 0,
+  { "two_lp_early_q11_interval_taper", 242, 249, 2, 11, 18, 0, 0,
+    0, 60, 60, 8, 401, 160, 96,
+    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
+    SIQS_POLICY_LINEAR(0.7, -0.025, 242),
+    SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
+    SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
+  { "two_lp_fb_ramp_q11", 250, 259, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 251),
+    SIQS_POLICY_LINEAR(0.298981008629, -0.000082390129, 250),
+    SIQS_POLICY_LINEAR(0.5, 0.0, 250),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
-  { "two_lp_fb_ramp_q10_release", 260, 269, 2, 10, 18, 0, 0,
+  { "two_lp_fb_ramp_q11_release", 260, 269, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.000275913, 250),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 260),
+    SIQS_POLICY_LINEAR(0.298144471193, 0.000287761809, 260),
+    SIQS_POLICY_LINEAR(0.5, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
-  { "two_lp_mid_ramp", 270, 299, 2, 11, 12, 0, 0,
+  { "two_lp_mid_fb_low", 270, 275, 2, 11, 12, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30621546, 0.000126151333, 270),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 270),
+    SIQS_POLICY_LINEAR(0.301021731444, 0.000137437948, 270),
+    SIQS_POLICY_LINEAR(0.5, -0.006666666666666667, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  { "two_lp_mid_fb_release", 276, 299, 2, 11, 12, 0, 0,
+    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.302068028207, 0.000331513809, 276),
+    SIQS_POLICY_LINEAR(0.5, -0.006666666666666667, 270),
+    SIQS_POLICY_RATIO(0.15231778066, 6, 1, 30), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q11_fb_bridge", 300, 304, 2, 11, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.31, 0.001, 300),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 301),
+    SIQS_POLICY_LINEAR(0.3, -0.0125, 300),
     SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  { "two_lp_high_q12_fb_ramp", 305, MPU_SIQS_MAX_BITS, 2, 12, 12, 0, 0,
+  { "two_lp_high_q12_interval_floor", 305, 310, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
-    SIQS_POLICY_LINEAR(1.0, 0.0, 305),
+    SIQS_POLICY_LINEAR(0.25, 0.0, 305),
     SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
+    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
+    SIQS_POLICY_LINEAR(0.25, 0.0175, 310),
+    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), 0.16,
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  { "two_lp_high_q12_interval_finish", 331, MPU_SIQS_MAX_BITS,
+    2, 12, 12, 0, 0,
+    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
+    SIQS_POLICY_LINEAR(0.6, 0.011111111111111111, 330),
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
@@ -2795,62 +2848,48 @@ static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   return 1;
 }
 
-static INLINE void siqs_update_roots(siqs_ctx_t *ctx,
-                                     const siqs_poly_t *poly,
-                                     uint32_t bit, int subtract,
+static INLINE void siqs_update_roots(const uint32_t *corrections,
+                                     const uint32_t *primes,
+                                     uint32_t *root1, uint32_t *root2,
+                                     int subtract_from_B,
                                      uint32_t first, uint32_t end) {
-  const uint32_t *corrections = poly->corrections
-                              + (size_t)bit * ctx->params.fb_size;
-  const uint32_t *primes = ctx->prime;
-  uint32_t *root1 = ctx->root1;
-  uint32_t *root2 = ctx->root2;
   uint32_t j;
-  if (subtract) {
+  if (subtract_from_B) {
 #if defined(__clang__)
 # pragma clang loop vectorize(enable)
 #endif
     for (j = first; j < end; j++) {
-      uint32_t p = primes[j];
-      uint32_t corr = corrections[j];
-      root1[j] += corr;
-      if (root1[j] >= p) root1[j] -= p;
-      root2[j] += corr;
-      if (root2[j] >= p) root2[j] -= p;
-      {
-        uint32_t r1 = root1[j], r2 = root2[j];
-        root1[j] = r1 < r2 ? r1 : r2;
-        root2[j] = r1 < r2 ? r2 : r1;
-      }
+      uint32_t r1 = root1[j], r2 = root2[j];
+      uint32_t p = primes[j], corr = corrections[j];
+      r1 += corr;
+      if (r1 >= p) r1 -= p;
+      r2 += corr;
+      if (r2 >= p) r2 -= p;
+      root1[j] = r1 < r2 ? r1 : r2;
+      root2[j] = r1 < r2 ? r2 : r1;
     }
   } else {
     for (j = first; j < end; j++) {
-      uint32_t p = primes[j];
-      uint32_t corr = corrections[j];
-      root1[j] = root1[j] >= corr
-               ? root1[j] - corr
-               : root1[j] + p - corr;
-      root2[j] = root2[j] >= corr
-               ? root2[j] - corr
-               : root2[j] + p - corr;
-      {
-        uint32_t r1 = root1[j], r2 = root2[j];
-        root1[j] = r1 < r2 ? r1 : r2;
-        root2[j] = r1 < r2 ? r2 : r1;
-      }
+      uint32_t r1 = root1[j], r2 = root2[j];
+      uint32_t p = primes[j], corr = corrections[j];
+      r1 = r1 >= corr  ?  r1 - corr  :  r1 + p - corr;
+      r2 = r2 >= corr  ?  r2 - corr  :  r2 + p - corr;
+      root1[j] = r1 < r2 ? r1 : r2;
+      root2[j] = r1 < r2 ? r2 : r1;
     }
   }
 }
 
 static int siqs_next_B(siqs_ctx_t *ctx, siqs_poly_t *poly) {
-  uint32_t bit, gray, i, first;
-  int subtract;
+  uint32_t bit, gray;
+  int subtract_from_B;
   if (poly->b_index + 1 >= poly->b_limit)
     return 0;
   poly->b_index++;
   bit = siqs_ctz32(poly->b_index);
   gray = poly->b_index ^ (poly->b_index >> 1);
-  subtract = (gray & (1U << bit)) != 0;
-  if (subtract) {
+  subtract_from_B = (gray & (1U << bit)) != 0;
+  if (subtract_from_B) {
     mpz_sub(poly->B, poly->B, poly->H[bit]);
     mpz_sub(poly->B, poly->B, poly->H[bit]);
   } else {
@@ -2859,14 +2898,22 @@ static int siqs_next_B(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   }
   /* a_index is sorted.  Updating the ranges between its entries avoids an
    * in-A test for every factor-base entry on every polynomial. */
-  first = 1;
-  for (i = 0; i < poly->q_count; i++) {
-    uint32_t a_index = poly->a_index[i];
-    siqs_update_roots(ctx, poly, bit, subtract, first, a_index);
-    first = a_index + 1;
+  {
+    uint32_t i, first = 1;
+    const uint32_t *corrections = poly->corrections
+                                + (size_t)bit * ctx->params.fb_size;
+    const uint32_t *primes = ctx->prime;
+    uint32_t *root1 = ctx->root1;
+    uint32_t *root2 = ctx->root2;
+    for (i = 0; i < poly->q_count; i++) {
+      uint32_t a_index = poly->a_index[i];
+      siqs_update_roots(corrections, primes, root1, root2,
+                        subtract_from_B, first, a_index);
+      first = a_index + 1;
+    }
+    siqs_update_roots(corrections, primes, root1, root2,
+                      subtract_from_B, first, ctx->params.fb_size);
   }
-  siqs_update_roots(ctx, poly, bit, subtract, first,
-                    ctx->params.fb_size);
   siqs_compute_C(ctx, poly);
   siqs_set_special_roots(ctx, poly);
 #ifdef SIQS_DEBUG
@@ -4331,9 +4378,11 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
           ctx->full_count >= *next_matrix_check) {
         uint32_t core_rows, core_cols;
         int ready = siqs_matrix_ready(ctx, &core_rows, &core_cols);
-        if ((ready && verbose > 3) || verbose > 4)
+        if ((ready && verbose > 3) || verbose > 4) {
           printf("# siqs matrix core %u columns, %u rows%s\n",
                  core_cols, core_rows, ready ? ", ready" : "");
+          fflush(stdout);
+        }
         *next_matrix_check = ctx->full_count + check_interval;
         if (ready) {
           return 1;
@@ -4346,6 +4395,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   + ctx->accepted_one_lp
                                   + ctx->accepted_two_lp),
                *poly_count);
+        fflush(stdout);
         next_report += (target - next_report) / 16 + 1;
       }
       if (*poly_count >= max_polynomials) {
@@ -4618,6 +4668,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
              "large FB index %u\n",
              SIQS_SIEVE_BLOCK_SIZE, ctx->block_count,
              ctx->block_large_index);
+    fflush(stdout);
   }
 
   if (ctx->inline_matrix_solves) {
