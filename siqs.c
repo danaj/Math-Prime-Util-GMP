@@ -123,7 +123,7 @@
  *
  * Candidate limits grow only where their measured savings repay the fixed
  * selector cost.  Odd/even ceilings are 255/26 at 145--166 bits, 511/26 at
- * 167--200, 1023/26 at 201--230, and 2047/100 from 231 bits.  The first-stage
+ * 167--200, 1023/26 at 201--221, and 2047/100 from 222 bits.  The first-stage
  * survivor count grows from 8 to 12 at 167 bits.  Below 145 bits retain the
  * old odd <= 255 pool and multiplier 2 alone among the evens. */
 #ifndef SIQS_MULTIPLIER_MAX
@@ -343,6 +343,18 @@ typedef struct {
   uint32_t *table;
   uint32_t table_alloc;
   uint32_t mark;
+  int initialized;
+  /* Cycle closures are frequent in 2LP collection.  Retain both their path
+   * buffers and GMP arithmetic workspace for the life of the graph. */
+  uint32_t *cycle_edges;
+  uint32_t cycle_edge_alloc;
+  uint32_t *cycle_vertices;
+  uint32_t cycle_vertex_alloc;
+  mpz_t cycle_y;
+  mpz_t cycle_lp_product;
+  mpz_t cycle_lp_value;
+  mpz_t cycle_inverse;
+  mpz_t cycle_gcd;
 } siqs_graph_t;
 
 typedef struct {
@@ -912,9 +924,9 @@ typedef struct {
 /*
  * This is the single primary production bit-size policy.  Rows are meaningful
  * bands formed by actual structural changes or interpolation anchors; they
- * are not independently tuned bins.  The interval has two factors because the
- * old model's N-size taper and its 2LP pre-ramp overlap from 231 through 239
- * bits.  Keeping them separate preserves that established calculation exactly.
+ * are not independently tuned bins.  The interval is the product of a base
+ * scale and an optional large-prime-policy ratio, keeping its general size
+ * trend separate from policy-specific adjustments.
  * Integer columns after the bit range are: LP count, q count, bias base,
  * bias step width/origin, 1LP K, conditional 2LP K/R floors, sieve byte
  * headroom, the first-sieved-prime floor, the factor-base floor, the initial
@@ -926,10 +938,11 @@ typedef struct {
  * The LP count is part of each complete policy row rather than an independent
  * crossover knob: changing it also requires changing the smooth exponent,
  * bounds, interval, and sieve-depth policy.  A crossover near 250 bits is
- * typical, but tests after adding the specialized 1LP path kept 1LP faster
- * through 228, found a CPU tie at 229--230 with about half the relation/graph
- * storage, and put the first repeatable 2LP CPU win at 231.  The established
- * two-LP parameter ramps still begin independently at 250 bits.
+ * typical, but tests after multiplier and sieve hot-path work kept 1LP faster
+ * through 238, found practical CPU ties at 239--240 while avoiding the 2LP
+ * graph and cofactor machinery, and put the first repeatable 2LP CPU win at
+ * 241.  The established two-LP parameter ramps still begin independently at
+ * 250 bits.
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
@@ -1156,25 +1169,21 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(1.5, 0.0, 218),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k48_q10_interval_taper", 219, 230, 1, 10, 18, 0, 0,
+  /* After multiplier and sieve hot-path work, 1-LP remained faster through
+   * 238 bits and tied 2-LP at 239--240; 2-LP won 17/18 pairs at 241 bits. */
+  { "one_lp_k48_q10_interval_taper", 219, 240, 1, 10, 18, 0, 0,
     48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(1.5, -0.045454545454545455, 219),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "two_lp_early_interval_taper", 231, 239, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.0, 231),
-    SIQS_POLICY_LINEAR(0.85, -0.02125, 231),
-    SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 231), 0.0 },
-  { "two_lp_early_q10", 240, 241, 2, 10, 18, 0, 0,
+  { "two_lp_early_q10", 241, 241, 2, 10, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
-    SIQS_POLICY_LINEAR(0.68, 0.0, 240),
+    SIQS_POLICY_LINEAR(0.30069720, 0.0, 241),
+    SIQS_POLICY_LINEAR(0.68, 0.0, 241),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
+    SIQS_POLICY_LINEAR(0.205, 0.0, 241), 0.0 },
   { "two_lp_early_q11_interval_taper", 242, 249, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
@@ -1599,16 +1608,16 @@ static uint32_t siqs_multiplier_cascade_depth(uint32_t fb_size,
 /* Select the measured candidate pool and first cascade width for BITS. */
 static void siqs_multiplier_policy(uint32_t bits, uint32_t *odd_max,
                                    uint32_t *even_max, uint32_t *keep1) {
-  if (bits >= 231) {
+  if (bits >= 222) {        /* wide cascade */
     *odd_max = 2047;
     *even_max = 100;
-  } else if (bits >= 201) {
+  } else if (bits >= 201) { /* mid cascade */
     *odd_max = 1023;
     *even_max = 26;
-  } else if (bits >= 167) {
+  } else if (bits >= 167) { /* small cascade */
     *odd_max = 511;
     *even_max = 26;
-  } else {
+  } else {                  /* base pool */
     *odd_max = 255;
     *even_max = bits >= 145 ? 26 : 0;
   }
@@ -2143,6 +2152,18 @@ static void siqs_graph_init(siqs_graph_t *g) {
       (size_t)g->vertex_alloc * sizeof(*g->vertices));
   g->table_alloc = 2048;
   g->table = (uint32_t *)siqs_calloc(g->table_alloc, sizeof(uint32_t));
+  g->cycle_edge_alloc = 64;
+  g->cycle_edges = (uint32_t *)siqs_malloc(
+      (size_t)g->cycle_edge_alloc * sizeof(*g->cycle_edges));
+  g->cycle_vertex_alloc = 64;
+  g->cycle_vertices = (uint32_t *)siqs_malloc(
+      (size_t)g->cycle_vertex_alloc * sizeof(*g->cycle_vertices));
+  mpz_init(g->cycle_y);
+  mpz_init(g->cycle_lp_product);
+  mpz_init(g->cycle_lp_value);
+  mpz_init(g->cycle_inverse);
+  mpz_init(g->cycle_gcd);
+  g->initialized = 1;
   /* Vertex zero is the distinguished endpoint for one-large-prime edges. */
   g->vertices[0].value = 1;
   g->vertices[0].dsu_parent = 0;
@@ -2156,9 +2177,38 @@ static void siqs_graph_init(siqs_graph_t *g) {
 }
 
 static void siqs_graph_clear(siqs_graph_t *g) {
+  if (g->initialized) {
+    mpz_clear(g->cycle_y);
+    mpz_clear(g->cycle_lp_product);
+    mpz_clear(g->cycle_lp_value);
+    mpz_clear(g->cycle_inverse);
+    mpz_clear(g->cycle_gcd);
+  }
   free(g->vertices);
   free(g->table);
+  free(g->cycle_edges);
+  free(g->cycle_vertices);
   memset(g, 0, sizeof(*g));
+}
+
+static void siqs_graph_reserve_cycle_path(uint32_t **values,
+                                          uint32_t *allocated,
+                                          uint32_t required) {
+  uint32_t size = *allocated;
+  if (required <= size)
+    return;
+  if (size == 0)
+    size = 64;
+  while (size < required) {
+    if (size > UINT32_MAX / 2)
+      croak("SIQS: relation cycle is too large");
+    size *= 2;
+  }
+  if ((size_t)size > SIZE_MAX / sizeof(**values))
+    croak("SIQS: relation cycle is too large");
+  *values = (uint32_t *)siqs_realloc(
+      *values, (size_t)size * sizeof(**values));
+  *allocated = size;
 }
 
 static uint32_t siqs_graph_vertex(siqs_graph_t *g, uint64_t value) {
@@ -2237,15 +2287,17 @@ static void siqs_reset_touched_factors(siqs_ctx_t *ctx) {
 static void siqs_materialize_cycle(siqs_ctx_t *ctx,
     const uint32_t *edges, uint32_t edge_count,
     const uint32_t *vertices, uint32_t vertex_count) {
+  siqs_graph_t *g = &ctx->graph;
   uint32_t i, j, nfactors;
   siqs_full_relation_t *full;
-  mpz_t y, lp_product, lp_value, inverse, gcd;
+  mpz_ptr y = g->cycle_y;
+  mpz_ptr lp_product = g->cycle_lp_product;
+  mpz_ptr lp_value = g->cycle_lp_value;
+  mpz_ptr inverse = g->cycle_inverse;
+  mpz_ptr gcd = g->cycle_gcd;
 
-  mpz_init_set_ui(y, 1);
-  mpz_init_set_ui(lp_product, 1);
-  mpz_init(lp_value);
-  mpz_init(inverse);
-  mpz_init(gcd);
+  mpz_set_ui(y, 1);
+  mpz_set_ui(lp_product, 1);
   siqs_reset_touched_factors(ctx);
 
   for (i = 0; i < edge_count; i++) {
@@ -2272,11 +2324,6 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
       siqs_verify_partition(ctx->original_n, ctx->result);
     }
     siqs_reset_touched_factors(ctx);
-    mpz_clear(y);
-    mpz_clear(lp_product);
-    mpz_clear(lp_value);
-    mpz_clear(inverse);
-    mpz_clear(gcd);
     return;
   }
   mpz_mul(y, y, inverse);
@@ -2297,11 +2344,6 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
   }
   siqs_store_full(ctx, full);
   siqs_reset_touched_factors(ctx);
-  mpz_clear(y);
-  mpz_clear(lp_product);
-  mpz_clear(lp_value);
-  mpz_clear(inverse);
-  mpz_clear(gcd);
 }
 
 /* Add one graph edge.  A cycle is materialized immediately. */
@@ -2328,11 +2370,7 @@ static void siqs_graph_add_relation(siqs_ctx_t *ctx, uint32_t edge) {
   }
 
   {
-    uint32_t current, lca, ec = 0, vc = 0, ealloc = 64, valloc = 64;
-    uint32_t *edges = (uint32_t *)siqs_malloc(
-        (size_t)ealloc * sizeof(uint32_t));
-    uint32_t *vertices = (uint32_t *)siqs_malloc(
-        (size_t)valloc * sizeof(uint32_t));
+    uint32_t current, lca, ec = 0, vc = 0;
 
     if (++g->mark == 0) {
       uint32_t i;
@@ -2350,43 +2388,34 @@ static void siqs_graph_add_relation(siqs_ctx_t *ctx, uint32_t edge) {
       current = g->vertices[current].tree_parent;
     lca = current;
 
-    edges[ec++] = edge;
+    g->cycle_edges[ec++] = edge;
     current = u;
-    vertices[vc++] = current;
+    g->cycle_vertices[vc++] = current;
     while (current != lca) {
-      if (ec == ealloc) {
-        ealloc *= 2;
-        edges = (uint32_t *)siqs_realloc(
-            edges, (size_t)ealloc * sizeof(uint32_t));
-      }
-      edges[ec++] = g->vertices[current].parent_edge;
+      if (ec == g->cycle_edge_alloc)
+        siqs_graph_reserve_cycle_path(&g->cycle_edges,
+            &g->cycle_edge_alloc, ec + 1);
+      g->cycle_edges[ec++] = g->vertices[current].parent_edge;
       current = g->vertices[current].tree_parent;
-      if (vc == valloc) {
-        valloc *= 2;
-        vertices = (uint32_t *)siqs_realloc(
-            vertices, (size_t)valloc * sizeof(uint32_t));
-      }
-      vertices[vc++] = current;
+      if (vc == g->cycle_vertex_alloc)
+        siqs_graph_reserve_cycle_path(&g->cycle_vertices,
+            &g->cycle_vertex_alloc, vc + 1);
+      g->cycle_vertices[vc++] = current;
     }
     current = v;
     while (current != lca) {
-      if (vc == valloc) {
-        valloc *= 2;
-        vertices = (uint32_t *)siqs_realloc(
-            vertices, (size_t)valloc * sizeof(uint32_t));
-      }
-      vertices[vc++] = current;
-      if (ec == ealloc) {
-        ealloc *= 2;
-        edges = (uint32_t *)siqs_realloc(
-            edges, (size_t)ealloc * sizeof(uint32_t));
-      }
-      edges[ec++] = g->vertices[current].parent_edge;
+      if (vc == g->cycle_vertex_alloc)
+        siqs_graph_reserve_cycle_path(&g->cycle_vertices,
+            &g->cycle_vertex_alloc, vc + 1);
+      g->cycle_vertices[vc++] = current;
+      if (ec == g->cycle_edge_alloc)
+        siqs_graph_reserve_cycle_path(&g->cycle_edges,
+            &g->cycle_edge_alloc, ec + 1);
+      g->cycle_edges[ec++] = g->vertices[current].parent_edge;
       current = g->vertices[current].tree_parent;
     }
-    siqs_materialize_cycle(ctx, edges, ec, vertices, vc);
-    free(edges);
-    free(vertices);
+    siqs_materialize_cycle(ctx, g->cycle_edges, ec,
+                           g->cycle_vertices, vc);
     /* The closing edge produced its one fundamental cycle and never enters
      * the spanning forest, so no later cycle can reference it.  It is also
      * the newest raw slot, allowing that slot to be reclaimed immediately. */
