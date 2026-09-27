@@ -70,6 +70,12 @@
 #define SIQS_MATRIX_EXTRA_RELS_2LP_DEFAULT 64U
 #define SIQS_MATRIX_CHECK_MIN     32U
 #define SIQS_MATRIX_CHECK_MAX    512U
+/* Timer-free verbose-output calibration.  The first value is deliberately a
+ * reference-machine estimate; the second is the human-facing cadence knob. */
+#define SIQS_PROGRESS_WORK_PER_SEC UINT64_C(600000000)
+#define SIQS_PROGRESS_OUTPUT_EVERY_NSECS 10U
+#define SIQS_PROGRESS_WORK_INTERVAL \
+  (SIQS_PROGRESS_WORK_PER_SEC * SIQS_PROGRESS_OUTPUT_EVERY_NSECS)
 #define SIQS_MATRIX_RETRY_BATCH_MAX 128U
 /* Low q=1/q=2 polynomials can produce far more relations than their tiny
  * matrices need.  Check the matrix while consuming their candidate list so
@@ -962,28 +968,27 @@ typedef struct {
  * policy won at every sampled changed or structural boundary through 269
  * bits.  A later factor-base pass after the multiplier and hot-path changes
  * retained the existing schedule through 249, then selected a gradual
- * reduction and release through 269.  An endpoint-preserving 270--299 line
- * now rejoins the established 300-bit schedule directly; it was only 0.25%
- * slower in the cleanup screen and uses a slightly larger, safer FB than the
- * former 270--275 basin and 276--299 release.  Earlier per-bit work found a
- * 5% smaller upper FB often won but only by about half a percent overall, and
- * carrying that full step through 299 would break the clean join.
- * An upper-band pass keeps q=11 through 304 bits and q=12 thereafter.  Its
- * interval multiplier tapers from 0.5 at 270 bits to 0.25 at 304, remains
- * 0.25 through 310, rises to the measured 0.6 choice at 330, then returns
- * conservatively to the established 1.0 high-end value at 366.  q=13 was
- * slower than q=12 in the 330-bit screen.  At the low end, q=1 with a wide
- * interval covers inputs below 37 bits.  q=2 takes over at 37; a smaller
- * factor base and wider final A tolerance improve it substantially from 42
- * through 49, with explicit q=1 recovery profiles for the rare exhausted
- * primary.  q=3 is faster from 50 through 80, and q=4 at 81.
+ * reduction and release through 269.  A cleanup merged the former 270--275
+ * basin and 276--299 release into an endpoint-preserving 270--299 line; it
+ * was only 0.25% slower and uses a slightly larger, safer FB.  Later paired
+ * tests favored extending that line and its 401/8 sieve profile through 304;
+ * sequential full-factor checks then kept q=11 ahead of q=12 by 1.9--2.9%
+ * at 305, 306, and 310.  The resulting interval multiplier tapers from 0.5
+ * at 270 through 310.  q=12 starts with the measured interval rise at 311,
+ * reaches 0.6 at 330, then returns conservatively to the established 1.0
+ * high-end value at 366.  q=13 was slower than q=12 in the 330-bit screen.
+ * At the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
+ * takes over at 37; a smaller factor base and wider final A tolerance improve
+ * it substantially from 42 through 49, with explicit q=1 recovery profiles
+ * for the rare exhausted primary.  q=3 is faster from 50 through 80, and q=4
+ * at 81.
  * Earlier adjacent full-factor tests put q-count changes at 96 and 117 bits.
  * The former 260--266 and 267--269 rows otherwise differed only by a tiny
  * sieve score release.  A single shallow 0.205--0.20535 ramp across 260--269
  * was modestly faster at all five tested anchors, so those rows are merged.
- * A short q=11 factor-base bridge rises from 0.310 at 300 to 0.314 at 304;
- * q=12 continues smoothly at 0.315 and reaches the upper-screen choice 0.325
- * at the inclusive 366-bit limit.
+ * The q=11 factor-base release reaches approximately 0.313 at 310; q=12
+ * continues near 0.316 at 311 and reaches the upper-screen choice 0.325 at
+ * the inclusive 366-bit limit.
  *
  * JML SIQS showed that omitting substantially more small factor-base primes
  * from the dense sieve can pay even though the candidate postfilter then has
@@ -992,10 +997,11 @@ typedef struct {
  * 96 through 192 bits.  Below 96 the smooth-only policies were inconsistent;
  * from 193 through 269 a prime-401 floor was both simpler and faster than
  * allowing the factor-base formula to keep growing.  At 270 the same floor
- * saved about 7% and provides a smooth bridge to the established prime-384
- * floor at 300, so carry it through 299.  Bias 10, 12, 14, 16, and 18 supply
- * the corresponding extra coarse-filter headroom.  Full-factor sweeps put
- * the first transitions at existing 117, 130, and 167-bit policy boundaries;
+ * saved about 7%; later boundary tests retained it through q=11's 310-bit
+ * endpoint before q=12 resumes the prime-384 floor at 311.  Bias 10, 12, 14,
+ * 16, and 18 supply the corresponding extra coarse-filter headroom.
+ * Full-factor sweeps put the first transitions at existing 117, 130, and
+ * 167-bit policy boundaries;
  * fresh per-bit tests start bias 18 with the K=20 row at 178 bits.
  * After the fixed-hit sieve and candidate-resieve improvements, a fresh
  * full-factor comparison moved the prime-cutoff and geometry transition
@@ -1188,23 +1194,11 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.5, 0.0, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
-  { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
+  { "two_lp_mid_fb_release", 270, 310, 2, 11, 12, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.301021731444, 0.000299003943793103, 270),
     SIQS_POLICY_LINEAR(0.5, -0.006666666666666667, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  { "two_lp_high_q11_fb_bridge", 300, 304, 2, 11, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.31, 0.001, 300),
-    SIQS_POLICY_LINEAR(0.3, -0.0125, 300),
-    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  { "two_lp_high_q12_interval_floor", 305, 310, 2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
-    SIQS_POLICY_LINEAR(0.25, 0.0, 305),
-    SIQS_POLICY_RATIO(0.15231778066, 45, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
@@ -4334,6 +4328,17 @@ static int siqs_solve(siqs_ctx_t *ctx) {
  * Collection driver and context lifetime
  *----------------------------------------------------------------------------*/
 
+static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
+                                       uint32_t poly_count) {
+  printf("# siqs relations %u/%u, raw %llu, polys %u\n",
+         ctx->full_count, target,
+         (unsigned long long)(ctx->accepted_smooth
+                            + ctx->accepted_one_lp
+                            + ctx->accepted_two_lp),
+         poly_count);
+  fflush(stdout);
+}
+
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
                                   uint32_t *next_matrix_check,
@@ -4346,7 +4351,12 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
       ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
           ? UINT32_MAX
           : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-  uint32_t next_report = ctx->full_count + (target - ctx->full_count) / 20 + 1;
+  uint64_t report_poly_step =
+      (SIQS_PROGRESS_WORK_INTERVAL + ctx->params.half_interval - 1U) /
+      ctx->params.half_interval;
+  uint64_t next_work_report = (uint64_t)*poly_count + report_poly_step;
+  uint32_t last_report_count = UINT32_MAX;
+  uint32_t last_report_polys = UINT32_MAX;
   if (max_polynomials < 1000000U)
     max_polynomials = 1000000U;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
@@ -4367,6 +4377,10 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
 
     family_ok = siqs_new_family(ctx, poly);
     if (!family_ok) {
+      if (verbose > 3 &&
+          (last_report_count != ctx->full_count ||
+           last_report_polys != *poly_count))
+        siqs_print_relation_report(ctx, target, *poly_count);
       return 0;
     }
     (*family_count)++;
@@ -4384,6 +4398,10 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
           ctx->full_count >= *next_matrix_check) {
         uint32_t core_rows, core_cols;
         int ready = siqs_matrix_ready(ctx, &core_rows, &core_cols);
+        if (ready && verbose > 3 &&
+            (last_report_count != ctx->full_count ||
+             last_report_polys != *poly_count))
+          siqs_print_relation_report(ctx, target, *poly_count);
         if ((ready && verbose > 3) || verbose > 4) {
           printf("# siqs matrix core %u columns, %u rows%s\n",
                  core_cols, core_rows, ready ? ", ready" : "");
@@ -4394,17 +4412,20 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
           return 1;
         }
       }
-      if (verbose > 3 && ctx->full_count >= next_report) {
-        printf("# siqs relations %u/%u, raw %llu, polys %u\n",
-               ctx->full_count, target,
-               (unsigned long long)(ctx->accepted_smooth
-                                  + ctx->accepted_one_lp
-                                  + ctx->accepted_two_lp),
-               *poly_count);
-        fflush(stdout);
-        next_report += (target - next_report) / 16 + 1;
+      /* M times the polynomial count is a timer-free work clock.  Report at
+       * its approximate time cadence regardless of relation yield, so a slow
+       * tail still shows that collection is making progress. */
+      if (verbose > 3 && (uint64_t)*poly_count >= next_work_report) {
+        siqs_print_relation_report(ctx, target, *poly_count);
+        last_report_count = ctx->full_count;
+        last_report_polys = *poly_count;
+        next_work_report = (uint64_t)*poly_count + report_poly_step;
       }
       if (*poly_count >= max_polynomials) {
+        if (verbose > 3 &&
+            (last_report_count != ctx->full_count ||
+             last_report_polys != *poly_count))
+          siqs_print_relation_report(ctx, target, *poly_count);
         return 0;
       }
       if (ctx->full_count >= target || ctx->factor_found)
@@ -4416,6 +4437,10 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
     }
 
   }
+  if (verbose > 3 &&
+      (last_report_count != ctx->full_count ||
+       last_report_polys != *poly_count))
+    siqs_print_relation_report(ctx, target, *poly_count);
   return ctx->inline_matrix_solves
        ? ctx->factor_found
        : ctx->full_count >= target || ctx->factor_found;
@@ -4484,10 +4509,10 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
   ctx->params.large_prime_bound = automatic_large_prime_bound;
 
   /* The full 250-bit corpus selected K=60/R=60 over the lower automatic
-   * ratios.  Apply those floors whenever two-LP mode is active through the
-   * measured 300-bit endpoint.  Automatic selection has already risen beyond
+   * ratios.  Apply those floors whenever two-LP mode is active through q=11's
+   * measured 310-bit endpoint.  Automatic selection has already risen beyond
    * both floors near 270 bits, so the policy naturally rejoins the original
-   * curve without an upper cap; above 300 bits it is wholly automatic. */
+   * curve without an upper cap throughout this upper range. */
   if (policy_active) {
     limit = siqs_scaled_bound(pmax,
                               ctx->params.lp_policy_multiplier_floor,
