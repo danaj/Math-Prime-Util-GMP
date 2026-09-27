@@ -105,12 +105,27 @@ typedef __int8 int8_t;
 
 #define MPUassert(c,text) if (!(c)) { croak("Math::Prime::Util internal error: " text); }
 
+#undef INLINE
+#undef RESTRICT
+#undef NOINLINE
+#undef ISCONSTFUNC
+
 #if defined(__GNUC__)
   #define INLINE __inline__
 #elif defined(_MSC_VER)
   #define INLINE __inline
 #else
   #define INLINE
+#endif
+
+#if defined(_MSC_VER)
+  #define RESTRICT __restrict
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+  #define RESTRICT restrict
+#elif defined(__GNUC__) || defined(__clang__)
+  #define RESTRICT __restrict__
+#else
+  #define RESTRICT
 #endif
 
 #if (defined(__GNUC__) || defined(__clang__)) && !defined(__INTEL_COMPILER)

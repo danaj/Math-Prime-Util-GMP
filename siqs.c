@@ -2848,16 +2848,14 @@ static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   return 1;
 }
 
-static INLINE void siqs_update_roots(const uint32_t *corrections,
-                                     const uint32_t *primes,
-                                     uint32_t *root1, uint32_t *root2,
+static INLINE void siqs_update_roots(const uint32_t *RESTRICT corrections,
+                                     const uint32_t *RESTRICT primes,
+                                     uint32_t *RESTRICT root1,
+                                     uint32_t *RESTRICT root2,
                                      int subtract_from_B,
                                      uint32_t first, uint32_t end) {
   uint32_t j;
   if (subtract_from_B) {
-#if defined(__clang__)
-# pragma clang loop vectorize(enable)
-#endif
     for (j = first; j < end; j++) {
       uint32_t r1 = root1[j], r2 = root2[j];
       uint32_t p = primes[j], corr = corrections[j];
