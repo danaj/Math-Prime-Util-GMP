@@ -402,6 +402,7 @@ typedef struct {
   uint8_t *sieve_logp;
   uint32_t *fb_reciprocal;
   uint32_t resieve_one_subtract_index;
+  uint32_t resieve_identity_index;
   uint32_t largest_fb_prime;
   uint8_t *sieve;
   uint32_t sieve_length;
@@ -3415,7 +3416,9 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   const uint32_t *reciprocal = ctx->fb_reciprocal;
   const siqs_candidate_t *candidates = ctx->candidates;
   int32_t half_interval = (int32_t)ctx->params.half_interval;
-  uint32_t i, c, cutoff = factor_begin, cutoff_prime, barrett_end;
+  uint32_t i, j, c, cutoff = factor_begin, cutoff_prime;
+  uint32_t barrett_end, one_subtract_end;
+  uint32_t matches[32];
   if (ctx->candidate_count == 0) {
     return;
   }
@@ -3444,8 +3447,10 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
         high = middle;
     }
   }
-  barrett_end = cutoff < ctx->resieve_one_subtract_index
-              ? cutoff : ctx->resieve_one_subtract_index;
+  one_subtract_end = cutoff < ctx->resieve_identity_index
+                   ? cutoff : ctx->resieve_identity_index;
+  barrett_end = one_subtract_end < ctx->resieve_one_subtract_index
+              ? one_subtract_end : ctx->resieve_one_subtract_index;
 
   /* Rewalking the dense progressions of the smallest primes costs more than
    * testing the handful of candidates directly. */
@@ -3456,11 +3461,47 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
       if (rem == root1[i] || rem == root2[i])
         siqs_add_hit(ctx, c, i);
     }
-    /* Since 0 <= pos < 2*M, p > M needs at most one subtraction. */
-    for (; i < cutoff; i++) {
+    /* Since 0 <= pos < 2*M, p > M needs at most one subtraction.  Test
+     * blocks without side effects so the common no-hit case vectorizes;
+     * preserve factor-base order while appending the rare matching entries. */
+    for (; i < one_subtract_end && one_subtract_end - i >= 32U; i += 32U) {
+      const uint32_t *block_prime = prime + i;
+      const uint32_t *block_root1 = root1 + i;
+      const uint32_t *block_root2 = root2 + i;
+      uint32_t any = 0;
+      for (j = 0; j < 32U; j++) {
+        uint32_t p = block_prime[j];
+        uint32_t rem = pos >= p ? pos - p : pos;
+        matches[j] = (rem == block_root1[j]) | (rem == block_root2[j]);
+        any |= matches[j];
+      }
+      if (any)
+        for (j = 0; j < 32U; j++)
+          if (matches[j])
+            siqs_add_hit(ctx, c, i + j);
+    }
+    for (; i < one_subtract_end; i++) {
       uint32_t p = prime[i];
       uint32_t rem = pos >= p ? pos - p : pos;
       if (rem == root1[i] || rem == root2[i])
+        siqs_add_hit(ctx, c, i);
+    }
+    /* Since 0 <= pos < sieve_length, no reduction is needed here. */
+    for (; cutoff - i >= 32U; i += 32U) {
+      const uint32_t *block_root1 = root1 + i;
+      const uint32_t *block_root2 = root2 + i;
+      uint32_t any = 0;
+      for (j = 0; j < 32U; j++) {
+        matches[j] = (pos == block_root1[j]) | (pos == block_root2[j]);
+        any |= matches[j];
+      }
+      if (any)
+        for (j = 0; j < 32U; j++)
+          if (matches[j])
+            siqs_add_hit(ctx, c, i + j);
+    }
+    for (; i < cutoff; i++) {
+      if (pos == root1[i] || pos == root2[i])
         siqs_add_hit(ctx, c, i);
     }
   }
@@ -4413,6 +4454,10 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
            ctx->prime[ctx->resieve_one_subtract_index] <=
                ctx->params.half_interval)
       ctx->resieve_one_subtract_index++;
+    ctx->resieve_identity_index = ctx->resieve_one_subtract_index;
+    while (ctx->resieve_identity_index < ctx->params.fb_size &&
+           ctx->prime[ctx->resieve_identity_index] < ctx->sieve_length)
+      ctx->resieve_identity_index++;
   }
   rows = ctx->params.fb_size + 1;
   ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
