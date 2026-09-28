@@ -1419,7 +1419,8 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
   }
 
   if (siqs_verbose_level() > 3)
-    printf("Lanczos halted after %lu iterations (dimension %lu)%s\n",
+    printf("Lanczos %s after %lu iterations (dimension %lu)%s\n",
+           failed ? "failed" : "completed",
            iteration, dimensions_solved, failed ? ", retrying" : "");
 
   free(initial);

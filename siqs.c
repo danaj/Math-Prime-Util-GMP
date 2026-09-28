@@ -3083,6 +3083,24 @@ static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
 #endif
 }
 
+#define SIQS_ONE_HIT_LOCAL_MIN_PRIMES  5200U
+#define SIQS_ONE_HIT_SINK_STRIPE_SIZE  4096U
+
+/* Apply one root from the one-hit tier.  In release, redirect an
+ * out-of-range store to the caller-supplied padding byte. */
+static INLINE void siqs_sieve_one_hit_local(uint8_t *sieve,
+                                            uint8_t logp, uint32_t root,
+                                            uint32_t length, uint32_t sink) {
+#ifdef SIQS_DEBUG
+  if (root < length)
+    siqs_sieve_add(sieve + root, logp);
+  (void)sink;
+#else
+  uint32_t pos = root < length ? root : sink;
+  siqs_sieve_add(sieve + pos, logp);
+#endif
+}
+
 static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
   uint32_t initial = (uint32_t)ctx->active_sieve_initial
                    + ctx->params.stage1_bias;
@@ -3118,7 +3136,24 @@ static void siqs_run_sieve_kernel(
   SIQS_SIEVE_LARGE_RANGE(length / 3U, 4U);
   SIQS_SIEVE_LARGE_RANGE(length / 2U, 3U);
   SIQS_SIEVE_LARGE_RANGE(length,      2U);
-  SIQS_SIEVE_LARGE_RANGE(UINT32_MAX,             1U);
+  if (end - i < SIQS_ONE_HIT_LOCAL_MIN_PRIMES) {
+    SIQS_SIEVE_LARGE_RANGE(UINT32_MAX, 1U);
+  } else {
+    /* Once the one-hit tier is large, keep its out-of-range stores in a
+     * cache-local padding stripe.  Cycling through 4k avoids a
+     * single-address read-modify-write dependency chain.
+     * The minimum sieve allocation is twice an 8K logical interval,
+     * so every sink position is inside the existing padding. */
+    uint32_t sink = length;
+    for (; i < end; i++) {
+      siqs_sieve_one_hit_local(sieve, logp[i], root1[i], length, sink);
+      if (root1[i] != root2[i])
+        siqs_sieve_one_hit_local(sieve, logp[i], root2[i], length, sink + 1U);
+      sink += 2U;
+      if (sink == length + SIQS_ONE_HIT_SINK_STRIPE_SIZE)
+        sink = length;
+    }
+  }
 # undef SIQS_SIEVE_LARGE_RANGE
 }
 
