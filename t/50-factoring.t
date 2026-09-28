@@ -226,8 +226,8 @@ is_deeply(
   ['13835058055282293901', '27670116110564585927'],
   "SIQS factors a balanced 129-bit semiprime"
 );
-# Prime squares exercise the upper gate and post-gate perfect-power shortcut
-# without turning this into a high-end SIQS collection test.
+# A prime square exercises the inclusive upper gate and post-gate
+# perfect-power shortcut without becoming a high-end collection test.
 my $siqs_366_root =
   '9194973245195333150150082162901855101712434733101613307';
 my $siqs_366_square =
@@ -238,13 +238,15 @@ is_deeply(
   [$siqs_366_root, $siqs_366_root],
   "SIQS accepts its inclusive 366-bit upper boundary"
 );
-my $siqs_367_square =
-  '150306725297525326584926758194517569752043683130132476997051282756719050360048713778740327545087777305635370129';
+# Keep the rejected input a balanced semiprime so future perfect-power and
+# small-factor pretests cannot make this upper-gate check unexpectedly split.
+my $siqs_432_semiprime =
+  '11090678776483259438313656736572334813745748301503266300681918232311163562937550678742065927194668247415363180975575053625700041063';
 is_deeply(
   [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
-      $siqs_367_square, 0) ],
-  [$siqs_367_square],
-  "SIQS leaves a 367-bit input outside its supported range"
+      $siqs_432_semiprime, 0) ],
+  [$siqs_432_semiprime],
+  "SIQS leaves a 432-bit input outside its supported range"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('194927', 0) ],

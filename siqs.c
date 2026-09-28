@@ -84,7 +84,7 @@
 #define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
 #define SIQS_EVAL_INITIAL_FACTORS   64U
 #define SIQS_LP_MAX UINT64_C(0x0000000fffffffff)
-#define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0x7fffffffffffffff)
+#define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
 #define SIQS_A_FINAL_TOLERANCE_DEFAULT 8U
@@ -180,6 +180,11 @@
 #if SIQS_MULTIPLIER_CASCADE_FIXED_FIRST_BITS < \
     SIQS_MULTIPLIER_CASCADE_FIRST_BITS
 # error "fixed multiplier cascade must not precede the relative cascade"
+#endif
+/* With the current upper-band parameter curve, 432 bits requires more than
+ * the 20 bits reserved for a packed factor-base row. */
+#if MPU_SIQS_MAX_BITS > 431U
+# error "431 bits is the maximum supported size before internal overflow"
 #endif
 
 typedef struct {
@@ -1409,7 +1414,10 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
    * After the factor base is built, the early 2LP policy may raise K and R
    * to their measured floors; their upper tails remain automatic. */
   smooth = exp(p->smooth_bound_exponent * ln_n);
-  p->smooth_bound = (uint64_t)smooth;
+  /* Test the exponent before converting so an exact 2^64 boundary cannot
+   * round just below the intended saturated result in exp(). */
+  p->smooth_bound = p->smooth_bound_exponent * (double)p->bits >= 64.0
+                  ? SIQS_RESIDUAL_PRODUCT_MAX : (uint64_t)smooth;
   if (p->smooth_bound < UINT64_C(1000000))
     p->smooth_bound = UINT64_C(1000000);
 
@@ -3651,7 +3659,8 @@ static int siqs_u64_probable_prime(uint64_t n) {
 static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
                                  uint64_t *lp1, uint64_t *lp2) {
   uint64_t n, pmax2, a = 0, b = 0;
-  int valid, used_squfof_or_square = 0;
+  uint32_t nbits;
+  int valid, success = 0, used_squfof_or_square = 0;
   *lp1 = *lp2 = 1;
   if (mpz_cmp_ui(rest, 1) == 0)
     return 1;
@@ -3683,26 +3692,29 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   if (ctx->params.max_large_primes < 2)
     return 0;
   ctx->split_attempts++;
+  nbits = (uint32_t)mpz_sizeinbase(rest, 2);
 
 #if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
-  {
+  /* Native rho is a fast pretest.  Its Montgomery arithmetic is restricted
+   * to 63 bits, while the portable cascade below also handles a miss and the
+   * complete 64-bit residual range. */
+  if (nbits <= 63) {
     UV factors[2];
     int count = uvpbrent63((UV)n, factors, 30000,
                            (UV)(siqs_rand64(&ctx->cofactor_rng) | 1U));
     if (count == 2) {
       a = factors[0];
       b = factors[1];
+      success = 1;
     }
   }
-#else
-  {
+#endif
+  if (!success) {
     mpz_t factor;
-    uint32_t nbits = (uint32_t)mpz_sizeinbase(rest, 2);
     UV rounds = nbits <= 40 ? 20000
               : nbits <= 44 ? 50000
               : nbits <= 48 ? 100000
               : nbits <= 52 ? 200000 : 500000;
-    int success;
     mpz_init(factor);
     if (mpz_perfect_square_p(rest)) {
       mpz_sqrt(factor, rest);
@@ -3723,7 +3735,6 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
       b = n / a;
     mpz_clear(factor);
   }
-#endif
 
   valid = a > 1 && b > 1 && n % a == 0 && n / a == b &&
           a > ctx->largest_fb_prime && b > ctx->largest_fb_prime &&
