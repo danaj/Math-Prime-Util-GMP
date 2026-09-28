@@ -2669,6 +2669,58 @@ static void siqs_set_special_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   }
 }
 
+/* A selected prime p_i divides DA, so its normalized polynomial has one
+ * linear root and cannot use the ordinary inverse-of-DA correction.  Its
+ * root nevertheless moves by a constant for each Gray-code term H_j.  With
+ * D_i = DA/p_i, the correction modulo p_i is
+ *
+ *   2*(H_j/p_i)/D_i                         when i != j
+ *   ((H_i^2-kN)/p_i)/(H_i*D_i)              when i == j.
+ *
+ * Fill the otherwise unused correction entries for primes in A so the hot
+ * root-update loop can handle the entire factor base without special ranges
+ * or recomputing these roots from B and C for every polynomial. */
+static void siqs_set_special_corrections(siqs_ctx_t *ctx,
+                                         siqs_poly_t *poly) {
+  uint32_t i, bit;
+  mpz_t quotient;
+  if (poly->q_count < 2)
+    return;
+  mpz_init(quotient);
+  for (i = 0; i < poly->q_count; i++) {
+    uint32_t index = poly->a_index[i];
+    uint32_t p = ctx->fb[index].p;
+    uint32_t da_mod, inv_da;
+    mpz_divexact_ui(quotient, poly->DA, p);
+    da_mod = (uint32_t)mpz_fdiv_ui(quotient, p);
+    inv_da = siqs_inverse_u32(da_mod, p);
+    if (inv_da == 0)
+      croak("SIQS: singular special-root correction");
+    for (bit = 0; bit + 1 < poly->q_count; bit++) {
+      uint32_t value, correction;
+      if (i == bit) {
+        uint32_t hmod, inv_h;
+        mpz_mul(quotient, poly->H[bit], poly->H[bit]);
+        mpz_sub(quotient, quotient, ctx->kn);
+        mpz_divexact_ui(quotient, quotient, p);
+        value = (uint32_t)mpz_fdiv_ui(quotient, p);
+        hmod = (uint32_t)mpz_fdiv_ui(poly->H[bit], p);
+        inv_h = siqs_inverse_u32(hmod, p);
+        if (inv_h == 0)
+          croak("SIQS: singular diagonal special-root correction");
+        correction = (uint32_t)((uint64_t)value * inv_h % p);
+      } else {
+        mpz_divexact_ui(quotient, poly->H[bit], p);
+        value = (uint32_t)mpz_fdiv_ui(quotient, p);
+        correction = (uint32_t)((2ULL * value) % p);
+      }
+      poly->corrections[(size_t)bit * ctx->params.fb_size + index] =
+          (uint32_t)((uint64_t)correction * inv_da % p);
+    }
+  }
+  mpz_clear(quotient);
+}
+
 #ifdef SIQS_DEBUG
 static uint32_t siqs_debug_polynomial_at_root(const siqs_ctx_t *ctx,
                                               const siqs_poly_t *poly,
@@ -2799,6 +2851,7 @@ static void siqs_first_B_and_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     }
   }
   siqs_set_special_roots(ctx, poly);
+  siqs_set_special_corrections(ctx, poly);
 #ifdef SIQS_DEBUG
   siqs_verify_polynomial(ctx, poly);
 #endif
@@ -2888,26 +2941,13 @@ static int siqs_next_B(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     mpz_add(poly->B, poly->B, poly->H[bit]);
     mpz_add(poly->B, poly->B, poly->H[bit]);
   }
-  /* a_index is sorted.  Updating the ranges between its entries avoids an
-   * in-A test for every factor-base entry on every polynomial. */
   {
-    uint32_t i, first = 1;
     const uint32_t *corrections = poly->corrections
                                 + (size_t)bit * ctx->params.fb_size;
-    const uint32_t *primes = ctx->prime;
-    uint32_t *root1 = ctx->root1;
-    uint32_t *root2 = ctx->root2;
-    for (i = 0; i < poly->q_count; i++) {
-      uint32_t a_index = poly->a_index[i];
-      siqs_update_roots(corrections, primes, root1, root2,
-                        subtract_from_B, first, a_index);
-      first = a_index + 1;
-    }
-    siqs_update_roots(corrections, primes, root1, root2,
-                      subtract_from_B, first, ctx->params.fb_size);
+    siqs_update_roots(corrections, ctx->prime, ctx->root1, ctx->root2,
+                      subtract_from_B, 1, ctx->params.fb_size);
   }
   siqs_compute_C(ctx, poly);
-  siqs_set_special_roots(ctx, poly);
 #ifdef SIQS_DEBUG
   siqs_verify_polynomial(ctx, poly);
 #endif
