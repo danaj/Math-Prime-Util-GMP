@@ -88,9 +88,6 @@
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
 #define SIQS_A_FINAL_TOLERANCE_DEFAULT 8U
-#define SIQS_SIEVE_BLOCK_BITS      15U
-#define SIQS_SIEVE_BLOCK_SIZE  (1U << SIQS_SIEVE_BLOCK_BITS)
-#define SIQS_SIEVE_BLOCK_MASK  (SIQS_SIEVE_BLOCK_SIZE - 1U)
 /* Direct candidate tests are substantially cheaper than sparse candidate-map
  * walks on the measured M1 Pro.  Fixed-work sweeps found a broad plateau from
  * about 6 through the all-direct limit; timer-free full factors selected 8 as
@@ -101,9 +98,6 @@
     ((ctx)->params.max_large_primes == 1 \
       ? SIQS_MATRIX_EXTRA_RELS_1LP_DEFAULT \
       : SIQS_MATRIX_EXTRA_RELS_2LP_DEFAULT)
-/* The bucket sieve remains available for substantially larger intervals.
- * Contiguous sieving wins throughout the production-tuned bit range. */
-#define SIQS_SIEVE_BLOCK_MIN UINT32_MAX
 /* Automatic d retains d=1 unless the selected kN is 1 modulo 8.  For that
  * residue, the d=2 normalized polynomial has expected 2-adic valuation 3,
  * rather than 2 for d=1, so its complete local score is 3*ln(2). */
@@ -201,7 +195,6 @@ typedef struct {
 static const siqs_multiplier_cascade_t siqs_multiplier_cascade = {
   SIQS_MULTIPLIER_CASCADE
 };
-#define SIQS_BUCKET_FB_LIMIT   (1U << (32U - SIQS_SIEVE_BLOCK_BITS))
 #define SIQS_POSTFILTER_MAX_SMALL  256U
 #define SIQS_HASH_EMPTY        UINT64_C(0)
 /* Retained partials dominate relation-side storage.  Pack their factor-base
@@ -412,17 +405,7 @@ typedef struct {
   uint32_t largest_fb_prime;
   uint8_t *sieve;
   uint32_t sieve_length;
-  uint32_t sieve_offset;
-  uint32_t active_sieve_length;
   uint8_t active_sieve_initial;
-  uint32_t block_count;
-  uint32_t block_large_index;
-  uint32_t *bucket_bounds;
-  uint32_t *bucket_fill;
-  uint32_t *bucket_events;
-  uint32_t bucket_event_count;
-  uint32_t bucket_event_alloc;
-  int use_block_sieve;
   uint16_t *candidate_at;
   uint32_t *candidate_at_wide;
   int candidate_wide;
@@ -3141,8 +3124,6 @@ static void siqs_run_sieve_kernel(
 static void siqs_run_sieve(siqs_ctx_t *ctx) {
   uint8_t *sieve = ctx->sieve;
   uint32_t length = ctx->sieve_length;
-  ctx->sieve_offset = 0;
-  ctx->active_sieve_length = length;
   memset(sieve, siqs_physical_sieve_initial(ctx), length);
   siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
                         ctx->sieve_logp, ctx->params.sieve_start,
@@ -3152,13 +3133,11 @@ static void siqs_run_sieve(siqs_ctx_t *ctx) {
 static void siqs_clear_candidate_map(siqs_ctx_t *ctx) {
   uint32_t i;
   for (i = 0; i < ctx->candidate_count; i++) {
-    uint32_t absolute = (uint32_t)(ctx->candidates[i].x
-                                 + (int32_t)ctx->params.half_interval);
-    uint32_t pos = absolute - ctx->sieve_offset;
+    uint32_t pos = (uint32_t)(ctx->candidates[i].x
+                            + (int32_t)ctx->params.half_interval);
 #ifdef SIQS_DEBUG
-    if (absolute < ctx->sieve_offset ||
-        pos >= ctx->active_sieve_length)
-      croak("SIQS: candidate lies outside its sieve block");
+    if (pos >= ctx->sieve_length)
+      croak("SIQS: candidate lies outside the sieve interval");
 #endif
     ctx->candidate_at[pos] = 0;
     if (ctx->candidate_wide)
@@ -3182,13 +3161,11 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
       ctx->candidate_at_wide = (uint32_t *)siqs_calloc(
           ctx->sieve_length, sizeof(uint32_t));
     for (i = 0; i < ctx->candidate_count; i++) {
-      uint32_t old_absolute = (uint32_t)(ctx->candidates[i].x
-                              + (int32_t)ctx->params.half_interval);
-      uint32_t old_pos = old_absolute - ctx->sieve_offset;
+      uint32_t old_pos = (uint32_t)(ctx->candidates[i].x
+                         + (int32_t)ctx->params.half_interval);
 #ifdef SIQS_DEBUG
-      if (old_absolute < ctx->sieve_offset ||
-          old_pos >= ctx->active_sieve_length)
-        croak("SIQS: candidate migration crossed a sieve block");
+      if (old_pos >= ctx->sieve_length)
+        croak("SIQS: candidate migration left the sieve interval");
 #endif
       ctx->candidate_at_wide[old_pos] = i + 1;
     }
@@ -3202,8 +3179,7 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
         (size_t)ctx->candidate_alloc * sizeof(*ctx->candidates));
   }
   ctx->candidates[ctx->candidate_count].x =
-      (int32_t)(ctx->sieve_offset + pos)
-      - (int32_t)ctx->params.half_interval;
+      (int32_t)pos - (int32_t)ctx->params.half_interval;
   ctx->candidates[ctx->candidate_count].first_hit = SIQS_NO_INDEX;
   ctx->candidates[ctx->candidate_count].sieve_score =
       (uint8_t)logical_score;
@@ -3217,7 +3193,7 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
 static void siqs_find_candidates(siqs_ctx_t *ctx) {
   static const uint64_t high_bits = UINT64_C(0x8080808080808080);
   uint32_t pos, b;
-  uint32_t bulk_length = ctx->active_sieve_length & ~31U;
+  uint32_t bulk_length = ctx->sieve_length & ~31U;
   siqs_clear_candidate_map(ctx);
   for (pos = 0; pos < bulk_length; pos += 32) {
     uint64_t w0, w1, w2, w3;
@@ -3231,7 +3207,7 @@ static void siqs_find_candidates(siqs_ctx_t *ctx) {
       if (ctx->sieve[pos + b] & 0x80U)
         siqs_add_candidate(ctx, pos + b);
   }
-  for (; pos < ctx->active_sieve_length; pos++)
+  for (; pos < ctx->sieve_length; pos++)
     if (ctx->sieve[pos] & 0x80U)
       siqs_add_candidate(ctx, pos);
   ctx->total_candidates += ctx->candidate_count;
@@ -3254,7 +3230,7 @@ static INLINE void siqs_resieve_one_root16(siqs_ctx_t *ctx,
                                            uint32_t fb_index,
                                            uint32_t root, uint32_t p) {
   uint32_t pos;
-  for (pos = root; pos < ctx->active_sieve_length; pos += p) {
+  for (pos = root; pos < ctx->sieve_length; pos += p) {
     uint16_t candidate = ctx->candidate_at[pos];
     if (candidate != 0) {
       siqs_add_hit(ctx, candidate - 1, fb_index);
@@ -3266,7 +3242,7 @@ static INLINE void siqs_resieve_one_root32(siqs_ctx_t *ctx,
                                            uint32_t fb_index,
                                            uint32_t root, uint32_t p) {
   uint32_t pos;
-  for (pos = root; pos < ctx->active_sieve_length; pos += p) {
+  for (pos = root; pos < ctx->sieve_length; pos += p) {
     uint32_t candidate = ctx->candidate_at_wide[pos];
     if (candidate != 0) {
       siqs_add_hit(ctx, candidate - 1, fb_index);
@@ -3325,7 +3301,7 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   uint32_t read, out = 0;
   uint32_t small_hits[SIQS_POSTFILTER_MAX_SMALL];
   /* Filtering and evaluation do not overlap, so reuse the evaluation GMP
-   * workspace instead of allocating two temporaries for every sieve block. */
+   * workspace instead of allocating two temporaries for every polynomial. */
   mpz_ptr q = ctx->eval.q;
   mpz_ptr twice_b = ctx->eval.y;
   double log_smooth = log((double)ctx->params.smooth_bound);
@@ -3340,21 +3316,19 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
 
   for (read = 0; read < original_count; read++) {
     siqs_candidate_t candidate = ctx->candidates[read];
-    uint32_t absolute = (uint32_t)(candidate.x
-                                 + (int32_t)ctx->params.half_interval);
-    uint32_t local = absolute - ctx->sieve_offset;
+    uint32_t pos = (uint32_t)(candidate.x
+                            + (int32_t)ctx->params.half_interval);
     uint32_t hit_count = 0, i;
     double fine_margin;
     int would_pass;
 
 #ifdef SIQS_DEBUG
-    if (absolute < ctx->sieve_offset ||
-        local >= ctx->active_sieve_length)
-      croak("SIQS: postfilter candidate lies outside its sieve block");
+    if (pos >= ctx->sieve_length)
+      croak("SIQS: postfilter candidate lies outside the sieve interval");
 #endif
-    ctx->candidate_at[local] = 0;
+    ctx->candidate_at[pos] = 0;
     if (ctx->candidate_wide)
-      ctx->candidate_at_wide[local] = 0;
+      ctx->candidate_at_wide[pos] = 0;
 
     siqs_filter_q(q, poly, twice_b, candidate.x);
     if (mpz_sgn(q) == 0) {
@@ -3363,7 +3337,7 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
       mpz_abs(q, q);
       for (i = 0; i < ctx->params.sieve_start; i++) {
         uint32_t p = ctx->prime[i];
-        uint32_t rem = siqs_reduce_u32(absolute, p,
+        uint32_t rem = siqs_reduce_u32(pos, p,
                                       ctx->fb_reciprocal[i]);
         if (rem == ctx->root1[i] || rem == ctx->root2[i]) {
           mp_bitcnt_t exponent;
@@ -3384,9 +3358,9 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
       ctx->candidates[out] = candidate;
       ctx->candidates[out].first_hit = SIQS_NO_INDEX;
       if (ctx->candidate_wide)
-        ctx->candidate_at_wide[local] = out + 1;
+        ctx->candidate_at_wide[pos] = out + 1;
       else
-        ctx->candidate_at[local] = (uint16_t)(out + 1);
+        ctx->candidate_at[pos] = (uint16_t)(out + 1);
       for (i = 0; i < hit_count; i++)
         siqs_add_hit(ctx, out, small_hits[i]);
       out++;
@@ -3395,159 +3369,9 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   ctx->candidate_count = out;
 }
 
-/* Translate a whole-interval root to the current block without changing the
- * roots maintained by the polynomial code. */
-static INLINE uint32_t siqs_local_root(const siqs_ctx_t *ctx,
-                                       uint32_t fb_index, uint32_t root) {
-  uint32_t p, offset_mod;
-  if (ctx->sieve_offset == 0)
-    return root;
-  p = ctx->prime[fb_index];
-  offset_mod = siqs_reduce_u32(ctx->sieve_offset, p,
-                              ctx->fb_reciprocal[fb_index]);
-  return root >= offset_mod ? root - offset_mod
-                            : root + p - offset_mod;
-}
-
-static void siqs_bucket_count_root(siqs_ctx_t *ctx,
-                                   uint32_t root, uint32_t p) {
-  uint32_t pos;
-  for (pos = root; pos < ctx->sieve_length; ) {
-    uint32_t block = pos >> SIQS_SIEVE_BLOCK_BITS;
-    if (ctx->bucket_bounds[block + 1] == UINT32_MAX)
-      croak("SIQS: too many sieve bucket entries");
-    ctx->bucket_bounds[block + 1]++;
-    if (p > UINT32_MAX - pos)
-      break;
-    pos += p;
-  }
-}
-
-static void siqs_bucket_fill_root(siqs_ctx_t *ctx, uint32_t fb_index,
-                                  uint32_t root, uint32_t p) {
-  uint32_t pos;
-  for (pos = root; pos < ctx->sieve_length; ) {
-    uint32_t block = pos >> SIQS_SIEVE_BLOCK_BITS;
-    uint32_t slot = ctx->bucket_fill[block]++;
-#ifdef SIQS_DEBUG
-    if (slot >= ctx->bucket_event_count)
-      croak("SIQS: sieve bucket write overflow");
-#endif
-    ctx->bucket_events[slot] =
-        (fb_index << SIQS_SIEVE_BLOCK_BITS)
-      | (pos & SIQS_SIEVE_BLOCK_MASK);
-    if (p > UINT32_MAX - pos)
-      break;
-    pos += p;
-  }
-}
-
-/* Large primes are visited once per actual sieve hit, rather than once per
- * block.  Keeping the factor-base index in each event lets resieving reuse
- * the same buckets. */
-static void siqs_build_buckets(siqs_ctx_t *ctx) {
-  uint32_t i, block, total, alloc;
-  uint32_t bucket_start = ctx->block_large_index;
-  /* The postfilter has already attached every hit below sieve_start. */
-  if (bucket_start < ctx->params.sieve_start)
-    bucket_start = ctx->params.sieve_start;
-  memset(ctx->bucket_bounds, 0,
-         (size_t)(ctx->block_count + 1) * sizeof(uint32_t));
-  for (i = bucket_start; i < ctx->params.fb_size; i++) {
-    uint32_t p = ctx->prime[i];
-    siqs_bucket_count_root(ctx, ctx->root1[i], p);
-    if (ctx->root2[i] != ctx->root1[i])
-      siqs_bucket_count_root(ctx, ctx->root2[i], p);
-  }
-  for (block = 0; block < ctx->block_count; block++) {
-    if (ctx->bucket_bounds[block + 1] >
-        UINT32_MAX - ctx->bucket_bounds[block])
-      croak("SIQS: sieve bucket index overflow");
-    ctx->bucket_bounds[block + 1] += ctx->bucket_bounds[block];
-  }
-  total = ctx->bucket_bounds[ctx->block_count];
-  if (total > ctx->bucket_event_alloc) {
-    alloc = ctx->bucket_event_alloc ? ctx->bucket_event_alloc : 65536U;
-    while (alloc < total) {
-      if (alloc > UINT32_MAX / 2U) {
-        alloc = total;
-        break;
-      }
-      alloc *= 2U;
-    }
-    ctx->bucket_events = (uint32_t *)siqs_realloc(
-        ctx->bucket_events, (size_t)alloc * sizeof(uint32_t));
-    ctx->bucket_event_alloc = alloc;
-  }
-  ctx->bucket_event_count = total;
-  memcpy(ctx->bucket_fill, ctx->bucket_bounds,
-         (size_t)ctx->block_count * sizeof(uint32_t));
-  for (i = bucket_start; i < ctx->params.fb_size; i++) {
-    uint32_t p = ctx->prime[i];
-    siqs_bucket_fill_root(ctx, i, ctx->root1[i], p);
-    if (ctx->root2[i] != ctx->root1[i])
-      siqs_bucket_fill_root(ctx, i, ctx->root2[i], p);
-  }
-#ifdef SIQS_DEBUG
-  for (block = 0; block < ctx->block_count; block++)
-    if (ctx->bucket_fill[block] != ctx->bucket_bounds[block + 1])
-      croak("SIQS: incomplete sieve bucket");
-#endif
-}
-
-static void siqs_run_sieve_block(siqs_ctx_t *ctx, uint32_t block) {
-  uint32_t i, event, begin, end;
-  uint32_t offset = block << SIQS_SIEVE_BLOCK_BITS;
-  uint32_t remaining = ctx->sieve_length - offset;
-  uint32_t length = remaining < SIQS_SIEVE_BLOCK_SIZE
-                  ? remaining : SIQS_SIEVE_BLOCK_SIZE;
-  ctx->sieve_offset = offset;
-  ctx->active_sieve_length = length;
-  memset(ctx->sieve, siqs_physical_sieve_initial(ctx), length);
-
-  for (i = ctx->params.sieve_start; i < ctx->block_large_index; i++) {
-    uint32_t p = ctx->prime[i];
-    uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
-    if (ctx->root2[i] == ctx->root1[i]) {
-      siqs_sieve_one_root(ctx->sieve, length, root1, p,
-                          ctx->sieve_logp[i]);
-    } else {
-      uint32_t root2 = siqs_local_root(ctx, i, ctx->root2[i]);
-      if (root1 > root2) {
-        uint32_t tmp = root1;
-        root1 = root2;
-        root2 = tmp;
-      }
-      siqs_sieve_two_roots(ctx->sieve, length, root1, root2, p,
-                           ctx->sieve_logp[i]);
-    }
-  }
-
-  begin = ctx->bucket_bounds[block];
-  end = ctx->bucket_bounds[block + 1];
-  for (event = begin; event < end; event++) {
-    uint32_t packed = ctx->bucket_events[event];
-    uint32_t fb_index = packed >> SIQS_SIEVE_BLOCK_BITS;
-    uint32_t pos = packed & SIQS_SIEVE_BLOCK_MASK;
-#ifdef SIQS_DEBUG
-    uint32_t absolute, rem;
-    if (fb_index < ctx->block_large_index ||
-        fb_index >= ctx->params.fb_size || pos >= length)
-      croak("SIQS: invalid sieve bucket event");
-    absolute = offset + pos;
-    rem = absolute % ctx->prime[fb_index];
-    if (rem != ctx->root1[fb_index] && rem != ctx->root2[fb_index])
-      croak("SIQS: sieve bucket event is not a polynomial root");
-#endif
-    siqs_sieve_add(ctx->sieve + pos, ctx->sieve_logp[fb_index]);
-  }
-}
-
 static void siqs_resieve_candidates(siqs_ctx_t *ctx,
                                     uint32_t factor_begin,
-                                    uint32_t progression_end,
-                                    uint32_t bucket_begin,
-                                    uint32_t bucket_end) {
+                                    uint32_t progression_end) {
   const uint32_t *prime = ctx->prime;
   const uint32_t *root1 = ctx->root1;
   const uint32_t *root2 = ctx->root2;
@@ -3561,7 +3385,7 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   {
     uint64_t proposed =
         (uint64_t)SIQS_RESIEVE_CUTOFF_COEFFICIENT *
-        ctx->active_sieve_length / ctx->candidate_count;
+        ctx->sieve_length / ctx->candidate_count;
     cutoff_prime = proposed > UINT32_MAX
                  ? UINT32_MAX : (uint32_t)proposed;
   }
@@ -3592,45 +3416,15 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   }
   if (ctx->candidate_wide) {
     for (i = cutoff; i < progression_end; i++) {
-      uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
-      siqs_resieve_one_root32(ctx, i, root1, ctx->prime[i]);
-      if (ctx->root2[i] != ctx->root1[i]) {
-        siqs_resieve_one_root32(ctx, i,
-            siqs_local_root(ctx, i, ctx->root2[i]), ctx->prime[i]);
-      }
+      siqs_resieve_one_root32(ctx, i, root1[i], prime[i]);
+      if (root2[i] != root1[i])
+        siqs_resieve_one_root32(ctx, i, root2[i], prime[i]);
     }
   } else {
     for (i = cutoff; i < progression_end; i++) {
-      uint32_t root1 = siqs_local_root(ctx, i, ctx->root1[i]);
-      siqs_resieve_one_root16(ctx, i, root1, ctx->prime[i]);
-      if (ctx->root2[i] != ctx->root1[i]) {
-        siqs_resieve_one_root16(ctx, i,
-            siqs_local_root(ctx, i, ctx->root2[i]), ctx->prime[i]);
-      }
-    }
-  }
-
-  /* Every large-prime event is an actual progression hit, and carries the
-   * factor-base index needed by the relation evaluator. */
-  if (ctx->candidate_wide) {
-    for (i = bucket_begin; i < bucket_end; i++) {
-      uint32_t packed = ctx->bucket_events[i];
-      uint32_t pos = packed & SIQS_SIEVE_BLOCK_MASK;
-      uint32_t candidate = ctx->candidate_at_wide[pos];
-      if (candidate != 0) {
-        siqs_add_hit(ctx, candidate - 1,
-                     packed >> SIQS_SIEVE_BLOCK_BITS);
-      }
-    }
-  } else {
-    for (i = bucket_begin; i < bucket_end; i++) {
-      uint32_t packed = ctx->bucket_events[i];
-      uint32_t pos = packed & SIQS_SIEVE_BLOCK_MASK;
-      uint16_t candidate = ctx->candidate_at[pos];
-      if (candidate != 0) {
-        siqs_add_hit(ctx, candidate - 1,
-                     packed >> SIQS_SIEVE_BLOCK_BITS);
-      }
+      siqs_resieve_one_root16(ctx, i, root1[i], prime[i]);
+      if (root2[i] != root1[i])
+        siqs_resieve_one_root16(ctx, i, root2[i], prime[i]);
     }
   }
 }
@@ -3958,35 +3752,13 @@ static void siqs_evaluate_candidates(siqs_ctx_t *ctx,
 }
 
 static void siqs_sieve_polynomial(siqs_ctx_t *ctx, siqs_poly_t *poly) {
-  uint32_t block;
-  if (!ctx->use_block_sieve) {
-    siqs_run_sieve(ctx);
-    siqs_find_candidates(ctx);
-    siqs_filter_candidates(ctx, poly);
-    siqs_resieve_candidates(ctx,
-        ctx->params.sieve_start,
-        ctx->params.fb_size, 0, 0);
-    siqs_evaluate_candidates(ctx, poly);
-    siqs_clear_candidate_map(ctx);
-    return;
-  }
-
-  siqs_build_buckets(ctx);
-  for (block = 0; block < ctx->block_count && !ctx->factor_found; block++) {
-    siqs_run_sieve_block(ctx, block);
-    siqs_find_candidates(ctx);
-    siqs_filter_candidates(ctx, poly);
-    siqs_resieve_candidates(ctx,
-                            ctx->params.sieve_start,
-                            ctx->block_large_index,
-                            ctx->bucket_bounds[block],
-                            ctx->bucket_bounds[block + 1]);
-    siqs_evaluate_candidates(ctx, poly);
-    siqs_clear_candidate_map(ctx);
-    if (ctx->inline_matrix_solves &&
-        ctx->matrix_next_target > ctx->matrix_target_limit)
-      break;
-  }
+  siqs_run_sieve(ctx);
+  siqs_find_candidates(ctx);
+  siqs_filter_candidates(ctx, poly);
+  siqs_resieve_candidates(ctx, ctx->params.sieve_start,
+                          ctx->params.fb_size);
+  siqs_evaluate_candidates(ctx, poly);
+  siqs_clear_candidate_map(ctx);
 }
 
 /*----------------------------------------------------------------------------
@@ -4567,7 +4339,6 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
   ctx->sieve_logp = (uint8_t *)siqs_malloc(ctx->params.fb_size);
   siqs_set_log_weights(ctx);
   ctx->sieve_length = 2 * ctx->params.half_interval;
-  ctx->active_sieve_length = ctx->sieve_length;
   {
     size_t sieve_alloc = 2U * (size_t)ctx->sieve_length;
     size_t pmax_alloc = (size_t)ctx->fb[ctx->params.fb_size - 1U].p + 1U;
@@ -4592,20 +4363,6 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
            ctx->prime[ctx->resieve_one_subtract_index] <=
                ctx->params.half_interval)
       ctx->resieve_one_subtract_index++;
-  }
-  ctx->use_block_sieve =
-      ctx->sieve_length >= SIQS_SIEVE_BLOCK_MIN &&
-      ctx->params.fb_size < SIQS_BUCKET_FB_LIMIT;
-  if (ctx->use_block_sieve) {
-    ctx->block_count = (ctx->sieve_length + SIQS_SIEVE_BLOCK_SIZE - 1U)
-                     >> SIQS_SIEVE_BLOCK_BITS;
-    while (ctx->block_large_index < ctx->params.fb_size &&
-           ctx->prime[ctx->block_large_index] <= SIQS_SIEVE_BLOCK_SIZE)
-      ctx->block_large_index++;
-    ctx->bucket_bounds = (uint32_t *)siqs_calloc(
-        (size_t)ctx->block_count + 1, sizeof(uint32_t));
-    ctx->bucket_fill = (uint32_t *)siqs_malloc(
-        (size_t)ctx->block_count * sizeof(uint32_t));
   }
   rows = ctx->params.fb_size + 1;
   ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
@@ -4635,9 +4392,6 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->sieve_logp);
   free(ctx->fb_reciprocal);
   free(ctx->sieve);
-  free(ctx->bucket_bounds);
-  free(ctx->bucket_fill);
-  free(ctx->bucket_events);
   free(ctx->candidate_at);
   free(ctx->candidate_at_wide);
   free(ctx->candidates);
@@ -4705,11 +4459,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
            (unsigned long long)ctx->params.smooth_bound,
            ctx->fb[ctx->params.sieve_start].p,
            (unsigned)ctx->params.sieve_initial);
-    if (ctx->use_block_sieve)
-      printf("# siqs block sieve %u-byte blocks, %u blocks, "
-             "large FB index %u\n",
-             SIQS_SIEVE_BLOCK_SIZE, ctx->block_count,
-             ctx->block_large_index);
     fflush(stdout);
   }
 
