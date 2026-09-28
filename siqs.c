@@ -3064,12 +3064,14 @@ static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
                                         uint32_t root1, uint32_t root2,
                                         uint32_t p, uint8_t logp) {
   /* clang vectorizer likes size_t here */
-  size_t pos, gap1, gap2, p4 = (size_t)4 * p;
+  size_t pos, gap1, gap2, final_offset;
 
   pos = root1;
   gap1 = root2 - root1;
   gap2 = p - gap1;
-  while (pos + p4 < length) {
+  /* The eighth store is at pos + 3*p + gap1, not the next-cycle pos + 4*p. */
+  final_offset = (size_t)3 * p + gap1;
+  while (pos + final_offset < length) {
     siqs_sieve_add(sieve + pos, logp); pos += gap1;
     siqs_sieve_add(sieve + pos, logp); pos += gap2;
     siqs_sieve_add(sieve + pos, logp); pos += gap1;
