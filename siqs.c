@@ -3093,9 +3093,10 @@ static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
 
 /* Expose invariant sieve arrays directly to the hot per-prime loops. */
 static void siqs_run_sieve_kernel(
-    uint8_t *sieve, uint32_t length,
-    const uint32_t *prime, const uint32_t *root1, const uint32_t *root2,
-    const uint8_t *logp, uint32_t first, uint32_t end) {
+    uint8_t *RESTRICT sieve, uint32_t length,
+    const uint32_t *RESTRICT prime, const uint32_t *RESTRICT root1,
+    const uint32_t *RESTRICT root2, const uint8_t *RESTRICT logp,
+    uint32_t first, uint32_t end) {
   uint32_t i;
   for (i = first; i < end && prime[i] <= length / 6U;
        i++) {
@@ -3391,9 +3392,22 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   }
   if (cutoff_prime < SIQS_RESIEVE_CUTOFF_FLOOR)
     cutoff_prime = SIQS_RESIEVE_CUTOFF_FLOOR;
-  while (cutoff < progression_end &&
-         prime[cutoff] <= cutoff_prime)
-    cutoff++;
+  /* The factor base is sorted.  Sparse candidate sets often put the cutoff
+   * beyond its largest prime, so avoid walking most of the base merely to
+   * discover that every entry belongs to the direct-test range. */
+  if (cutoff < progression_end &&
+      prime[progression_end - 1U] <= cutoff_prime) {
+    cutoff = progression_end;
+  } else {
+    uint32_t high = progression_end;
+    while (cutoff < high) {
+      uint32_t middle = cutoff + (high - cutoff) / 2U;
+      if (prime[middle] <= cutoff_prime)
+        cutoff = middle + 1U;
+      else
+        high = middle;
+    }
+  }
   barrett_end = cutoff < ctx->resieve_one_subtract_index
               ? cutoff : ctx->resieve_one_subtract_index;
 
