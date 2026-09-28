@@ -3006,23 +3006,24 @@ static INLINE void siqs_sieve_add(uint8_t *cell, uint8_t logp) {
 static INLINE void siqs_sieve_one_root(uint8_t *sieve, uint32_t length,
                                        uint32_t root, uint32_t p,
                                        uint8_t logp) {
-  uint32_t pos = root;
-  for (; pos + 4 * p < length; pos += 4 * p) {
-    siqs_sieve_add(sieve + pos, logp);
-    siqs_sieve_add(sieve + pos + p, logp);
-    siqs_sieve_add(sieve + pos + 2 * p, logp);
-    siqs_sieve_add(sieve + pos + 3 * p, logp);
+  size_t pos = root, gap = p, p3 = (size_t)3 * p;
+  while (pos + p3 < length) {
+    siqs_sieve_add(sieve + pos, logp);  pos += gap;
+    siqs_sieve_add(sieve + pos, logp);  pos += gap;
+    siqs_sieve_add(sieve + pos, logp);  pos += gap;
+    siqs_sieve_add(sieve + pos, logp);  pos += gap;
   }
-  for (; pos < length; pos += p)
-    siqs_sieve_add(sieve + pos, logp);
+  if (pos < length) { siqs_sieve_add(sieve + pos, logp);  pos += gap; }
+  if (pos < length) { siqs_sieve_add(sieve + pos, logp);  pos += gap; }
+  if (pos < length)   siqs_sieve_add(sieve + pos, logp);
 }
 
 /* Alternating-root-gap sieve structure inspired by PARI/GP's MPQS sieve. */
 static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
                                         uint32_t root1, uint32_t root2,
                                         uint32_t p, uint8_t logp) {
-  uint32_t pos, gap1, gap2;
-  uint32_t p4 = 4 * p;
+  /* clang vectorizer likes size_t here */
+  size_t pos, gap1, gap2, p4 = (size_t)4 * p;
 
   pos = root1;
   gap1 = root2 - root1;
