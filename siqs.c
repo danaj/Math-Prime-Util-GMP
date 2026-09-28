@@ -3268,22 +3268,28 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
   ctx->candidate_count++;
 }
 
+/* Keep the rare bytewise scan out of the bulk word-at-a-time loop. */
+static NOINLINE void siqs_scan_candidate_word(siqs_ctx_t *ctx,
+                                               uint32_t pos) {
+  uint32_t b;
+  for (b = 0; b < 8; b++)
+    if (ctx->sieve[pos + b] & 0x80U)
+      siqs_add_candidate(ctx, pos + b);
+}
+
 static void siqs_find_candidates(siqs_ctx_t *ctx) {
   static const uint64_t high_bits = UINT64_C(0x8080808080808080);
-  uint32_t pos, b;
-  uint32_t bulk_length = ctx->sieve_length & ~31U;
+  const uint64_t *S = (const uint64_t *)ctx->sieve;
+  uint32_t pos, bulk_length = ctx->sieve_length & ~31U;
   siqs_clear_candidate_map(ctx);
-  for (pos = 0; pos < bulk_length; pos += 32) {
-    uint64_t w0, w1, w2, w3;
-    memcpy(&w0, ctx->sieve + pos,      sizeof(w0));
-    memcpy(&w1, ctx->sieve + pos + 8,  sizeof(w1));
-    memcpy(&w2, ctx->sieve + pos + 16, sizeof(w2));
-    memcpy(&w3, ctx->sieve + pos + 24, sizeof(w3));
+  for (pos = 0; pos < bulk_length; pos += 32, S += 4) {
+    const uint64_t w0 = S[0], w1 = S[1], w2 = S[2], w3 = S[3];
     if (!((w0 | w1 | w2 | w3) & high_bits))
       continue;
-    for (b = 0; b < 32; b++)
-      if (ctx->sieve[pos + b] & 0x80U)
-        siqs_add_candidate(ctx, pos + b);
+    if (w0 & high_bits) siqs_scan_candidate_word(ctx, pos);
+    if (w1 & high_bits) siqs_scan_candidate_word(ctx, pos + 8U);
+    if (w2 & high_bits) siqs_scan_candidate_word(ctx, pos + 16U);
+    if (w3 & high_bits) siqs_scan_candidate_word(ctx, pos + 24U);
   }
   for (; pos < ctx->sieve_length; pos++)
     if (ctx->sieve[pos] & 0x80U)
