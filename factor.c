@@ -340,7 +340,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         uint32_t i, j, k, copies, ncomp, qs_nfactors;
         int qs_progress = 0;
 
-        farray = _GMP_siqs(n, &qs_nfactors, 64007);
+        farray = gmp_siqs(n, &qs_nfactors, 64007);
 
         if (qs_nfactors > 1) {
           qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);
@@ -387,7 +387,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
           }
 
         }
-        _GMP_siqs_free(farray, qs_nfactors);
+        gmp_siqs_free(farray, qs_nfactors);
         if (qs_progress)
           continue;
       }

@@ -2564,13 +2564,13 @@ trial_factor(IN char* strn, ...)
                     if (arg1 == 2)
                       farray = _GMP_simpqs2(n, &nfactors, 7);
                     else
-                      farray = _GMP_siqs(n, &nfactors, 7);
+                      farray = gmp_siqs(n, &nfactors, 7);
                     for (i = 0; i < nfactors; i++)
                       XPUSH_MPZ(farray[i]);
                     if (arg1 == 2)
                       _GMP_simpqs2_free(farray, nfactors);
                     else
-                      _GMP_siqs_free(farray, nfactors);
+                      gmp_siqs_free(farray, nfactors);
                   }
                   if (arg1 != 3)
                     mpz_set_ui(n, 1);

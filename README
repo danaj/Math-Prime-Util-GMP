@@ -71,6 +71,22 @@ It can also be compiled directly without Perl or a generated Makefile:
       mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
       -lgmp -lm
 
+The standalone POSIX-threaded build shares the same SIQS implementation:
+
+   make psiqs
+   ./mpu-psiqs -threads 4 -vv 22095311209999409685885162322219
+
+The worker count is selected at runtime (default 4, maximum 256, set by
+PSIQS_MAX_THREADS in siqs.h).
+Use -threads 1 for the ordinary serial path.  Inputs through 64 bits and
+inline-solving policies remain serial regardless of the requested count.
+Only relation collection is parallel; graph merging and solving are serial.
+The normal Perl module and "make siqs" do not require pthreads.  The parallel
+build is currently standalone-only: its native worker calls into Perl host
+functions have not been audited.  For a direct parallel build, add
+-DPSIQS -pthread to the command above and name the output mpu-psiqs.
+psiqs_inc.c is included by siqs.c; do not compile it separately.
+
 
 DEPENDENCIES
 

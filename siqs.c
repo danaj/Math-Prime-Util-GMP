@@ -451,9 +451,19 @@ typedef struct {
   uint64_t split_rho;
   uint64_t split_failures;
   int factor_found;
+  uint32_t nthreads;
+  /* Workers buffer raw relations; only the caller owns a graph and solver. */
+  int buffer_relations;
 } siqs_ctx_t;
 
 static int siqs_solve(siqs_ctx_t *ctx);
+#ifdef PSIQS
+static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
+                                   uint32_t target,
+                                   uint32_t *next_matrix_check,
+                                   uint32_t *family_count,
+                                   uint32_t *poly_count);
+#endif
 
 static int siqs_use_one_lp_relation_path(const siqs_ctx_t *ctx) {
   return ctx->params.max_large_primes == 1;
@@ -781,7 +791,7 @@ static mpz_t *siqs_factor_array_release(siqs_factor_array_t *fa,
   return values;
 }
 
-void _GMP_siqs_free(mpz_t *factors, uint32_t nfactors) {
+void gmp_siqs_free(mpz_t *factors, uint32_t nfactors) {
   uint32_t i;
   for (i = 0; i < nfactors; i++)
     mpz_clear(factors[i]);
@@ -3854,7 +3864,10 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
     siqs_raw_relation_t *relation;
     mpz_mod(y, y, ctx->n);
     relation = siqs_raw_relation_new(ctx, y, factors, count, lp1, lp2);
-    siqs_accept_raw_relation(ctx, relation);
+    if (ctx->buffer_relations)
+      siqs_store_raw(ctx, relation);
+    else
+      siqs_accept_raw_relation(ctx, relation);
   }
 }
 
@@ -4379,6 +4392,7 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
   memset(ctx, 0, sizeof(*ctx));
   ctx->original_n = original;
   ctx->result = result;
+  ctx->nthreads = 1;
   mpz_init_set(ctx->n, n);
   mpz_init(ctx->kn);
   mpz_init(ctx->eval.y);
@@ -4468,11 +4482,9 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
         (double)ctx->params.smooth_bound;
 }
 
-static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
+/* Allocate polynomial/evaluation scratch, also used by private workers. */
+static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
   uint32_t rows;
-  if (!siqs_build_factor_base(ctx))
-    return 0;
-  siqs_set_large_prime_bounds(ctx);
   ctx->prime = (uint32_t *)siqs_malloc(
       (size_t)ctx->params.fb_size * sizeof(uint32_t));
   ctx->root1 = (uint32_t *)siqs_malloc(
@@ -4515,6 +4527,13 @@ static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
   ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
   ctx->factor_touched = (uint32_t *)siqs_malloc(
       (size_t)rows * sizeof(uint32_t));
+}
+
+static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
+  if (!siqs_build_factor_base(ctx))
+    return 0;
+  siqs_set_large_prime_bounds(ctx);
+  siqs_workspace_allocate(ctx);
   if (siqs_use_one_lp_relation_path(ctx))
     siqs_one_lp_init(&ctx->one_lp);
   else
@@ -4574,6 +4593,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
   uint32_t next_matrix_check = ctx->params.fb_size
                              - ctx->params.fb_size / 4;
   int verbose = siqs_verbose_level();
+  int threaded;
   if (retry_batch < 8)
     retry_batch = 8;
   if (retry_batch > SIQS_MATRIX_RETRY_BATCH_MAX)
@@ -4582,6 +4602,8 @@ static int siqs_run(siqs_ctx_t *ctx) {
     next_matrix_check = 256;
   ctx->inline_matrix_solves = ctx->params.q_count == 1 ||
       ctx->params.bits <= SIQS_INLINE_MATRIX_Q2_MAX_BITS;
+  threaded = ctx->nthreads > 1 && !ctx->inline_matrix_solves &&
+             ctx->params.bits > PSIQS_SERIAL_MAX_BITS;
   ctx->matrix_next_target = target;
   ctx->matrix_last_count = 0;
   ctx->matrix_retry_batch = retry_batch;
@@ -4592,6 +4614,13 @@ static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_init(ctx, &poly);
 
   if (verbose > 2) {
+    if (ctx->nthreads > 1) {
+      if (threaded)
+        printf("# psiqs %u workers, batched-family collection\n",
+               (unsigned)ctx->nthreads);
+      else
+        printf("# psiqs serial collection\n");
+    }
     gmp_printf("# siqs trying %Zd (%u bits)\n", ctx->n, ctx->params.bits);
     printf("# siqs policy %s [%u-%u], %u-LP\n",
            ctx->params.policy_name, ctx->params.policy_first_bits,
@@ -4624,8 +4653,16 @@ static int siqs_run(siqs_ctx_t *ctx) {
     }
   } else {
     while (!ctx->factor_found && target <= target_limit) {
-      if (!siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
-                                  &family_count, &poly_count))
+      int collected;
+#ifdef PSIQS
+      if (threaded)
+        collected = psiqs_collect_relations(
+            ctx, &poly, target, &next_matrix_check, &family_count, &poly_count);
+      else
+#endif
+        collected = siqs_collect_relations(
+            ctx, &poly, target, &next_matrix_check, &family_count, &poly_count);
+      if (!collected)
         break;
       if (ctx->factor_found)
         break;
@@ -4667,11 +4704,12 @@ static int siqs_run(siqs_ctx_t *ctx) {
 static int siqs_try_policy(const mpz_t original, const mpz_t n,
                            siqs_factor_array_t *result,
                            const siqs_policy_band_t *profile,
-                           mpz_t divisor, mpz_t root) {
+                           mpz_t divisor, mpz_t root, uint32_t nthreads) {
   siqs_ctx_t ctx;
   int factor_found = 0;
 
   siqs_ctx_init(&ctx, original, n, result, profile);
+  ctx.nthreads = nthreads;
   /* If the selected square-free multiplier completes a square, the zero of
    * the corresponding polynomial gives a factor directly and would receive
    * an unbounded number of byte-sieve hits. */
@@ -4692,8 +4730,8 @@ static int siqs_try_policy(const mpz_t original, const mpz_t n,
  * Public entry point
  *----------------------------------------------------------------------------*/
 
-mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
-                  uint32_t trial_start) {
+static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
+                           uint32_t trial_start, uint32_t nthreads) {
   siqs_factor_array_t result;
   mpz_t work, divisor, root;
   size_t input_bits;
@@ -4752,7 +4790,8 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
       }
   }
 
-  factor_found = siqs_try_policy(n, work, &result, NULL, divisor, root);
+  factor_found = siqs_try_policy(
+      n, work, &result, NULL, divisor, root, nthreads);
   if (!factor_found) {
     for (recovery_index = 0;
          recovery_index < SIQS_RECOVERY_POLICY_COUNT &&
@@ -4763,7 +4802,7 @@ mpz_t *_GMP_siqs(const mpz_t n, uint32_t *nfactors,
       if (bits < profile->first_bits || bits > profile->last_bits)
         continue;
       factor_found = siqs_try_policy(
-          n, work, &result, profile, divisor, root);
+          n, work, &result, profile, divisor, root, nthreads);
     }
   }
   siqs_verify_partition(n, &result);
@@ -4774,3 +4813,12 @@ finish:
   mpz_clear(root);
   return siqs_factor_array_release(&result, nfactors);
 }
+
+/* Serial entry; the parallel entry uses the same engine and factor storage. */
+mpz_t *gmp_siqs(const mpz_t n, uint32_t *nfactors, uint32_t trial_start) {
+  return siqs_factor(n, nfactors, trial_start, 1);
+}
+
+#ifdef PSIQS
+# include "psiqs_inc.c"
+#endif

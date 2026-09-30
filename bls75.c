@@ -180,13 +180,13 @@ static int tfe(mpz_t f, const mpz_t n, int effort)
                    log2n <= ((effort == 20) ? 180 : MPU_SIQS_MAX_BITS)) {
                 mpz_t *farray;
                 uint32_t nfactors;
-                farray = _GMP_siqs(n, &nfactors, 2);
+                farray = gmp_siqs(n, &nfactors, 2);
                 /* TODO: Return all factors */
                 if (nfactors > 1) {
                   success = 1;
                   mpz_set(f, farray[nfactors-1]);   /* Return largest */
                 }
-                _GMP_siqs_free(farray, nfactors);
+                gmp_siqs_free(farray, nfactors);
               }
             } break;
 

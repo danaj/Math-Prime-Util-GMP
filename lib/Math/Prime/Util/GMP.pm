@@ -2885,7 +2885,7 @@ and block Lanczos for larger matrices/fallback.
 It handles inputs from 1 to 110 decimal digits.
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
-SIQS takes about one hour to factor a 98-digit balanced semiprime,
+SIQS takes about one hour to factor a 99-digit balanced semiprime,
 one minute at 80 digits,
 one second at 63 digits,
 and one millisecond at 31 digits.

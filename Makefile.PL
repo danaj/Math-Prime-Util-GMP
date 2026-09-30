@@ -54,7 +54,7 @@ WriteMakefile1(
                     'perfect_powers.o ' .
                     'powerfree.o',
     LIBS         => ['-lgmp -lm'],
-    clean        => { FILES => 'mpu-siqs' },
+    clean        => { FILES => 'mpu-siqs mpu-psiqs' },
 
     TEST_REQUIRES=> {
                       'Math::BigInt'     => '1.88',  # try && bug fixes
@@ -136,11 +136,15 @@ SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h \
 SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
 
-.PHONY: siqs
+.PHONY: siqs psiqs
 siqs: mpu-siqs
+psiqs: mpu-psiqs
 
 mpu-siqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
+
+mpu-psiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
 
 MAKE_FRAG
 }
