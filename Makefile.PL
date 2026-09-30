@@ -132,7 +132,9 @@ SIQS_STANDALONE_SOURCES = mpu-siqs.c siqs.c lanczos.c prime_iterator.c \
 	squfof126.c pbrent63.c
 SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h \
 	prime_iterator.h squfof126.h pbrent63.h utility.h misc_ui.h
-SIQS_CFLAGS = -O3
+
+SIQS_ARCH_FLAGS = -march=native
+SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
 
 .PHONY: siqs
 siqs: mpu-siqs

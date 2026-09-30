@@ -2886,11 +2886,11 @@ It handles inputs from 1 to 110 decimal digits.
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
 SIQS takes about one hour to factor a 98-digit balanced semiprime,
-one minute at 78 digits,
-one second at 61 digits,
-and one millisecond at 30 digits.
+one minute at 80 digits,
+one second at 63 digits,
+and one millisecond at 31 digits.
 The time for individual inputs can vary.
-All computations are single threaded.
+All computations are single threaded, but the function is thread safe.
 
 The optional implementation selector is 0 for SIQS (the default), 1 for the
 older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the
@@ -3089,13 +3089,6 @@ version 0.05 or newer.
 Supports quite a bit of the same functionality (and much more).  See
 L<Math::Prime::Util/"SEE ALSO"> for more detailed information on how the
 modules compare.
-
-=item L<yafu|http://sourceforge.net/projects/yafu/>,
-L<msieve|http://sourceforge.net/projects/msieve/>,
-L<gmp-ecm|http://ecm.gforge.inria.fr/>,
-L<GGNFS|http://sourceforge.net/projects/ggnfs/>
-Good general purpose factoring utilities.  These will be faster than this
-module, and B<much> better as the factor increases in size.
 
 =item L<Primo|http://www.ellipsa.eu/public/primo/primo.html>
 is the state of the art in freely available (though not open source!)

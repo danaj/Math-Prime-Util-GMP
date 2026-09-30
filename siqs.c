@@ -950,34 +950,41 @@ typedef struct {
  * 16, 20, 16, 24, and 48 from 145, 167, 178, 193, 201, and 219 bits.
  *
  * Cheap root updates changed the best q-count/interval balance substantially.
- * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 134, 157,
- * 188, 219, and 242 bits.  Shorter intervals accompany each earlier q-count
- * transition: scales range from 1.5 to 2.5 through the 1LP bands, taper from
- * 1.5 to 1.0 before 231, and reach 0.5 in the upper two-LP bands.  The new
- * policy won at every sampled changed or structural boundary through 269
- * bits.  A later factor-base pass after the multiplier and hot-path changes
+ * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 114, 145,
+ * 185, 219, and 242 bits.  A later interval-only pass retuned the accompanying
+ * curves after the multiplier and sieve hot-path changes; the shortest early
+ * intervals deliberately reach the 4096 floor.  The new policy won at every
+ * sampled changed or structural boundary through 269 bits.  A later
+ * factor-base pass after the multiplier and hot-path changes
  * retained the existing schedule through 249, then selected a gradual
- * reduction and release through 269.  A cleanup merged the former 270--275
+ * reduction and release through 269.  Fresh screening later selected about
+ * 10% more factor-base primes at 250--269, tapering the increase back to the
+ * former curve by 299.  A cleanup merged the former 270--275
  * basin and 276--299 release into an endpoint-preserving 270--299 line; it
  * was only 0.25% slower and uses a slightly larger, safer FB.  Later paired
  * tests favored extending that line and its 401/8 sieve profile through 304;
  * sequential full-factor checks then kept q=11 ahead of q=12 by 1.9--2.9%
- * at 305, 306, and 310.  The resulting interval multiplier tapers from 0.5
- * at 270 through 310.  q=12 starts with the measured interval rise at 311,
- * reaches 0.6 at 330, then returns conservatively to the established 1.0
- * high-end value at 366.  q=13 was slower than q=12 in the 330-bit screen.
+ * at 305, 306, and 310.  A fresh interval pass retained 90% of that q=11
+ * interval curve: shorter intervals failed on 300- and 310-bit inputs.
+ * Replaying those inputs put q=11 and q=12 CPU times approximately level,
+ * while q=12 used substantially less of the polynomial budget.  Prefer its
+ * complete policy from 300 for safety, retaining the established factor-base
+ * curve and the measured 0.25 interval scale through 310.  The measured q=12
+ * interval rise then reaches 0.6 at 330 and returns conservatively to the
+ * established 1.0 high-end value at 366.  q=13 was slower in the 330-bit screen.
  * At the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
  * takes over at 37; a smaller factor base and wider final A tolerance improve
  * it substantially from 42 through 49, with explicit q=1 recovery profiles
  * for the rare exhausted primary.  q=3 is faster from 50 through 80, and q=4
  * at 81.
- * Earlier adjacent full-factor tests put q-count changes at 96 and 117 bits.
+ * A complete-policy crossover pass after the interval retune keeps q=5 at
+ * 96, starts q=6 at 104, and removes three superseded short policy rows.
  * The former 260--266 and 267--269 rows otherwise differed only by a tiny
  * sieve score release.  A single shallow 0.205--0.20535 ramp across 260--269
  * was modestly faster at all five tested anchors, so those rows are merged.
- * The q=11 factor-base release reaches approximately 0.313 at 310; q=12
- * continues near 0.316 at 311 and reaches the upper-screen choice 0.325 at
- * the inclusive 366-bit limit.
+ * The q=11 factor-base release reaches approximately 0.310 at 299; q=12
+ * continues near 0.314 at 300 and reaches the upper-screen choice 0.325 at
+ * 366 bits.
  *
  * JML SIQS showed that omitting substantially more small factor-base primes
  * from the dense sieve can pay even though the candidate postfilter then has
@@ -1011,8 +1018,8 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
    * win for better health.  Its final A-product tolerance is local to that
    * row; the staged recovery policies below handle its very rare exhaustion
    * tail.  q=3 wins from 50 until the measured 80/81 crossover.  Its interval
-   * ramp begins at the fixed 4096 floor and meets the established q=4 curve at
-   * that boundary.  Their matrices are too small for an early readiness check.
+   * ramp begins at the fixed 4096 floor.  Their matrices are too small for an
+   * early readiness check.
    * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
    * the 95/96 boundary. */
   { "smooth_k1_q1_low_4k", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
@@ -1045,65 +1052,53 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  /* After multiplier and sieve hot-path changes, three fresh interval-only
+   * passes (20%, 10%, then 5% brackets) retuned the 81--249-bit curves.
+   * The dense final pass found no coherent band-wide move from these curves;
+   * q and factor-base choices remain separate tuning decisions. */
   /* A fresh 30,000-input confirmation found a 3.0% joint win from bias 6
    * and a uniform 95% factor-base scale.  Express that scale as a shallow
    * coefficient ramp so the production policy needs no second FB knob. */
   { "smooth_k1_q4_fb_low", 81, 95, 1, 4, 6, 0, 0,
     1, 60, 60, 8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.311589139, 0.0000229912, 81),
-    SIQS_POLICY_LINEAR(0.5, 0.05, 65),
+    SIQS_POLICY_LINEAR(0.78, 0.03, 81),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   /* Two extra relations cost 0.1% over this band while cutting matrix retries
-   * by 68% and reducing timing variance.  Four cost 0.8% and added little. */
-  { "one_lp_k2_q5_geometry_ramp", 96, 106, 1, 5, 10, 3, 96,
+   * by 68% and reducing timing variance.  Four cost 0.8% and added little.
+   * A fresh three-group FB bracket selected 90% of the prior factor base at
+   * all three anchors, saving 1--2%. */
+  { "one_lp_k2_q5_geometry_ramp", 96, 103, 1, 5, 10, 3, 96,
     2, 60, 60, 8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.315, -0.0005929708, 96),
-    SIQS_POLICY_LINEAR(1.7, 0.08, 96),
+    SIQS_POLICY_LINEAR(0.308695990712, -0.000554318961222, 96),
+    SIQS_POLICY_LINEAR(1.649, 0.03, 96),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
-  { "one_lp_k2_q5_geometry", 107, 116, 1, 5, 14, 0, 0,
-    2, 60, 60, 8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.309104504, 0.0000317423, 107),
-    SIQS_POLICY_LINEAR(2.5375, 0.0375, 107),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
-  /* Exact dense elimination normally succeeds at the minimum relation count
-   * through this band.  Let it try: a 15,500-input audit needed four second
-   * matrix attempts, while avoiding the fixed readiness surplus reduced
-   * total CPU by about 7%.  The ordinary retry loop handles that rare tail. */
-  { "one_lp_k4_q6_geometry_ramp", 117, 129, 1, 6, 16, 0, 0,
+  /* A fresh three-group FB bracket selected the conservative 95% factor base
+   * through this short band.  Exact dense elimination normally succeeds at
+   * the minimum relation count.
+   * A 15,500-input audit of the original upper range needed four second
+   * matrix attempts, while fresh full-policy sweeps down through 104 bits had
+   * no failures.  The ordinary retry loop handles that rare tail. */
+  { "one_lp_k4_q6_geometry_ramp", 104, 113, 1, 6, 16, 0, 0,
     4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.309419667, 0.00046502775, 117),
-    SIQS_POLICY_LINEAR(3.125, 0.0, 117),
+    SIQS_POLICY_LINEAR(0.299970911404, 0.000481696464734, 103),
+    SIQS_POLICY_LINEAR(1.14583333333, 0.0607638888889, 117),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 117), 0.45 },
   /* Stopping at the first full-rank-sized matrix remained healthy through
    * 166 bits and saved about 1--5% across these bands. */
-  { "one_lp_k4_q6_interval_ramp", 130, 133, 1, 6, 14, 0, 0,
+  { "one_lp_k4_q7_interval_ramp", 114, 144, 1, 7, 14, 0, 0,
     4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
-    SIQS_POLICY_LINEAR(2.8125, 0.05625, 130),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_LINEAR(0.15, 0.0, 130), 0.45 },
-  { "one_lp_k4_q7_interval_ramp", 134, 144, 1, 7, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
-    SIQS_POLICY_LINEAR(1.8, 0.04, 134),
+    SIQS_POLICY_LINEAR(0.927, 0.042, 134),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
-  /* K=8 was neutral below the old 151-bit boundary and best above it.
-   * Smooth the old endpoint values into one q=7 geometry taper. */
-  { "one_lp_k8_q7_geometry_taper", 145, 156, 1, 7, 14, 0, 0,
-    8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.32, -0.000426054818818182, 145),
-    SIQS_POLICY_LINEAR(2.5, -0.013636363636363636, 145),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.000163636363636364, 145), 0.45 },
-  { "one_lp_k8_q8_interval_ramp", 157, 166, 1, 8, 14, 0, 0,
+  { "one_lp_k8_q8_interval_ramp", 145, 166, 1, 8, 14, 0, 0,
     8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
-    SIQS_POLICY_LINEAR(1.55, 0.035, 157),
+    SIQS_POLICY_LINEAR(1.09025, 0.0245, 157),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   /* The readiness check makes the nominal 96 surplus nearly free here:
@@ -1113,40 +1108,40 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
-    SIQS_POLICY_LINEAR(1.9, 0.0, 167),
+    SIQS_POLICY_LINEAR(1.083, 0.038, 167),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k20_q8_interval_ramp", 178, 187, 1, 8, 18, 0, 0,
+  { "one_lp_k20_q8_interval_ramp", 178, 184, 1, 8, 18, 0, 0,
     20, 60, 60, 8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
-    SIQS_POLICY_LINEAR(2.0, 0.07, 178),
+    SIQS_POLICY_LINEAR(1.2, 0.042, 178),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k20_q9", 188, 192, 1, 9, 18, 0, 0,
+  { "one_lp_k20_q9", 185, 192, 1, 9, 18, 0, 0,
     20, 60, 60, 8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
-    SIQS_POLICY_LINEAR(1.5, 0.0, 188),
+    SIQS_POLICY_LINEAR(0.9, 0.075, 188),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k16_q9", 193, 200, 1, 9, 18, 0, 0,
     16, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
-    SIQS_POLICY_LINEAR(1.5, 0.0, 193),
+    SIQS_POLICY_LINEAR(1.37142857143, 0.0214285714286, 193),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_geometry_ramp", 201, 210, 1, 9, 18, 0, 0,
     24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.324182603342, 0.000646377406444444, 201),
-    SIQS_POLICY_LINEAR(1.5, 0.022222222222222222, 201),
+    SIQS_POLICY_LINEAR(1.57078703703, -0.00515740740739, 201),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k24_q9_taper", 211, 218, 1, 9, 18, 0, 0,
     24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.33, 0.0, 211),
-    SIQS_POLICY_LINEAR(1.7, -0.028571428571428571, 211),
+    SIQS_POLICY_LINEAR(1.6625, -0.0392857142857, 211),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   /* After multiplier and sieve hot-path work, 1-LP remained faster through
@@ -1154,40 +1149,49 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   { "one_lp_k48_q10_interval_taper", 219, 240, 1, 10, 18, 0, 0,
     48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
-    SIQS_POLICY_LINEAR(1.5, -0.045454545454545455, 219),
+    SIQS_POLICY_LINEAR(1.17545454545, -0.0248051948052, 219),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "two_lp_early_q10", 241, 241, 2, 10, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 241),
-    SIQS_POLICY_LINEAR(0.68, 0.0, 241),
+    SIQS_POLICY_LINEAR(0.6528, 0.0, 241),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 241), 0.0 },
   { "two_lp_early_q11_interval_taper", 242, 249, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
-    SIQS_POLICY_LINEAR(0.7, -0.025, 242),
+    SIQS_POLICY_LINEAR(0.58625, -0.0125, 242),
     SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
   { "two_lp_fb_ramp_q11", 250, 259, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.298981008629, -0.000082390129, 250),
+    SIQS_POLICY_LINEAR(0.302169934396, -0.000089788851445, 250),
     SIQS_POLICY_LINEAR(0.5, 0.0, 250),
     SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
   { "two_lp_fb_ramp_q11_release", 260, 269, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.298144471193, 0.000287761809, 260),
-    SIQS_POLICY_LINEAR(0.5, 0.0, 260),
+    SIQS_POLICY_LINEAR(0.301259641958, 0.000280813005334, 260),
+    SIQS_POLICY_LINEAR(0.5, -0.005555555555555556, 260),
     SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
     SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
-  { "two_lp_mid_fb_release", 270, 310, 2, 11, 12, 0, 0,
+  { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
     0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.301021731444, 0.000299003943793103, 270),
-    SIQS_POLICY_LINEAR(0.5, -0.006666666666666667, 270),
+    SIQS_POLICY_LINEAR(0.304067624031, 0.000193973164947, 270),
+    SIQS_POLICY_LINEAR(0.45, -0.006, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
+    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  /* Start q=12 early for safety: on the known difficult 300/310-bit inputs,
+   * its complete policy was approximately tied in CPU time but consumed
+   * less of the polynomial budget.  Keep the unshrunk factor-base curve. */
+  { "two_lp_q12_safety_bridge", 300, 310, 2, 12, 12, 0, 0,
+    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
+    SIQS_POLICY_LINEAR(0.25, 0.0, 305),
+    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
