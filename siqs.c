@@ -942,26 +942,27 @@ typedef struct {
  *
  * The LP count is part of each complete policy row rather than an independent
  * crossover knob: changing it also requires changing the smooth exponent,
- * bounds, interval, and sieve-depth policy.  A crossover near 250 bits is
- * typical, but tests after multiplier and sieve hot-path work kept 1LP faster
- * through 238, found practical CPU ties at 239--240 while avoiding the 2LP
- * graph and cofactor machinery, and put the first repeatable 2LP CPU win at
- * 241.  The established two-LP parameter ramps still begin independently at
- * 250 bits.
+ * bounds, interval, and sieve-depth policy.  Fresh joint tuning found a
+ * larger-FB 1LP q=10 policy preferable through 245 bits.  The near-tied upper
+ * edge uses a single transition to 2LP q=11 at 246 instead of a one-bit
+ * bridge.  The established two-LP parameter ramps still begin independently
+ * at 250 bits.
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
  * 145 bits.  A later cleanup found K=8 neutral below the former 151-bit K
  * boundary and best above it; one endpoint-preserving taper now joins the
  * 145--156 geometry to the reduced factor-base curve through 166.  A second
- * schedule is used from 193.  K=24 and the wider multiplier pool start at
- * 201, with a single geometry ramp reaching coefficient 0.330 and interval
- * scale 1.7 at the 210/211 turning point.  The selected 1LP K values are 8,
- * 16, 20, 16, 24, and 48 from 145, 167, 178, 193, 201, and 219 bits.
+ * q=9 cleanup keeps the 185--192 geometry and joins coefficient 0.320 at
+ * 192 to 0.330 at 218, with interval scale rising from 1.2 to 1.3875.
+ * The first-sieved-prime floor changes at 193; the multiplier selector's
+ * fixed-depth cascade still starts independently at 201.  The selected 1LP
+ * K values are 8, 16, 20, 32, 48, and 72 from 145, 167, 178, 193, 219, and
+ * 232 bits.
  *
  * Cheap root updates changed the best q-count/interval balance substantially.
  * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 114, 145,
- * 185, 219, and 242 bits.  A later interval-only pass retuned the accompanying
+ * 185, 219, and 246 bits.  A later interval-only pass retuned the accompanying
  * curves after the multiplier and sieve hot-path changes; the shortest early
  * intervals deliberately reach the 4096 floor.  The new policy won at every
  * sampled changed or structural boundary through 269 bits.  A later
@@ -1135,41 +1136,32 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.9, 0.075, 188),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  { "one_lp_k16_q9", 193, 200, 1, 9, 18, 0, 0,
-    16, 60, 60, 8, 401, 160, 96,
+  /* A smooth upper q=9 band replaces the former three rows.  Retain K=20
+   * below 193; K=32 gave a small broad gain on the merged curve.  Fresh
+   * +/-5% FB/interval confirmation did not justify changing its geometry. */
+  { "one_lp_k32_q9_geometry_ramp", 193, 218, 1, 9, 18, 0, 0,
+    32, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.325, 0.0002, 185),
-    SIQS_POLICY_LINEAR(1.37142857143, 0.0214285714286, 193),
+    SIQS_POLICY_LINEAR(0.32, 0.000384615384615385, 192),
+    SIQS_POLICY_LINEAR(1.2, 0.00721153846154231, 192),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k24_q9_geometry_ramp", 201, 210, 1, 9, 18, 0, 0,
-    24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.324182603342, 0.000646377406444444, 201),
-    SIQS_POLICY_LINEAR(1.57078703703, -0.00515740740739, 201),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k24_q9_taper", 211, 218, 1, 9, 18, 0, 0,
-    24, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.33, 0.0, 211),
-    SIQS_POLICY_LINEAR(1.6625, -0.0392857142857, 211),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  /* After multiplier and sieve hot-path work, 1-LP remained faster through
-   * 238 bits and tied 2-LP at 239--240; 2-LP won 17/18 pairs at 241 bits. */
-  { "one_lp_k48_q10_interval_taper", 219, 240, 1, 10, 18, 0, 0,
+  { "one_lp_k48_q10_interval_taper", 219, 231, 1, 10, 18, 0, 0,
     48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.332, -0.001, 218),
     SIQS_POLICY_LINEAR(1.17545454545, -0.0248051948052, 219),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "two_lp_early_q10", 241, 241, 2, 10, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
-    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.0, 241),
-    SIQS_POLICY_LINEAR(0.6528, 0.0, 241),
-    SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 241), 0.0 },
-  { "two_lp_early_q11_interval_taper", 242, 249, 2, 11, 18, 0, 0,
+  /* Fresh joint FB/interval/LP tuning favored a larger FB and K=72 from
+   * 232 bits.  Keep 1-LP q=10 through 245 before the clean 2-LP q=11
+   * transition; negligible gains did not justify a shorter interval. */
+  { "one_lp_k72_q10_fb_taper", 232, 245, 1, 10, 18, 0, 0,
+    72, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.340488506709531, -0.001055481282083, 232),
+    SIQS_POLICY_LINEAR(1.238537142850445, -0.036017142857150, 232),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+  { "two_lp_early_q11_interval_taper", 246, 249, 2, 11, 18, 0, 0,
     0, 60, 60, 8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
