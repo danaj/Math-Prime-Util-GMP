@@ -87,6 +87,19 @@
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
+#ifndef SIQS_SIEVE_BLOCK_SIZE
+# define SIQS_SIEVE_BLOCK_SIZE   (64U * 1024U)
+#endif
+/* At 64 KiB, M1 Pro measurements favored activation near 160 KiB (2.5x).
+ * Scale that starting point with block size; other sizes/machines may need
+ * a different threshold.  A zero block size disables blocking. */
+#ifndef SIQS_SIEVE_BLOCK_MIN_LENGTH
+# define SIQS_SIEVE_BLOCK_MIN_LENGTH (5U * SIQS_SIEVE_BLOCK_SIZE / 2U)
+#endif
+#if SIQS_SIEVE_BLOCK_SIZE && \
+    (SIQS_SIEVE_BLOCK_SIZE < 4096U || SIQS_SIEVE_BLOCK_SIZE > 1048576U)
+# error "SIQS_SIEVE_BLOCK_SIZE must be zero or between 4 KiB and 1 MiB"
+#endif
 #define SIQS_A_FINAL_TOLERANCE_DEFAULT 8U
 /* Direct candidate tests are substantially cheaper than sparse candidate-map
  * walks on the measured M1 Pro.  Fixed-work sweeps found a broad plateau from
@@ -454,6 +467,10 @@ typedef struct {
   uint32_t nthreads;
   /* Workers buffer raw relations; only the caller owns a graph and solver. */
   int buffer_relations;
+  /* Block-only scratch does not move the original hot context members. */
+  uint32_t *block_root1, *block_root2, *block_step;
+  uint32_t block_prime_count;
+  uint32_t block_length;
 } siqs_ctx_t;
 
 static int siqs_solve(siqs_ctx_t *ctx);
@@ -3151,13 +3168,16 @@ static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
   return (uint8_t)initial;
 }
 
-/* Expose invariant sieve arrays directly to the hot per-prime loops. */
+/* Add prime contributions to already initialized logical sieve bytes.
+ * Initialization stays with the caller: the sparse suffix must augment,
+ * not erase, the completed dense blocks.  Expose invariant arrays directly
+ * to the hot per-prime loops. */
 static void siqs_run_sieve_kernel(
     uint8_t *RESTRICT sieve, uint32_t length,
     const uint32_t *RESTRICT prime, const uint32_t *RESTRICT root1,
     const uint32_t *RESTRICT root2, const uint8_t *RESTRICT logp,
-    uint32_t first, uint32_t end) {
-  uint32_t i;
+    size_t first, size_t end) {
+  size_t i;
   for (i = first; i < end && prime[i] <= length / 6U;
        i++) {
     if (root2[i] == root1[i]) {
@@ -3199,13 +3219,92 @@ static void siqs_run_sieve_kernel(
 # undef SIQS_SIEVE_LARGE_RANGE
 }
 
-static void siqs_run_sieve(siqs_ctx_t *ctx) {
-  uint8_t *sieve = ctx->sieve;
-  uint32_t length = ctx->sieve_length;
-  memset(sieve, siqs_physical_sieve_initial(ctx), length);
-  siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
-                        ctx->sieve_logp, ctx->params.sieve_start,
+static void siqs_block_workspace_allocate(siqs_ctx_t *ctx) {
+  size_t first = ctx->params.sieve_start, end = first, i;
+  uint32_t maximum = SIQS_SIEVE_BLOCK_SIZE, blocks;
+  if (maximum == 0 || ctx->sieve_length <= maximum ||
+      ctx->sieve_length < SIQS_SIEVE_BLOCK_MIN_LENGTH)
+    return;
+  blocks = (ctx->sieve_length - 1U) / maximum + 1U;
+  /* Nearly equal blocks bounded by the requested maximum.  Only the final
+   * block can be shorter, by fewer than 'blocks' bytes. */
+  ctx->block_length = ctx->sieve_length / blocks
+                   + (ctx->sieve_length % blocks != 0);
+  while (end < ctx->params.fb_size && ctx->prime[end] <= ctx->block_length)
+    end++;
+  ctx->block_prime_count = (uint32_t)(end - first);
+  if (ctx->block_prime_count == 0)
+    return;
+  ctx->block_root1 = (uint32_t *)siqs_malloc(
+      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+  ctx->block_root2 = (uint32_t *)siqs_malloc(
+      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+  ctx->block_step = (uint32_t *)siqs_malloc(
+      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+  for (i = 0; i < ctx->block_prime_count; i++)
+    ctx->block_step[i] = ctx->block_length % ctx->prime[first + i];
+}
+
+/* Advance a block without per-prime division.  Roots remain canonical and
+ * sorted so the existing alternating-gap kernels can be reused unchanged.
+ * Scratch roots never replace the polynomial/resieve's original roots. */
+static void siqs_advance_block_roots(
+    uint32_t *RESTRICT root1, uint32_t *RESTRICT root2,
+    const uint32_t *RESTRICT prime, const uint32_t *RESTRICT step,
+    size_t count) {
+  size_t i;
+  for (i = 0; i < count; i++) {
+    uint32_t p = prime[i], delta = step[i];
+    uint32_t a = root1[i], b = root2[i];
+    a = a >= delta ? a - delta : a + p - delta;
+    b = b >= delta ? b - delta : b + p - delta;
+    root1[i] = a < b ? a : b;
+    root2[i] = a < b ? b : a;
+  }
+}
+
+/* Keep the block-management loop out of the standard-sieve dispatch. */
+static NOINLINE void siqs_run_blocked_sieve(siqs_ctx_t *ctx) {
+  size_t first = ctx->params.sieve_start, count = ctx->block_prime_count;
+  uint32_t offset = 0;
+  uint8_t initial = siqs_physical_sieve_initial(ctx);
+  memcpy(ctx->block_root1, ctx->root1 + first, count * sizeof(uint32_t));
+  memcpy(ctx->block_root2, ctx->root2 + first, count * sizeof(uint32_t));
+  while (offset < ctx->sieve_length) {
+    uint32_t length = ctx->sieve_length - offset;
+    if (length > ctx->block_length)
+      length = ctx->block_length;
+    memset(ctx->sieve + offset, initial, length);
+    siqs_run_sieve_kernel(ctx->sieve + offset, length, ctx->prime + first,
+                          ctx->block_root1, ctx->block_root2,
+                          ctx->sieve_logp + first, 0, count);
+    offset += length;
+    if (offset < ctx->sieve_length)
+      siqs_advance_block_roots(ctx->block_root1, ctx->block_root2,
+                               ctx->prime + first, ctx->block_step, count);
+  }
+  /* Kernels may place padded stores forward of a block.  Every following
+   * block is initialized before use, erasing those stores.  With p <= block
+   * size, all stores fit the existing 2*sieve_length allocation, including
+   * the final partial block and localized one-hit padding stripe.
+   * Sparse primes contribute only after all dense blocks are complete, so
+   * no genuine sparse contribution is subsequently erased. */
+  siqs_run_sieve_kernel(ctx->sieve, ctx->sieve_length, ctx->prime, ctx->root1,
+                        ctx->root2, ctx->sieve_logp, first + count,
                         ctx->params.fb_size);
+}
+
+static void siqs_run_sieve(siqs_ctx_t *ctx) {
+  if (ctx->block_prime_count != 0) {
+    siqs_run_blocked_sieve(ctx);
+  } else {
+    uint8_t *sieve = ctx->sieve;
+    uint32_t length = ctx->sieve_length;
+    memset(sieve, siqs_physical_sieve_initial(ctx), length);
+    siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
+                          ctx->sieve_logp, ctx->params.sieve_start,
+                          ctx->params.fb_size);
+  }
 }
 
 static void siqs_clear_candidate_map(siqs_ctx_t *ctx) {
@@ -4523,6 +4622,7 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
   ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
   ctx->factor_touched = (uint32_t *)siqs_malloc(
       (size_t)rows * sizeof(uint32_t));
+  siqs_block_workspace_allocate(ctx);
 }
 
 static int siqs_ctx_allocate(siqs_ctx_t *ctx) {
@@ -4551,6 +4651,11 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->prime);
   free(ctx->root1);
   free(ctx->root2);
+  if (ctx->block_prime_count != 0) {
+    free(ctx->block_root1);
+    free(ctx->block_root2);
+    free(ctx->block_step);
+  }
   free(ctx->sieve_logp);
   free(ctx->fb_reciprocal);
   free(ctx->sieve);
@@ -4631,6 +4736,9 @@ static int siqs_run(siqs_ctx_t *ctx) {
            (unsigned long long)ctx->params.smooth_bound,
            ctx->fb[ctx->params.sieve_start].p,
            (unsigned)ctx->params.sieve_initial);
+    if (ctx->block_prime_count != 0)
+      printf("# siqs block sieve %u bytes (max %u)\n",
+             ctx->block_length, (unsigned)SIQS_SIEVE_BLOCK_SIZE);
     fflush(stdout);
   }
 
