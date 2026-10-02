@@ -945,8 +945,8 @@ typedef struct {
  * bounds, interval, and sieve-depth policy.  Fresh joint tuning found a
  * larger-FB 1LP q=10 policy preferable through 245 bits.  The near-tied upper
  * edge uses a single transition to 2LP q=11 at 246 instead of a one-bit
- * bridge.  The established two-LP parameter ramps still begin independently
- * at 250 bits.
+ * bridge.  The early q=11 geometry now uses one endpoint-preserving ramp
+ * across 246--269; the distinct 270--299 policy remains unchanged.
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
@@ -958,7 +958,7 @@ typedef struct {
  * The first-sieved-prime floor changes at 193; the multiplier selector's
  * fixed-depth cascade still starts independently at 201.  The selected 1LP
  * K values are 8, 16, 20, 32, 48, and 72 from 145, 167, 178, 193, 219, and
- * 232 bits.
+ * 237 bits.
  *
  * Cheap root updates changed the best q-count/interval balance substantially.
  * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 114, 145,
@@ -993,6 +993,9 @@ typedef struct {
  * The former 260--266 and 267--269 rows otherwise differed only by a tiny
  * sieve score release.  A single shallow 0.205--0.20535 ramp across 260--269
  * was modestly faster at all five tested anchors, so those rows are merged.
+ * A subsequent 246--269 cleanup found a single FB/interval/score ramp within
+ * 0.1% of a two-row alternative over 67 fresh matched inputs.  Prefer the
+ * simpler merged row; its interval already includes the former LP adjustment.
  * The q=11 factor-base release reaches approximately 0.310 at 299; q=12
  * continues near 0.314 at 300 and reaches the upper-screen choice 0.325 at
  * 366 bits.
@@ -1146,42 +1149,31 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(1.2, 0.00721153846154231, 192),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "one_lp_k48_q10_interval_taper", 219, 231, 1, 10, 18, 0, 0,
+  { "one_lp_k48_q10_geometry_ramp", 219, 236, 1, 10, 18, 0, 0,
     48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.332, -0.001, 218),
-    SIQS_POLICY_LINEAR(1.17545454545, -0.0248051948052, 219),
+    SIQS_POLICY_LINEAR(0.331, 0.0, 219),
+    SIQS_POLICY_LINEAR(1.17545454545, 0.0, 219),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  /* Fresh joint FB/interval/LP tuning favored a larger FB and K=72 from
-   * 232 bits.  Keep 1-LP q=10 through 245 before the clean 2-LP q=11
-   * transition; negligible gains did not justify a shorter interval. */
-  { "one_lp_k72_q10_fb_taper", 232, 245, 1, 10, 18, 0, 0,
+  /* The smaller K=48 geometry remains competitive through 236 bits.
+   * Keep this K=72 profile's original curves anchored at 232; moving its
+   * first bit does not retune the remaining upper q=10 range. */
+  { "one_lp_k72_q10_fb_taper", 237, 245, 1, 10, 18, 0, 0,
     72, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.340488506709531, -0.001055481282083, 232),
     SIQS_POLICY_LINEAR(1.238537142850445, -0.036017142857150, 232),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  { "two_lp_early_q11_interval_taper", 246, 249, 2, 11, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96,
-    0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.30069720, 0.0, 240),
-    SIQS_POLICY_LINEAR(0.58625, -0.0125, 242),
-    SIQS_POLICY_RATIO(0.00537337256, 20, 0, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 240), 0.0 },
-  { "two_lp_fb_ramp_q11", 250, 259, 2, 11, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.302169934396, -0.000089788851445, 250),
-    SIQS_POLICY_LINEAR(0.5, 0.0, 250),
-    SIQS_POLICY_RATIO(0.00537337256, 20, -1, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.0, 251), 0.0 },
-  { "two_lp_fb_ramp_q11_release", 260, 269, 2, 11, 18, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.301259641958, 0.000280813005334, 260),
-    SIQS_POLICY_LINEAR(0.5, -0.005555555555555556, 260),
-    SIQS_POLICY_RATIO(0.00537337256, 10, -1, 20), 0.16,
-    SIQS_POLICY_LINEAR(0.205, 0.00003888888888888889, 260), 0.0 },
+  /* Keep the measured endpoint geometry with one smooth early q=11 row.
+   * The interval curve includes the old LP adjustment; do not apply it twice. */
+  { "two_lp_q11_geometry_ramp", 246, 269, 2, 11, 18, 0, 0,
+    0, 72, 72, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.3006972, 0.00013433734808721733, 246),
+    SIQS_POLICY_LINEAR(0.5391314710353, -0.003870024789247825, 246),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.16,
+    SIQS_POLICY_LINEAR(0.205, 0.000015217391304347357, 246), 0.0 },
   { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
-    0, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 72, 72, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.304067624031, 0.000193973164947, 270),
     SIQS_POLICY_LINEAR(0.45, -0.006, 270),
     SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
@@ -4440,11 +4432,9 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
     automatic_large_prime_bound = SIQS_LP_MAX;
   ctx->params.large_prime_bound = automatic_large_prime_bound;
 
-  /* The full 250-bit corpus selected K=60/R=60 over the lower automatic
-   * ratios.  Apply those floors whenever two-LP mode is active through q=11's
-   * measured 310-bit endpoint.  Automatic selection has already risen beyond
-   * both floors near 270 bits, so the policy naturally rejoins the original
-   * curve without an upper cap throughout this upper range. */
+  /* Matched full-factor sweeps at 246--260 bits favored K=72/R=72 over
+   * K=60/R=60 by about 0.4--1%, with modest extra partial storage.  These
+   * are floors, not caps: larger automatic bounds take over as bits grow. */
   if (policy_active) {
     limit = siqs_scaled_bound(pmax,
                               ctx->params.lp_policy_multiplier_floor,
