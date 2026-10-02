@@ -4612,7 +4612,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
   if (verbose > 2) {
     if (ctx->nthreads > 1) {
       if (threaded)
-        printf("# psiqs %u workers, batched-family collection\n",
+        printf("# psiqs %u workers, asynchronous family collection\n",
                (unsigned)ctx->nthreads);
       else
         printf("# psiqs serial collection\n");

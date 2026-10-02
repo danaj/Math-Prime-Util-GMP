@@ -5,7 +5,7 @@
   separately: it uses the shared private SIQS types and static helpers.
 
   Workers own polynomial/sieve scratch and buffer raw relations.  The caller
-  assigns distinct A families and merges each joined batch into one relation
+  assigns distinct A families and merges each completed buffer into one relation
   graph; factor partition updates and relation merging remain serial.
 
   Copyright (c) 2026 Dana Jacobsen
@@ -19,13 +19,33 @@
 
 #include <pthread.h>
 
+typedef struct psiqs_pool_t psiqs_pool_t;
+
+typedef enum { PSIQS_IDLE, PSIQS_WORK, PSIQS_READY } psiqs_worker_state_t;
+
 typedef struct {
   siqs_ctx_t ctx;
   siqs_poly_t poly;
   siqs_factor_array_t result;
   uint32_t limit;
   uint32_t polynomials;
+  psiqs_pool_t *pool;
+  pthread_t thread;
+  pthread_cond_t work;
+  uint32_t index;
+  psiqs_worker_state_t state;
+  int started;
 } psiqs_worker_t;
+
+struct psiqs_pool_t {
+  psiqs_worker_t *workers;
+  uint32_t *ready;
+  uint32_t count, initialized, conditions, live;
+  uint32_t head, tail, queued;
+  pthread_mutex_t mutex;
+  pthread_cond_t done;
+  int stop;
+};
 
 /* Workers own every writable field.  Reuse scratch allocation and cleanup,
  * but never allocate a relation graph or rebuild the common factor base. */
@@ -97,9 +117,26 @@ static void *psiqs_sieve_family(void *argument) {
   return NULL;
 }
 
+/* After every buffered GMP value is cleared, retain one normal-sized block
+ * for the next family.  Older blocks and oversized one-offs are released;
+ * final worker cleanup still frees the retained block. */
+static void psiqs_raw_arena_reset(siqs_raw_arena_t *arena) {
+  siqs_raw_block_t *block = arena->current;
+  if (block != NULL &&
+      block->capacity <= SIQS_RAW_BLOCK_MAX - sizeof(*block)) {
+    arena->current = block->previous;
+    siqs_raw_arena_clear(arena);
+    block->previous = NULL;
+    block->used = 0;
+    arena->current = block;
+  } else {
+    siqs_raw_arena_clear(arena);
+  }
+}
+
 /* Copy buffered records into the collector's arena; never transfer pointers
  * between arenas.  All partials enter the same graph, including cross-worker
- * cycles.  The worker buffer is discarded only after its GMP values clear. */
+ * cycles.  Clear worker GMP values before resetting its buffer storage. */
 static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   siqs_ctx_t *ctx = &worker->ctx;
   uint32_t i;
@@ -114,7 +151,7 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   ctx->split_rho = 0;
   ctx->split_failures = 0;
   /* A polynomial zero can discover a divisor without emitting a relation.
-   * Refine the parent's partition only here, after every worker has joined. */
+   * Refine the parent's partition only here, while this worker is parked. */
   if (ctx->factor_found) {
     for (i = 0; i < worker->result.count; i++)
       if (siqs_insert_divisor(master->result, worker->result.values[i]))
@@ -138,7 +175,7 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   }
   while (ctx->raw_count != 0)
     siqs_raw_relation_free(ctx, ctx->raw[--ctx->raw_count]);
-  siqs_raw_arena_clear(&ctx->raw_arena);
+  psiqs_raw_arena_reset(&ctx->raw_arena);
 }
 
 static void psiqs_worker_clear(psiqs_worker_t *worker) {
@@ -148,21 +185,164 @@ static void psiqs_worker_clear(psiqs_worker_t *worker) {
   gmp_siqs_free(worker->result.values, worker->result.count);
 }
 
-/* Batch-and-join collection intentionally sacrifices load balancing and some
- * stop precision.  It needs no locks or concurrent graph/solver operations.
- * Readiness, progress and the aggregate polynomial guard are checked between
- * batches.  Unfinished final families are bounded by that same global guard. */
+/* Each worker has one result buffer.  Publishing it parks that worker until
+ * the caller finishes merging and assigns another family.  Other workers
+ * continue independently; the queue never holds more than one result each. */
+static void *psiqs_pool_worker(void *argument) {
+  psiqs_worker_t *worker = (psiqs_worker_t *)argument;
+  psiqs_pool_t *pool = worker->pool;
+  pthread_mutex_lock(&pool->mutex);
+  for (;;) {
+    while (!pool->stop && worker->state != PSIQS_WORK)
+      pthread_cond_wait(&worker->work, &pool->mutex);
+    if (pool->stop)
+      break;
+    pthread_mutex_unlock(&pool->mutex);
+    psiqs_sieve_family(worker);
+    pthread_mutex_lock(&pool->mutex);
+    worker->state = PSIQS_READY;
+    if (pool->queued >= pool->count)
+      croak("PSIQS: completed-family queue overflow");
+    pool->ready[pool->tail] = worker->index;
+    if (++pool->tail == pool->count)
+      pool->tail = 0;
+    pool->queued++;
+    pthread_cond_signal(&pool->done);
+  }
+  pthread_mutex_unlock(&pool->mutex);
+  return NULL;
+}
+
+/* Stop assigning work, finish running families, and cancel jobs not yet begun.
+ * The caller drains completed buffers after joining, before freeing scratch. */
+static void psiqs_pool_join(psiqs_pool_t *pool) {
+  uint32_t i;
+  if (pool->live == 0)
+    return;
+  pthread_mutex_lock(&pool->mutex);
+  pool->stop = 1;
+  for (i = 0; i < pool->conditions; i++)
+    if (pool->workers[i].started)
+      pthread_cond_signal(&pool->workers[i].work);
+  pthread_mutex_unlock(&pool->mutex);
+  for (i = 0; i < pool->count; i++) {
+    if (pool->workers[i].started) {
+      int error = pthread_join(pool->workers[i].thread, NULL);
+      if (error != 0)
+        croak("PSIQS: pthread_join failed: %s", strerror(error));
+      pool->workers[i].started = 0;
+    }
+  }
+  pool->live = 0;
+}
+
+static void psiqs_pool_destroy(psiqs_pool_t *pool) {
+  uint32_t i;
+  if (pool == NULL)
+    return;
+  psiqs_pool_join(pool);
+  for (i = 0; i < pool->conditions; i++)
+    pthread_cond_destroy(&pool->workers[i].work);
+  pthread_cond_destroy(&pool->done);
+  pthread_mutex_destroy(&pool->mutex);
+  for (i = 0; i < pool->initialized; i++)
+    psiqs_worker_clear(pool->workers + i);
+  free(pool->ready);
+  free(pool->workers);
+  free(pool);
+}
+
+/* Creation failures reduce the pool; no jobs run until initialization ends.
+ * If no worker can start, the caller uses the ordinary serial collector. */
+static psiqs_pool_t *psiqs_pool_create(siqs_ctx_t *ctx) {
+  psiqs_pool_t *pool = (psiqs_pool_t *)calloc(1, sizeof(*pool));
+  uint32_t i;
+  if (pool == NULL)
+    return NULL;
+  pool->count = ctx->nthreads;
+  pool->workers = (psiqs_worker_t *)calloc(pool->count, sizeof(*pool->workers));
+  pool->ready = (uint32_t *)malloc((size_t)pool->count * sizeof(*pool->ready));
+  if (pool->workers == NULL || pool->ready == NULL)
+    goto fail_mutex;
+  if (pthread_mutex_init(&pool->mutex, NULL) != 0)
+    goto fail_mutex;
+  if (pthread_cond_init(&pool->done, NULL) != 0)
+    goto fail_done;
+  for (i = 0; i < pool->count; i++) {
+    psiqs_worker_t *worker = pool->workers + i;
+    psiqs_worker_init(worker, ctx, i);
+    pool->initialized++;
+    worker->pool = pool;
+    worker->index = i;
+    if (pthread_cond_init(&worker->work, NULL) != 0) {
+      psiqs_pool_destroy(pool);
+      return NULL;
+    }
+    pool->conditions++;
+  }
+  for (i = 0; i < pool->count; i++) {
+    psiqs_worker_t *worker = pool->workers + i;
+    int error = pthread_create(&worker->thread, NULL, psiqs_pool_worker, worker);
+    if (error == 0) {
+      worker->started = 1;
+      pool->live++;
+    } else {
+      fprintf(stderr, "PSIQS: pthread_create: %s; reducing worker pool\n",
+              strerror(error));
+    }
+  }
+  if (pool->live == 0) {
+    psiqs_pool_destroy(pool);
+    return NULL;
+  }
+  return pool;
+
+fail_done:
+  pthread_mutex_destroy(&pool->mutex);
+fail_mutex:
+  free(pool->ready);
+  free(pool->workers);
+  free(pool);
+  return NULL;
+}
+
+/* Only the caller assigns families, preserving the single-owner A hash/RNG. */
+static int psiqs_pool_assign(psiqs_pool_t *pool, siqs_ctx_t *ctx,
+                              siqs_poly_t *dispatch, psiqs_worker_t *worker,
+                              uint32_t limit) {
+  if (!psiqs_assign_family(ctx, dispatch, worker, limit))
+    return 0;
+  pthread_mutex_lock(&pool->mutex);
+  worker->state = PSIQS_WORK;
+  pthread_cond_signal(&worker->work);
+  pthread_mutex_unlock(&pool->mutex);
+  return 1;
+}
+
+/* Taking a result acquires every write made by that worker before publication. */
+static psiqs_worker_t *psiqs_pool_take(psiqs_pool_t *pool) {
+  psiqs_worker_t *worker;
+  pthread_mutex_lock(&pool->mutex);
+  while (pool->queued == 0)
+    pthread_cond_wait(&pool->done, &pool->mutex);
+  worker = pool->workers + pool->ready[pool->head];
+  if (++pool->head == pool->count)
+    pool->head = 0;
+  pool->queued--;
+  worker->state = PSIQS_IDLE;
+  pthread_mutex_unlock(&pool->mutex);
+  return worker;
+}
+
+/* A bounded, asynchronous whole-family pool: no per-polynomial locks or graph
+ * sharing.  Reserve polynomial budgets on assignment, refund unused work on
+ * completion, and join every thread before the matrix solver can run. */
 static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
                                    uint32_t target,
                                    uint32_t *next_matrix_check,
                                    uint32_t *family_count,
                                    uint32_t *poly_count) {
-  psiqs_worker_t *workers = (psiqs_worker_t *)siqs_calloc(
-      ctx->nthreads, sizeof(*workers));
-  pthread_t *threads = (pthread_t *)siqs_malloc(
-      (size_t)ctx->nthreads * sizeof(*threads));
-  int *started = (int *)siqs_malloc(
-      (size_t)ctx->nthreads * sizeof(*started));
+  psiqs_pool_t *pool;
   uint32_t i, check_interval = ctx->params.fb_size / 128;
   uint32_t max_polynomials =
       ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
@@ -172,67 +352,49 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       ctx->params.half_interval;
   uint64_t next_report = (uint64_t)*poly_count + report_step;
   uint32_t last_report_count = UINT32_MAX, last_report_polys = UINT32_MAX;
-  int verbose = siqs_verbose_level(), complete = 0;
+  uint32_t remaining, active = 0;
+  int verbose = siqs_verbose_level(), complete = 0, exhausted = 0, ready = 0;
   if (max_polynomials < 1000000U)
     max_polynomials = 1000000U;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
     check_interval = SIQS_MATRIX_CHECK_MIN;
   if (check_interval > SIQS_MATRIX_CHECK_MAX)
     check_interval = SIQS_MATRIX_CHECK_MAX;
-  for (i = 0; i < ctx->nthreads; i++)
-    psiqs_worker_init(&workers[i], ctx, i);
-
-  for (;;) {
-    uint32_t count = 0, remaining = max_polynomials - *poly_count;
-    int exhausted = 0;
-    if (ctx->factor_found || ctx->full_count >= target) {
-      complete = 1;
-      break;
-    }
-    while (count < ctx->nthreads && remaining != 0) {
+  if (ctx->factor_found || ctx->full_count >= target)
+    return 1;
+  if (*poly_count >= max_polynomials)
+    return 0;
+  pool = psiqs_pool_create(ctx);
+  if (pool == NULL) {
+    fprintf(stderr, "PSIQS: worker pool unavailable; using serial collection\n");
+    return siqs_collect_relations(ctx, dispatch, target, next_matrix_check,
+                                  family_count, poly_count);
+  }
+  remaining = max_polynomials - *poly_count;
+  for (i = 0; i < pool->count && remaining != 0; i++) {
+    if (pool->workers[i].started) {
       uint32_t limit = dispatch->b_limit < remaining
                      ? dispatch->b_limit : remaining;
-      if (!psiqs_assign_family(ctx, dispatch, &workers[count], limit)) {
+      if (!psiqs_pool_assign(pool, ctx, dispatch, pool->workers + i, limit)) {
         exhausted = 1;
         break;
       }
       remaining -= limit;
-      count++;
+      active++;
     }
-    if (count == 0)
-      break;
-    *family_count += count;
-    for (i = 0; i < count; i++) {
-      int error = pthread_create(&threads[i], NULL,
-                                 psiqs_sieve_family, &workers[i]);
-      started[i] = error == 0;
-      if (error != 0) {
-        fprintf(stderr, "PSIQS: pthread_create: %s; running family serially\n",
-                strerror(error));
-        psiqs_sieve_family(&workers[i]);
-      }
-    }
-    for (i = 0; i < count; i++) {
-      if (started[i]) {
-        int error = pthread_join(threads[i], NULL);
-        if (error != 0)
-          croak("PSIQS: pthread_join failed: %s", strerror(error));
-      }
-    }
-    for (i = 0; i < count; i++) {
-      *poly_count += workers[i].polynomials;
-      psiqs_merge_worker(ctx, &workers[i]);
-    }
+  }
+  while (active != 0) {
+    psiqs_worker_t *worker = psiqs_pool_take(pool);
+    active--;
+    remaining += worker->limit - worker->polynomials;
+    (*family_count)++;
+    *poly_count += worker->polynomials;
+    psiqs_merge_worker(ctx, worker);
     if (ctx->full_count >= *next_matrix_check && !ctx->factor_found) {
       uint32_t rows, columns;
-      int ready = siqs_matrix_ready(ctx, &rows, &columns);
+      ready = siqs_matrix_ready(ctx, &rows, &columns);
       *next_matrix_check = ctx->full_count + check_interval;
-      if (ready && verbose > 3) {
-        siqs_print_relation_report(ctx, target, *poly_count);
-        last_report_count = ctx->full_count;
-        last_report_polys = *poly_count;
-      }
-      if ((ready && verbose > 3) || verbose > 4) {
+      if (!ready && verbose > 4) {
         printf("# siqs matrix core %u columns, %u rows%s\n",
                columns, rows, ready ? ", ready" : "");
         fflush(stdout);
@@ -252,17 +414,44 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       complete = 1;
       break;
     }
-    if (exhausted || *poly_count >= max_polynomials)
-      break;
+    if (!exhausted && remaining != 0) {
+      uint32_t limit = dispatch->b_limit < remaining
+                     ? dispatch->b_limit : remaining;
+      if (psiqs_pool_assign(pool, ctx, dispatch, worker, limit)) {
+        remaining -= limit;
+        active++;
+      } else {
+        exhausted = 1;
+      }
+    }
+  }
+  psiqs_pool_join(pool);
+  /* No worker can still mutate these buffers.  Include every family that ran,
+   * even if readiness was detected before its completion; canceled jobs have
+   * no results.  Total executed polynomials cannot exceed reserved budgets. */
+  for (i = 0; i < pool->count; i++) {
+    psiqs_worker_t *worker = pool->workers + i;
+    if (worker->state == PSIQS_READY) {
+      (*family_count)++;
+      *poly_count += worker->polynomials;
+      psiqs_merge_worker(ctx, worker);
+    }
+  }
+  if (ctx->factor_found || ctx->full_count >= target)
+    complete = 1;
+  if (ready && verbose > 3) {
+    uint32_t rows, columns;
+    (void)siqs_matrix_ready(ctx, &rows, &columns);
+    siqs_print_relation_report(ctx, target, *poly_count);
+    last_report_count = ctx->full_count;
+    last_report_polys = *poly_count;
+    printf("# siqs matrix core %u columns, %u rows, ready\n", columns, rows);
+    fflush(stdout);
   }
   if (verbose > 3 &&
       (last_report_count != ctx->full_count || last_report_polys != *poly_count))
     siqs_print_relation_report(ctx, target, *poly_count);
-  for (i = 0; i < ctx->nthreads; i++)
-    psiqs_worker_clear(&workers[i]);
-  free(started);
-  free(threads);
-  free(workers);
+  psiqs_pool_destroy(pool);
   return complete;
 }
 

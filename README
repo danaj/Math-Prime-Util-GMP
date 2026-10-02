@@ -80,7 +80,9 @@ The worker count is selected at runtime (default 4, maximum 256, set by
 PSIQS_MAX_THREADS in siqs.h).
 Use -threads 1 for the ordinary serial path.  Inputs through 64 bits and
 inline-solving policies remain serial regardless of the requested count.
-Only relation collection is parallel; graph merging and solving are serial.
+Relation collection uses a persistent worker pool.  The caller merges each
+completed family while other workers continue; graph merging remains serial.
+Large Lanczos solves can also use worker threads.
 The normal Perl module and "make siqs" do not require pthreads.  The parallel
 build is currently standalone-only: its native worker calls into Perl host
 functions have not been audited.  For a direct parallel build, add
