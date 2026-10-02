@@ -37,6 +37,7 @@ simpqs.h
 simpqs.c
 lanczos.h
 lanczos.c
+planczos_inc.c
 simpqs2.h
 simpqs2.c
 siqs.h

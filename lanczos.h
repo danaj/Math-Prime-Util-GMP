@@ -50,4 +50,17 @@ extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                        uint32_t seed2,
                                        uint64_t *mask);
 
+#ifdef PSIQS
+/* Use a per-solve worker pool for large unpacked matrices; otherwise serial. */
+extern uint64_t *la_block_lanczos_threaded(unsigned long nrows,
+                                          unsigned long dense_rows,
+                                          unsigned long ncols,
+                                          la_col_t *cols,
+                                          uint32_t seed1,
+                                          uint32_t seed2,
+                                          uint64_t *mask,
+                                          uint32_t nthreads,
+                                          int retain_all_rows);
+#endif
+
 #endif

@@ -6,7 +6,7 @@
 
   Workers own polynomial/sieve scratch and buffer raw relations.  The caller
   assigns distinct A families and merges each joined batch into one relation
-  graph; factor partition updates and linear algebra remain serial.
+  graph; factor partition updates and relation merging remain serial.
 
   Copyright (c) 2026 Dana Jacobsen
 ============================================================================*/

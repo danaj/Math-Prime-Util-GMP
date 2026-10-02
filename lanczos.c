@@ -53,6 +53,10 @@ typedef struct {
   uint32_t count;
 } nla_row_info_t;
 
+#ifdef PSIQS
+typedef struct nla_pool_t nla_pool_t;
+#endif
+
 typedef struct {
   const la_col_t *cols;
   unsigned long input_rows;
@@ -69,6 +73,9 @@ typedef struct {
   uint64_t *dense_bits;
   size_t *row_offsets;
   uint16_t *row_columns;
+#ifdef PSIQS
+  nla_pool_t *pool;
+#endif
 } nla_matrix_t;
 
 static size_t nla_array_bytes(size_t count, size_t item_size) {
@@ -1027,11 +1034,52 @@ static void nla_matrix_mul_transpose(const nla_matrix_t *matrix,
   }
 }
 
+#ifdef PSIQS
+#include "planczos_inc.c"
+#endif
+
+/* The serial kernels also serve packed matrices and serial-only builds. */
+static void nla_solver_inner_product(const nla_matrix_t *matrix,
+                                      const uint64_t *left,
+                                      const uint64_t *right,
+                                      uint64_t *product,
+                                      uint64_t *table) {
+#ifdef PSIQS
+  if (matrix->pool != NULL) {
+    nla_pool_inner_product(matrix->pool, left, right, product);
+    return;
+  }
+#endif
+  nla_inner_product(left, right, product, matrix->ncols, table);
+}
+
+static void nla_solver_vector_acc(const nla_matrix_t *matrix,
+                                   const uint64_t *vector,
+                                   const uint64_t *small,
+                                   uint64_t *output,
+                                   uint64_t mask,
+                                   uint64_t *table) {
+#ifdef PSIQS
+  if (matrix->pool != NULL) {
+    nla_precompute_small(small, table);
+    nla_pool_vector_acc(matrix->pool, vector, output, mask, table);
+    return;
+  }
+#endif
+  nla_vector_small_mask_acc(vector, small, output, matrix->ncols, mask, table);
+}
+
 static void nla_matrix_mul_symmetric(const nla_matrix_t *matrix,
                                      const uint64_t *input,
                                      uint64_t *output,
                                      uint64_t *row_scratch,
                                      uint64_t *table) {
+#ifdef PSIQS
+  if (matrix->pool != NULL) {
+    nla_pool_mul_symmetric(matrix->pool, input, output, row_scratch);
+    return;
+  }
+#endif
   nla_matrix_mul(matrix, input, row_scratch, table);
   nla_matrix_mul_transpose(matrix, row_scratch, output, table);
 }
@@ -1330,10 +1378,10 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     uint64_t *swap;
     iteration++;
     nla_matrix_mul_symmetric(matrix, v[0], vnext, row_scratch, table);
-    nla_inner_product(v[0], vnext, vt_a_v[0], matrix->ncols, table);
+    nla_solver_inner_product(matrix, v[0], vnext, vt_a_v[0], table);
     if (nla_all_zero(vt_a_v[0]))
       break;
-    nla_inner_product(vnext, vnext, vt_a2_v[0], matrix->ncols, table);
+    nla_solver_inner_product(matrix, vnext, vnext, vt_a2_v[0], table);
 
     dim0 = nla_find_nonsingular(vt_a_v[0], selected[0], selected[1],
                                 dim1, winv[0]);
@@ -1355,23 +1403,21 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     dimensions_solved += dim0;
 
     if (iteration <= 3)
-      nla_inner_product(v[0], initial, vt_v0[0], matrix->ncols, table);
+      nla_solver_inner_product(matrix, v[0], initial, vt_v0[0], table);
 
     for (i = 0; i < 64UL; i++)
       d[i] = vt_a_v[0][i] ^ (vt_a2_v[0][i] & mask0);
     nla_small_multiply(winv[0], d, d, table);
     for (i = 0; i < 64UL; i++)
       d[i] ^= NLA_BIT(i);
-    nla_vector_small_mask_acc(v[0], d, vnext, matrix->ncols,
-                              mask0, table);
+    nla_solver_vector_acc(matrix, v[0], d, vnext, mask0, table);
     nla_small_transpose(d, temporary);
     nla_small_multiply(temporary, vt_v0[0], vt_v0_next, table);
 
     nla_small_multiply(winv[1], vt_a_v[0], e, table);
     for (i = 0; i < 64UL; i++)
       e[i] &= mask0;
-    nla_vector_small_mask_acc(v[1], e, vnext, matrix->ncols,
-                              UINT64_MAX, table);
+    nla_solver_vector_acc(matrix, v[1], e, vnext, UINT64_MAX, table);
     nla_small_transpose(e, temporary);
     nla_small_multiply(temporary, vt_v0[1], e, table);
     for (i = 0; i < 64UL; i++)
@@ -1386,8 +1432,7 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
         temporary[i] = mask0 &
             (vt_a_v[1][i] ^ (vt_a2_v[1][i] & mask1));
       nla_small_multiply(f, temporary, f, table);
-      nla_vector_small_mask_acc(v[2], f, vnext, matrix->ncols,
-                                UINT64_MAX, table);
+      nla_solver_vector_acc(matrix, v[2], f, vnext, UINT64_MAX, table);
       nla_small_transpose(f, temporary);
       nla_small_multiply(temporary, vt_v0[2], f, table);
       for (i = 0; i < 64UL; i++)
@@ -1395,8 +1440,7 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     }
 
     nla_small_multiply(winv[0], vt_v0[0], d, table);
-    nla_vector_small_mask_acc(v[0], d, x, matrix->ncols,
-                              UINT64_MAX, table);
+    nla_solver_vector_acc(matrix, v[0], d, x, UINT64_MAX, table);
 
     swap = v[2]; v[2] = v[1]; v[1] = v[0]; v[0] = vnext; vnext = swap;
     swap = winv[2]; winv[2] = winv[1]; winv[1] = winv[0]; winv[0] = swap;
@@ -1487,7 +1531,8 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
                                   uint32_t seed1,
                                   uint32_t seed2,
                                   uint64_t *mask,
-                                  unsigned int post_rows) {
+                                  unsigned int post_rows,
+                                  uint32_t nthreads) {
   nla_matrix_t matrix;
   uint64_t *result = NULL;
   unsigned int attempt;
@@ -1502,6 +1547,13 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
   }
 
   nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows);
+#ifdef PSIQS
+  matrix.pool = nla_pool_create(&matrix, nthreads);
+  if (matrix.pool != NULL && siqs_verbose_level() > 3)
+    printf("Lanczos using %u threads\n", matrix.pool->nthreads);
+#else
+  (void)nthreads;
+#endif
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
     result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask);
     if (result != NULL && *mask != 0)
@@ -1511,6 +1563,9 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
     if (siqs_verbose_level() > 3)
       printf("linear algebra retry %u\n", attempt + 1U);
   }
+#ifdef PSIQS
+  nla_pool_destroy(matrix.pool);
+#endif
   nla_matrix_clear(&matrix);
   return result;
 }
@@ -1523,7 +1578,7 @@ uint64_t *la_block_lanczos(unsigned long nrows,
                            uint32_t seed2,
                            uint64_t *mask) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, NLA_POST_ROWS);
+                           seed1, seed2, mask, NLA_POST_ROWS, 1U);
 }
 
 uint64_t *la_block_lanczos_wide(unsigned long nrows,
@@ -1534,5 +1589,20 @@ uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                 uint32_t seed2,
                                 uint64_t *mask) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, 0U);
+                           seed1, seed2, mask, 0U, 1U);
 }
+
+#ifdef PSIQS
+uint64_t *la_block_lanczos_threaded(unsigned long nrows,
+                                    unsigned long dense_rows,
+                                    unsigned long ncols,
+                                    la_col_t *cols,
+                                    uint32_t seed1,
+                                    uint32_t seed2,
+                                    uint64_t *mask,
+                                    uint32_t nthreads,
+                                    int retain_all_rows) {
+  return nla_block_lanczos(nrows, dense_rows, ncols, cols, seed1, seed2, mask,
+                           retain_all_rows ? 0U : NLA_POST_ROWS, nthreads);
+}
+#endif

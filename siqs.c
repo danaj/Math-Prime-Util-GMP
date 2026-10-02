@@ -4083,8 +4083,15 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
 static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
                                   unsigned long ncols,
                                   const uint64_t *nullrows, uint64_t mask) {
-  uint32_t dependency;
+  uint32_t dependency, ndeps = 0;
   mpz_t lhs, rhs, power, delta, divisor;
+  if (siqs_verbose_level() > 3) {
+    for (dependency = 0; dependency < 64; dependency++)
+      if (mask & (UINT64_C(1) << dependency))
+        ndeps++;
+    printf("# siqs solver returned %u dependenc%s\n",
+           ndeps, ndeps==1 ? "y" : "ies");
+  }
   mpz_init(lhs);
   mpz_init(rhs);
   mpz_init(power);
@@ -4225,12 +4232,19 @@ static int siqs_solve(siqs_ctx_t *ctx) {
          block_attempt++) {
       seed1 = (uint32_t)siqs_rand64(&ctx->la_rng);
       seed2 = (uint32_t)siqs_rand64(&ctx->la_rng);
+      if (block_attempt != 0 && siqs_verbose_level() > 3)
+        printf("Lanczos did not refine factors; retrying with all rows.\n");
+#ifdef PSIQS
+      if (ctx->nthreads > 1U) {
+        nullrows = la_block_lanczos_threaded(nrows, 0, ncols, columns,
+                                             seed1, seed2, &mask,
+                                             ctx->nthreads, block_attempt != 0);
+      } else
+#endif
       if (block_attempt == 0) {
         nullrows = la_block_lanczos(nrows, 0, ncols, columns,
                                     seed1, seed2, &mask);
       } else {
-        if (siqs_verbose_level() > 3)
-          printf("Lanczos did not refine factors; retrying with all rows.\n");
         nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
                                          seed1, seed2, &mask);
       }
