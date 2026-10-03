@@ -38,7 +38,7 @@ plan tests => 0 + 57
                 + 25  # individual tests for factoring methods
                 + 12  # lower SIQS profile boundaries and recovery
                 + 1   # SIQS even multiplier
-                + 2   # SIQS upper-range gate
+                + 2   # SIQS upper-range acceptance and developer hard cap
                 + 1*$extra # SQUFOF fail case
                 + 7*7  # factor extra tests
                 + 8    # factor in scalar context
@@ -226,17 +226,17 @@ is_deeply(
   ['13835058055282293901', '27670116110564585927'],
   "SIQS factors a balanced 129-bit semiprime"
 );
-# A prime square exercises the inclusive upper gate and post-gate
-# perfect-power shortcut without becoming a high-end collection test.
-my $siqs_366_root =
-  '9194973245195333150150082162901855101712434733101613307';
-my $siqs_366_square =
-  '84547532979857996204021301484416132985524571760699519961339044063216766279467149741424425001493909326159476249';
+# A 370-bit prime square exercises the post-gate perfect-power shortcut
+# without becoming a high-end collection test.
+my $siqs_370_root =
+  '49039857307708443467467104868809893875799651909875259687';
+my $siqs_370_square =
+  '2404907604760405225358828131112281116032698930082118572201504104528041473796643205478038584690926664485687337969';
 is_deeply(
   [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
-      $siqs_366_square, 0) ],
-  [$siqs_366_root, $siqs_366_root],
-  "SIQS accepts its inclusive 366-bit upper boundary"
+      $siqs_370_square, 0) ],
+  [$siqs_370_root, $siqs_370_root],
+  "SIQS accepts a 370-bit prime square"
 );
 # Keep the rejected input a balanced semiprime so future perfect-power and
 # small-factor pretests cannot make this upper-gate check unexpectedly split.
@@ -246,7 +246,7 @@ is_deeply(
   [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
       $siqs_432_semiprime, 0) ],
   [$siqs_432_semiprime],
-  "SIQS leaves a 432-bit input outside its supported range"
+  "SIQS leaves a 432-bit input beyond its internal hard cap"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('194927', 0) ],
@@ -287,7 +287,7 @@ is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(
       '307973812251397', 0) ],
   ['15106783', '20386459'],
-  "SIQS q=1 recovery splits an exhausted q=2 input"
+  "SIQS splits a formerly exhausted q=2 input"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(

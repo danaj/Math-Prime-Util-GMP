@@ -517,7 +517,7 @@ static void *siqs_realloc(void *old, size_t size) {
  * relations. */
 static size_t siqs_raw_allocation_size(uint32_t nfactors) {
   size_t size = sizeof(siqs_raw_relation_t);
-  if ((size_t)nfactors > (SIZE_MAX - size) / sizeof(uint32_t))
+  if ((size_t)nfactors > ((size_t)-1 - size) / sizeof(uint32_t))
     croak("SIQS: raw relation factor storage is too large");
   return size + (size_t)nfactors * sizeof(uint32_t);
 }
@@ -527,7 +527,7 @@ static void *siqs_raw_arena_alloc(siqs_raw_arena_t *arena, size_t size) {
   siqs_raw_block_t *block = arena->current;
   unsigned char *data;
   void *result;
-  if (size > SIZE_MAX - (alignment - 1U))
+  if (size > (size_t)-1 - (alignment - 1U))
     croak("SIQS: raw relation allocation is too large");
   size = (size + alignment - 1U) & ~(alignment - 1U);
   if (block == NULL || size > block->capacity - block->used) {
@@ -539,7 +539,7 @@ static void *siqs_raw_arena_alloc(siqs_raw_arena_t *arena, size_t size) {
     }
     if (allocation < sizeof(*block) ||
         allocation - sizeof(*block) < size) {
-      if (size > SIZE_MAX - sizeof(*block))
+      if (size > (size_t)-1 - sizeof(*block))
         croak("SIQS: raw relation block is too large");
       allocation = sizeof(*block) + size;
     }
@@ -561,7 +561,7 @@ static void siqs_raw_arena_discard_last(siqs_raw_arena_t *arena,
   const size_t alignment = sizeof(uint64_t);
   siqs_raw_block_t *block = arena->current;
   unsigned char *data;
-  if (block == NULL || size > SIZE_MAX - (alignment - 1U))
+  if (block == NULL || size > (size_t)-1 - (alignment - 1U))
     return;
   size = (size + alignment - 1U) & ~(alignment - 1U);
   if (size > block->used)
@@ -579,6 +579,24 @@ static void siqs_raw_arena_clear(siqs_raw_arena_t *arena) {
     block = previous;
   }
   arena->current = NULL;
+}
+
+/* Exact floor cube root, adapted from misc_ui.h's icbrt.  Fixed-width
+ * arithmetic avoids both UV-width differences and a C99 libm dependency. */
+static uint64_t siqs_icbrt_u64(uint64_t n) {
+  uint64_t b, root = 0;
+  int shift = 63;
+  if (n >= UINT64_C(18446724184312856125))
+    return 2642245U;
+  for ( ; shift >= 0; shift -= 3) {
+    root += root;
+    b = 3U * root * (root + 1U) + 1U;
+    if ((n >> shift) >= b) {
+      n -= b << shift;
+      root++;
+    }
+  }
+  return root;
 }
 
 static uint64_t siqs_mix64(uint64_t x) {
@@ -1024,8 +1042,9 @@ typedef struct {
  * 96 through 192 bits.  Below 96 the smooth-only policies were inconsistent;
  * from 193 through 269 a prime-401 floor was both simpler and faster than
  * allowing the factor-base formula to keep growing.  At 270 the same floor
- * saved about 7%; later boundary tests retained it through q=11's 310-bit
- * endpoint before q=12 resumes the prime-384 floor at 311.  Bias 10, 12, 14,
+ * saved about 7%; later boundary tests initially retained it through 310.
+ * The safety crossover now keeps the prime-401 floor through q=11's 299-bit
+ * endpoint, then q=12 resumes the prime-384 floor at 300.  Bias 10, 12, 14,
  * 16, and 18 supply the corresponding extra coarse-filter headroom.
  * Full-factor sweeps put the first transitions at existing 117, 130, and
  * 167-bit policy boundaries;
@@ -2184,7 +2203,7 @@ static void siqs_graph_reserve_cycle_path(uint32_t **values,
       croak("SIQS: relation cycle is too large");
     size *= 2;
   }
-  if ((size_t)size > SIZE_MAX / sizeof(**values))
+  if ((size_t)size > (size_t)-1 / sizeof(**values))
     croak("SIQS: relation cycle is too large");
   *values = (uint32_t *)siqs_realloc(
       *values, (size_t)size * sizeof(**values));
@@ -3006,7 +3025,7 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
    * their expected log contribution as the byte initializer, start at about
    * cbrt(FB), and replace that estimate with exact division in the candidate
    * postfilter. */
-  ctx->params.sieve_start = (uint32_t)cbrt((double)ctx->params.fb_size);
+  ctx->params.sieve_start = (uint32_t)siqs_icbrt_u64(ctx->params.fb_size);
   if (ctx->params.sieve_start < 1)
     ctx->params.sieve_start = 1;
   if (ctx->params.sieve_start_index_exponent > 0.0) {
@@ -4105,11 +4124,11 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
    * regions; the spare capacity normally avoids every subsequent growth. */
   if (entries > ctx->matrix_ready_incidence_alloc) {
     size_t new_alloc;
-    if (entries > SIZE_MAX - 1024U ||
-        entries / 2U > SIZE_MAX - 1024U - entries)
+    if (entries > (size_t)-1 - 1024U ||
+        entries / 2U > (size_t)-1 - 1024U - entries)
       croak("SIQS: matrix readiness incidence is too large");
     new_alloc = entries + entries / 2U + 1024U;
-    if (new_alloc > SIZE_MAX / sizeof(*incidence))
+    if (new_alloc > (size_t)-1 / sizeof(*incidence))
       croak("SIQS: matrix readiness incidence is too large");
     ctx->matrix_ready_incidence = (uint32_t *)siqs_realloc(
         ctx->matrix_ready_incidence,
@@ -4745,16 +4764,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
   if (ctx->inline_matrix_solves) {
     (void)siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
                                  &family_count, &poly_count);
-    /* An exhausted low family can leave a partial retry batch.  Give those
-     * new relations one final matrix attempt before a wider policy restart. */
-    if (!ctx->factor_found &&
-        ctx->full_count > ctx->matrix_last_count &&
-        ctx->full_count >= SIQS_MATRIX_EXTRA_RELS(ctx)) {
-      ctx->matrix_last_count = ctx->full_count;
-      if (verbose > 2)
-        printf("# siqs linear algebra with %u relations\n", ctx->full_count);
-      (void)siqs_solve(ctx);
-    }
   } else {
     while (!ctx->factor_found && target <= target_limit) {
       int collected;
@@ -4772,6 +4781,7 @@ static int siqs_run(siqs_ctx_t *ctx) {
         break;
       if (verbose > 2)
         printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+      ctx->matrix_last_count = ctx->full_count;
       if (siqs_solve(ctx))
         break;
       /* Readiness may stop below target, while one polynomial may overshoot
@@ -4780,6 +4790,17 @@ static int siqs_run(siqs_ctx_t *ctx) {
       target = ctx->full_count + retry_batch;
       next_matrix_check = target;
     }
+  }
+  /* Exhaustion can leave an untested partial batch in either collector.
+   * Try its new relations once before discarding the context or recovering
+   * under a wider policy; never retry a matrix with no additional columns. */
+  if (!ctx->factor_found &&
+      ctx->full_count > ctx->matrix_last_count &&
+      ctx->full_count >= SIQS_MATRIX_EXTRA_RELS(ctx)) {
+    ctx->matrix_last_count = ctx->full_count;
+    if (verbose > 2)
+      printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+    (void)siqs_solve(ctx);
   }
   if (verbose > 2)
     printf("# siqs used %u families, %u polynomials, %llu candidates, "

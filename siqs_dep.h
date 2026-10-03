@@ -4,7 +4,8 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-#ifdef STANDALONE
+/* The ECPP standalone build retains the full MPU-GMP host functions. */
+#if defined(STANDALONE) && !defined(STANDALONE_ECPP)
 
 extern int siqs_verbose_level(void);
 extern int siqs_is_prob_prime(const mpz_t n);

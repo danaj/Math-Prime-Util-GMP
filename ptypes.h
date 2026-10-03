@@ -26,7 +26,16 @@ typedef __int8 int8_t;
   #define UVCONST(x) ((unsigned long)x##UL)
   #define UVuf "lu"
   #define IVdf "ld"
-  #define croak(fmt,...)            do { printf(fmt,##__VA_ARGS__); exit(3); } while(0)
+  /* Fatal diagnostics belong on stderr; some callers already supply '\n'. */
+  #define croak(fmt,...)            do { \
+    const char *const _mpu_croak_fmt = (fmt); \
+    const char *_mpu_croak_end = _mpu_croak_fmt; \
+    fprintf(stderr, _mpu_croak_fmt,##__VA_ARGS__); \
+    while (*_mpu_croak_end != '\0') _mpu_croak_end++; \
+    if (_mpu_croak_end == _mpu_croak_fmt || _mpu_croak_end[-1] != '\n') \
+      fputc('\n', stderr); \
+    exit(3); \
+  } while(0)
   #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
   #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
   #define Renew(mem, size, type)    mem =(type*)realloc(mem,(size)*sizeof(type))
