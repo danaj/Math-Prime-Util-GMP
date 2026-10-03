@@ -156,5 +156,9 @@ mpu-siqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
 mpu-psiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
 
+# Build only: an optional synthetic matrix scaling tool, not a Perl test.
+lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/lanczos-bench.c -lm
+
 MAKE_FRAG
 }

@@ -131,6 +131,8 @@ tools/siqs-check-thread-seams.h
 tools/siqs-check.pl
 tools/README-siqs-check.txt
 tools/README-siqs-embedding.txt
+tools/lanczos-bench.c
+tools/README-lanczos-bench.txt
 tools/parse-siqs-bands.pl
 xt/arithmod.pl
 xt/bench-ispower.pl
