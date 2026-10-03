@@ -4,7 +4,20 @@
 #ifndef SIQS_CHECK_LANCZOS_SOURCE
 # define SIQS_CHECK_LANCZOS_SOURCE "../lanczos.c"
 #endif
+#include "siqs-check-thread-seams.h"
 #include SIQS_CHECK_LANCZOS_SOURCE
+#undef malloc
+#undef calloc
+#undef pthread_create
+#undef pthread_join
+#undef pthread_mutex_init
+#undef pthread_mutex_destroy
+#undef pthread_cond_init
+#undef pthread_cond_destroy
+#undef pthread_mutex_unlock
+#undef pthread_cond_signal
+#undef fprintf
+#undef exit
 
 static uint32_t matrix_random_state = UINT32_C(0x183a97bd);
 static uint32_t matrix_random(void) {

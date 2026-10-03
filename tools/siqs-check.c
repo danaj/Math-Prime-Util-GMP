@@ -16,10 +16,23 @@
 #define main siqs_check_unused_driver_main
 #include "../mpu-siqs.c"
 #undef main
+#include "siqs-check-thread-seams.h"
 #ifndef SIQS_CHECK_SOURCE
 # define SIQS_CHECK_SOURCE "../siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
+#undef malloc
+#undef calloc
+#undef pthread_create
+#undef pthread_join
+#undef pthread_mutex_init
+#undef pthread_mutex_destroy
+#undef pthread_cond_init
+#undef pthread_cond_destroy
+#undef pthread_mutex_unlock
+#undef pthread_cond_signal
+#undef fprintf
+#undef exit
 
 static int extended, detailed;
 static const char *suite_name = "startup";
@@ -467,6 +480,7 @@ static void suite_sieve(void) {
 
 #include "siqs-check-relations.inc.c"
 #include "siqs-check-matrix.inc.c"
+#include "siqs-check-workers.inc.c"
 
 typedef struct {
   const char *name;
@@ -480,11 +494,13 @@ static const check_suite_t suites[] = {
   {"relations", "congruences, cycle paths, ownership, partition and exponent limits",
    suite_relations},
   {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
-   suite_matrix}
+   suite_matrix},
+  {"workers", "pthread pool lifecycle, reuse, shutdown and injected failures",
+   suite_workers}
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|sieve|relations|matrix] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|sieve|relations|matrix|workers] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

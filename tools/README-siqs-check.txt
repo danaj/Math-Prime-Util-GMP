@@ -17,7 +17,7 @@ After "perl Makefile.PL":
 
 The Make target uses only a core-Perl (5.10+) build wrapper, the C compiler,
 and GMP.
-check-psiqs runs the same suites with the optional pthread Lanczos checks
+check-psiqs runs the same suites with the optional pthread Lanczos/worker checks
 enabled by default. Both targets share SIQS_CHECK_ARGS for additional options.
 The wrapper compiles one checker into a temporary directory and removes it
 afterward. It does not require Math::Prime::Util or Math::Prime::Util::GMP to
@@ -31,14 +31,14 @@ Direct build without Perl or a generated Makefile, from the repository root:
   /tmp/siqs-check --extended --verbose
 
 Add -march=native only for a binary intended for the local machine.
-Add -DPSIQS -pthread to include the optional parallel Lanczos checks.
+Add -DPSIQS -pthread to include the optional Lanczos/worker pool checks.
 Do not compile lanczos.c separately: the matrix suite includes it to inspect
 private packing/kernels, just as the main checker includes siqs.c.
 
 Suites and options
 ------------------
 
-One executable runs the named suites ("sieve", "relations", "matrix"). The default
+One executable runs the named suites ("sieve", "relations", "matrix", "workers"). The default
 "all" selection runs every registered suite. --list describes available
 suites; --suite selects one. --extended adds more fixtures, policy endpoints,
 and polynomials. --verbose reports individual polynomial/matrix fixtures. New suites can
@@ -48,6 +48,7 @@ be registered without creating separate executables or a large framework.
   perl tools/siqs-check.pl --suite sieve --extended
   perl tools/siqs-check.pl --suite relations
   perl tools/siqs-check.pl --suite matrix --threaded --extended
+  make check-psiqs SIQS_CHECK_ARGS='--suite workers'
   perl tools/siqs-check.pl --block-size 32768
   perl tools/siqs-check.pl --block-size 0
   perl tools/siqs-check.pl --sanitize
@@ -150,6 +151,53 @@ the same serial/threaded solver output; packed/small matrices also exercise
 the serial fallback. The extended suite includes an actually threaded solve
 above 32768 columns. These are correctness checks, not scaling benchmarks.
 
-Worker lifecycle/allocation failure injection and embedding/prime-cache lifetime
-checks remain separate future suites. No production code changes are required
-for these relation/matrix tests.
+No production code changes are required for these relation/matrix tests.
+
+Workers suite
+-------------
+
+Enabled by check-psiqs or --threaded; otherwise it explicitly reports SKIP.
+Small genuine polynomial jobs check 1/2/4-worker reuse, independent scratch,
+distinct A families, exactly-once merges, and reuse after a forced wide
+candidate-map allocation. Buffered GMP records must be cleared before their
+arena is reset. Normal blocks are retained; older/oversized blocks are released.
+Synthetic buffers check deep-copy ownership, cross-worker cycles, and factor
+discovery during a partial merge or without any emitted relation.
+
+Test-only pthread gates create a completed/READY worker, a running worker,
+an assigned job not yet started, and an idle worker at shutdown. Gates do not
+use sleeps or rely on which core the OS chooses. Workers must join before
+their results are drained or scratch freed. A short final polynomial budget
+checks reserved versus executed work and the collector's serial fallback.
+
+Test-only wrappers inject top-level allocation failures, mutex/condition
+initialization failures, and selective or total pthread_create failures.
+The regular pool must retain successfully started workers, skip failed slots,
+and join/clear initialized resources exactly once. The extended suite requests
+256 slots but permits only two real workers to start; it does not launch 256
+threads. Failed-slot scratch remains allocated until final destruction, as
+specified by the current policy; these tests do not add early scratch release.
+Retained Lanczos failure cases instead require serial fallback and fixed-seed
+output identical to serial. Resource counters must return to zero.
+
+Repeated public 1/2/4-thread calls and two simultaneous callers verify exact
+prime partitions after one host prime-cache startup. Startup/shutdown ownership
+is unchanged. On POSIX hosts, child processes verify invalid counts 0/257 and
+the existing fatal worker-scratch allocation policy: stderr diagnostics and
+exit status 3, with no stdout. Those cases explicitly skip on Windows.
+
+A POSIX test-only 120-second watchdog turns hangs into failures. It is not a
+production timer; override SIQS_CHECK_WORKER_TIMEOUT in --cflags for a slow
+host or set it to zero when debugging. Fatal-case children have a separate
+20-second bound. The wrappers/scheduler are compiled only into the checker;
+ordinary production source is not rewritten or exported for testing.
+
+ASan/UBSan can be used as above. Where ThreadSanitizer is supported:
+
+  make check-psiqs SIQS_CFLAGS='-O1 -g -fsanitize=thread' \
+    SIQS_CHECK_ARGS='--suite workers'
+
+Do not combine ThreadSanitizer with --sanitize (ASan). Normal worker jobs do
+not acquire the allocation-injection lock, to avoid hiding races. These are
+regression fixtures, not an exhaustive proof of every possible schedule.
+Embedding/prime-cache lifetime documentation remains a separate task.
