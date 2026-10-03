@@ -2268,11 +2268,17 @@ static void siqs_graph_reroot(siqs_graph_t *g, uint32_t endpoint) {
   }
 }
 
-static void siqs_touch_factor(siqs_ctx_t *ctx, uint32_t row,
-                              uint32_t exponent) {
-  if (ctx->factor_counts[row] == 0)
+/* A sum too large for full-relation storage invalidates only this cycle or
+ * dependency.  Leave scratch unchanged on failure; callers reset and skip it. */
+static int siqs_touch_factor(siqs_ctx_t *ctx, uint32_t row,
+                             uint32_t exponent) {
+  uint32_t count = ctx->factor_counts[row];
+  if (exponent > UINT32_MAX - count)
+    return 0;
+  if (count == 0 && exponent != 0)
     ctx->factor_touched[ctx->factor_touched_count++] = row;
-  ctx->factor_counts[row] += exponent;
+  ctx->factor_counts[row] = count + exponent;
+  return 1;
 }
 
 static void siqs_reset_touched_factors(siqs_ctx_t *ctx) {
@@ -2303,9 +2309,15 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
     const siqs_raw_relation_t *r = ctx->raw[edges[i]];
     mpz_mul(y, y, r->y);
     mpz_mod(y, y, ctx->n);
-    for (j = 0; j < r->nfactors; j++)
-      siqs_touch_factor(ctx, siqs_raw_factor_row(r, j),
-                       siqs_raw_factor_exponent(r, j));
+    for (j = 0; j < r->nfactors; j++) {
+      if (!siqs_touch_factor(ctx, siqs_raw_factor_row(r, j),
+                            siqs_raw_factor_exponent(r, j))) {
+        if (siqs_verbose_level() > 2)
+          printf("# siqs skipped cycle: factor exponent overflow\n");
+        siqs_reset_touched_factors(ctx);
+        return;
+      }
+    }
   }
   for (i = 0; i < vertex_count; i++) {
     uint64_t lp = ctx->graph.vertices[vertices[i]].value;
@@ -4234,9 +4246,15 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
         const siqs_full_relation_t *r = ctx->full[columns[i].orig];
         mpz_mul(lhs, lhs, r->y);
         mpz_mod(lhs, lhs, ctx->n);
-        for (j = 0; j < r->nfactors; j++)
-          siqs_touch_factor(ctx, r->factors[j].row,
-                           r->factors[j].exponent);
+        for (j = 0; j < r->nfactors; j++) {
+          if (!siqs_touch_factor(ctx, r->factors[j].row,
+                                r->factors[j].exponent)) {
+            if (siqs_verbose_level() > 2)
+              printf("# siqs skipped dependency %u: factor exponent "
+                     "overflow\n", dependency);
+            goto next_dependency;
+          }
+        }
       }
     }
     for (j = 0; j < ctx->factor_touched_count; j++) {
@@ -4287,6 +4305,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
         break;
       }
     }
+next_dependency:
     siqs_reset_touched_factors(ctx);
   }
   mpz_clear(lhs);
