@@ -175,8 +175,11 @@ initialization failures, and selective or total pthread_create failures.
 The regular pool must retain successfully started workers, skip failed slots,
 and join/clear initialized resources exactly once. The extended suite requests
 256 slots but permits only two real workers to start; it does not launch 256
-threads. Failed-slot scratch remains allocated until final destruction, as
-specified by the current policy; these tests do not add early scratch release.
+threads. Failed-slot scratch must be released immediately, while its condition
+is kept for teardown. Scratch ownership is independent of the started flag;
+joining clears thread lifetime but must not lose ownership or cause a double
+clear. The initial allocation peak is unchanged, and worker-scratch allocation
+failure still follows the existing fatal policy.
 Retained Lanczos failure cases instead require serial fallback and fixed-seed
 output identical to serial. Resource counters must return to zero.
 

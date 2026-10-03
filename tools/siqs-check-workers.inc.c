@@ -81,6 +81,7 @@ static void worker_reuse(void) {
     pool = psiqs_pool_create(&f.ctx);
     CHECK(pool != NULL && pool->live == counts[t]);
     CHECK(pool->initialized == counts[t] && pool->conditions == counts[t]);
+    for (i = 0; i < counts[t]; i++) CHECK(pool->workers[i].scratch_initialized);
     for (i = 0; i < 32; i++) mpz_init(assigned[i]);
     /* Deliberately migrate one parked worker's map beyond 16-bit entries. */
     memset(pool->workers[0].ctx.sieve, 128, pool->workers[0].ctx.sieve_length);
@@ -313,8 +314,17 @@ static void worker_creation_failures(void) {
   CHECK(pool->workers[0].started && !pool->workers[1].started);
   CHECK(pool->workers[2].started && !pool->workers[3].started);
   CHECK(seam_warnings == 2);
-  /* Failed slots retain initialized scratch under the current policy. */
-  CHECK(pool->workers[1].ctx.fb != NULL && pool->workers[3].ctx.sieve != NULL);
+  for (i = 0; i < pool->count; i++) {
+    psiqs_worker_t *w = pool->workers + i;
+    CHECK(w->scratch_initialized == w->started);
+    if (w->started) CHECK(w->ctx.fb != NULL && w->ctx.sieve != NULL);
+    else {
+      CHECK(w->ctx.fb == NULL && w->ctx.sieve == NULL && w->poly.a_index == NULL);
+      CHECK(w->result.values == NULL && w->result.primality == NULL && w->result.count == 0);
+      psiqs_worker_clear(w); /* Re-clearing an unowned slot must be harmless. */
+      CHECK(!w->scratch_initialized);
+    }
+  }
   for (i = 0; i < pool->count; i++) if (pool->workers[i].started)
     CHECK(psiqs_pool_assign(pool, &f.ctx, &f.dispatch, pool->workers + i, 1));
   for (i = 0; i < 2; i++) {
@@ -325,6 +335,12 @@ static void worker_creation_failures(void) {
   }
   CHECK(seen == 5U);
   CHECK(pool->workers[1].polynomials == 0 && pool->workers[3].polynomials == 0);
+  psiqs_pool_join(pool);
+  for (i = 0; i < pool->count; i++) {
+    CHECK(!pool->workers[i].started);
+    /* Joining changes thread lifetime, not scratch ownership. */
+    CHECK(pool->workers[i].scratch_initialized == (i == 0 || i == 2));
+  }
   psiqs_pool_destroy(pool); worker_resources_clear(); worker_fault_reset();
   if (extended) {
     f.ctx.nthreads = PSIQS_MAX_THREADS;
@@ -333,6 +349,12 @@ static void worker_creation_failures(void) {
     CHECK(pool != NULL && pool->count == PSIQS_MAX_THREADS && pool->live == 2);
     CHECK(seam_thread_calls == PSIQS_MAX_THREADS && seam_created == 2);
     CHECK(seam_warnings == PSIQS_MAX_THREADS - 2U);
+    for (i = 0; i < pool->count; i++) {
+      psiqs_worker_t *w = pool->workers + i;
+      CHECK(w->scratch_initialized == (i < 2));
+      CHECK((w->ctx.fb != NULL) == (i < 2));
+      CHECK((w->result.values != NULL) == (i < 2));
+    }
     psiqs_pool_destroy(pool); worker_resources_clear(); worker_fault_reset();
   }
   worker_fixture_close(&f);

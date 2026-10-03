@@ -35,6 +35,7 @@ typedef struct {
   uint32_t index;
   psiqs_worker_state_t state;
   int started;
+  int scratch_initialized; /* Independent of thread lifetime and condition. */
 } psiqs_worker_t;
 
 struct psiqs_pool_t {
@@ -77,6 +78,7 @@ static void psiqs_worker_init(psiqs_worker_t *worker,
   ctx->result = &worker->result;
   siqs_workspace_allocate(ctx);
   siqs_poly_init(ctx, &worker->poly);
+  worker->scratch_initialized = 1;
 }
 
 /* Select distinct A values serially, then let each worker initialize roots. */
@@ -179,10 +181,14 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
 }
 
 static void psiqs_worker_clear(psiqs_worker_t *worker) {
+  if (!worker->scratch_initialized)
+    return;
   siqs_poly_clear(&worker->ctx, &worker->poly);
   siqs_ctx_clear(&worker->ctx);
   free(worker->result.primality);
   gmp_siqs_free(worker->result.values, worker->result.count);
+  memset(&worker->result, 0, sizeof(worker->result));
+  worker->scratch_initialized = 0;
 }
 
 /* Each worker has one result buffer.  Publishing it parks that worker until
@@ -289,6 +295,9 @@ static psiqs_pool_t *psiqs_pool_create(siqs_ctx_t *ctx) {
     } else {
       fprintf(stderr, "PSIQS: pthread_create: %s; reducing worker pool\n",
               strerror(error));
+      /* No thread owns this slot. Keep its condition for pool teardown, but
+       * release scratch now; the ownership flag prevents a second clear. */
+      psiqs_worker_clear(worker);
     }
   }
   if (pool->live == 0) {
