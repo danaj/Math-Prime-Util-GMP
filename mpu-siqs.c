@@ -11,6 +11,10 @@
   Add -march=native when building a binary for the local machine only.
   Add -DPSIQS -pthread and name the output mpu-psiqs for the parallel build.
 
+  This driver owns one prime-cache startup/shutdown around all its inputs.
+  Custom C hosts must own the same lifetime and supply the siqs_dep.h adapters;
+  see tools/README-siqs-embedding.txt. Do not link this main into another driver.
+
   Copyright (c) 2026 Dana Jacobsen
 
 ============================================================================*/
@@ -327,6 +331,7 @@ int main(int argc, char **argv) {
     argument++;
   }
 
+  /* One host-owned cache lifetime, shared by every input/worker in this run. */
   prime_iterator_global_startup();
   mpz_init(n);
   if (argument < argc) {

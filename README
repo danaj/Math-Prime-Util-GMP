@@ -96,6 +96,12 @@ functions have not been audited.  For a direct parallel build, add
 -DPSIQS -pthread to the command above and name the output mpu-psiqs.
 psiqs_inc.c is included by siqs.c; do not compile it separately.
 
+To call gmp_siqs/gmp_psiqs from a custom C host, see siqs.h and
+tools/README-siqs-embedding.txt. The host must initialize the shared prime cache
+once before calls and shut it down only after all calls/caller threads finish.
+Standalone embedding also requires the three siqs_dep.h host adapters. Existing
+MPU-GMP/command-line hosts already own initialization; do not initialize again.
+
 
 DEPENDENCIES
 

@@ -203,4 +203,6 @@ ASan/UBSan can be used as above. Where ThreadSanitizer is supported:
 Do not combine ThreadSanitizer with --sanitize (ASan). Normal worker jobs do
 not acquire the allocation-injection lock, to avoid hiding races. These are
 regression fixtures, not an exhaustive proof of every possible schedule.
-Embedding/prime-cache lifetime documentation remains a separate task.
+The embedding/prime-cache lifetime contract is documented in siqs.h and
+tools/README-siqs-embedding.txt. The simultaneous-call checks use that contract:
+one startup, stable cache during all callers, then one shutdown after joins.
