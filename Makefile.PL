@@ -137,13 +137,16 @@ SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
 SIQS_CHECK_ARGS =
 
-.PHONY: siqs psiqs check-siqs test-siqs
+.PHONY: siqs psiqs check-siqs check-psiqs test-siqs
 siqs: mpu-siqs
 psiqs: mpu-psiqs
 
 # Optional standalone health checks; not dependencies of Perl's test target.
 check-siqs:
 	$(PERLRUN) tools/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" $(SIQS_CHECK_ARGS)
+
+check-psiqs:
+	$(PERLRUN) tools/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --threaded $(SIQS_CHECK_ARGS)
 
 test-siqs: check-siqs
 

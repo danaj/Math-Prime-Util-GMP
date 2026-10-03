@@ -78,7 +78,8 @@ The standalone POSIX-threaded build shares the same SIQS implementation:
 
 Optional standalone health checks can be run with "make check-siqs" (also
 "make test-siqs").  These do not build the Perl module and are not part of
-the regular test suite.  See tools/README-siqs-check.txt for extended checks,
+the regular test suite.  "make check-psiqs" adds the pthread Lanczos checks.
+See tools/README-siqs-check.txt for extended checks,
 sanitizers, and a direct C build that does not require Perl.
 
 The worker count is selected at runtime (default 4, maximum 256, set by

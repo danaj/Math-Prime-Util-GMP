@@ -11,7 +11,7 @@ use Text::ParseWords qw(shellwords);
 
 # Build a standalone checker in a disposable directory.  No blib, XS build,
 # MPU modules, or source rewriting.  The C executable owns suite selection.
-my ($extended, $verbose, $sanitize, $debug, $keep, $list, $help, $block);
+my ($extended, $verbose, $sanitize, $debug, $keep, $list, $help, $block, $threaded);
 my $suite = 'all';
 my $cc = $ENV{CC} // $Config{cc};
 my $cflags = '-O3';
@@ -20,6 +20,7 @@ Getopt::Long::Configure(qw(no_auto_abbrev no_ignore_case));
 GetOptions('suite=s' => \$suite, 'extended' => \$extended, 'verbose' => \$verbose,
   'sanitize' => \$sanitize, 'debug' => \$debug, 'keep' => \$keep,
   'list' => \$list, 'help' => \$help, 'block-size=i' => \$block,
+  'threaded' => \$threaded,
   'cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags)
   or usage(2);
 usage(0) if $help;
@@ -34,9 +35,10 @@ push @command, '-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recov
   if $sanitize;
 push @command, '-DSTANDALONE', "-I$root";
 push @command, '-DSIQS_DEBUG' if $debug;
+push @command, '-DPSIQS', '-pthread' if $threaded;
 push @command, "-DSIQS_SIEVE_BLOCK_SIZE=$block" if defined $block;
 push @command, '-o', $binary, map {File::Spec->catfile($root, $_)}
-  qw(tools/siqs-check.c lanczos.c prime_iterator.c squfof126.c pbrent63.c);
+  qw(tools/siqs-check.c prime_iterator.c squfof126.c pbrent63.c);
 push @command, shellwords($ldflags);
 print "Building standalone SIQS checker", ($sanitize ? ' (ASan/UBSan)' : ''), "\n";
 $| = 1;
@@ -56,9 +58,10 @@ sub usage {
   my ($status) = @_;
   print <<'USAGE';
 usage: perl tools/siqs-check.pl [options]
-  --suite all|sieve     Run one named suite, or all (default).
+  --suite NAME          Run sieve, relations, matrix, or all (default).
   --extended           Broader fixtures and more polynomials, not full factors.
-  --verbose            Report each real-polynomial setup.
+  --verbose            Report individual polynomial and matrix fixtures.
+  --threaded           Also check pthread Lanczos (requires pthread support).
   --block-size N       Build with another block maximum (0 disables blocking).
   --sanitize           Enable ASan/UBSan; compiler/runtime support required.
   --debug              Also enable production SIQS_DEBUG assertions.

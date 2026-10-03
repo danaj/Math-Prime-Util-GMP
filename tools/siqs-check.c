@@ -2,7 +2,7 @@
  *
  * Direct build from the repository root (GMP required, Perl not required):
  *   cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
- *     lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+ *     prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
  *   /tmp/siqs-check --suite sieve
  *
  * Include the current implementation to test its private interfaces without
@@ -465,6 +465,9 @@ static void suite_sieve(void) {
          comparisons, maximum_score);
 }
 
+#include "siqs-check-relations.inc.c"
+#include "siqs-check-matrix.inc.c"
+
 typedef struct {
   const char *name;
   const char *description;
@@ -473,11 +476,15 @@ typedef struct {
 
 static const check_suite_t suites[] = {
   {"sieve", "wide-score oracle, byte kernels, blocking, roots, candidate maps",
-   suite_sieve}
+   suite_sieve},
+  {"relations", "congruences, cycle paths, ownership, partition and exponent limits",
+   suite_relations},
+  {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
+   suite_matrix}
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|sieve] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|sieve|relations|matrix] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

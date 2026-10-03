@@ -124,6 +124,8 @@ t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
 tools/siqs-check.c
+tools/siqs-check-relations.inc.c
+tools/siqs-check-matrix.inc.c
 tools/siqs-check.pl
 tools/README-siqs-check.txt
 tools/parse-siqs-bands.pl
