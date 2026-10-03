@@ -18,7 +18,7 @@
  * pool and its per-worker row storage independently of the sieve threads. */
 #ifndef NLA_MAX_THREADS
 /* Provisional cap; fewer workers may be faster. Revisit after scaling tests. */
-#define NLA_MAX_THREADS 64U
+#define NLA_MAX_THREADS 32U
 #endif
 #if NLA_MAX_THREADS < 1
 #error "NLA_MAX_THREADS must be positive"

@@ -20,7 +20,7 @@
 #if !defined(STANDALONE) || !defined(PSIQS)
 #error "Build lanczos-bench with -DSTANDALONE -DPSIQS -pthread"
 #endif
-/* The benchmark may explore beyond production's provisional 64-thread cap.
+/* The benchmark may explore beyond production's provisional 32-thread cap.
  * This does not change the solver cap in siqs/psiqs builds. */
 #ifndef NLA_MAX_THREADS
 #define NLA_MAX_THREADS 256U

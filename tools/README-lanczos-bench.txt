@@ -54,7 +54,7 @@ The harness includes lanczos.c to observe actual thread count and execute its
 unchanged private recurrence. Its small setup/retry wrapper mirrors the public
 entry point. No production sources, algorithms, or pool policies are changed.
 The BENCHMARK build defaults NLA_MAX_THREADS to 256 so a 128/192-core machine
-can explore higher counts; production's provisional 64-thread cap is unchanged.
+can explore higher counts; production's provisional 32-thread cap is unchanged.
 Override the harness cap at compilation with -DNLA_MAX_THREADS=N if desired.
 Out-of-range requests are rejected. Actual pool size is recorded; a packed
 small matrix (at most 32768 columns) or failed pool creation is clearly marked
