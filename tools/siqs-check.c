@@ -1,0 +1,511 @@
+/* Standalone SIQS sanity/regression checker, not part of Perl's test suite.
+ *
+ * Direct build from the repository root (GMP required, Perl not required):
+ *   cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
+ *     lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+ *   /tmp/siqs-check --suite sieve
+ *
+ * Include the current implementation to test its private interfaces without
+ * exporting them or adding production testing hooks.  Keep reference code
+ * independent of production sieve/scan kernels.  New suites can be added to
+ * the small dispatcher below; no full factorization is needed here.
+ *
+ * Copyright (c) 2026 Dana Jacobsen.
+ */
+#include <stdarg.h>
+#define main siqs_check_unused_driver_main
+#include "../mpu-siqs.c"
+#undef main
+#ifndef SIQS_CHECK_SOURCE
+# define SIQS_CHECK_SOURCE "../siqs.c"
+#endif
+#include SIQS_CHECK_SOURCE
+
+static int extended, detailed;
+static const char *suite_name = "startup";
+static const char *case_name = "startup";
+static const siqs_ctx_t *case_ctx;
+static uint32_t comparisons, maximum_score, d_seen, special_a, special_k;
+
+static void check_fail(const char *format, ...) {
+  va_list args;
+  fprintf(stderr, "FAIL %s/%s: ", suite_name, case_name);
+  va_start(args, format);
+  vfprintf(stderr, format, args);
+  va_end(args);
+  fputc('\n', stderr);
+  if (case_ctx != NULL)
+    fprintf(stderr, "  bits=%u k=%lu d=%u FB=%u length=%u first=%u "
+            "block=%u dense-primes=%u\n", case_ctx->params.bits,
+            case_ctx->multiplier, case_ctx->params.poly_d,
+            case_ctx->params.fb_size, case_ctx->sieve_length,
+            case_ctx->params.sieve_start, case_ctx->block_length,
+            case_ctx->block_prime_count);
+  exit(1);
+}
+
+#define CHECK(condition) do { \
+  if (!(condition)) check_fail("%s:%u: %s", __FILE__, \
+                               (unsigned)__LINE__, #condition); \
+} while (0)
+
+static void *check_allocate(size_t count, size_t size) {
+  void *p;
+  CHECK(size == 0 || count <= (size_t)-1 / size);
+  p = calloc(count != 0 ? count : 1, size);
+  CHECK(p != NULL);
+  return p;
+}
+
+/* Mirrors the allocation contract, not the store kernels.  Only logical
+ * scores are compared: padding may intentionally wrap and is never scanned. */
+static size_t check_sieve_allocation(const siqs_ctx_t *ctx) {
+  size_t length = 2U * (size_t)ctx->sieve_length;
+  size_t pmax = (size_t)ctx->prime[ctx->params.fb_size - 1U] + 1U;
+  return (length > pmax ? length : pmax) + 8U;
+}
+
+/* A deliberately boring reference: walk each canonical progression and add
+ * to a wide logical cell.  Do not reuse production tier dispatch, padded
+ * stores, block-root advancement, byte addition, or candidate scanning. */
+static uint32_t *reference_sieve(const siqs_ctx_t *ctx, uint32_t *maximum) {
+  uint32_t i, pos, initial = (uint32_t)ctx->active_sieve_initial
+                          + ctx->params.stage1_bias;
+  uint64_t ceiling = initial;
+  uint32_t *score = (uint32_t *)check_allocate(ctx->sieve_length,
+                                               sizeof(uint32_t));
+  for (pos = 0; pos < ctx->sieve_length; pos++)
+    score[pos] = initial;
+  for (i = ctx->params.sieve_start; i < ctx->params.fb_size; i++) {
+    size_t at;
+    uint32_t p = ctx->prime[i], a = ctx->root1[i], b = ctx->root2[i];
+    CHECK(p != 0 && a <= b && b < p);
+    /* Each prime contributes at most once to a particular logical cell. */
+    ceiling += ctx->sieve_logp[i];
+    CHECK(ceiling <= UINT32_MAX);
+    for (at = a; at < ctx->sieve_length; at += p)
+      score[at] += ctx->sieve_logp[i];
+    if (b != a)
+      for (at = b; at < ctx->sieve_length; at += p)
+        score[at] += ctx->sieve_logp[i];
+  }
+  *maximum = initial;
+  for (pos = 0; pos < ctx->sieve_length; pos++)
+    if (score[pos] > *maximum)
+      *maximum = score[pos];
+  return score;
+}
+
+static void compare_sieve(siqs_ctx_t *ctx) {
+  uint32_t pos, count = 0, peak, i;
+  size_t roots_size = (size_t)ctx->params.fb_size * sizeof(uint32_t);
+  uint32_t *roots = (uint32_t *)check_allocate(2, roots_size);
+  uint32_t *score;
+  case_ctx = ctx;
+  CHECK(ctx->params.sieve_start <= ctx->params.fb_size);
+  CHECK(ctx->block_prime_count <= ctx->params.fb_size - ctx->params.sieve_start);
+  for (i = 0; i < ctx->block_prime_count; i++)
+    CHECK(ctx->block_step[i] ==
+          ctx->block_length % ctx->prime[ctx->params.sieve_start + i]);
+  score = reference_sieve(ctx, &peak);
+  if (peak > UINT8_MAX)
+    for (pos = 0; pos < ctx->sieve_length; pos++)
+      if (score[pos] > UINT8_MAX)
+        check_fail("reference score overflow at pos=%u: score=%u (>255)",
+                   pos, score[pos]);
+  if (peak > maximum_score) maximum_score = peak;
+  memcpy(roots, ctx->root1, roots_size);
+  memcpy((unsigned char *)roots + roots_size, ctx->root2, roots_size);
+  /* The initializer must erase stale bytes; padding values must not matter. */
+  memset(ctx->sieve, 0xd3, check_sieve_allocation(ctx));
+  siqs_run_sieve(ctx);
+  for (pos = 0; pos < ctx->sieve_length; pos++)
+    if (score[pos] != ctx->sieve[pos])
+      check_fail("byte mismatch at pos=%u: reference=%u production=%u",
+                 pos, score[pos], ctx->sieve[pos]);
+  for (i = 0; i < ctx->params.fb_size; i++)
+    if (roots[i] != ctx->root1[i] ||
+        roots[ctx->params.fb_size + i] != ctx->root2[i])
+      check_fail("original roots changed at FB index=%u: (%u,%u) -> (%u,%u)",
+                 i, roots[i], roots[ctx->params.fb_size + i],
+                 ctx->root1[i], ctx->root2[i]);
+
+  siqs_find_candidates(ctx);
+  for (pos = 0; pos < ctx->sieve_length; pos++) {
+    uint32_t map = ctx->candidate_wide ? ctx->candidate_at_wide[pos]
+                                     : ctx->candidate_at[pos];
+    if (score[pos] >= 128U) {
+      if (count >= ctx->candidate_count)
+        check_fail("missing candidate at pos=%u index=%u score=%u", pos,
+                   count, score[pos] - ctx->params.stage1_bias);
+      if (ctx->candidates[count].x !=
+          (int32_t)pos - (int32_t)ctx->params.half_interval ||
+          ctx->candidates[count].sieve_score !=
+          score[pos] - ctx->params.stage1_bias)
+        check_fail("candidate mismatch at pos=%u index=%u: x=%d score=%u",
+                   pos, count, ctx->candidates[count].x,
+                   (unsigned)ctx->candidates[count].sieve_score);
+      CHECK(ctx->candidates[count].first_hit == SIQS_NO_INDEX);
+      if (map != count + 1U)
+        check_fail("candidate map mismatch at pos=%u: reference=%u actual=%u",
+                   pos, count + 1U, map);
+      count++;
+    } else {
+      if (map != 0)
+        check_fail("unexpected candidate map entry at pos=%u: %u", pos, map);
+    }
+  }
+  if (count != ctx->candidate_count)
+    check_fail("candidate count mismatch: reference=%u actual=%u", count,
+               ctx->candidate_count);
+  CHECK(ctx->candidate_wide == (count > UINT16_MAX));
+  siqs_clear_candidate_map(ctx);
+  CHECK(ctx->candidate_count == 0 && !ctx->candidate_wide);
+  for (pos = 0; pos < ctx->sieve_length; pos++) {
+    CHECK(ctx->candidate_at[pos] == 0);
+    if (ctx->candidate_at_wide != NULL)
+      CHECK(ctx->candidate_at_wide[pos] == 0);
+  }
+  comparisons++;
+  free(roots);
+  free(score);
+  case_ctx = NULL;
+}
+
+static int period_compare(const void *va, const void *vb) {
+  uint32_t a = *(const uint32_t *)va, b = *(const uint32_t *)vb;
+  return a < b ? -1 : a > b;
+}
+
+static void synthetic_init(siqs_ctx_t *ctx, uint32_t length,
+                            const uint32_t *periods, uint32_t count) {
+  uint32_t i;
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->sieve_length = length;
+  ctx->params.half_interval = length / 2;
+  ctx->params.fb_size = count;
+  ctx->prime = (uint32_t *)check_allocate(count, sizeof(uint32_t));
+  memcpy(ctx->prime, periods, (size_t)count * sizeof(uint32_t));
+  qsort(ctx->prime, count, sizeof(uint32_t), period_compare);
+  for (i = 0; i < count; i++) CHECK(ctx->prime[i] != 0);
+  ctx->root1 = (uint32_t *)check_allocate(count, sizeof(uint32_t));
+  ctx->root2 = (uint32_t *)check_allocate(count, sizeof(uint32_t));
+  ctx->sieve_logp = (uint8_t *)check_allocate(count, 1);
+  ctx->sieve = (uint8_t *)check_allocate(check_sieve_allocation(ctx), 1);
+  ctx->candidate_at = (uint16_t *)check_allocate(length, sizeof(uint16_t));
+  siqs_block_workspace_allocate(ctx);
+}
+
+static void synthetic_clear(siqs_ctx_t *ctx) {
+  free(ctx->prime); free(ctx->root1); free(ctx->root2); free(ctx->sieve_logp);
+  free(ctx->sieve); free(ctx->candidate_at); free(ctx->candidate_at_wide);
+  free(ctx->candidates); free(ctx->block_root1); free(ctx->block_root2);
+  free(ctx->block_step);
+}
+
+static void synthetic_roots(siqs_ctx_t *ctx, uint32_t round) {
+  uint32_t i;
+  for (i = 0; i < ctx->params.fb_size; i++) {
+    uint32_t p = ctx->prime[i];
+    uint32_t a = (uint32_t)((UINT64_C(1729) * (i + 1U) + 17U * round) % p);
+    uint32_t b = (uint32_t)((UINT64_C(7919) * (i + 3U) + 31U * round) % p);
+    if ((i + round) % 4U == 0) b = a;
+    ctx->root1[i] = a < b ? a : b;
+    ctx->root2[i] = a < b ? b : a;
+    ctx->sieve_logp[i] = 1;
+  }
+}
+
+static void check_tier_boundaries(void) {
+  uint32_t block = SIQS_SIEVE_BLOCK_SIZE ? SIQS_SIEVE_BLOCK_SIZE : 65536U;
+  uint32_t minimum = SIQS_SIEVE_BLOCK_SIZE ? SIQS_SIEVE_BLOCK_MIN_LENGTH
+                                        : 5U * block / 2U;
+  uint32_t lengths[] = {31, 32, 33, 63, 64, 65, 8191, 8192, 8193,
+    65535, 65536, 65537, minimum - 1U, minimum, minimum + 1U,
+    3U * block + 17U};
+  uint32_t n;
+  case_name = "tier-boundaries";
+  for (n = 0; n < sizeof(lengths) / sizeof(*lengths); n++) {
+    uint32_t length = lengths[n], periods[100], count = 0, divisor, round;
+    uint32_t span = length;
+    siqs_ctx_t ctx;
+    if (SIQS_SIEVE_BLOCK_SIZE && length > block) {
+      uint32_t blocks = (length - 1U) / block + 1U;
+      span = length / blocks + (length % blocks != 0);
+    }
+    periods[count++] = 2; periods[count++] = 3; periods[count++] = 7;
+    /* Both whole-interval and balanced-block fixed-hit cutoffs. */
+    for (divisor = 1; divisor <= 6; divisor++) {
+      uint32_t cutoff[2], j;
+      cutoff[0] = length / divisor; cutoff[1] = span / divisor;
+      for (j = 0; j < 2; j++) {
+        if (cutoff[j] > 1) periods[count++] = cutoff[j] - 1U;
+        if (cutoff[j] != 0) periods[count++] = cutoff[j];
+        periods[count++] = cutoff[j] + 1U;
+      }
+    }
+    periods[count++] = 2U * length + 1U;
+    synthetic_init(&ctx, length, periods, count);
+    for (round = 0; round < 5; round++) {
+      uint32_t i;
+      synthetic_roots(&ctx, round);
+      if (round >= 3)
+        for (i = 0; i < count; i++) {
+          ctx.root1[i] = round == 3 ? 0 : ctx.prime[i] - 1U;
+          ctx.root2[i] = i % 4U == 0 ? ctx.root1[i] : ctx.prime[i] - 1U;
+        }
+      ctx.active_sieve_initial = round == 1 ? 120 : 100;
+      ctx.params.stage1_bias = 8;
+      ctx.params.sieve_start = round >= 2 ? count / 3 : 0;
+      /* Rebuild the block split after changing the first-sieved index. */
+      if (round == 2) {
+        free(ctx.block_root1); free(ctx.block_root2); free(ctx.block_step);
+        ctx.block_root1 = ctx.block_root2 = ctx.block_step = NULL;
+        ctx.block_prime_count = 0;
+        siqs_block_workspace_allocate(&ctx);
+      }
+      compare_sieve(&ctx);
+    }
+    synthetic_clear(&ctx);
+  }
+  puts("PASS sieve: tier boundaries, scan tails, balanced blocks, scratch reuse");
+  fflush(stdout);
+}
+
+static void check_one_hit_and_maps(void) {
+  uint32_t counts[] = {SIQS_ONE_HIT_LOCAL_MIN_PRIMES - 1U,
+    SIQS_ONE_HIT_LOCAL_MIN_PRIMES, SIQS_ONE_HIT_LOCAL_MIN_PRIMES + 1U,
+    8193, 65535, 65536, 65537};
+  uint32_t n, limit = extended ? 7U : 4U;
+  case_name = "one-hit/maps";
+  for (n = 0; n < limit; n++) {
+    uint32_t count = counts[n], length = n < 3 ? 8192U : 131073U;
+    uint32_t *periods = (uint32_t *)check_allocate(count, sizeof(uint32_t));
+    uint32_t i, round;
+    siqs_ctx_t ctx;
+    for (i = 0; i < count; i++) periods[i] = length + 1U + i;
+    synthetic_init(&ctx, length, periods, count);
+    free(periods);
+    for (round = 0; round < 3; round++) {
+      synthetic_roots(&ctx, round);
+      ctx.params.stage1_bias = 8;
+      ctx.active_sieve_initial = round == 1 ? 120 : 96;
+      compare_sieve(&ctx);
+    }
+    synthetic_clear(&ctx);
+  }
+  puts("PASS sieve: localized one-hit threshold and narrow/wide candidate maps");
+  fflush(stdout);
+}
+
+static void check_oracle_overflow(void) {
+  siqs_ctx_t ctx;
+  uint32_t p = 7, peak, *score;
+  case_name = "oracle-overflow-self-check";
+  synthetic_init(&ctx, 33, &p, 1);
+  ctx.active_sieve_initial = 127;
+  ctx.params.stage1_bias = 127;
+  ctx.sieve_logp[0] = 2;
+  /* Equal roots must contribute once: 254+2 == 256, not 258 or zero. */
+  score = reference_sieve(&ctx, &peak);
+  CHECK(peak == 256 && score[0] == 256);
+  CHECK(score[1] == 254);
+  CHECK(score[0] >= 128 && !((uint8_t)score[0] & 0x80U));
+  free(score);
+  synthetic_clear(&ctx);
+  puts("PASS sieve: wide reference detects overflow hidden by byte wrapping");
+}
+
+/* These helpers build genuine polynomials but never collect or solve a full
+ * factorization.  Small fixtures must survive the public trial-division
+ * pretest and must not find their factor while constructing the base. */
+static void make_semiprime(mpz_t n, gmp_randstate_t random, uint32_t bits) {
+  mpz_t p, q;
+  mpz_init(p); mpz_init(q);
+  do {
+    mpz_urandomb(p, random, bits / 2);
+    mpz_setbit(p, bits / 2 - 1U); mpz_nextprime(p, p);
+    mpz_urandomb(q, random, bits - bits / 2);
+    mpz_setbit(q, bits - bits / 2 - 1U); mpz_nextprime(q, q);
+    mpz_mul(n, p, q);
+  } while (mpz_sizeinbase(n, 2) != bits || mpz_cmp(p, q) == 0);
+  mpz_clear(p); mpz_clear(q);
+}
+
+static void check_trial_survivor(const mpz_t n) {
+  PRIME_ITERATOR(iter);
+  UV p;
+  uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
+  uint32_t limit = bits <= 40 ? 200U : bits >= 1000 ? 5000U : 5U * bits;
+  prime_iterator_setprime(&iter, 1);
+  for (p = prime_iterator_next(&iter); p < limit;
+       p = prime_iterator_next(&iter))
+    CHECK(!mpz_divisible_ui_p(n, p));
+  prime_iterator_destroy(&iter);
+}
+
+static void check_polynomial_roots(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
+  uint32_t i, r;
+  mpz_t x, value;
+  mpz_init(x); mpz_init(value);
+  for (i = 0; i < ctx->params.fb_size; i++) {
+    CHECK(ctx->root1[i] <= ctx->root2[i] && ctx->root2[i] < ctx->prime[i]);
+    if (ctx->fb[i].in_a) special_a++;
+    if (i != 0 && ctx->fb[i].sqrt_kn == 0) special_k++;
+    for (r = 0; r < (ctx->root1[i] == ctx->root2[i] ? 1U : 2U); r++) {
+      uint32_t root = r == 0 ? ctx->root1[i] : ctx->root2[i];
+      CHECK(root <= INT32_MAX);
+      mpz_set_si(x, (int32_t)root - (int32_t)ctx->params.half_interval);
+      mpz_mul(value, poly->DA, x);
+      mpz_add(value, value, poly->B);
+      mpz_mul(value, value, value);
+      mpz_sub(value, value, ctx->kn);
+      CHECK(mpz_divisible_p(value, poly->DA));
+      mpz_divexact(value, value, poly->DA);
+      if (!mpz_divisible_ui_p(value, ctx->prime[i]))
+        check_fail("polynomial root mismatch: FB index=%u prime=%u root=%u",
+                   i, ctx->prime[i], root);
+    }
+  }
+  mpz_clear(x); mpz_clear(value);
+}
+
+static void check_real_case(const mpz_t n, unsigned long forced_k,
+                            uint32_t forced_d, uint32_t half) {
+  siqs_ctx_t ctx;
+  siqs_poly_t poly;
+  siqs_factor_array_t result;
+  uint32_t family, polynomial, total = 0;
+  case_name = "real-polynomials";
+  check_trial_survivor(n);
+  siqs_factor_array_init(&result, n);
+  siqs_ctx_init(&ctx, n, n, &result, NULL);
+  case_ctx = &ctx;
+  if (forced_k != 0) {
+    ctx.multiplier = forced_k;
+    mpz_mul_ui(ctx.kn, n, forced_k);
+    ctx.params.poly_d = mpz_fdiv_ui(ctx.kn, 8) == 1 ? 2U : 1U;
+  }
+  if (forced_d != 0) {
+    CHECK(forced_d == 1 || (forced_d == 2 && mpz_fdiv_ui(ctx.kn, 8) == 1));
+    ctx.params.poly_d = forced_d;
+  }
+  if (half != 0) ctx.params.half_interval = half;
+  CHECK(siqs_ctx_allocate(&ctx));
+  siqs_poly_init(&ctx, &poly);
+  d_seen |= 1U << ctx.params.poly_d;
+  for (family = 0; family < 2; family++) {
+    if (!siqs_new_family(&ctx, &poly)) break;
+    for (polynomial = 0; polynomial < (extended ? 8U : 3U); polynomial++) {
+      case_ctx = &ctx;
+      check_polynomial_roots(&ctx, &poly);
+      compare_sieve(&ctx);
+      total++;
+      if (!siqs_next_B(&ctx, &poly)) break;
+    }
+  }
+  CHECK(total != 0);
+  if (detailed) {
+    printf("  CHECK bits=%u k=%lu d=%u q=%u FB=%u M=%u block=%u polys=%u\n",
+           ctx.params.bits, ctx.multiplier, ctx.params.poly_d,
+           ctx.params.q_count, ctx.params.fb_size, ctx.params.half_interval,
+           ctx.block_length, total);
+    fflush(stdout);
+  }
+  siqs_poly_clear(&ctx, &poly);
+  siqs_ctx_clear(&ctx);
+  {
+    uint32_t count;
+    mpz_t *values = siqs_factor_array_release(&result, &count);
+    gmp_siqs_free(values, count);
+  }
+  case_ctx = NULL;
+}
+
+static void check_real_polynomials(void) {
+  static const uint32_t quick_bits[] = {49, 81, 130, 193, 246, 311, 330};
+  static const uint32_t more_bits[] = {33, 36, 37, 43, 65, 96, 104, 114,
+    144, 145, 167, 184, 185, 218, 219, 237, 245, 269, 270, 299, 300, 310, 364, 370};
+  gmp_randstate_t random;
+  mpz_t n;
+  uint32_t i;
+  case_name = "real-polynomials";
+  prime_iterator_global_startup();
+  gmp_randinit_default(random); gmp_randseed_ui(random, 20261003U);
+  mpz_init_set_str(n, "100160063", 10);
+  check_real_case(n, 0, 0, 0); /* Known q=1 actual-sieve fixture. */
+  for (i = 0; i < sizeof(quick_bits) / sizeof(*quick_bits); i++) {
+    make_semiprime(n, random, quick_bits[i]);
+    check_real_case(n, 0, 0, 0);
+  }
+  /* Cover d=1 and d=2 explicitly, plus one-root primes dividing k. */
+  do { make_semiprime(n, random, 130); } while (mpz_fdiv_ui(n, 8) != 3);
+  check_real_case(n, 3, 1, 0);
+  check_real_case(n, 3, 2, 0);
+  CHECK(d_seen == ((1U << 1) | (1U << 2)) && special_a && special_k);
+  if (extended) {
+    for (i = 0; i < sizeof(more_bits) / sizeof(*more_bits); i++) {
+      make_semiprime(n, random, more_bits[i]);
+      check_real_case(n, 0, 0, 0);
+    }
+    make_semiprime(n, random, 240);
+    check_real_case(n, 0, 0, 524544U); /* 1 MiB plus a partial last block. */
+  }
+  mpz_clear(n); gmp_randclear(random); prime_iterator_global_shutdown();
+  puts("PASS sieve: genuine q=1/q=2 and larger polynomials, d=1/d=2, special roots");
+  fflush(stdout);
+}
+
+static void suite_sieve(void) {
+  check_tier_boundaries();
+  check_one_hit_and_maps();
+  check_oracle_overflow();
+  check_real_polynomials();
+  printf("PASS sieve: %u comparisons, maximum observed physical score %u/255\n",
+         comparisons, maximum_score);
+}
+
+typedef struct {
+  const char *name;
+  const char *description;
+  void (*run)(void);
+} check_suite_t;
+
+static const check_suite_t suites[] = {
+  {"sieve", "wide-score oracle, byte kernels, blocking, roots, candidate maps",
+   suite_sieve}
+};
+
+static void usage(void) {
+  puts("usage: siqs-check [--suite all|sieve] [--extended] [--verbose] [--list]");
+}
+
+int main(int argc, char **argv) {
+  const char *selected = "all";
+  uint32_t i, ran = 0;
+  int argument;
+  for (argument = 1; argument < argc; argument++) {
+    if (strcmp(argv[argument], "--suite") == 0 && argument + 1 < argc)
+      selected = argv[++argument];
+    else if (strcmp(argv[argument], "--extended") == 0) extended = 1;
+    else if (strcmp(argv[argument], "--verbose") == 0) detailed = 1;
+    else if (strcmp(argv[argument], "--help") == 0) { usage(); return 0; }
+    else if (strcmp(argv[argument], "--list") == 0) {
+      for (i = 0; i < sizeof(suites) / sizeof(*suites); i++)
+        printf("%s: %s\n", suites[i].name, suites[i].description);
+      return 0;
+    } else { usage(); return 2; }
+  }
+  verbose_level = 2;
+  printf("SIQS checks: block maximum %u bytes, %s suite\n",
+         (unsigned)SIQS_SIEVE_BLOCK_SIZE, extended ? "extended" : "quick");
+  fflush(stdout);
+  for (i = 0; i < sizeof(suites) / sizeof(*suites); i++)
+    if (strcmp(selected, "all") == 0 || strcmp(selected, suites[i].name) == 0) {
+      suite_name = suites[i].name;
+      suites[i].run();
+      ran++;
+    }
+  if (ran == 0) { fprintf(stderr, "unknown suite: %s\n", selected); return 2; }
+  return 0;
+}

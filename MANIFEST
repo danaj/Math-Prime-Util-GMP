@@ -123,6 +123,10 @@ t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
+tools/siqs-check.c
+tools/siqs-check.pl
+tools/README-siqs-check.txt
+tools/parse-siqs-bands.pl
 xt/arithmod.pl
 xt/bench-ispower.pl
 xt/bench-random-bytes.pl
