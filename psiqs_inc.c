@@ -115,6 +115,18 @@ static void *psiqs_sieve_family(void *argument) {
     worker->polynomials++;
     if (ctx->factor_found || worker->polynomials >= worker->limit)
       break;
+    /* A q=12 family has 2048 polynomials.  At readiness, finish only
+     * a short prefix instead of delaying join for the rest of that family.
+     * Keep every buffered relation; retries select fresh A values.  Read the
+     * existing stop flag under its mutex, outside the sieve/root kernels. */
+    if ((worker->polynomials & 31U) == 0) {
+      int stop;
+      pthread_mutex_lock(&worker->pool->mutex);
+      stop = worker->pool->stop;
+      pthread_mutex_unlock(&worker->pool->mutex);
+      if (stop)
+        break;
+    }
   } while (siqs_next_B(ctx, poly));
   return NULL;
 }
@@ -219,7 +231,8 @@ static void *psiqs_pool_worker(void *argument) {
   return NULL;
 }
 
-/* Stop assigning work, finish running families, and cancel jobs not yet begun.
+/* Stop assigning work, finish short polynomial prefixes of running families,
+ * and cancel jobs not yet begun.  Unrun family tails are not resumed on retry.
  * The caller drains completed buffers after joining, before freeing scratch. */
 static void psiqs_pool_join(psiqs_pool_t *pool) {
   uint32_t i;
@@ -343,8 +356,9 @@ static psiqs_worker_t *psiqs_pool_take(psiqs_pool_t *pool) {
   return worker;
 }
 
-/* A bounded, asynchronous whole-family pool: no per-polynomial locks or graph
- * sharing.  Reserve polynomial budgets on assignment, refund unused work on
+/* A bounded, asynchronous A-family pool: no per-polynomial locks or graph
+ * sharing.  Poll for stop every 32 polynomials under the existing mutex.
+ * Reserve polynomial budgets on assignment, refund unused work on
  * completion, and join every thread before the matrix solver can run. */
 static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
                                    uint32_t target,

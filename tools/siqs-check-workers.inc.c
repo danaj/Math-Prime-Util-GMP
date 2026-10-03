@@ -230,6 +230,108 @@ static void worker_shutdown(void) {
   puts("PASS workers: controlled READY/running/not-started/idle shutdown, join-before-drain accounting");
 }
 
+static int worker_early_stop_before_unlock(pthread_mutex_t *mutex, void *argument) {
+  psiqs_worker_t *w = (psiqs_worker_t *)argument;
+  worker_schedule_t *s = &worker_schedule;
+  /* Pause after each worker's first stop poll, while its cached flag is false.
+   * The coordinator's join publishes stop and releases both gates; the next
+   * poll must finish these incomplete families at exactly 64 polynomials. */
+  if (mutex == &w->pool->mutex && w->state == PSIQS_WORK &&
+      !w->pool->stop && w->polynomials == 32U) {
+    pthread_mutex_lock(&s->mutex);
+    s->running[w->index] = 1; pthread_cond_broadcast(&s->changed);
+    pthread_mutex_unlock(&s->mutex);
+    return 1;
+  }
+  return 0;
+}
+
+static void worker_verify_raw(const siqs_ctx_t *ctx) {
+  uint32_t i, j;
+  mpz_t lhs, rhs, lp;
+  mpz_init(lhs); mpz_init(rhs); mpz_init(lp);
+  for (i = 0; i < ctx->raw_count; i++) {
+    const siqs_raw_relation_t *raw = ctx->raw[i];
+    siqs_factor_t *factors = (siqs_factor_t *)check_allocate(raw->nfactors, sizeof(*factors));
+    for (j = 0; j < raw->nfactors; j++) {
+      factors[j].row = siqs_raw_factor_row(raw, j);
+      factors[j].exponent = siqs_raw_factor_exponent(raw, j);
+    }
+    relation_product(ctx, rhs, factors, raw->nfactors); free(factors);
+    siqs_mpz_set_u64(lp, raw->lp1); mpz_mul(rhs, rhs, lp);
+    siqs_mpz_set_u64(lp, raw->lp2); mpz_mul(rhs, rhs, lp);
+    mpz_mod(rhs, rhs, ctx->n);
+    mpz_mul(lhs, raw->y, raw->y); mpz_mod(lhs, lhs, ctx->n);
+    CHECK(mpz_cmp(lhs, rhs) == 0);
+  }
+  mpz_clear(lhs); mpz_clear(rhs); mpz_clear(lp);
+}
+
+static void worker_early_shutdown(void) {
+  worker_fixture_t f;
+  worker_schedule_t *s = &worker_schedule;
+  psiqs_pool_t *pool;
+  mpz_t abandoned[2];
+  uint32_t i, max_polys, families = 0, polys, next = UINT32_MAX;
+  uint32_t buffered = 0;
+  case_name = "partial-family-stop-and-fresh-family-retry";
+  worker_fault_reset(); worker_fixture_open(&f, 2, 0);
+  CHECK(f.dispatch.b_limit >= 128U);
+  max_polys = f.ctx.params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  if (max_polys < 1000000U) max_polys = 1000000U;
+  polys = max_polys - 196U; /* Reserve 128 + 68 before either worker stops. */
+  memset(s, 0, sizeof(*s));
+  CHECK(pthread_mutex_init(&s->mutex, NULL) == 0);
+  CHECK(pthread_cond_init(&s->changed, NULL) == 0);
+  seam_controlled_start = psiqs_pool_worker; seam_enter = worker_schedule_enter;
+  seam_unlock_before = worker_early_stop_before_unlock;
+  seam_unlock_after = worker_schedule_after_unlock; seam_signal = worker_schedule_signal;
+  pool = psiqs_pool_create(&f.ctx); CHECK(pool != NULL && pool->live == 2);
+  for (i = 0; i < 2; i++) {
+    mpz_init(abandoned[i]);
+    CHECK(psiqs_pool_assign(pool, &f.ctx, &f.dispatch, pool->workers + i, i == 0 ? 128U : 68U));
+    mpz_set(abandoned[i], pool->workers[i].poly.A);
+  }
+  pthread_mutex_lock(&s->mutex);
+  while (!s->running[0] || !s->running[1]) pthread_cond_wait(&s->changed, &s->mutex);
+  pthread_mutex_unlock(&s->mutex);
+  psiqs_pool_join(pool);
+  CHECK(s->joining && pool->live == 0 && pool->queued == 2);
+  for (i = 0; i < 2; i++) {
+    psiqs_worker_t *w = pool->workers + i;
+    uint64_t candidates = f.ctx.total_candidates + w->ctx.total_candidates;
+    uint32_t full;
+    CHECK(w->state == PSIQS_READY && w->polynomials == 64U);
+    CHECK(w->polynomials < w->limit);
+    CHECK(w->ctx.factor_touched_count == 0);
+    worker_verify_raw(&w->ctx); buffered += w->ctx.raw_count;
+    families++; polys += w->polynomials;
+    psiqs_merge_worker(&f.ctx, w); worker_assert_buffer_cleared(w);
+    CHECK(f.ctx.total_candidates == candidates);
+    full = f.ctx.full_count;
+    psiqs_merge_worker(&f.ctx, w);
+    CHECK(f.ctx.total_candidates == candidates && f.ctx.full_count == full);
+  }
+  CHECK(buffered != 0 && families == 2 && max_polys - polys == 68U);
+  psiqs_pool_destroy(pool); worker_resources_clear();
+  seam_controlled_start = NULL; seam_enter = NULL; seam_unlock_before = NULL;
+  seam_unlock_after = NULL; seam_signal = NULL;
+  CHECK(pthread_cond_destroy(&s->changed) == 0);
+  CHECK(pthread_mutex_destroy(&s->mutex) == 0);
+  CHECK(!f.ctx.factor_found);
+  /* Model collection after an unsuccessful attempt, retaining the context and
+   * partial-family relations.  The unused 68 polynomials are still available;
+   * do not replay either abandoned A.  No solver outcome is injected here. */
+  CHECK(!psiqs_collect_relations(&f.ctx, &f.dispatch, UINT32_MAX,
+                                 &next, &families, &polys));
+  CHECK(polys == max_polys && families == 3 && !f.ctx.factor_found);
+  for (i = 0; i < 2; i++) {
+    CHECK(mpz_cmp(f.dispatch.A, abandoned[i]) != 0); mpz_clear(abandoned[i]);
+  }
+  worker_resources_clear(); worker_fixture_close(&f);
+  puts("PASS workers: stop within 32 polynomials, valid partial buffers, exactly-once merge and fresh-A retry budget");
+}
+
 static void worker_merge_ownership(void) {
   siqs_ctx_t master;
   siqs_factor_array_t result;
@@ -531,7 +633,8 @@ static void suite_workers(void) {
   CHECK(signal(SIGALRM, worker_timeout) != SIG_ERR); alarm(SIQS_CHECK_WORKER_TIMEOUT);
 #endif
   prime_iterator_global_startup();
-  worker_reuse(); worker_shutdown(); worker_merge_ownership(); worker_creation_failures();
+  worker_reuse(); worker_shutdown(); worker_early_shutdown();
+  worker_merge_ownership(); worker_creation_failures();
   worker_budget_and_fallback(); worker_lanczos_failures(); worker_public_calls();
   worker_simultaneous_calls();
 #ifndef _WIN32

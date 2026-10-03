@@ -169,6 +169,12 @@ an assigned job not yet started, and an idle worker at shutdown. Gates do not
 use sleeps or rely on which core the OS chooses. Workers must join before
 their results are drained or scratch freed. A short final polynomial budget
 checks reserved versus executed work and the collector's serial fallback.
+Another gated case requests a stop after 32 polynomials and checks
+that both exit at the next stop poll, with valid partial relation buffers.
+Those buffers merge exactly once; retry collection keeps the existing context,
+chooses fresh A values instead of replaying the abandoned tails, and uses only
+the unspent polynomial budget. This tests retry collection, not an injected
+failed matrix solve. No production scheduling gates or timers are added.
 
 Test-only wrappers inject top-level allocation failures, mutex/condition
 initialization failures, and selective or total pthread_create failures.
