@@ -15,6 +15,14 @@ typedef __int16 int16_t;
 typedef __int8 int8_t;
 #endif
 
+#ifndef MAYBE_UNUSED
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAYBE_UNUSED __attribute__((unused))
+# else
+#  define MAYBE_UNUSED
+# endif
+#endif
+
 #ifdef STANDALONE
   #include <limits.h>
   #include <stdio.h>
@@ -36,10 +44,45 @@ typedef __int8 int8_t;
       fputc('\n', stderr); \
     exit(3); \
   } while(0)
-  #define New(id, mem, size, type)  mem = (type*) malloc((size)*sizeof(type))
-  #define Newz(id, mem, size, type) mem = (type*) calloc(size, sizeof(type))
-  #define Renew(mem, size, type)    mem =(type*)realloc(mem,(size)*sizeof(type))
-  #define Safefree(mem)             free((void*)mem)
+  /* Empty allocations may return NULL; renewing to zero frees the allocation.
+   * The typed macros pass sizeof(type), so size is always nonzero. */
+  static MAYBE_UNUSED void *mpu_malloc(size_t count, size_t size)
+  {
+    void *mem;
+    if (count > (size_t)-1 / size)
+      croak("Allocation size overflow");
+    mem = malloc(count * size);
+    if (mem == NULL && count != 0)
+      croak("Out of memory");
+    return mem;
+  }
+  static MAYBE_UNUSED void *mpu_calloc(size_t count, size_t size)
+  {
+    void *mem;
+    if (count > (size_t)-1 / size)
+      croak("Allocation size overflow");
+    mem = calloc(count, size);
+    if (mem == NULL && count != 0)
+      croak("Out of memory");
+    return mem;
+  }
+  static MAYBE_UNUSED void *mpu_realloc(void *mem, size_t count, size_t size)
+  {
+    if (count > (size_t)-1 / size)
+      croak("Allocation size overflow");
+    if (count == 0) {
+      free(mem);
+      return NULL;
+    }
+    mem = realloc(mem, count * size);
+    if (mem == NULL)
+      croak("Out of memory");
+    return mem;
+  }
+  #define New(id, mem, size, type)  ((mem) = (type*) mpu_malloc((size), sizeof(type)))
+  #define Newz(id, mem, size, type) ((mem) = (type*) mpu_calloc((size), sizeof(type)))
+  #define Renew(mem, size, type)    ((mem) = (type*) mpu_realloc((void*)(mem), (size), sizeof(type)))
+  #define Safefree(mem) free((void*)(mem))
   /* iterator using mpz_nextprime, which is really slow
   #define PRIME_ITERATOR(i) mpz_t i; mpz_init_set_ui(i, 2)
   static UV prime_iterator_next(mpz_t *iter) { mpz_nextprime(*iter, *iter); return mpz_get_ui(*iter); }

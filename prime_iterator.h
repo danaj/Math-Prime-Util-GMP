@@ -25,10 +25,12 @@ extern void prime_iterator_global_shutdown(void);
 
 extern void prime_iterator_init(prime_iterator *iter);
 extern void prime_iterator_destroy(prime_iterator *iter);
+/* Croaks when no larger prime fits in UV; exhaustion never wraps. */
 extern UV prime_iterator_next(prime_iterator *iter);
 extern void prime_iterator_setprime(prime_iterator *iter, UV n);
 extern int prime_iterator_isprime(prime_iterator *iter, UV n);
 
+/* Both return allocated prime lists; count may be NULL. */
 extern UV* sieve_to_n(UV n, UV* count);
 extern unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count);
 
