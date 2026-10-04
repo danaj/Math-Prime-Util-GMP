@@ -41,6 +41,8 @@ extern int  _GMP_holf_factor(const mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_squfof_factor(const mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_cheb_factor(const mpz_t n, mpz_t f, UV B, UV initx);
 
+/* Return the maximal perfect-power exponent, or 0 for n <= 1 or no power.
+ * f is meaningful only on success; f may alias n. */
 extern unsigned long   power_factor(const mpz_t n, mpz_t f);
 
 extern mpz_t* divisor_list(int* ndivisors, const mpz_t n, const mpz_t maxd);

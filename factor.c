@@ -2033,12 +2033,18 @@ static int _power_factor_trial_root(mpz_t root, const mpz_t cofactor,
     if ((exponents[i] % k) != 0)
       return 0;
 
-  if (mpz_cmp_ui(cofactor, 1) == 0)
-    mpz_set_ui(root, 1); /* We'll multiply by valuation factors below */
-  else if (!mpz_root(root, cofactor, k))
-    return 0;
-
   mpz_init(pk);
+  if (mpz_cmp_ui(cofactor, 1) == 0) {
+    mpz_set_ui(root, 1); /* We'll multiply by valuation factors below */
+  } else {
+    if (!mpz_root(pk, cofactor, k)) {
+      mpz_clear(pk);
+      return 0;
+    }
+    /* Only after confirmed will we write into 'root' */
+    mpz_set(root, pk);
+  }
+
   for (i = 0; i < nfactors; i++) {
     mpz_ui_pow_ui(pk, pfactors[i], exponents[i]/k);
     mpz_mul(root, root, pk);
@@ -2047,6 +2053,11 @@ static int _power_factor_trial_root(mpz_t root, const mpz_t cofactor,
   return 1;
 }
 
+/* The three valuation helpers return 1 when no nontrivial exponent is found,
+ * including when no usable valuation information is available.  This differs
+ * from power_factor's return value of 0.  They set f only when returning k > 1.
+ * Here g is the gcd of the recorded prime valuations (0 if none), and the
+ * original input is cofactor * product(pfactors[i]^exponents[i]). */
 static unsigned long _power_factor_from_valuations(const mpz_t cofactor, mpz_t f,
                                                    const unsigned long *pfactors,
                                                    const unsigned long *exponents,
@@ -2177,7 +2188,9 @@ static unsigned long _power_factor_from_trial_factors(const mpz_t n, mpz_t f, un
   return k;
 }
 
-/* See if n is a perfect power */
+/* Return the maximal k > 1 such that n = f^k, or 0 if n <= 1 or n is not
+ * a perfect power.  The output f is meaningful only on success and may
+ * alias n. */
 unsigned long power_factor(const mpz_t n, mpz_t f)
 {
   unsigned long k = 1, b = 2;
