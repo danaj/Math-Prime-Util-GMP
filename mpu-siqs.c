@@ -127,8 +127,9 @@ static void print_usage(FILE *stream, const char *program) {
 #ifdef PSIQS
           "usage: %s [-v|--verbose] [-threads N] [--] [INTEGER ...]\n"
           "Factor positive decimal integers with MPU-PSIQS.\n"
-          "Use -threads N to select 1-%u workers (default 4); "
+          "Use -threads N to select 1-%u workers (default 1); "
           "one worker uses serial SIQS.\n"
+          "-t and --threads are aliases for -threads.\n"
 #else
           "usage: %s [-v|--verbose] [--] [INTEGER ...]\n"
           "Factor positive decimal integers with MPU-SIQS.\n"
@@ -279,11 +280,7 @@ static int factor_number(const mpz_t n, uint32_t nthreads) {
 int main(int argc, char **argv) {
   mpz_t n;
   int argument = 1, status = 0;
-#ifdef PSIQS
-  uint32_t nthreads = 4;
-#else
   uint32_t nthreads = 1;
-#endif
 
   while (argument < argc && argv[argument][0] == '-') {
     const char *option = argv[argument];
@@ -296,7 +293,8 @@ int main(int argc, char **argv) {
       return 0;
     }
 #ifdef PSIQS
-    if (strcmp(option, "-threads") == 0 ||
+    if (strcmp(option, "-t") == 0 ||
+        strcmp(option, "-threads") == 0 ||
         strcmp(option, "--threads") == 0) {
       if (argument + 1 == argc ||
           !parse_thread_count(argv[argument + 1], &nthreads)) {

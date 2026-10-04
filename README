@@ -89,10 +89,13 @@ pool checks.
 See tools/README-siqs-check.txt for extended checks,
 sanitizers, and a direct C build that does not require Perl.
 
-The worker count is selected at runtime (default 4, maximum 256, set by
+The worker count is selected at runtime (default 1, maximum 256, set by
 PSIQS_MAX_THREADS in siqs.h).
-Use -threads 1 for the ordinary serial path.  Inputs through 64 bits and
-inline-solving policies remain serial regardless of the requested count.
+Both builds default to ordinary serial SIQS with no worker threads.  Use
+-threads N in a pthread-enabled build to request parallel work explicitly;
+-t and --threads are equivalent aliases.
+Inputs through 64 bits and inline-solving policies remain serial regardless
+of the requested count.
 Relation collection uses a persistent worker pool.  The caller merges each
 completed family while other workers continue; graph merging remains serial.
 Large Lanczos solves can also use worker threads.

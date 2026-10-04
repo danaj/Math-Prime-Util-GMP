@@ -87,9 +87,17 @@
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
+
+/* This most strongly correlates to L1 data size.  Compromise. */
 #ifndef SIQS_SIEVE_BLOCK_SIZE
-# define SIQS_SIEVE_BLOCK_SIZE   (64U * 1024U)
+#  if !defined(_M_ARM64EC) && (defined(__i386__) || defined(__x86_64__) || \
+                               defined(_M_IX86) || defined(_M_X64))
+#    define SIQS_SIEVE_BLOCK_SIZE   (32U * 1024U)
+#  else
+#    define SIQS_SIEVE_BLOCK_SIZE   (64U * 1024U)
+#  endif
 #endif
+
 /* At 64 KiB, M1 Pro measurements favored activation near 160 KiB (2.5x).
  * Scale that starting point with block size; other sizes/machines may need
  * a different threshold.  A zero block size disables blocking. */
