@@ -115,7 +115,7 @@ Do not clear its elements first, call plain free on the array, or use it after
 release. The same free function applies to both entry points. If a host wants
 complete factoring, it must iteratively refine composite elements and enforce
 progress/bounded retries; never keep retrying an unchanged composite forever.
-The mpu-siqs command-line driver handles this separately.
+The msiqs command-line driver handles this separately.
 
 Minimal caller example
 ----------------------

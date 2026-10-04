@@ -52,9 +52,16 @@ discrimiment set (https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/).
 To build the standalone SIQS executable after running "perl Makefile.PL":
 
    make siqs
-   ./mpu-siqs 22095311209999409685885162322219
+   ./msiqs 22095311209999409685885162322219
 
-With no integer arguments, mpu-siqs reads whitespace-separated decimal
+This detects pthread support with a compile/link probe and builds the threaded
+version when available, otherwise the serial version.  The probe is not run
+when msiqs is already up to date.  To force a serial-only build, use
+"make siqs-serial"; it always rebuilds the same msiqs executable.  Remove msiqs
+before running "make siqs" to return to autodetection, or after changing the
+compiler, build flags, or environment.
+
+With no integer arguments, msiqs reads whitespace-separated decimal
 integers from standard input.  It supports positive inputs through 370 bits.
 It retries any composite cofactors it splits off; an unsplit composite is
 marked [incomplete] on the result line, reported on stderr, and makes the
@@ -67,14 +74,13 @@ For a local optimized build, use:
 
 It can also be compiled directly without Perl or a generated Makefile:
 
-   cc -O3 -DSTANDALONE -o mpu-siqs \
+   cc -O3 -march=native -DSTANDALONE -o msiqs \
       mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
       -lgmp -lm
 
-The standalone POSIX-threaded build shares the same SIQS implementation:
+When built with pthreads, the same executable supports a runtime worker count:
 
-   make psiqs
-   ./mpu-psiqs -threads 4 -vv 22095311209999409685885162322219
+   ./msiqs -threads 4 -vv 22095311209999409685885162322219
 
 Optional standalone health checks can be run with "make check-siqs" (also
 "make test-siqs").  These do not build the Perl module and are not part of
@@ -90,11 +96,11 @@ inline-solving policies remain serial regardless of the requested count.
 Relation collection uses a persistent worker pool.  The caller merges each
 completed family while other workers continue; graph merging remains serial.
 Large Lanczos solves can also use worker threads.
-The normal Perl module and "make siqs" do not require pthreads.  The parallel
+The normal Perl module does not use or require pthreads.  The parallel
 build is currently standalone-only: its native worker calls into Perl host
 functions have not been audited.  For a direct parallel build, add
--DPSIQS -pthread to the command above and name the output mpu-psiqs.
-psiqs_inc.c is included by siqs.c; do not compile it separately.
+-DPSIQS -pthread to the command above.  psiqs_inc.c and planczos_inc.c are
+included by siqs.c and lanczos.c; do not compile them separately.
 
 To call gmp_siqs/gmp_psiqs from a custom C host, see siqs.h and
 tools/README-siqs-embedding.txt. The host must initialize the shared prime cache

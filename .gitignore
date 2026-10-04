@@ -5,8 +5,7 @@ Makefile.old
 MYMETA.*
 GMP.bs
 XS.c
-mpu-siqs
-mpu-psiqs
+msiqs
 lanczos-bench
 siqs-sieve-bench
 *.o

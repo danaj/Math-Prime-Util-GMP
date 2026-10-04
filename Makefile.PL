@@ -54,7 +54,7 @@ WriteMakefile1(
                     'perfect_powers.o ' .
                     'powerfree.o',
     LIBS         => ['-lgmp -lm'],
-    clean        => { FILES => 'mpu-siqs mpu-psiqs' },
+    clean        => { FILES => 'msiqs' },
 
     TEST_REQUIRES=> {
                       'Math::BigInt'     => '1.88',  # try && bug fixes
@@ -137,9 +137,12 @@ SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
 SIQS_CHECK_ARGS =
 
-.PHONY: siqs psiqs check-siqs check-psiqs test-siqs
-siqs: mpu-siqs
-psiqs: mpu-psiqs
+.PHONY: siqs siqs-serial check-siqs check-psiqs test-siqs
+siqs: msiqs
+
+# Explicit override: replace even an up-to-date pthreads executable.
+siqs-serial: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) tools/build-siqs.pl
+	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --output msiqs --serial $(SIQS_STANDALONE_SOURCES)
 
 # Optional standalone health checks; not dependencies of Perl's test target.
 check-siqs:
@@ -150,11 +153,8 @@ check-psiqs:
 
 test-siqs: check-siqs
 
-mpu-siqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
-
-mpu-psiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ $(SIQS_STANDALONE_SOURCES) -lgmp -lm
+msiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c tools/build-siqs.pl tools/pthread-probe.c
+	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --output $@ $(SIQS_STANDALONE_SOURCES)
 
 # Build only: an optional synthetic matrix scaling tool, not a Perl test.
 lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h

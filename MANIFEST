@@ -123,6 +123,8 @@ t/90-release-perlcritic.t
 t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
+tools/build-siqs.pl
+tools/pthread-probe.c
 tools/siqs-check.c
 tools/siqs-check-relations.inc.c
 tools/siqs-check-matrix.inc.c

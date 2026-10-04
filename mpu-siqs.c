@@ -4,12 +4,14 @@
 
   Direct build:
 
-    cc -O3 -DSTANDALONE -o mpu-siqs \
+    cc -O3 -DSTANDALONE -o msiqs \
       mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
       -lgmp -lm
 
   Add -march=native when building a binary for the local machine only.
-  Add -DPSIQS -pthread and name the output mpu-psiqs for the parallel build.
+  Add -DPSIQS -pthread for the parallel build.  After perl Makefile.PL,
+  make siqs detects pthread support automatically; make siqs-serial forces
+  a serial-only build.  Both targets produce msiqs.
 
   This driver owns one prime-cache startup/shutdown around all its inputs.
   Custom C hosts must own the same lifetime and supply the siqs_dep.h adapters;
@@ -29,11 +31,7 @@
 #include "prime_iterator.h"
 #include "siqs.h"
 #include "siqs_dep.h"
-#ifdef PSIQS
-# define SIQS_PROGRAM_NAME "mpu-psiqs"
-#else
-# define SIQS_PROGRAM_NAME "mpu-siqs"
-#endif
+#define SIQS_PROGRAM_NAME "msiqs"
 
 static int verbose_level = 2;  /* SIQS starts verbose at level 3+ */
 
