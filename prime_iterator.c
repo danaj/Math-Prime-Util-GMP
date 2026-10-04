@@ -305,13 +305,17 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
 /*****************************************************************************/
 
 /* Fixed sizes trade memory for marking performance.  The primary cache
- * covers 30*(32768-16) = 982560 integers; each segment covers up to
+ * covers 30*(32768-16) = 982560 integers; a normal segment covers up to
  * 30*(24576-16) = 736800 integers.  Cached base primes suffice until the
  * endpoint's integer square root exceeds primary_limit (an endpoint near
- * 9.65e11); higher ranges need a temporary base sieve per segment.
+ * 9.65e11).  Above that, larger segments amortize generating and scanning
+ * the temporary base sieve, which is still freed after each segment.
  */
 #define PRIMARY_SIZE  (32768-16)
 #define SEGMENT_SIZE  (24576-16)
+#ifndef LARGE_SEGMENT_SIZE
+#define LARGE_SEGMENT_SIZE (384 * 1024U)
+#endif
 #define NSMALL_PRIMES (83970-180)
 
 static const unsigned char* primary_sieve = 0;
@@ -383,6 +387,17 @@ static UV pcount(UV n)
 }
 #endif
 
+/* Keep small segments while their base primes fit in the shared cache. */
+static UV iterator_segment_size(UV lod)
+{
+  UV hid, endp;
+  if (LARGE_SEGMENT_SIZE <= SEGMENT_SIZE) return SEGMENT_SIZE;
+  hid = lod + SEGMENT_SIZE - 1;
+  if (hid > UV_MAX/30) hid = UV_MAX/30;
+  endp = (hid == UV_MAX/30) ? UV_MAX : 30*hid+29;
+  return isqrt(endp) > primary_limit ? LARGE_SEGMENT_SIZE : SEGMENT_SIZE;
+}
+
 void prime_iterator_setprime(prime_iterator *iter, UV n) {
   /* Is it inside the current segment? */
   if (    (iter->segment_mem != 0)
@@ -405,7 +420,7 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
   } else { /* Sieve this range */
     UV lod, hid;
     lod = n/30;
-    hid = lod + SEGMENT_SIZE - 1;
+    hid = lod + iterator_segment_size(lod) - 1;
     if (hid > UV_MAX/30) hid = UV_MAX/30;
     New(0, iter->segment_mem, hid-lod+1, unsigned char );
     iter->segment_start = lod * 30;
@@ -418,7 +433,7 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
 
 UV prime_iterator_next(prime_iterator *iter)
 {
-  UV lod, hid, seg_beg, seg_end;
+  UV lod, hid, seg_beg, seg_end, needed;
   const unsigned char* sieve;
   UV n = iter->p;
 
@@ -464,13 +479,17 @@ UV prime_iterator_next(prime_iterator *iter)
       croak("MPU: prime iterator exhausted native integer range\n");
   } else {
     lod = PRIMARY_SIZE;
-    New(0, sieve, SEGMENT_SIZE, unsigned char );
   }
 
-  hid = lod + SEGMENT_SIZE - 1;
+  hid = lod + iterator_segment_size(lod) - 1;
   if (hid > UV_MAX/30) hid = UV_MAX/30;
+  needed = hid-lod+1;
+  if (sieve == 0)
+    New(0, sieve, needed, unsigned char);
+  else if (needed > iter->segment_bytes)
+    Renew(sieve, needed, unsigned char);
   iter->segment_start = lod * 30;
-  iter->segment_bytes = hid-lod+1;
+  iter->segment_bytes = needed;
   seg_beg = iter->segment_start;
   seg_end = (hid == UV_MAX/30) ? UV_MAX : 30*hid+29;
 
