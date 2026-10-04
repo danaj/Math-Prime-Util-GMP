@@ -527,8 +527,10 @@ static void worker_lanczos_failures(void) {
 #ifndef _WIN32
 static void worker_timeout(int signal_number) {
   static const char message[] = "FAIL workers: watchdog expired (possible hang)\n";
+  ssize_t written;
   (void)signal_number;
-  (void)write(STDERR_FILENO, message, sizeof(message) - 1U);
+  written = write(STDERR_FILENO, message, sizeof(message) - 1U);
+  (void)written; /* Best-effort diagnostic; exit even if stderr is unwritable. */
   _exit(1);
 }
 static void worker_fatal_cases(void) {

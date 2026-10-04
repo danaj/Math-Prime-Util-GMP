@@ -160,5 +160,9 @@ mpu-psiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c pla
 lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/lanczos-bench.c -lm
 
+# Build only: a fixed-work byte-sieve block-size/concurrency screen.
+siqs-sieve-bench: tools/siqs-sieve-bench.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+
 MAKE_FRAG
 }

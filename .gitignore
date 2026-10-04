@@ -8,6 +8,7 @@ XS.c
 mpu-siqs
 mpu-psiqs
 lanczos-bench
+siqs-sieve-bench
 *.o
 *.obj
 *.dSYM

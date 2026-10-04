@@ -133,6 +133,8 @@ tools/README-siqs-check.txt
 tools/README-siqs-embedding.txt
 tools/lanczos-bench.c
 tools/README-lanczos-bench.txt
+tools/siqs-sieve-bench.c
+tools/README-siqs-sieve-bench.txt
 tools/parse-siqs-bands.pl
 xt/arithmod.pl
 xt/bench-ispower.pl
