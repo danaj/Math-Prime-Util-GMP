@@ -3110,11 +3110,10 @@ static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
                                         uint32_t root1, uint32_t root2,
                                         uint32_t p, uint8_t logp) {
   /* clang vectorizer likes size_t here */
-  size_t pos, gap1, gap2, final_offset;
-
-  pos = root1;
-  gap1 = root2 - root1;
-  gap2 = p - gap1;
+  size_t final_offset;
+  size_t pos = root1;
+  size_t gap1 = root2 - root1;
+  size_t gap2 = p - gap1;
   /* The eighth store is at pos + 3*p + gap1, not the next-cycle pos + 4*p. */
   final_offset = (size_t)3 * p + gap1;
   while (pos + final_offset < length) {
@@ -3147,8 +3146,8 @@ static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
                                      uint32_t root1, uint32_t root2,
                                      uint32_t p, uint8_t logp,
                                      uint32_t count) {
-  uint32_t i, pos;
-  pos = root1;
+  uint32_t i;
+  size_t pos = root1;
   for (i = 0; i < count; i++, pos += p) {
 #ifdef SIQS_DEBUG
     if (pos < length)
@@ -3174,6 +3173,7 @@ static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
 }
 
 #define SIQS_ONE_HIT_LOCAL_MIN_PRIMES  5200U
+#define SIQS_TWO_HIT_LOCAL_LENGTH_THRESHOLD (64U * 1024U)
 #define SIQS_ONE_HIT_SINK_STRIPE_SIZE  4096U
 
 /* Apply one root from the one-hit tier.  In release, redirect an
@@ -3189,6 +3189,47 @@ static INLINE void siqs_sieve_one_hit_local(uint8_t *sieve,
   uint32_t pos = root < length ? root : sink;
   siqs_sieve_add(sieve + pos, logp);
 #endif
+}
+
+/* For length/2 < p <= length, the first hit is always logical.  Localize
+ * only the optional second hit, using the same padding stripe as one-hit
+ * primes.  Native-width addition keeps the address calculation unwrapped. */
+static INLINE void siqs_sieve_two_hit_local(uint8_t *sieve,
+                                            uint8_t logp, uint32_t root,
+                                            uint32_t p, uint32_t length,
+                                            uint32_t sink) {
+  size_t pos = (size_t)root + p;
+  siqs_sieve_add(sieve + root, logp);
+#ifdef SIQS_DEBUG
+  if (pos < length)
+    siqs_sieve_add(sieve + pos, logp);
+  (void)sink;
+#else
+  pos = pos < length ? pos : sink;
+  siqs_sieve_add(sieve + pos, logp);
+#endif
+}
+
+/* Keep this loop out of the generic kernel so small-interval loops retain
+ * their own compiler unrolling and register allocation.  Called once per
+ * eligible sieve, not once per prime. */
+static NOINLINE size_t siqs_sieve_two_hit_range(
+    uint8_t *RESTRICT sieve, uint32_t length,
+    const uint32_t *RESTRICT prime, const uint32_t *RESTRICT root1,
+    const uint32_t *RESTRICT root2, const uint8_t *RESTRICT logp,
+    size_t first, size_t end) {
+  size_t i;
+  uint32_t sink = length;
+  for (i = first; i < end && prime[i] <= length; i++) {
+    siqs_sieve_two_hit_local(sieve, logp[i], root1[i], prime[i], length, sink);
+    if (root1[i] != root2[i])
+      siqs_sieve_two_hit_local(sieve, logp[i], root2[i], prime[i], length,
+                               sink + 1U);
+    sink += 2U;
+    if (sink == length + SIQS_ONE_HIT_SINK_STRIPE_SIZE)
+      sink = length;
+  }
+  return i;
 }
 
 static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
@@ -3228,7 +3269,15 @@ static void siqs_run_sieve_kernel(
   SIQS_SIEVE_LARGE_RANGE(length / 4U, 5U);
   SIQS_SIEVE_LARGE_RANGE(length / 3U, 4U);
   SIQS_SIEVE_LARGE_RANGE(length / 2U, 3U);
-  SIQS_SIEVE_LARGE_RANGE(length,      2U);
+  /* Local padding is worthwhile only when ordinary dummy stores scatter
+   * widely.  M1 Pro screens favored leaving intervals through 64 KiB alone;
+   * this also keeps the default balanced dense blocks on their old path. */
+  if (length <= SIQS_TWO_HIT_LOCAL_LENGTH_THRESHOLD) {
+    SIQS_SIEVE_LARGE_RANGE(length, 2U);
+  } else {
+    i = siqs_sieve_two_hit_range(sieve, length, prime, root1, root2, logp,
+                                i, end);
+  }
   if (end - i < SIQS_ONE_HIT_LOCAL_MIN_PRIMES) {
     SIQS_SIEVE_LARGE_RANGE(UINT32_MAX, 1U);
   } else {

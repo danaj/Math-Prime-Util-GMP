@@ -285,6 +285,48 @@ static void check_tier_boundaries(void) {
   fflush(stdout);
 }
 
+static void check_two_hit_local(void) {
+  static const uint32_t lengths[] = {65535, 65536, 65537, 131073, 196625};
+  uint32_t n;
+  case_name = "two-hit/local";
+  for (n = 0; n < sizeof(lengths) / sizeof(*lengths); n++) {
+    uint32_t length = lengths[n], count = length - length / 2U;
+    uint32_t *periods, i, round;
+    siqs_ctx_t ctx;
+    if (count > 4096U) count = 4096U;
+    periods = (uint32_t *)check_allocate(count + 1U, sizeof(uint32_t));
+    periods[0] = 7; /* Exercise a dense prefix when blocking is active. */
+    for (i = 0; i < count; i++) periods[i + 1U] = length / 2U + 1U + i;
+    synthetic_init(&ctx, length, periods, count + 1U);
+    free(periods);
+    for (round = 0; round < 3U; round++) {
+      synthetic_roots(&ctx, round);
+      if (round == 1U) {
+        /* Mostly missing final hits, with both distinct and equal roots.
+         * More than 2048 primes cycles the 4 KiB sink stripe. */
+        for (i = 1; i <= count; i++) {
+          uint32_t p = ctx.prime[i];
+          ctx.root1[i] = i % 4U == 0 ? p - 1U : p - 2U;
+          ctx.root2[i] = p - 1U;
+        }
+      }
+      if (round != 0) {
+        /* Adjacent final hits at length-1 and length: one logical, one
+         * redirected.  Only one prime uses these roots to avoid overflow. */
+        uint32_t root = length - ctx.prime[1];
+        ctx.root1[1] = root - 1U;
+        ctx.root2[1] = root;
+      }
+      ctx.active_sieve_initial = 96;
+      ctx.params.stage1_bias = 8;
+      compare_sieve(&ctx);
+    }
+    synthetic_clear(&ctx);
+  }
+  puts("PASS sieve: two-hit localization, exact-end hits, duplicates, sink wrap");
+  fflush(stdout);
+}
+
 static void check_one_hit_and_maps(void) {
   uint32_t counts[] = {SIQS_ONE_HIT_LOCAL_MIN_PRIMES - 1U,
     SIQS_ONE_HIT_LOCAL_MIN_PRIMES, SIQS_ONE_HIT_LOCAL_MIN_PRIMES + 1U,
@@ -471,6 +513,7 @@ static void check_real_polynomials(void) {
 
 static void suite_sieve(void) {
   check_tier_boundaries();
+  check_two_hit_local();
   check_one_hit_and_maps();
   check_oracle_overflow();
   check_real_polynomials();
