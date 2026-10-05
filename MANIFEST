@@ -137,7 +137,12 @@ tools/lanczos-bench.c
 tools/README-lanczos-bench.txt
 tools/siqs-sieve-bench.c
 tools/README-siqs-sieve-bench.txt
+tools/siqs-autotune.pl
+tools/siqs-autotune.inc.c
+tools/siqs-autotune-check.c
+tools/README-siqs-autotune.txt
 tools/parse-siqs-bands.pl
+xt/siqs-autotune.t
 xt/arithmod.pl
 xt/bench-ispower.pl
 xt/bench-random-bytes.pl

@@ -60,9 +60,10 @@
 #endif
 
 #define SIQS_MAX_EXTRA_RELS      512U
-/* Normal collection stops at graph readiness.  This is only a terminal
- * failure guard for unusually slow relation streams. */
-#define SIQS_MAX_POLYNOMIALS_PER_FB 192U
+/* Normal collection stops at graph readiness.  This is only a generous
+ * terminal failure guard for unusually slow relation streams, not an expected
+ * work target.  Both collectors allow max(1000000, 512 * FB) polynomials. */
+#define SIQS_MAX_POLYNOMIALS_PER_FB 512U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
  * older conservative surplus for the independently tuned 2LP path. */
@@ -72,10 +73,15 @@
 #define SIQS_MATRIX_CHECK_MAX    512U
 /* Timer-free verbose-output calibration.  The first value is deliberately a
  * reference-machine estimate; the second is the human-facing cadence knob. */
-#define SIQS_PROGRESS_WORK_PER_SEC UINT64_C(600000000)
-#define SIQS_PROGRESS_OUTPUT_EVERY_NSECS 10U
+#ifndef SIQS_PROGRESS_WORK_PER_SEC
+# define SIQS_PROGRESS_WORK_PER_SEC UINT64_C(600000000)
+#endif
+#ifndef SIQS_PROGRESS_OUTPUT_EVERY_NSECS
+# define SIQS_PROGRESS_OUTPUT_EVERY_NSECS 10U
+#endif
 #define SIQS_PROGRESS_WORK_INTERVAL \
   (SIQS_PROGRESS_WORK_PER_SEC * SIQS_PROGRESS_OUTPUT_EVERY_NSECS)
+#define SIQS_POLYNOMIAL_NOTICE_PER_FB 160U
 #define SIQS_MATRIX_RETRY_BATCH_MAX 128U
 /* Low q=1/q=2 polynomials can produce far more relations than their tiny
  * matrices need.  Check the matrix while consuming their candidate list so
@@ -479,6 +485,7 @@ typedef struct {
   uint32_t *block_root1, *block_root2, *block_step;
   uint32_t block_prime_count;
   uint32_t block_length;
+  int polynomial_notice_printed;
 } siqs_ctx_t;
 
 static int siqs_solve(siqs_ctx_t *ctx);
@@ -4459,14 +4466,50 @@ static int siqs_solve(siqs_ctx_t *ctx) {
  * Collection driver and context lifetime
  *----------------------------------------------------------------------------*/
 
+/* A 24-byte buffer holds every uint64_t decimal value; compact forms are
+ * shorter.  Keep exact counts in the final statistics, not each progress line. */
+static void siqs_format_progress_count(char *text, uint64_t count) {
+  if (count >= UINT64_C(1000000000))
+    sprintf(text, "%.1fG", (double)count / 1000000000.0);
+  else if (count >= UINT64_C(1000000))
+    sprintf(text, "%.1fM", (double)count / 1000000.0);
+  else
+    sprintf(text, "%llu", (unsigned long long)count);
+}
+
+static uint64_t siqs_progress_poly_step(const siqs_ctx_t *ctx,
+                                        uint32_t live_workers) {
+  uint32_t scale = live_workers / 2U;
+  if (scale < 1U)
+    scale = 1U;
+  return (SIQS_PROGRESS_WORK_INTERVAL * scale
+          + ctx->params.half_interval - 1U) / ctx->params.half_interval;
+}
+
+/* Check only on the normal reporting schedule and at collection completion.
+ * Once per attempt, including solve/collect retries; this informational work
+ * milestone is independent of the terminal failure guard. */
+static void siqs_print_polynomial_notice(siqs_ctx_t *ctx, uint32_t poly_count) {
+  if (!ctx->polynomial_notice_printed &&
+      (uint64_t)poly_count >
+        (uint64_t)SIQS_POLYNOMIAL_NOTICE_PER_FB * ctx->params.fb_size) {
+    ctx->polynomial_notice_printed = 1;
+    printf("# siqs collection has exceeded %uxFB polynomials\n",
+           (unsigned)SIQS_POLYNOMIAL_NOTICE_PER_FB);
+    fflush(stdout);
+  }
+}
+
 static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
                                        uint32_t poly_count) {
-  printf("# siqs relations %u/%u, raw %llu, polys %u\n",
-         ctx->full_count, target,
-         (unsigned long long)(ctx->accepted_smooth
-                            + ctx->accepted_one_lp
-                            + ctx->accepted_two_lp),
-         poly_count);
+  char raw[24], polys[24];
+  siqs_format_progress_count(raw, ctx->accepted_smooth
+                                + ctx->accepted_one_lp
+                                + ctx->accepted_two_lp);
+  siqs_format_progress_count(polys, poly_count);
+  printf("# siqs relations %u/%u, raw %s, polys %s = %.0fxFB\n",
+         ctx->full_count, target, raw, polys,
+         (double)poly_count / ctx->params.fb_size);
   fflush(stdout);
 }
 
@@ -4482,9 +4525,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
       ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
           ? UINT32_MAX
           : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-  uint64_t report_poly_step =
-      (SIQS_PROGRESS_WORK_INTERVAL + ctx->params.half_interval - 1U) /
-      ctx->params.half_interval;
+  uint64_t report_poly_step = siqs_progress_poly_step(ctx, 1U);
   uint64_t next_work_report = (uint64_t)*poly_count + report_poly_step;
   uint32_t last_report_count = UINT32_MAX;
   uint32_t last_report_polys = UINT32_MAX;
@@ -4508,6 +4549,8 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
 
     family_ok = siqs_new_family(ctx, poly);
     if (!family_ok) {
+      if (verbose > 2)
+        siqs_print_polynomial_notice(ctx, *poly_count);
       if (verbose > 3 &&
           (last_report_count != ctx->full_count ||
            last_report_polys != *poly_count))
@@ -4529,6 +4572,8 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
           ctx->full_count >= *next_matrix_check) {
         uint32_t core_rows, core_cols;
         int ready = siqs_matrix_ready(ctx, &core_rows, &core_cols);
+        if (ready && verbose > 2)
+          siqs_print_polynomial_notice(ctx, *poly_count);
         if (ready && verbose > 3 &&
             (last_report_count != ctx->full_count ||
              last_report_polys != *poly_count))
@@ -4546,13 +4591,18 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
       /* M times the polynomial count is a timer-free work clock.  Report at
        * its approximate time cadence regardless of relation yield, so a slow
        * tail still shows that collection is making progress. */
-      if (verbose > 3 && (uint64_t)*poly_count >= next_work_report) {
-        siqs_print_relation_report(ctx, target, *poly_count);
-        last_report_count = ctx->full_count;
-        last_report_polys = *poly_count;
+      if (verbose > 2 && (uint64_t)*poly_count >= next_work_report) {
+        siqs_print_polynomial_notice(ctx, *poly_count);
+        if (verbose > 3) {
+          siqs_print_relation_report(ctx, target, *poly_count);
+          last_report_count = ctx->full_count;
+          last_report_polys = *poly_count;
+        }
         next_work_report = (uint64_t)*poly_count + report_poly_step;
       }
       if (*poly_count >= max_polynomials) {
+        if (verbose > 2)
+          siqs_print_polynomial_notice(ctx, *poly_count);
         if (verbose > 3 &&
             (last_report_count != ctx->full_count ||
              last_report_polys != *poly_count))
@@ -4568,6 +4618,8 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
     }
 
   }
+  if (verbose > 2)
+    siqs_print_polynomial_notice(ctx, *poly_count);
   if (verbose > 3 &&
       (last_report_count != ctx->full_count ||
        last_report_polys != *poly_count))

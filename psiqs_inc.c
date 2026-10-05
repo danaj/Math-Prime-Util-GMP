@@ -370,10 +370,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
   uint32_t max_polynomials =
       ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
         ? UINT32_MAX : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-  uint64_t report_step =
-      (SIQS_PROGRESS_WORK_INTERVAL + ctx->params.half_interval - 1U) /
-      ctx->params.half_interval;
-  uint64_t next_report = (uint64_t)*poly_count + report_step;
+  uint64_t report_step, next_report;
   uint32_t last_report_count = UINT32_MAX, last_report_polys = UINT32_MAX;
   uint32_t remaining, active = 0;
   int verbose = siqs_verbose_level(), complete = 0, exhausted = 0, ready = 0;
@@ -393,6 +390,10 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
     return siqs_collect_relations(ctx, dispatch, target, next_matrix_check,
                                   family_count, poly_count);
   }
+  /* Use successfully created workers, not requested slots.  High core counts
+   * otherwise make the shared collection-work clock excessively chatty. */
+  report_step = siqs_progress_poly_step(ctx, pool->live);
+  next_report = (uint64_t)*poly_count + report_step;
   remaining = max_polynomials - *poly_count;
   for (i = 0; i < pool->count && remaining != 0; i++) {
     if (pool->workers[i].started) {
@@ -427,10 +428,13 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
         break;
       }
     }
-    if (verbose > 3 && (uint64_t)*poly_count >= next_report) {
-      siqs_print_relation_report(ctx, target, *poly_count);
-      last_report_count = ctx->full_count;
-      last_report_polys = *poly_count;
+    if (verbose > 2 && (uint64_t)*poly_count >= next_report) {
+      siqs_print_polynomial_notice(ctx, *poly_count);
+      if (verbose > 3) {
+        siqs_print_relation_report(ctx, target, *poly_count);
+        last_report_count = ctx->full_count;
+        last_report_polys = *poly_count;
+      }
       next_report = (uint64_t)*poly_count + report_step;
     }
     if (ctx->factor_found || ctx->full_count >= target) {
@@ -460,6 +464,8 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       psiqs_merge_worker(ctx, worker);
     }
   }
+  if (verbose > 2)
+    siqs_print_polynomial_notice(ctx, *poly_count);
   if (ctx->factor_found || ctx->full_count >= target)
     complete = 1;
   if (ready && verbose > 3) {

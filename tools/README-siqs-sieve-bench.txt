@@ -14,6 +14,9 @@ Run on an idle machine:
   ./siqs-sieve-bench
   ./siqs-sieve-bench --threads 4 --output blocks-4.tsv
 
+For a short staged screen and advisory compiler flags, see siqs-autotune.pl
+and README-siqs-autotune.txt. Ordinary sweeps below remain available unchanged.
+
 Default input is RSA-100 (330 bits). An alternative decimal input
 can be supplied as the final argument. Default sizes are off, 16/32/64 KiB,
 with three alternating-order sweeps and roughly one second per timed batch.

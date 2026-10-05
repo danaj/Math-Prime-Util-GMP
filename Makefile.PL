@@ -136,13 +136,26 @@ SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h \
 SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
 SIQS_CHECK_ARGS =
+EXTRA_FLAGS =
+SIQS_TUNE_ARGS =
 
-.PHONY: siqs siqs-serial check-siqs check-psiqs test-siqs
+.PHONY: siqs siqs-serial check-siqs check-psiqs check-siqs-autotune test-siqs \
+	siqs-tuned siqs-tuned-8
+
 siqs: msiqs
 
 # Explicit override: replace even an up-to-date pthreads executable.
 siqs-serial: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) tools/build-siqs.pl
-	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --output msiqs --serial $(SIQS_STANDALONE_SOURCES)
+	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS)" --output msiqs --serial $(SIQS_STANDALONE_SOURCES)
+
+# Advisory measurement followed by an explicit rebuild; do not compile if the
+# measurement fails. No persistent tuned configuration or source edits.
+siqs-tuned: siqs-sieve-bench tools/siqs-autotune.pl
+	@siqs_tuned_flags=`$(PERLRUN) tools/siqs-autotune.pl --flags $(SIQS_TUNE_ARGS)` && \
+	$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS) $$siqs_tuned_flags" --output msiqs $(SIQS_STANDALONE_SOURCES)
+
+siqs-tuned-8:
+	$(MAKE) siqs-tuned SIQS_TUNE_ARGS='--threads 8'
 
 # Optional standalone health checks; not dependencies of Perl's test target.
 check-siqs:
@@ -154,15 +167,22 @@ check-psiqs:
 test-siqs: check-siqs
 
 msiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c tools/build-siqs.pl tools/pthread-probe.c
-	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --output $@ $(SIQS_STANDALONE_SOURCES)
+	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS)" --output $@ $(SIQS_STANDALONE_SOURCES)
 
 # Build only: an optional synthetic matrix scaling tool, not a Perl test.
 lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/lanczos-bench.c -lm
 
 # Build only: a fixed-work byte-sieve block-size/concurrency screen.
-siqs-sieve-bench: tools/siqs-sieve-bench.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
+siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+
+siqs-autotune-check: tools/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+
+check-siqs-autotune: siqs-autotune-check
+	./siqs-autotune-check
+	$(PERLRUN) xt/siqs-autotune.t
 
 MAKE_FRAG
 }

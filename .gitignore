@@ -8,6 +8,7 @@ XS.c
 msiqs
 lanczos-bench
 siqs-sieve-bench
+siqs-autotune-check
 *.o
 *.obj
 *.dSYM
