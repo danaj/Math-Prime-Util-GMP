@@ -1263,11 +1263,12 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
-/* q=1 has only one A family.  A rare compact-polynomial underfill below 37
- * bits is retried at 8K and 16K, then with the former interval formula as an
- * exact terminal safety net.  Each interval changes the A target. */
+/* Retry rare q=1 underfill below 37 bits and q=2 A-selection exhaustion at
+ * 37--41 (e.g. 84098302697) with smooth-only q=1 profiles at 8K and 16K,
+ * then with the former interval formula as a terminal safety net.  q=1 has
+ * only one A family; each interval changes the A target. */
 #define SIQS_LOW_SMOOTH_RECOVERY_POLICY(name, interval, scale) \
-  { (name), MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0, \
+  { (name), MPU_SIQS_MIN_BITS, 41, 1, 1, 0, 0, 0, \
     1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 65), \
     SIQS_POLICY_LINEAR((scale), 0.0, 1), \
@@ -1297,7 +1298,16 @@ static const siqs_policy_band_t siqs_recovery_policies[] = {
   SIQS_LOW_ONE_LP_RECOVERY_POLICY(
       "one_lp_k60_q1_low_recovery_384k", 384U * 1024U),
   SIQS_LOW_ONE_LP_RECOVERY_POLICY(
-      "one_lp_k60_q1_low_recovery_1m", 1U << 20)
+      "one_lp_k60_q1_low_recovery_1m", 1U << 20),
+  /* Rare smooth-only q=3 exhaustion can leave only trivial dependencies
+   * (e.g. 39586268787172817).  Keep the primary FB/interval geometry, but
+   * admit one-LP partials to obtain new relations after that policy fails. */
+  { "one_lp_k60_q3_recovery", 50, 64, 1, 3, 0, 0, 0,
+    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315, 0.0, 65),
+    SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 }
 };
 #undef SIQS_LOW_SMOOTH_RECOVERY_POLICY
 #undef SIQS_LOW_ONE_LP_RECOVERY_POLICY
@@ -2609,8 +2619,11 @@ static void siqs_poly_clear(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 }
 
 static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
+  static const uint32_t stage_attempt_limits[3] = { 5000U, 5000U, 10000U };
+  uint32_t tolerances[3] = { 2U, 4U, 0U };
+  uint32_t stage, init_stage = 1;
+  uint32_t last_stage = poly->q_count == 1 ? 1U : 2U;
   uint32_t attempt, i;
-  uint32_t attempt_limit = poly->q_count <= 3 ? 30000U : 10000U;
   double ideal_d = pow(mpz_get_d(poly->target_A),
                        1.0 / poly->q_count);
   uint32_t ideal = ideal_d < 3.0 ? 3U : (uint32_t)ideal_d;
@@ -2622,81 +2635,110 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   mpz_init(product);
   mpz_init(remaining);
   mpz_init(scaled);
+  tolerances[2] = ctx->params.a_final_tolerance;
 
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
       ctx->fb[poly->a_index[i]].in_a = 0;
 
+  /* Every A uses q distinct eligible primes.  Start a small-q search at
+   * the first stage whose window can contain even their smallest product;
+   * if no stage can, searching cannot succeed.  q=1 has no tolerance window. */
+  if (poly->q_count >= 2 && poly->q_count <= 3) {
+    uint32_t count = 0;
+    last_stage = 3;
+    mpz_set_ui(product, 1);
+    /* Index zero (prime 2) is not eligible for A selection. */
+    for (i = 1; i < ctx->params.fb_size && count < poly->q_count; i++) {
+      if (ctx->fb[i].sqrt_kn == 0)
+        continue;
+      mpz_mul_ui(product, product, ctx->fb[i].p);
+      count++;
+    }
+    if (count < poly->q_count)
+      goto no_next_A;
+    for (; init_stage <= last_stage; init_stage++) {
+      mpz_mul_ui(scaled, poly->target_A, tolerances[init_stage - 1]);
+      if (mpz_cmp(product, scaled) <= 0)
+        break;
+    }
+    if (init_stage > last_stage)
+      goto no_next_A;
+  }
+
   /* The short low-end polynomials have fewer distinct A products.  q=1 has
    * only one useful nearest-prime choice, so accept it without a tolerance
-   * window and stop after that one attempt.  For q=2 or q=3, preserve the
-   * normal near-optimal search, then widen only an otherwise exhausted
-   * family rather than failing an otherwise healthy small input. */
-  for (attempt = 0; attempt < attempt_limit; attempt++) {
-    uint32_t tolerance = attempt < 10000U ? 2U
-                       : attempt < 20000U ? 4U
-                       : ctx->params.a_final_tolerance;
-    uint64_t fingerprint;
-    int acceptable = poly->q_count == 1;
-    mpz_set_ui(product, 1);
-    for (i = 0; i + 1 < poly->q_count; i++) {
-      int64_t wanted_index;
-      uint32_t wanted, index;
-      if (attempt >= 20000U) {
-        wanted_index = 1 + (int64_t)siqs_rand_range(
-            &ctx->poly_rng, ctx->params.fb_size - 1);
-      } else {
-        uint32_t search_variance = attempt < 10000U
-                                 ? variance : 2U * variance;
-        int64_t offset = (int64_t)siqs_rand_range(
-            &ctx->poly_rng, 2 * search_variance + 1) - search_variance;
-        wanted_index = (int64_t)center + offset;
-        if (wanted_index < 1)
-          wanted_index = 1;
-        if (wanted_index >= (int64_t)ctx->params.fb_size)
-          wanted_index = ctx->params.fb_size - 1;
+   * window in one attempt.  Stage 1 uses the normal local search; stage 2
+   * doubles its window with tolerance 4; stage 3 searches the whole factor
+   * base with the policy's final tolerance.  q>=4 uses 5K/5K attempts in
+   * stages 1/2; q=2/q=3 uses 1K/1K/10K and may skip impossible stages. */
+  for (stage = init_stage; stage <= last_stage; stage++) {
+    uint32_t tolerance = tolerances[stage - 1];
+    uint32_t attempt_limit = poly->q_count == 1
+                           ? 1U : stage_attempt_limits[stage - 1];
+    uint32_t search_variance = stage == 1 ? variance : 2U * variance;
+    if (poly->q_count >= 2 && poly->q_count <= 3 && stage < 3)
+      attempt_limit = 1000U;
+    for (attempt = 0; attempt < attempt_limit; attempt++) {
+      uint64_t fingerprint;
+      int acceptable = poly->q_count == 1;
+      mpz_set_ui(product, 1);
+      for (i = 0; i + 1 < poly->q_count; i++) {
+        int64_t wanted_index;
+        uint32_t wanted, index;
+        if (stage == 3) {
+          wanted_index = 1 + (int64_t)siqs_rand_range(
+              &ctx->poly_rng, ctx->params.fb_size - 1);
+        } else {
+          int64_t offset = (int64_t)siqs_rand_range(
+              &ctx->poly_rng, 2 * search_variance + 1) - search_variance;
+          wanted_index = (int64_t)center + offset;
+          if (wanted_index < 1)
+            wanted_index = 1;
+          if (wanted_index >= (int64_t)ctx->params.fb_size)
+            wanted_index = ctx->params.fb_size - 1;
+        }
+        wanted = ctx->fb[wanted_index].p;
+        index = siqs_nearest_available_fb(ctx, wanted);
+        poly->a_index[i] = index;
+        ctx->fb[index].in_a = 1;
+        mpz_mul_ui(product, product, ctx->fb[index].p);
       }
-      wanted = ctx->fb[wanted_index].p;
-      index = siqs_nearest_available_fb(ctx, wanted);
-      poly->a_index[i] = index;
-      ctx->fb[index].in_a = 1;
-      mpz_mul_ui(product, product, ctx->fb[index].p);
-    }
-    mpz_fdiv_q(remaining, poly->target_A, product);
-    {
-      unsigned long wanted = mpz_fits_ulong_p(remaining)
-                           ? mpz_get_ui(remaining) : ULONG_MAX;
-      uint32_t index = siqs_nearest_available_fb(
-          ctx, wanted > UINT32_MAX ? UINT32_MAX : (uint32_t)wanted);
-      poly->a_index[poly->q_count - 1] = index;
-      ctx->fb[index].in_a = 1;
-      mpz_mul_ui(product, product, ctx->fb[index].p);
-    }
+      mpz_fdiv_q(remaining, poly->target_A, product);
+      {
+        unsigned long wanted = mpz_fits_ulong_p(remaining)
+                             ? mpz_get_ui(remaining) : ULONG_MAX;
+        uint32_t index = siqs_nearest_available_fb(
+            ctx, wanted > UINT32_MAX ? UINT32_MAX : (uint32_t)wanted);
+        poly->a_index[poly->q_count - 1] = index;
+        ctx->fb[index].in_a = 1;
+        mpz_mul_ui(product, product, ctx->fb[index].p);
+      }
 
-    qsort(poly->a_index, poly->q_count, sizeof(uint32_t), siqs_u32_cmp);
-    if (!acceptable) {
-      mpz_mul_ui(scaled, product, tolerance);
-      if (mpz_cmp(scaled, poly->target_A) >= 0) {
-        mpz_mul_ui(scaled, poly->target_A, tolerance);
-        acceptable = mpz_cmp(product, scaled) <= 0;
+      qsort(poly->a_index, poly->q_count, sizeof(uint32_t), siqs_u32_cmp);
+      if (!acceptable) {
+        mpz_mul_ui(scaled, product, tolerance);
+        if (mpz_cmp(scaled, poly->target_A) >= 0) {
+          mpz_mul_ui(scaled, poly->target_A, tolerance);
+          acceptable = mpz_cmp(product, scaled) <= 0;
+        }
       }
-    }
-    if (acceptable) {
-      fingerprint = siqs_a_fingerprint(poly->a_index, poly->q_count);
-      if (siqs_hashset_insert(&ctx->a_hashes, fingerprint)) {
-        mpz_set(poly->A, product);
-        mpz_mul_ui(poly->DA, poly->A, ctx->params.poly_d);
-        mpz_clear(product);
-        mpz_clear(remaining);
-        mpz_clear(scaled);
-        return 1;
+      if (acceptable) {
+        fingerprint = siqs_a_fingerprint(poly->a_index, poly->q_count);
+        if (siqs_hashset_insert(&ctx->a_hashes, fingerprint)) {
+          mpz_set(poly->A, product);
+          mpz_mul_ui(poly->DA, poly->A, ctx->params.poly_d);
+          mpz_clear(product);
+          mpz_clear(remaining);
+          mpz_clear(scaled);
+          return 1;
+        }
       }
+      for (i = 0; i < poly->q_count; i++)
+        ctx->fb[poly->a_index[i]].in_a = 0;
     }
-    for (i = 0; i < poly->q_count; i++)
-      ctx->fb[poly->a_index[i]].in_a = 0;
-    if (poly->q_count == 1)
-      break;
   }
+no_next_A:
   mpz_clear(product);
   mpz_clear(remaining);
   mpz_clear(scaled);
