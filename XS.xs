@@ -2561,10 +2561,11 @@ trial_factor(IN char* strn, ...)
                   } else {
                     mpz_t *farray;
                     uint32_t nfactors;
+                    int qs_verbose = get_verbose_level() - 2;
                     if (arg1 == 2)
                       farray = _GMP_simpqs2(n, &nfactors, 7);
                     else
-                      farray = gmp_siqs(n, &nfactors, 7);
+                      farray = gmp_siqs(n, &nfactors, 7, qs_verbose);
                     for (i = 0; i < nfactors; i++)
                       XPUSH_MPZ(farray[i]);
                     if (arg1 == 2)

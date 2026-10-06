@@ -296,7 +296,7 @@ static bench_worker_t *bench_prepare_workers(bench_pool_t *pool, const mpz_t n) 
   /* References are unblocked regardless of the previously measured input. */
   bench_block_maximum = bench_block_minimum = 0;
   siqs_factor_array_init(&factors, n);
-  siqs_ctx_init(&master, n, n, &factors, NULL);
+  siqs_ctx_init(&master, n, n, &factors, NULL, 0);
   if (!siqs_ctx_allocate(&master))
     croak("siqs-sieve-bench: input has a factor in its factor base; choose another input");
   siqs_poly_init(&master, &dispatch);

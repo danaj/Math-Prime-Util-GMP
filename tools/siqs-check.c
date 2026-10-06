@@ -13,14 +13,22 @@
  * Copyright (c) 2026 Dana Jacobsen.
  */
 #include <stdarg.h>
+#ifndef _WIN32
+# include <unistd.h>
+#endif
 #define main siqs_check_unused_driver_main
 #include "../mpu-siqs.c"
 #undef main
 #include "siqs-check-thread-seams.h"
+#include "siqs-check-cofactor-seams.h"
 #ifndef SIQS_CHECK_SOURCE
 # define SIQS_CHECK_SOURCE "../siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
+#undef squfof126
+#undef uvpbrent63
+#undef siqs_pbrent_factor
+#undef siqs_is_prob_prime
 #undef malloc
 #undef calloc
 #undef pthread_create
@@ -434,7 +442,7 @@ static void check_real_case(const mpz_t n, unsigned long forced_k,
   case_name = "real-polynomials";
   check_trial_survivor(n);
   siqs_factor_array_init(&result, n);
-  siqs_ctx_init(&ctx, n, n, &result, NULL);
+  siqs_ctx_init(&ctx, n, n, &result, NULL, 0);
   case_ctx = &ctx;
   if (forced_k != 0) {
     ctx.multiplier = forced_k;
@@ -524,6 +532,7 @@ static void suite_sieve(void) {
 #include "siqs-check-relations.inc.c"
 #include "siqs-check-matrix.inc.c"
 #include "siqs-check-workers.inc.c"
+#include "siqs-check-cofactors.inc.c"
 
 typedef struct {
   const char *name;
@@ -539,11 +548,13 @@ static const check_suite_t suites[] = {
   {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
    suite_matrix},
   {"workers", "pthread pool lifecycle, reuse, shutdown and injected failures",
-   suite_workers}
+   suite_workers},
+  {"cofactors", "split counters, acceptance, bounded nested SIQS and quiet/reentrant calls",
+   suite_cofactors}
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|sieve|relations|matrix|workers] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|sieve|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {
@@ -562,7 +573,7 @@ int main(int argc, char **argv) {
       return 0;
     } else { usage(); return 2; }
   }
-  verbose_level = 2;
+  verbose_level = 0;
   printf("SIQS checks: block maximum %u bytes, %s suite\n",
          (unsigned)SIQS_SIEVE_BLOCK_SIZE, extended ? "extended" : "quick");
   fflush(stdout);

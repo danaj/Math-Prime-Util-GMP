@@ -28,7 +28,6 @@
 #include "../lanczos.c"
 
 static int bench_verbose;
-int siqs_verbose_level(void) { return bench_verbose ? 4 : 0; }
 
 typedef struct {
   uint32_t requested, effective, attempts, dependencies;
@@ -145,13 +144,13 @@ static uint64_t *bench_solve(uint32_t rows, uint32_t count, la_col_t *cols,
   run->requested = threads;
   run->effective = 1U;
   *mask = 0;
-  nla_matrix_init(&matrix, rows, 0, count, cols, NLA_POST_ROWS);
+  nla_matrix_init(&matrix, rows, 0, count, cols, NLA_POST_ROWS, bench_verbose ? 3 : 0);
   run->packed = matrix.packed;
   matrix.pool = nla_pool_create(&matrix, threads);
   if (matrix.pool != NULL) run->effective = matrix.pool->nthreads;
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
     run->attempts++;
-    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask);
+    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask, bench_verbose ? 3 : 0);
     if (result != NULL && *mask != 0) break;
     free(result);
     result = NULL;

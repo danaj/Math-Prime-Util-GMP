@@ -180,7 +180,8 @@ static int tfe(mpz_t f, const mpz_t n, int effort)
                    log2n <= ((effort == 20) ? 180 : MPU_SIQS_MAX_BITS)) {
                 mpz_t *farray;
                 uint32_t nfactors;
-                farray = gmp_siqs(n, &nfactors, 2);
+                int qs_verbose = get_verbose_level() - 2;
+                farray = gmp_siqs(n, &nfactors, 2, qs_verbose);
                 /* TODO: Return all factors */
                 if (nfactors > 1) {
                   success = 1;

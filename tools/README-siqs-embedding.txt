@@ -7,6 +7,12 @@ standalone host adapters are in siqs_dep.h. mpu-siqs.c is the reference driver
 and adapter implementation. Its normal command-line startup already handles
 the lifecycle below. The Perl/MPU-GMP host also has its own initialization.
 
+The matrix solver is independent of the SIQS host adapters. Standalone users
+can compile lanczos.c with lanczos.h and ptypes.h; add PSIQS/pthreads and
+planczos_inc.c for parallel support. No GMP dependency or prime-cache startup
+is needed by the solver itself. Matrix/seed/thread inputs and diagnostic
+verbosity are caller-owned; see lanczos.h and README-lanczos-bench.txt.
+
 Shared prime-cache lifetime
 --------------------------
 
@@ -49,12 +55,7 @@ Standalone host adapters
 ------------------------
 
 Compile a standalone embedding with STANDALONE, without STANDALONE_ECPP.
-Supply these three definitions with the exact siqs_dep.h prototypes:
-
-  int siqs_verbose_level(void);
-    Return a stable verbosity value. Zero is quiet; SIQS starts progress
-    output above 2. Keep configuration immutable during calls or synchronize
-    access. Concurrent progress output can interleave on shared stdout/stderr.
+Supply these two definitions with the exact siqs_dep.h prototypes:
 
   int siqs_is_prob_prime(const mpz_t n);
     Return nonzero for prime/probably-prime, zero for composite; do not modify n.
@@ -66,8 +67,8 @@ Supply these three definitions with the exact siqs_dep.h prototypes:
     a proper divisor 1 < f < n that divides n; return zero on a miss. Do not
     clear n or f. Use local temporaries/RNG state, not shared writable scratch.
 
-The driver contains a portable GMP implementation of the third adapter.
-Reuse/adapt its three host functions in your host source; do not link its main
+The driver contains a portable GMP implementation of the second adapter.
+Reuse/adapt its two host functions in your host source; do not link its main
 alongside your own main. Include siqs_dep.h in the adapter translation unit.
 The UV type comes from ptypes.h; use the same build flags/types across units.
 
@@ -87,8 +88,15 @@ if none started. This is not general out-of-memory recovery.
 Calling and owning results
 --------------------------
 
-  factors = gmp_siqs(n, &count, trial_start);
-  factors = gmp_psiqs(n, &count, trial_start, nthreads);  /* PSIQS build */
+  factors = gmp_siqs(n, &count, trial_start, verbose);
+  factors = gmp_psiqs(n, &count, trial_start, verbose, nthreads);  /* PSIQS build */
+
+Verbosity belongs to this call, independently of any host/module setting:
+0 is quiet, 1 prints setup/final summaries, 2 adds periodic progress, and
+3 adds detailed diagnostics. Nested cofactor calls use zero without changing
+another call's output. Concurrent verbose outer calls can still interleave
+their stdout. Matrix reduction and Lanczos also receive verbosity explicitly;
+neither SIQS nor the solver reads a host-global verbosity callback.
 
 n must be an initialized positive mpz_t; count must point to caller-owned
 uint32_t output storage. n is not modified. Use trial_start=0 for ordinary
@@ -149,9 +157,9 @@ a complete factorization.
 
     prime_iterator_global_startup();
   #ifdef PSIQS
-    factors = gmp_psiqs(n, &count, 0, 4);
+    factors = gmp_psiqs(n, &count, 0, 0, 4);
   #else
-    factors = gmp_siqs(n, &count, 0);
+    factors = gmp_siqs(n, &count, 0, 0);
   #endif
     mpz_init_set_ui(product, 1);
     for (i = 0; i < count; i++) {
@@ -177,7 +185,7 @@ a complete factorization.
     return status;
   }
 
-Build from the repository root, supplying your three adapters in my-siqs-host.c:
+Build from the repository root, supplying your two adapters in my-siqs-host.c:
 
   cc -O3 -DSTANDALONE -I. -o my-factor my-factor.c my-siqs-host.c \
     siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm

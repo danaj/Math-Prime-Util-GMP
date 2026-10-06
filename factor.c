@@ -339,8 +339,10 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         mpz_t *farray;
         uint32_t i, j, k, copies, ncomp, qs_nfactors;
         int qs_progress = 0;
+        int qs_verbose = get_verbose_level() - 2;
 
-        farray = gmp_siqs(n, &qs_nfactors, 64007);
+        /* Keep the module's existing quiet low levels; SIQS owns its 0-3 scale. */
+        farray = gmp_siqs(n, &qs_nfactors, 64007, qs_verbose);
 
         if (qs_nfactors > 1) {
           qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);

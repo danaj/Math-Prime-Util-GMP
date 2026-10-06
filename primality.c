@@ -534,7 +534,6 @@ int _GMP_is_lucas_pseudoprime(const mpz_t n, int strength)
   IV P, Q;
   UV s = 0;
   int rval;
-  int _verbose = get_verbose_level();
 
   {
     int cmpr = mpz_cmp_ui(n, 2);
@@ -550,7 +549,7 @@ int _GMP_is_lucas_pseudoprime(const mpz_t n, int strength)
     mpz_clear(t);
     return 0;
   }
-  if (_verbose>3) gmp_printf("N: %Zd  D: %"IVdf"  P: %"UVuf"  Q: %"IVdf"\n", n, P*P-4*Q, P, Q);
+  /* gmp_printf("N: %Zd  D: %"IVdf"  P: %"UVuf"  Q: %"IVdf"\n", n, P*P-4*Q, P, Q); */
 
   mpz_init(U);  mpz_init(V);  mpz_init(Qk);
   mpz_init_set(d, n);

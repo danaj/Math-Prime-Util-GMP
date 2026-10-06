@@ -33,11 +33,7 @@
 #include "siqs_dep.h"
 #define SIQS_PROGRAM_NAME "msiqs"
 
-static int verbose_level = 2;  /* SIQS starts verbose at level 3+ */
-
-int siqs_verbose_level(void) {
-  return verbose_level;
-}
+static int verbose_level = 0;  /* -v summaries, -vv progress, -vvv diagnostics. */
 
 int siqs_is_prob_prime(const mpz_t n) {
   return mpz_probab_prime_p(n, 25);
@@ -210,9 +206,9 @@ static int collect_factors(const mpz_t n, siqs_factor_list_t *output,
     mpz_swap(current, pending.values[--pending.count]);
     mpz_clear(pending.values[pending.count]);
 #ifdef PSIQS
-    partition = gmp_psiqs(current, &count, 2, nthreads);
+    partition = gmp_psiqs(current, &count, 2, verbose_level, nthreads);
 #else
-    partition = gmp_siqs(current, &count, 2);
+    partition = gmp_siqs(current, &count, 2, verbose_level);
 #endif
     for (i = 0; i < count; i++) {
       if (siqs_is_prob_prime(partition[i])) {

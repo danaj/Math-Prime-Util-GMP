@@ -175,7 +175,7 @@ static void matrix_kernel_case(unsigned long rows, unsigned long count,
   uint64_t *row_input = (uint64_t *)check_allocate(rows, sizeof(uint64_t));
   uint64_t *table = (uint64_t *)check_allocate(8U * 256U, sizeof(uint64_t));
   case_name = "original-matrix-kernels";
-  nla_matrix_init(&matrix, rows, dense, count, cols, post);
+  nla_matrix_init(&matrix, rows, dense, count, cols, post, 0);
   CHECK(matrix.packed == (active >= 1024 && count <= 32768));
   CHECK(matrix.active_rows == active);
   if (detailed) printf("  matrix %lu x %lu, dense=%lu post=%u packed=%d\n",
@@ -318,7 +318,7 @@ static void matrix_reduction(void) {
   }
   alive = matrix_reference_reduce(rows, count, original);
   copy = matrix_clone(original, count);
-  la_reduce_matrix(&reduced_rows, &reduced_cols, copy);
+  la_reduce_matrix(&reduced_rows, &reduced_cols, copy, 0);
   CHECK(reduced_rows == rows && reduced_cols < count);
   for (c = i = 0; c < count; c++) if (alive[c]) i++;
   CHECK(i == reduced_cols && !alive[0] && !alive[1] && !alive[2]);
@@ -376,15 +376,15 @@ static void matrix_solver_case(unsigned long rows, unsigned long count,
     free(nullrows);
   }
   for (wide = 0; wide < 2; wide++) {
-    nullrows = wide ? la_block_lanczos_wide(rows, dense, count, cols, 31, 47, &mask)
-                   : la_block_lanczos(rows, dense, count, cols, 31, 47, &mask);
+    nullrows = wide ? la_block_lanczos_wide(rows, dense, count, cols, 31, 47, &mask, 0)
+                   : la_block_lanczos(rows, dense, count, cols, 31, 47, &mask, 0);
     matrix_verify_dependencies(rows, count, dense, cols, nullrows, mask);
 #ifdef PSIQS
     {
       uint32_t threads;
       for (threads = 2; threads <= 4; threads++) {
         uint64_t threaded_mask, *threaded = la_block_lanczos_threaded(
-            rows, dense, count, cols, 31, 47, &threaded_mask, threads, wide);
+            rows, dense, count, cols, 31, 47, &threaded_mask, wide, 0, threads);
         matrix_verify_dependencies(rows, count, dense, cols, threaded, threaded_mask);
         CHECK(threaded_mask == mask);
         CHECK(memcmp(threaded, nullrows, (size_t)count * sizeof(uint64_t)) == 0);
@@ -405,7 +405,7 @@ static void matrix_degenerate(void) {
   memset(cols, 0, sizeof(cols));
   nullrows = la_dense_nullspace(0, 0, cols, &mask);
   CHECK(nullrows == NULL && mask == 0);
-  nullrows = la_block_lanczos(0, 0, 0, cols, 0, 0, &mask);
+  nullrows = la_block_lanczos(0, 0, 0, cols, 0, 0, &mask, 0);
   CHECK(nullrows == NULL && mask == 0);
   nullrows = la_dense_nullspace(0, 3, cols, &mask);
   CHECK(mask == UINT64_C(7));

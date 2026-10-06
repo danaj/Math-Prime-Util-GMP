@@ -284,7 +284,7 @@ static uint64_t autotune_work_rate(const mpz_t n, double seconds) {
   printf("\nCalibrating serial collection work rate for about %.2f seconds...\n", seconds);
   fflush(stdout);
   siqs_factor_array_init(&factors, n);
-  siqs_ctx_init(&ctx, n, n, &factors, NULL);
+  siqs_ctx_init(&ctx, n, n, &factors, NULL, 0);
   if (!siqs_ctx_allocate(&ctx) || ctx.factor_found)
     croak("siqs-autotune: work-rate input has a factor in its factor base");
   siqs_poly_init(&ctx, &poly);

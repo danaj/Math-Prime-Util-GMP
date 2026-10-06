@@ -60,6 +60,7 @@ static void psiqs_worker_init(psiqs_worker_t *worker,
   ctx->multiplier = master->multiplier;
   ctx->largest_fb_prime = master->largest_fb_prime;
   ctx->buffer_relations = 1;
+  ctx->verbose = master->verbose;
   mpz_init_set(ctx->n, master->n);
   mpz_init_set(ctx->kn, master->kn);
   mpz_init(ctx->eval.y);
@@ -103,7 +104,9 @@ static int psiqs_assign_family(siqs_ctx_t *master, siqs_poly_t *dispatch,
   return 1;
 }
 
-/* No shared mutation, logging, graph insertion or solving occurs here. */
+/* Workers buffer raw relations without changing the caller's relation graph.
+ * Cofactor resolution may run an independent quiet serial SIQS solver and
+ * report a rare split miss using this call's verbosity. */
 static void *psiqs_sieve_family(void *argument) {
   psiqs_worker_t *worker = (psiqs_worker_t *)argument;
   siqs_ctx_t *ctx = &worker->ctx;
@@ -156,14 +159,20 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   uint32_t i;
   master->total_candidates += ctx->total_candidates;
   master->split_attempts += ctx->split_attempts;
-  master->split_squfof_or_square += ctx->split_squfof_or_square;
+  master->split_square += ctx->split_square;
+  master->split_siqs += ctx->split_siqs;
+  master->split_squfof += ctx->split_squfof;
   master->split_rho += ctx->split_rho;
-  master->split_failures += ctx->split_failures;
+  master->split_fail += ctx->split_fail;
+  master->split_rejected += ctx->split_rejected;
   ctx->total_candidates = 0;
   ctx->split_attempts = 0;
-  ctx->split_squfof_or_square = 0;
+  ctx->split_square = 0;
+  ctx->split_siqs = 0;
+  ctx->split_squfof = 0;
   ctx->split_rho = 0;
-  ctx->split_failures = 0;
+  ctx->split_fail = 0;
+  ctx->split_rejected = 0;
   /* A polynomial zero can discover a divisor without emitting a relation.
    * Refine the parent's partition only here, while this worker is parked. */
   if (ctx->factor_found) {
@@ -373,7 +382,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
   uint64_t report_step, next_report;
   uint32_t last_report_count = UINT32_MAX, last_report_polys = UINT32_MAX;
   uint32_t remaining, active = 0;
-  int verbose = siqs_verbose_level(), complete = 0, exhausted = 0, ready = 0;
+  int verbose = ctx->verbose, complete = 0, exhausted = 0, ready = 0;
   if (max_polynomials < 1000000U)
     max_polynomials = 1000000U;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
@@ -418,7 +427,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       uint32_t rows, columns;
       ready = siqs_matrix_ready(ctx, &rows, &columns);
       *next_matrix_check = ctx->full_count + check_interval;
-      if (!ready && verbose > 4) {
+      if (!ready && verbose > 2) {
         printf("# siqs matrix core %u columns, %u rows%s\n",
                columns, rows, ready ? ", ready" : "");
         fflush(stdout);
@@ -428,13 +437,11 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
         break;
       }
     }
-    if (verbose > 2 && (uint64_t)*poly_count >= next_report) {
+    if (verbose > 1 && (uint64_t)*poly_count >= next_report) {
       siqs_print_polynomial_notice(ctx, *poly_count);
-      if (verbose > 3) {
-        siqs_print_relation_report(ctx, target, *poly_count);
-        last_report_count = ctx->full_count;
-        last_report_polys = *poly_count;
-      }
+      siqs_print_relation_report(ctx, target, *poly_count);
+      last_report_count = ctx->full_count;
+      last_report_polys = *poly_count;
       next_report = (uint64_t)*poly_count + report_step;
     }
     if (ctx->factor_found || ctx->full_count >= target) {
@@ -464,11 +471,11 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       psiqs_merge_worker(ctx, worker);
     }
   }
-  if (verbose > 2)
+  if (verbose > 0)
     siqs_print_polynomial_notice(ctx, *poly_count);
   if (ctx->factor_found || ctx->full_count >= target)
     complete = 1;
-  if (ready && verbose > 3) {
+  if (ready && verbose > 1) {
     uint32_t rows, columns;
     (void)siqs_matrix_ready(ctx, &rows, &columns);
     siqs_print_relation_report(ctx, target, *poly_count);
@@ -477,7 +484,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
     printf("# siqs matrix core %u columns, %u rows, ready\n", columns, rows);
     fflush(stdout);
   }
-  if (verbose > 3 &&
+  if (verbose > 1 &&
       (last_report_count != ctx->full_count || last_report_polys != *poly_count))
     siqs_print_relation_report(ctx, target, *poly_count);
   psiqs_pool_destroy(pool);
@@ -486,9 +493,9 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
 
 /* Same partition contract as gmp_siqs; worker count belongs to this call. */
 mpz_t *gmp_psiqs(const mpz_t n, uint32_t *nfactors,
-                 uint32_t trial_start, uint32_t nthreads) {
+                 uint32_t trial_start, int verbose, uint32_t nthreads) {
   if (nthreads == 0 || nthreads > PSIQS_MAX_THREADS)
     croak("PSIQS: worker count must be between 1 and %u",
           (unsigned)PSIQS_MAX_THREADS);
-  return siqs_factor(n, nfactors, trial_start, nthreads);
+  return siqs_factor(n, nfactors, trial_start, verbose, nthreads);
 }

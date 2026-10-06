@@ -41,9 +41,11 @@
  * owns all returned mpz_t values and the array: release both with
  * gmp_siqs_free, without separately clearing/freeing its elements first.
  * There is no complete-factorization flag; callers must check the partition.
+ * verbose is independent of host/module settings: 0 is quiet, 1 prints
+ * setup/final summaries, 2 adds periodic progress, and 3 adds diagnostics.
  * Standalone fatal allocation/invariant errors exit rather than return NULL. */
 extern mpz_t *gmp_siqs(const mpz_t n, uint32_t *nfactors,
-                      uint32_t trial_start);
+                      uint32_t trial_start, int verbose);
 extern void gmp_siqs_free(mpz_t *factors, uint32_t nfactors);
 
 #ifdef PSIQS
@@ -53,7 +55,7 @@ extern void gmp_siqs_free(mpz_t *factors, uint32_t nfactors);
  * native workers must not call unaudited Perl host adapters. Concurrent outer
  * callers each create their own pool; nthreads is not a process-wide cap. */
 extern mpz_t *gmp_psiqs(const mpz_t n, uint32_t *nfactors,
-                       uint32_t trial_start, uint32_t nthreads);
+                       uint32_t trial_start, int verbose, uint32_t nthreads);
 #endif
 
 #endif

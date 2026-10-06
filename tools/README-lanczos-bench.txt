@@ -8,10 +8,9 @@ Or compile without Perl/MakeMaker:
   cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
     -o lanczos-bench tools/lanczos-bench.c -lm
 
-GMP headers must be available because the shared host header includes gmp.h;
-the benchmark does not call GMP, SIQS, or any factorization routine. Use the
-usual -I path if those headers are not in the compiler's search path. Requires
-POSIX pthreads, clock_gettime(CLOCK_MONOTONIC), and getrusage.
+The benchmark and solver have no GMP or SIQS host-adapter dependency.
+Diagnostic verbosity is passed explicitly. Requires POSIX pthreads,
+clock_gettime(CLOCK_MONOTONIC), and getrusage.
 
 Example full-size run:
   ./lanczos-bench --max-threads 64 --repeat 3 --output lanczos-110.tsv

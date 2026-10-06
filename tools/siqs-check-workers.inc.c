@@ -37,7 +37,7 @@ static void worker_fixture_open(worker_fixture_t *f, uint32_t threads, int wide)
   } while (mpz_sizeinbase(f->n, 2) != 155 || mpz_cmp(f->prime, q) == 0);
   mpz_clear(q); gmp_randclear(random);
   siqs_factor_array_init(&f->result, f->n);
-  siqs_ctx_init(&f->ctx, f->n, f->n, &f->result, NULL);
+  siqs_ctx_init(&f->ctx, f->n, f->n, &f->result, NULL, 0);
   if (wide) f->ctx.params.half_interval = 40000;
   f->ctx.nthreads = threads;
   CHECK(siqs_ctx_allocate(&f->ctx));
@@ -62,7 +62,9 @@ static void worker_fixture_close(worker_fixture_t *f) {
 static void worker_assert_buffer_cleared(const psiqs_worker_t *worker) {
   const siqs_ctx_t *ctx = &worker->ctx;
   CHECK(ctx->raw_count == 0 && ctx->total_candidates == 0 && ctx->split_attempts == 0);
-  CHECK(ctx->split_squfof_or_square == 0 && ctx->split_rho == 0 && ctx->split_failures == 0);
+  CHECK(ctx->split_square == 0 && ctx->split_siqs == 0 &&
+        ctx->split_squfof == 0 && ctx->split_rho == 0 &&
+        ctx->split_fail == 0 && ctx->split_rejected == 0);
   if (ctx->raw_arena.current != NULL) {
     CHECK(ctx->raw_arena.current->used == 0 && ctx->raw_arena.current->previous == NULL);
   }
@@ -346,12 +348,16 @@ static void worker_merge_ownership(void) {
   relation_context(&a.ctx, &a.result, 2); relation_context(&b.ctx, &b.result, 2);
   source = relation_raw(&a.ctx, 1, 11, &f, 1); block = a.ctx.raw_arena.current;
   siqs_store_raw(&a.ctx, source);
-  a.ctx.total_candidates = 7; a.ctx.split_attempts = 3;
-  a.ctx.split_squfof_or_square = 2; a.ctx.split_rho = 1;
+  a.ctx.total_candidates = 7; a.ctx.split_attempts = 21;
+  a.ctx.split_square = 1; a.ctx.split_siqs = 2; a.ctx.split_squfof = 3;
+  a.ctx.split_rho = 4; a.ctx.split_fail = 5; a.ctx.split_rejected = 6;
   psiqs_merge_worker(&master, &a);
   CHECK(master.raw_count == 1 && master.raw[0] != source);
   CHECK(a.ctx.raw_arena.current == block); worker_assert_buffer_cleared(&a);
-  CHECK(master.total_candidates == 7 && master.split_attempts == 3);
+  CHECK(master.total_candidates == 7 && master.split_attempts == 21);
+  CHECK(master.split_square == 1 && master.split_siqs == 2 &&
+        master.split_squfof == 3 && master.split_rho == 4 &&
+        master.split_fail == 5 && master.split_rejected == 6);
   f.row = 2;
   siqs_store_raw(&b.ctx, relation_raw(&b.ctx, 1, 11, &f, 1));
   psiqs_merge_worker(&master, &b);
@@ -494,7 +500,7 @@ static void worker_lanczos_failures(void) {
   uint64_t mask, other_mask, *serial, *fallback;
   case_name = "Lanczos-pool-failure-serial-fallback";
   worker_fault_reset(); cols = matrix_fixture(129, 32769, 37);
-  nla_matrix_init(&matrix, 129, 37, 32769, cols, 48);
+  nla_matrix_init(&matrix, 129, 37, 32769, cols, 48, 0);
   CHECK(!matrix.packed);
   for (i = 0; i < 6; i++) {
     worker_fault_reset(); seam_alloc_after = (int)i;
@@ -513,10 +519,10 @@ static void worker_lanczos_failures(void) {
   }
   worker_fault_reset();
   CHECK(nla_pool_create(&matrix, 0) == NULL && nla_pool_create(&matrix, 1) == NULL);
-  serial = la_block_lanczos(129, 37, 32769, cols, 31, 47, &mask);
+  serial = la_block_lanczos(129, 37, 32769, cols, 31, 47, &mask, 0);
   matrix_verify_dependencies(129, 32769, 37, cols, serial, mask);
   seam_thread_after = 1;
-  fallback = la_block_lanczos_threaded(129, 37, 32769, cols, 31, 47, &other_mask, 4, 0);
+  fallback = la_block_lanczos_threaded(129, 37, 32769, cols, 31, 47, &other_mask, 0, 0, 4);
   CHECK(mask == other_mask && memcmp(serial, fallback, 32769U * sizeof(uint64_t)) == 0);
   matrix_verify_dependencies(129, 32769, 37, cols, fallback, other_mask);
   free(serial); free(fallback); nla_matrix_clear(&matrix); matrix_free(cols, 32769);
@@ -551,7 +557,7 @@ static void worker_fatal_cases(void) {
       if (dup2(errpipe[1], STDERR_FILENO) < 0 || dup2(outpipe[1], STDOUT_FILENO) < 0) _exit(1);
       close(errpipe[1]); close(outpipe[1]);
       alarm(20); seam_exit_status = 3;
-      if (test < 2) (void)gmp_psiqs(f.n, &count, 0, test == 0 ? 0 : PSIQS_MAX_THREADS + 1U);
+      if (test < 2) (void)gmp_psiqs(f.n, &count, 0, 0, test == 0 ? 0 : PSIQS_MAX_THREADS + 1U);
       else { seam_alloc_after = 3; (void)psiqs_pool_create(&f.ctx); }
       _exit(1); /* Returning instead of croaking is a failed check. */
     }
@@ -577,7 +583,7 @@ static void worker_public_calls(void) {
   for (threads = 1; threads <= 4; threads *= 2) {
     uint32_t count, i;
     mpz_t *values, product;
-    values = gmp_psiqs(f.n, &count, 0, threads); CHECK(values != NULL && count == 2);
+    values = gmp_psiqs(f.n, &count, 0, 0, threads); CHECK(values != NULL && count == 2);
     mpz_init_set_ui(product, 1);
     for (i = 0; i < count; i++) {
       CHECK(mpz_probab_prime_p(values[i], 25)); mpz_mul(product, product, values[i]);
@@ -596,7 +602,7 @@ typedef struct {
 } worker_public_call_t;
 static void *worker_public_call(void *argument) {
   worker_public_call_t *call = (worker_public_call_t *)argument;
-  call->values = gmp_psiqs(call->n, &call->count, 0, 2);
+  call->values = gmp_psiqs(call->n, &call->count, 0, 0, 2);
   return NULL;
 }
 static void worker_simultaneous_calls(void) {

@@ -58,7 +58,7 @@ sub usage {
   my ($status) = @_;
   print <<'USAGE';
 usage: perl tools/siqs-check.pl [options]
-  --suite NAME          Run sieve, relations, matrix, workers, or all (default).
+  --suite NAME          Run sieve, relations, matrix, workers, cofactors, or all.
   --extended           Broader fixtures and more polynomials, not full factors.
   --verbose            Report individual polynomial and matrix fixtures.
   --threaded           Also check pthread Lanczos and worker pools.

@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include "lanczos.h"
-#include "siqs_dep.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX ((uint32_t)-1)
@@ -198,13 +197,15 @@ static void nla_prune_singletons(nla_prune_t *p) {
  * base row numbers.  The solver builds its own compact row map later.
  */
 void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
-                      la_col_t *cols) {
+                      la_col_t *cols, int verbose) {
   nla_prune_t p;
   unsigned long row, column, i;
   unsigned long live_rows;
   size_t entries = 0;
   size_t *next;
 
+  if (verbose < 0)
+    verbose = 0;
   if (*ncols == 0)
     return;
   if (*nrows > UINT32_MAX || *ncols > UINT32_MAX)
@@ -293,7 +294,7 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
   }
   *ncols = i;
 
-  if (siqs_verbose_level() > 3)
+  if (verbose > 0)
     printf("Lanczos reduced to %lu active rows x %lu columns\n",
            live_rows, *ncols);
 
@@ -633,7 +634,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
                             unsigned long dense_rows,
                             unsigned long ncols,
                             const la_col_t *cols,
-                            unsigned int post_rows) {
+                            unsigned int post_rows, int verbose) {
   uint32_t *counts;
   uint32_t *row_map;
   nla_row_info_t *row_info;
@@ -752,7 +753,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
     if (row_cursor[row] != matrix->row_offsets[row + 1U])
       croak("lanczos: packed matrix count mismatch");
 
-  if (siqs_verbose_level() > 3) {
+  if (verbose > 2) {
     double mb = ((double)offset * sizeof(*matrix->row_columns) +
                  ((double)matrix->sparse_rows + 1.0) *
                      sizeof(*matrix->row_offsets) +
@@ -1330,7 +1331,7 @@ static int nla_all_zero(const uint64_t *matrix) {
 static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
                                         uint32_t *seed1,
                                         uint32_t *seed2,
-                                        uint64_t *result_mask) {
+                                        uint64_t *result_mask, int verbose) {
   uint64_t *v[3], *vnext, *x, *initial;
   uint64_t *row_scratch, *table;
   uint64_t winv_store[3][64], vt_a_v_store[2][64];
@@ -1462,7 +1463,7 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     }
   }
 
-  if (siqs_verbose_level() > 3)
+  if (verbose > 0)
     printf("Lanczos %s after %lu iterations (dimension %lu)%s\n",
            failed ? "failed" : "completed",
            iteration, dimensions_solved, failed ? ", retrying" : "");
@@ -1532,11 +1533,13 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
                                   uint32_t seed2,
                                   uint64_t *mask,
                                   unsigned int post_rows,
-                                  uint32_t nthreads) {
+                                  int verbose, uint32_t nthreads) {
   nla_matrix_t matrix;
   uint64_t *result = NULL;
   unsigned int attempt;
 
+  if (verbose < 0)
+    verbose = 0;
   *mask = 0;
   if (ncols == 0)
     return NULL;
@@ -1546,21 +1549,21 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
     seed2 = 22222222U;
   }
 
-  nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows);
+  nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows, verbose);
 #ifdef PSIQS
   matrix.pool = nla_pool_create(&matrix, nthreads);
-  if (matrix.pool != NULL && siqs_verbose_level() > 3)
+  if (matrix.pool != NULL && verbose > 0)
     printf("Lanczos using %u threads\n", matrix.pool->nthreads);
 #else
   (void)nthreads;
 #endif
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
-    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask);
+    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask, verbose);
     if (result != NULL && *mask != 0)
       break;
     free(result);
     result = NULL;
-    if (siqs_verbose_level() > 3)
+    if (verbose > 0)
       printf("linear algebra retry %u\n", attempt + 1U);
   }
 #ifdef PSIQS
@@ -1576,9 +1579,9 @@ uint64_t *la_block_lanczos(unsigned long nrows,
                            la_col_t *cols,
                            uint32_t seed1,
                            uint32_t seed2,
-                           uint64_t *mask) {
+                           uint64_t *mask, int verbose) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, NLA_POST_ROWS, 1U);
+                           seed1, seed2, mask, NLA_POST_ROWS, verbose, 1U);
 }
 
 uint64_t *la_block_lanczos_wide(unsigned long nrows,
@@ -1587,9 +1590,9 @@ uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                 la_col_t *cols,
                                 uint32_t seed1,
                                 uint32_t seed2,
-                                uint64_t *mask) {
+                                uint64_t *mask, int verbose) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, 0U, 1U);
+                           seed1, seed2, mask, 0U, verbose, 1U);
 }
 
 #ifdef PSIQS
@@ -1600,9 +1603,9 @@ uint64_t *la_block_lanczos_threaded(unsigned long nrows,
                                     uint32_t seed1,
                                     uint32_t seed2,
                                     uint64_t *mask,
-                                    uint32_t nthreads,
-                                    int retain_all_rows) {
+                                    int retain_all_rows, int verbose,
+                                    uint32_t nthreads) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols, seed1, seed2, mask,
-                           retain_all_rows ? 0U : NLA_POST_ROWS, nthreads);
+                           retain_all_rows ? 0U : NLA_POST_ROWS, verbose, nthreads);
 }
 #endif

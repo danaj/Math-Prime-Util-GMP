@@ -38,10 +38,16 @@ private packing/kernels, just as the main checker includes siqs.c.
 Suites and options
 ------------------
 
-One executable runs the named suites ("sieve", "relations", "matrix", "workers"). The default
+One executable runs the named suites ("sieve", "relations", "matrix", "workers",
+"cofactors"). The default
 "all" selection runs every registered suite. --list describes available
 suites; --suite selects one. --extended adds more fixtures, policy endpoints,
-and polynomials. --verbose reports individual polynomial/matrix fixtures. New suites can
+and polynomials. The cofactors suite checks method counters, failed versus
+rejected splits, 55--59/64-bit crossover cases, bounded nesting, quiet output
+and concurrent calls. It also checks the internal largest-two helper on
+multi-factor/repeated partitions, wider inputs, and uint64_t overflow, plus
+low-bit SIQS recovery, rho fallback, and verbose diagnostics on SIQS misses.
+--verbose reports individual polynomial/matrix fixtures. New suites can
 be registered without creating separate executables or a large framework.
 
   perl tools/siqs-check.pl --list

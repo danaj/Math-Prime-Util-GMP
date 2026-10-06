@@ -21,10 +21,12 @@ static INLINE uint64_t la_get_null_entry(const uint64_t *nullrows,
   return nullrows[column] & ((uint64_t)1 << dependency);
 }
 
-/* Peel singleton rows and trim excess columns before solving. */
+/* Peel singleton rows and trim excess columns before solving.
+ * Diagnostic verbosity is caller-owned: 0 quiet, 1 summaries, 2 progress,
+ * 3 detailed diagnostics. No host-global verbosity adapter is needed. */
 extern void la_reduce_matrix(unsigned long *nrows,
                              unsigned long *ncols,
-                             la_col_t *cols);
+                             la_col_t *cols, int verbose);
 
 /* Find up to 64 exact nullspace dependencies by dense elimination. */
 extern uint64_t *la_dense_nullspace(unsigned long nrows,
@@ -39,7 +41,7 @@ extern uint64_t *la_block_lanczos(unsigned long nrows,
                                   la_col_t *cols,
                                   uint32_t seed1,
                                   uint32_t seed2,
-                                  uint64_t *mask);
+                                  uint64_t *mask, int verbose);
 
 /* Find a wider dependency sample by retaining all rows in the iteration. */
 extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
@@ -48,7 +50,7 @@ extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                        la_col_t *cols,
                                        uint32_t seed1,
                                        uint32_t seed2,
-                                       uint64_t *mask);
+                                       uint64_t *mask, int verbose);
 
 #ifdef PSIQS
 /* Use a per-solve worker pool for large unpacked matrices; otherwise serial. */
@@ -59,8 +61,8 @@ extern uint64_t *la_block_lanczos_threaded(unsigned long nrows,
                                           uint32_t seed1,
                                           uint32_t seed2,
                                           uint64_t *mask,
-                                          uint32_t nthreads,
-                                          int retain_all_rows);
+                                          int retain_all_rows, int verbose,
+                                          uint32_t nthreads);
 #endif
 
 #endif

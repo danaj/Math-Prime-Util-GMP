@@ -1780,7 +1780,7 @@ static void mainRoutine(
   mpz_clear(test3);
 #endif
 
-  la_reduce_matrix(&nrows, &ncols, colarray);
+  la_reduce_matrix(&nrows, &ncols, colarray, verbose - 2);
 
 #ifdef ERRORS
   exps = (unsigned int *)malloc(numPrimes * sizeof(unsigned int));
@@ -1855,16 +1855,18 @@ static void mainRoutine(
     if (block_attempts != 0) {
       lanczos_seed1 ^= 0x9e3779b9U;
       lanczos_seed2 ^= 0x85ebca6bU;
-      if (verbose > 3)
+      if (verbose > 2)
         printf("Lanczos did not refine factors; retrying with all rows.\n");
     }
     if (block_attempts == 0)
       nullrows = la_block_lanczos(
-        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
+        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask,
+        verbose - 2
       );
     else
       nullrows = la_block_lanczos_wide(
-        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask
+        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask,
+        verbose - 2
       );
     if (nullrows == NULL)
       continue;
