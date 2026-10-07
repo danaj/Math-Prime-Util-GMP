@@ -89,10 +89,17 @@
 #define SIQS_INLINE_MATRIX_Q2_MAX_BITS 43U
 #define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
 #define SIQS_EVAL_INITIAL_FACTORS   64U
-#define SIQS_LP_MAX UINT64_C(0x0000000fffffffff)
+/* Policy ceiling, not a packing limit: graph labels are stored as uint64_t.
+ * Keep this independent of the residual-product bound. */
+#define SIQS_LP_MAX ((UINT64_C(1) << 38) - UINT64_C(1))
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
+
+/* Used for sizing LP and R.  Higher uses more memory. */
+#ifndef SIQS_2LP_RESIDUAL_EXPONENT
+# define SIQS_2LP_RESIDUAL_EXPONENT 0.1555
+#endif
 
 /* This most strongly correlates to L1 data size.  Compromise. */
 #ifndef SIQS_SIEVE_BLOCK_SIZE
@@ -1066,10 +1073,15 @@ typedef struct {
  * The q=11 factor-base release reaches approximately 0.308 at 299; the
  * q=12 bridge now rises from 0.3095 at 300 to 0.3112 at 310.  Larger q=12
  * bands retain the established curve reaching 0.325 at 366 bits.
- * The 311--330 .157 screen retained its FB/interval geometry.  From 331,
- * provisionally use .157 with the same FB and a 10% shorter interval:
- * full factors at 331/340 supported it; higher collection probes were mixed
+ * The earlier 311--330 .157 screen retained its FB/interval geometry.
+ * At .157, full factors at 331/340 supported the same FB and a 10% shorter
+ * interval; higher collection probes were mixed
  * and do not establish end-to-end performance throughout the upper band.
+ * A later .1555 screen retained the geometry through 310: the 270--299
+ * endpoint fit did not improve fresh interior results.  At 330, endpoint
+ * confirmation favored a 5% shorter interval with unchanged FB.  Taper
+ * that reduction from zero at 311; its interior validation remains pending.
+ * All 2LP rows now use SIQS_2LP_RESIDUAL_EXPONENT, retaining their LP/R floors.
  *
  * JML SIQS showed that omitting substantially more small factor-base primes
  * from the dense sieve can pay even though the candidate postfilter then has
@@ -1244,13 +1256,13 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     0, 88, 88, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.3006972, 0.00013433734808721733, 246),
     SIQS_POLICY_LINEAR(0.5391314710353, -0.003870024789247825, 246),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.157,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), SIQS_2LP_RESIDUAL_EXPONENT,
     SIQS_POLICY_LINEAR(0.205, 0.000015217391304347357, 246), 0.0 },
   { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
     0, 96, 96, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30562684466875412, 0.000087009513864583026, 270),
     SIQS_POLICY_LINEAR(0.45, -0.006475862068965518, 270),
-    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.157,
+    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), SIQS_2LP_RESIDUAL_EXPONENT,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   /* Start q=12 early for safety: on the known difficult 300/310-bit inputs,
    * its complete policy was approximately tied in CPU time but consumed
@@ -1260,13 +1272,14 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30947805274395174, 0.00017299534431592934, 300),
     SIQS_POLICY_LINEAR(0.25, 0.0, 305),
-    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.157,
+    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  /* Keep the 311 endpoint; shorten M by 5% at 330, with unchanged FB. */
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
-    SIQS_POLICY_LINEAR(0.25, 0.0175, 310),
-    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), 0.157,
+    SIQS_POLICY_LINEAR(0.2675, 0.01592105263157895, 311),
+    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   /* Provisional high-end interval: full-factor evidence at 331/340,
    * with short collection probes above that range, not full validation. */
@@ -1275,7 +1288,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(0.54, 0.01, 330),
-    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), 0.157,
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
@@ -1479,7 +1492,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
   /* One-LP mode uses N^0.12 as its individual residual limit.  Two-LP mode
-   * uses a per-band exponent for the product bound (.157 or .16).
+   * uses a per-band exponent for the product bound (currently uniform
+   * across 2LP bands: SIQS_2LP_RESIDUAL_EXPONENT).
    * After the factor base is built, the early 2LP policy may raise K and R
    * to their measured floors; their upper tails remain automatic. */
   smooth = exp(p->smooth_bound_exponent * ln_n);

@@ -380,6 +380,26 @@ static void relation_exponent_limits(void) {
   relation_finish(&ctx, &result);
 }
 
+static void relation_large_lp_labels(void) {
+  siqs_ctx_t ctx;
+  siqs_factor_array_t result;
+  siqs_factor_t factor = {1, 2};
+  /* Primes congruent to 1 modulo 35; two are near the new 38-bit ceiling.
+   * Their unreduced cycle product exceeds uint64_t. */
+  const uint64_t a = UINT64_C(68719476911);
+  const uint64_t b = UINT64_C(274877905121);
+  const uint64_t c = UINT64_C(274877904421);
+  case_name = "wide-LP-labels-and-cycle-product";
+  relation_context(&ctx, &result, 2);
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, a, b, &factor, 1));
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, b, c, &factor, 1));
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, c, a, &factor, 1));
+  CHECK(ctx.graph.vertex_count == 4 && ctx.raw_count == 2);
+  CHECK(ctx.full_count == 1 && ctx.accepted_two_lp == 3);
+  CHECK(ctx.full[0]->nfactors == 1 && ctx.full[0]->factors[0].exponent == 6);
+  relation_finish(&ctx, &result);
+}
+
 static void suite_relations(void) {
   relation_smooth_and_pairs();
   relation_general_pairs();
@@ -387,6 +407,7 @@ static void suite_relations(void) {
   relation_graph_paths();
   relation_arena_and_partition();
   relation_exponent_limits();
+  relation_large_lp_labels();
   if (extended) relation_anchor_growth();
   puts("PASS relations: congruences, shared/rerooted cycles, ownership, inverse factors, exponent limits");
   fflush(stdout);

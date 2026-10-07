@@ -85,6 +85,22 @@ static void cofactor_trace_reset(void) {
   cofactor_squfof_calls = cofactor_prime_calls = cofactor_rho_calls = 0;
 }
 
+static void cofactor_lp_ceiling(void) {
+  siqs_ctx_t ctx;
+  case_name = "38-bit-LP-policy-ceiling";
+  cofactor_context(&ctx);
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.large_prime_bound == SIQS_LP_MAX);
+  CHECK(ctx.params.smooth_bound == UINT64_MAX);
+  /* Known primes above the former 36-bit ceiling and just below/above
+   * the new ceiling.  Prime residuals need no cofactor split attempt. */
+  CHECK(cofactor_resolve(&ctx, "68719476767"));
+  CHECK(cofactor_resolve(&ctx, "274877906899"));
+  CHECK(!cofactor_resolve(&ctx, "274877906951"));
+  CHECK(ctx.split_attempts == 0);
+  puts("PASS cofactors: 38-bit LP ceiling, wider accepted labels, unchanged residual bound");
+}
+
 static void cofactor_a_search_stages(void) {
   static const struct {
     const char *n;
@@ -476,6 +492,7 @@ static void suite_cofactors(void) {
   cofactor_low_smooth_recovery();
   cofactor_q3_recovery();
   cofactor_classification();
+  cofactor_lp_ceiling();
   cofactor_cascade();
 #ifndef _WIN32
   cofactor_miss_notice();
