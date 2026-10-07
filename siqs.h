@@ -7,7 +7,7 @@
 /* While we work for small sizes, performance under 36-bits is suboptimal. */
 #define MPU_SIQS_MIN_BITS   1U
 /* 431 is a hard cap for this implementation.  No tuning done > 330 bits. */
-#define MPU_SIQS_MAX_BITS 370U
+#define MPU_SIQS_MAX_BITS 400U
 
 /* Parallel collection is optional; small/inline-solving policies stay serial. */
 #define PSIQS_MAX_THREADS 256U

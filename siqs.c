@@ -1006,7 +1006,7 @@ typedef struct {
  * larger-FB 1LP q=10 policy preferable through 245 bits.  The near-tied upper
  * edge uses a single transition to 2LP q=11 at 246 instead of a one-bit
  * bridge.  The early q=11 geometry now uses one endpoint-preserving ramp
- * across 246--269; the distinct 270--299 policy remains unchanged.
+ * across 246--269; the distinct 270--299 policy is tuned separately.
  *
  * The 1LP factor-base coefficients are joint collection/matrix choices, not
  * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
@@ -1039,10 +1039,10 @@ typedef struct {
  * interval curve: shorter intervals failed on 300- and 310-bit inputs.
  * Replaying those inputs put q=11 and q=12 CPU times approximately level,
  * while q=12 used substantially less of the polynomial budget.  Prefer its
- * complete policy from 300 for safety, retaining the established factor-base
+ * complete policy from 300 for safety, initially retaining the factor-base
  * curve and the measured 0.25 interval scale through 310.  The measured q=12
- * interval rise then reaches 0.6 at 330 and returns conservatively to the
- * established 1.0 high-end value at 366.  q=13 was slower in the 330-bit screen.
+ * interval rise then reaches 0.6 at 330 and originally returned conservatively
+ * to 1.0 at 366.  q=13 was slower in the 330-bit screen.
  * At the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
  * takes over at 37; a smaller factor base and wider final A tolerance improve
  * it substantially from 42 through 49, with explicit q=1 recovery profiles
@@ -1056,9 +1056,20 @@ typedef struct {
  * A subsequent 246--269 cleanup found a single FB/interval/score ramp within
  * 0.1% of a two-row alternative over 67 fresh matched inputs.  Prefer the
  * simpler merged row; its interval already includes the former LP adjustment.
- * The q=11 factor-base release reaches approximately 0.310 at 299; q=12
- * continues near 0.314 at 300 and reaches the upper-screen choice 0.325 at
- * 366 bits.
+ * A later .157 smooth-bound retune keeps the 246--269 geometry with
+ * matched 88P/88P^2 floors, then uses 96P/96P^2 floors across 270--299,
+ * with about 5% more FB primes at 270 and 5% fewer at 299.
+ * Its interval keeps the 270 endpoint and is 5% shorter at 299.  This
+ * retains most of the memory savings while limiting the low-end CPU cost.
+ * A subsequent .157 screen reduced FB primes by about 14.5% at 300--310,
+ * retaining q=12 and the interval; six fresh holdouts improved CPU time.
+ * The q=11 factor-base release reaches approximately 0.308 at 299; the
+ * q=12 bridge now rises from 0.3095 at 300 to 0.3112 at 310.  Larger q=12
+ * bands retain the established curve reaching 0.325 at 366 bits.
+ * The 311--330 .157 screen retained its FB/interval geometry.  From 331,
+ * provisionally use .157 with the same FB and a 10% shorter interval:
+ * full factors at 331/340 supported it; higher collection probes were mixed
+ * and do not establish end-to-end performance throughout the upper band.
  *
  * JML SIQS showed that omitting substantially more small factor-base primes
  * from the dense sieve can pay even though the candidate postfilter then has
@@ -1226,40 +1237,45 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
   /* Keep the measured endpoint geometry with one smooth early q=11 row.
-   * The interval curve includes the old LP adjustment; do not apply it twice. */
+   * The interval curve includes the old LP adjustment; do not apply it twice.
+   * A .157 floor screen favored 90P over 72P/80P; use the chosen nearby
+   * 88P/88P^2 floors without retuning the geometry. */
   { "two_lp_q11_geometry_ramp", 246, 269, 2, 11, 18, 0, 0,
-    0, 72, 72, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    0, 88, 88, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.3006972, 0.00013433734808721733, 246),
     SIQS_POLICY_LINEAR(0.5391314710353, -0.003870024789247825, 246),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.16,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.157,
     SIQS_POLICY_LINEAR(0.205, 0.000015217391304347357, 246), 0.0 },
   { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
-    0, 72, 72, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.304067624031, 0.000193973164947, 270),
-    SIQS_POLICY_LINEAR(0.45, -0.006, 270),
-    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.16,
+    0, 96, 96, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.30562684466875412, 0.000087009513864583026, 270),
+    SIQS_POLICY_LINEAR(0.45, -0.006475862068965518, 270),
+    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), 0.157,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   /* Start q=12 early for safety: on the known difficult 300/310-bit inputs,
    * its complete policy was approximately tied in CPU time but consumed
-   * less of the polynomial budget.  Keep the unshrunk factor-base curve. */
+   * less of the polynomial budget.  A later .157 retune reduced FB primes
+   * by about 14.5% while retaining the measured interval. */
   { "two_lp_q12_safety_bridge", 300, 310, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
+    SIQS_POLICY_LINEAR(0.30947805274395174, 0.00017299534431592934, 300),
     SIQS_POLICY_LINEAR(0.25, 0.0, 305),
-    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.16,
+    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), 0.157,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(0.25, 0.0175, 310),
-    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), 0.16,
+    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), 0.157,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
+  /* Provisional high-end interval: full-factor evidence at 331/340,
+   * with short collection probes above that range, not full validation. */
   { "two_lp_high_q12_interval_finish", 331, MPU_SIQS_MAX_BITS,
     2, 12, 12, 0, 0,
     0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
-    SIQS_POLICY_LINEAR(0.6, 0.011111111111111111, 330),
-    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), 0.16,
+    SIQS_POLICY_LINEAR(0.54, 0.01, 330),
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), 0.157,
     SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
@@ -1463,7 +1479,7 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
   /* One-LP mode uses N^0.12 as its individual residual limit.  Two-LP mode
-   * uses N^0.16 so the product bound admits two factor-base-sized primes.
+   * uses a per-band exponent for the product bound (.157 or .16).
    * After the factor base is built, the early 2LP policy may raise K and R
    * to their measured floors; their upper tails remain automatic. */
   smooth = exp(p->smooth_bound_exponent * ln_n);
