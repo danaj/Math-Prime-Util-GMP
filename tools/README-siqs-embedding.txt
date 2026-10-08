@@ -11,7 +11,9 @@ The matrix solver is independent of the SIQS host adapters. Standalone users
 can compile lanczos.c with lanczos.h and ptypes.h; add PSIQS/pthreads and
 planczos_inc.c for parallel support. No GMP dependency or prime-cache startup
 is needed by the solver itself. Matrix/seed/thread inputs and diagnostic
-verbosity are caller-owned; see lanczos.h and README-lanczos-bench.txt.
+verbosity are caller-owned; see README-lanczos-embedding.md for simple
+solver calls, matrix ownership and build examples, and README-lanczos-bench.txt
+for scaling measurements.
 
 Shared prime-cache lifetime
 --------------------------

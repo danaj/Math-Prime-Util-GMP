@@ -135,6 +135,7 @@ tools/siqs-check-cofactor-seams.h
 tools/siqs-check.pl
 tools/README-siqs-check.txt
 tools/README-siqs-embedding.txt
+tools/README-lanczos-embedding.md
 tools/lanczos-bench.c
 tools/README-lanczos-bench.txt
 tools/siqs-sieve-bench.c
