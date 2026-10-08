@@ -1,10 +1,17 @@
 /*
- * Independent sparse block-Lanczos solver for Math::Prime::Util::GMP.
+ * GF(2) linear-algebra solvers for Math::Prime::Util::GMP.
  *
- * The recurrence follows Peter Montgomery's block-Lanczos algorithm over
- * GF(2).  The cache layout and post-Lanczos treatment of dense rows were
- * informed by the public-domain msieve implementation, but this code is
- * written for MPU's smaller, single-process SIQS matrices and API.
+ * The block-Lanczos algorithm is due to Peter Montgomery.  This
+ * implementation's nonsingular-block selection and iteration/recovery
+ * logic closely follow Jason Papadopoulos's public-domain msieve
+ * implementation.  Its cache organization and post-Lanczos dense-row
+ * treatment also draw on msieve.
+ *
+ * The random generator uses Marsaglia's multiply-with-carry construction
+ * with the same multiplier as msieve.
+ *
+ * MPU-specific work includes matrix storage and reduction, dense
+ * elimination, dependency verification, and pthread parallel kernels.
  *
  * Copyright (c) 2026 Dana Jacobsen.  See LICENSE for redistribution terms.
  */

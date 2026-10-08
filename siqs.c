@@ -2742,7 +2742,11 @@ done:
 
 /* Target, q, FB primes and policy stay fixed for this polynomial generator.
  * Cache lazily: threaded workers have their own generators but do not select
- * A families.  Remember impossible geometry too, without floating work. */
+ * A families.  Remember impossible geometry too, without floating work.
+ *
+ * There are some very clever things here first done by Tilman Neumann
+ * in https://github.com/TilmanNeumann/java-math-library/
+ */
 static void siqs_prepare_A_search(const siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t tolerances[3] = { 2U, 4U, 0U };
   double ideal_d;
