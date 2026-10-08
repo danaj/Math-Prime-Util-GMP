@@ -433,12 +433,98 @@ static void check_polynomial_roots(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
   mpz_clear(x); mpz_clear(value);
 }
 
+static void check_A_search_cache(void) {
+  static const uint32_t primes[] = {2, 3, 5, 7, 11, 13};
+  static const struct {
+    uint32_t q, target, stage, tolerance;
+  } windows[] = {
+    /* With eligible 3/5/7: q2 products span 15..35; q3 is exactly 105. */
+    {2, 8, 1, 8}, {2, 4, 2, 8}, {2, 2, 3, 8}, {2, 1, 0, 8},
+    {2, 70, 1, 8}, {2, 71, 2, 8}, {2, 140, 2, 8},
+    {2, 141, 3, 8}, {2, 280, 3, 8}, {2, 281, 0, 8},
+    {3, 53, 1, 8}, {3, 52, 2, 8}, {3, 27, 2, 8},
+    {3, 26, 3, 8}, {3, 14, 3, 8}, {3, 13, 0, 8},
+    {3, 210, 1, 8}, {3, 211, 2, 8}, {3, 420, 2, 8},
+    {3, 421, 3, 8}, {3, 840, 3, 8}, {3, 841, 0, 8},
+    {1, 0, 1, 8}, {4, 0, 1, 8}, {2, 2, 0, 4}, {3, 14, 0, 4}
+  };
+  siqs_ctx_t ctx;
+  siqs_poly_t poly;
+  siqs_fb_t fb[6];
+  uint32_t eligible, occupied, center, i;
+  size_t fixture;
+  case_name = "A-search-cache";
+  memset(&ctx, 0, sizeof(ctx)); memset(fb, 0, sizeof(fb));
+  ctx.fb = fb; ctx.params.fb_size = 6U;
+  case_ctx = &ctx;
+  for (i = 0; i < 6U; i++) fb[i].p = primes[i];
+  for (eligible = 1U; eligible < 32U; eligible++) {
+    for (occupied = 0U; occupied < 32U; occupied++) {
+      if ((eligible & ~occupied) == 0U) continue;
+      for (i = 1U; i < 6U; i++) {
+        fb[i].sqrt_kn = (eligible >> (i - 1U)) & 1U;
+        fb[i].in_a = (occupied >> (i - 1U)) & 1U;
+      }
+      for (center = 1U; center < 6U; center++) {
+        uint32_t step, expected = SIQS_NO_INDEX;
+        /* Independent old scan: upward wins every equal-distance tie. */
+        for (step = 0U; step < 6U; step++) {
+          uint32_t up = center + step, down = center >= step ? center - step : 0U;
+          if (up < 6U && fb[up].sqrt_kn && !fb[up].in_a) {
+            expected = up; break;
+          }
+          if (step && down && fb[down].sqrt_kn && !fb[down].in_a) {
+            expected = down; break;
+          }
+        }
+        CHECK(expected != SIQS_NO_INDEX);
+        CHECK(siqs_nearest_available_fb_from_index(&ctx, center) == expected);
+        CHECK(siqs_nearest_available_fb(&ctx, fb[center].p) == expected);
+      }
+    }
+  }
+  ctx.params.fb_size = 4U;
+  ctx.params.half_interval = ctx.params.poly_d = 1U;
+  mpz_init_set_ui(ctx.kn, 100U);
+  for (fixture = 0; fixture < sizeof(windows) / sizeof(*windows); fixture++) {
+    uint32_t repeat;
+    for (i = 1U; i < 4U; i++) { fb[i].sqrt_kn = 1U; fb[i].in_a = 0U; }
+    ctx.params.q_count = windows[fixture].q;
+    ctx.params.a_final_tolerance = windows[fixture].tolerance;
+    siqs_poly_init(&ctx, &poly);
+    CHECK(!poly.a_search_ready && !poly.a_search_stage &&
+          !poly.a_search_center && !poly.a_search_variance);
+    /* Target and policy are finalized before the first lazy preparation. */
+    mpz_set_ui(poly.target_A, windows[fixture].target);
+    if (windows[fixture].stage != 0U)
+      siqs_prepare_A_search(&ctx, &poly);
+    else {
+      poly.a_index[0] = 1U;
+      for (repeat = 0U; repeat < 2U; repeat++) {
+        fb[1].in_a = 1U;
+        CHECK(!siqs_choose_A(&ctx, &poly));
+        CHECK(!fb[1].in_a && poly.a_search_ready && !poly.a_search_stage &&
+              !poly.a_search_center && !poly.a_search_variance);
+      }
+    }
+    CHECK(poly.a_search_ready && poly.a_search_stage == windows[fixture].stage);
+    if (poly.a_search_stage != 0U)
+      CHECK(poly.a_search_center > 0U && poly.a_search_center < 4U &&
+            poly.a_search_variance >= 8U);
+    siqs_poly_clear(&ctx, &poly);
+  }
+  mpz_clear(ctx.kn);
+  case_ctx = NULL;
+  puts("PASS sieve: upward-first FB search, exact A windows, lazy cache and reset");
+}
+
 static void check_real_case(const mpz_t n, unsigned long forced_k,
                             uint32_t forced_d, uint32_t half) {
   siqs_ctx_t ctx;
   siqs_poly_t poly;
   siqs_factor_array_t result;
   uint32_t family, polynomial, total = 0;
+  uint32_t cached_stage = 0U, cached_center = 0U, cached_variance = 0U;
   case_name = "real-polynomials";
   check_trial_survivor(n);
   siqs_factor_array_init(&result, n);
@@ -456,9 +542,24 @@ static void check_real_case(const mpz_t n, unsigned long forced_k,
   if (half != 0) ctx.params.half_interval = half;
   CHECK(siqs_ctx_allocate(&ctx));
   siqs_poly_init(&ctx, &poly);
+  CHECK(!poly.a_search_ready && !poly.a_search_stage &&
+        !poly.a_search_center && !poly.a_search_variance);
   d_seen |= 1U << ctx.params.poly_d;
   for (family = 0; family < 2; family++) {
-    if (!siqs_new_family(&ctx, &poly)) break;
+    uint32_t i, marked = 0U;
+    int found = siqs_new_family(&ctx, &poly);
+    CHECK(poly.a_search_ready);
+    if (family == 0U) {
+      cached_stage = poly.a_search_stage;
+      cached_center = poly.a_search_center;
+      cached_variance = poly.a_search_variance;
+    }
+    CHECK(poly.a_search_stage == cached_stage &&
+          poly.a_search_center == cached_center &&
+          poly.a_search_variance == cached_variance);
+    for (i = 1U; i < ctx.params.fb_size; i++) marked += ctx.fb[i].in_a != 0;
+    CHECK(marked == (found ? poly.q_count : 0U));
+    if (!found) break;
     for (polynomial = 0; polynomial < (extended ? 8U : 3U); polynomial++) {
       case_ctx = &ctx;
       check_polynomial_roots(&ctx, &poly);
@@ -524,6 +625,7 @@ static void suite_sieve(void) {
   check_two_hit_local();
   check_one_hit_and_maps();
   check_oracle_overflow();
+  check_A_search_cache();
   check_real_polynomials();
   printf("PASS sieve: %u comparisons, maximum observed physical score %u/255\n",
          comparisons, maximum_score);

@@ -409,6 +409,10 @@ typedef struct {
   uint32_t q_count;
   uint32_t b_index;
   uint32_t b_limit;
+  uint32_t a_search_center;
+  uint32_t a_search_variance;
+  uint32_t a_search_stage;
+  uint8_t a_search_ready;
 } siqs_poly_t;
 
 typedef struct {
@@ -1353,6 +1357,17 @@ static const siqs_policy_band_t siqs_recovery_policies[] = {
 #define SIQS_RECOVERY_POLICY_COUNT \
   ((uint32_t)(sizeof(siqs_recovery_policies) / \
               sizeof(siqs_recovery_policies[0])))
+
+/* Enumerate matching recoveries in table order; initialize *next to zero. */
+static const siqs_policy_band_t *siqs_next_policy(uint32_t bits,
+                                                 uint32_t *next) {
+  while (*next < SIQS_RECOVERY_POLICY_COUNT) {
+    const siqs_policy_band_t *profile = &siqs_recovery_policies[(*next)++];
+    if (bits >= profile->first_bits && bits <= profile->last_bits)
+      return profile;
+  }
+  return NULL;
+}
 
 #undef SIQS_POLICY_LINEAR
 #undef SIQS_POLICY_STAGED_LINEAR
@@ -2584,9 +2599,9 @@ static uint32_t siqs_nearest_fb_index(const siqs_ctx_t *ctx,
   return lo;
 }
 
-static uint32_t siqs_nearest_available_fb(siqs_ctx_t *ctx,
-                                          uint32_t wanted) {
-  uint32_t center = siqs_nearest_fb_index(ctx, wanted);
+/* Preserve the upward-first scan, including unavailable center primes. */
+static uint32_t siqs_nearest_available_fb_from_index(const siqs_ctx_t *ctx,
+                                                   uint32_t center) {
   uint32_t step;
   for (step = 0; step < ctx->params.fb_size; step++) {
     uint32_t up = center + step;
@@ -2602,6 +2617,25 @@ static uint32_t siqs_nearest_available_fb(siqs_ctx_t *ctx,
   }
   croak("SIQS: factor base has no available polynomial prime");
   return 0;
+}
+
+static uint32_t siqs_nearest_available_fb(siqs_ctx_t *ctx,
+                                          uint32_t wanted) {
+  return siqs_nearest_available_fb_from_index(
+      ctx, siqs_nearest_fb_index(ctx, wanted));
+}
+
+/* A sets contain only q indices; insertion sort avoids qsort's dispatch. */
+static void siqs_sort_A_indices(uint32_t *indices, uint32_t count) {
+  uint32_t i;
+  for (i = 1U; i < count; i++) {
+    uint32_t key = indices[i], j = i;
+    while (j != 0U && indices[j - 1U] > key) {
+      indices[j] = indices[j - 1U];
+      j--;
+    }
+    indices[j] = key;
+  }
 }
 
 static uint64_t siqs_a_fingerprint(const uint32_t *indices, uint32_t count) {
@@ -2657,71 +2691,101 @@ static void siqs_poly_clear(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   memset(poly, 0, sizeof(*poly));
 }
 
-static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
-  static const uint32_t stage_attempt_limits[3] = { 5000U, 5000U, 10000U };
-  uint32_t tolerances[3] = { 2U, 4U, 0U };
-  uint32_t stage, init_stage = 1;
-  uint32_t last_stage = poly->q_count == 1 ? 1U : 2U;
-  uint32_t attempt, i;
-  double ideal_d;
-  uint32_t ideal, center, variance;
+/* Every A uses q distinct eligible primes.  These exact product bounds can
+ * reject impossible small-q windows, but cannot guarantee an unused A. */
+static uint32_t siqs_initial_A_stage(const siqs_ctx_t *ctx,
+                                     const siqs_poly_t *poly,
+                                     const uint32_t tolerances[3]) {
+  uint32_t i, count = 0, stage = 0;
   mpz_t product, remaining, scaled;
+  if (poly->q_count < 2U || poly->q_count > 3U)
+    return 1U;
   mpz_init(product);
   mpz_init(remaining);
   mpz_init(scaled);
+  mpz_set_ui(product, 1);
+  /* Index zero (prime 2) is not eligible for A selection. */
+  for (i = 1; i < ctx->params.fb_size && count < poly->q_count; i++) {
+    if (ctx->fb[i].sqrt_kn == 0)
+      continue;
+    mpz_mul_ui(product, product, ctx->fb[i].p);
+    count++;
+  }
+  if (count < poly->q_count)
+    goto done;
+  /* Reuse the remaining-product scratch for the largest eligible A. */
+  count = 0;
+  mpz_set_ui(remaining, 1);
+  for (i = ctx->params.fb_size; i > 1 && count < poly->q_count; ) {
+    i--;
+    if (ctx->fb[i].sqrt_kn == 0)
+      continue;
+    mpz_mul_ui(remaining, remaining, ctx->fb[i].p);
+    count++;
+  }
+  for (stage = 1U; stage <= 3U; stage++) {
+    mpz_mul_ui(scaled, poly->target_A, tolerances[stage - 1]);
+    if (mpz_cmp(product, scaled) > 0)
+      continue;
+    mpz_mul_ui(scaled, remaining, tolerances[stage - 1]);
+    if (mpz_cmp(scaled, poly->target_A) >= 0)
+      break;
+  }
+  if (stage > 3U)
+    stage = 0;
+done:
+  mpz_clear(product);
+  mpz_clear(remaining);
+  mpz_clear(scaled);
+  return stage;
+}
+
+/* Target, q, FB primes and policy stay fixed for this polynomial generator.
+ * Cache lazily: threaded workers have their own generators but do not select
+ * A families.  Remember impossible geometry too, without floating work. */
+static void siqs_prepare_A_search(const siqs_ctx_t *ctx, siqs_poly_t *poly) {
+  uint32_t tolerances[3] = { 2U, 4U, 0U };
+  double ideal_d;
+  uint32_t ideal;
   tolerances[2] = ctx->params.a_final_tolerance;
+  poly->a_search_stage = siqs_initial_A_stage(ctx, poly, tolerances);
+  poly->a_search_center = poly->a_search_variance = 0;
+  poly->a_search_ready = 1U;
+  if (poly->a_search_stage == 0)
+    return;
+  ideal_d = pow(mpz_get_d(poly->target_A), 1.0 / poly->q_count);
+  ideal = ideal_d < 3.0 ? 3U
+        : ideal_d >= UINT32_MAX ? UINT32_MAX : (uint32_t)ideal_d;
+  poly->a_search_center = siqs_nearest_fb_index(ctx, ideal);
+  poly->a_search_variance =
+      (uint32_t)(0.75 * sqrt((double)ctx->params.fb_size));
+  if (poly->a_search_variance < 8U)
+    poly->a_search_variance = 8U;
+}
+
+static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
+  static const uint32_t stage_attempt_limits[3] = { 5000U, 5000U, 10000U };
+  uint32_t tolerances[3] = { 2U, 4U, 0U };
+  uint32_t stage, init_stage;
+  uint32_t last_stage = poly->q_count == 1 ? 1U
+                      : poly->q_count <= 3 ? 3U : 2U;
+  uint32_t attempt, i, center, variance;
+  mpz_t product, remaining, scaled;
 
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
       ctx->fb[poly->a_index[i]].in_a = 0;
-
-  /* Every A uses q distinct eligible primes.  Start a small-q search at
-   * the first stage whose window overlaps their minimum/maximum products;
-   * these bounds can reject impossible windows, but cannot guarantee an
-   * unused A.  q=1 has no tolerance window. */
-  if (poly->q_count >= 2 && poly->q_count <= 3) {
-    uint32_t count = 0;
-    last_stage = 3;
-    mpz_set_ui(product, 1);
-    /* Index zero (prime 2) is not eligible for A selection. */
-    for (i = 1; i < ctx->params.fb_size && count < poly->q_count; i++) {
-      if (ctx->fb[i].sqrt_kn == 0)
-        continue;
-      mpz_mul_ui(product, product, ctx->fb[i].p);
-      count++;
-    }
-    if (count < poly->q_count)
-      goto no_next_A;
-    /* Reuse the remaining-product scratch for the largest eligible A. */
-    count = 0;
-    mpz_set_ui(remaining, 1);
-    for (i = ctx->params.fb_size; i > 1 && count < poly->q_count; ) {
-      i--;
-      if (ctx->fb[i].sqrt_kn == 0)
-        continue;
-      mpz_mul_ui(remaining, remaining, ctx->fb[i].p);
-      count++;
-    }
-    for (; init_stage <= last_stage; init_stage++) {
-      mpz_mul_ui(scaled, poly->target_A, tolerances[init_stage - 1]);
-      if (mpz_cmp(product, scaled) > 0)
-        continue;
-      mpz_mul_ui(scaled, remaining, tolerances[init_stage - 1]);
-      if (mpz_cmp(scaled, poly->target_A) >= 0)
-        break;
-    }
-    if (init_stage > last_stage)
-      goto no_next_A;
-  }
-
-  /* Compute the local search center only after rejecting impossible windows. */
-  ideal_d = pow(mpz_get_d(poly->target_A), 1.0 / poly->q_count);
-  ideal = ideal_d < 3.0 ? 3U
-        : ideal_d >= UINT32_MAX ? UINT32_MAX : (uint32_t)ideal_d;
-  center = siqs_nearest_fb_index(ctx, ideal);
-  variance = (uint32_t)(0.75 * sqrt((double)ctx->params.fb_size));
-  if (variance < 8)
-    variance = 8;
+  if (!poly->a_search_ready)
+    siqs_prepare_A_search(ctx, poly);
+  init_stage = poly->a_search_stage;
+  if (init_stage == 0)
+    return 0;
+  center = poly->a_search_center;
+  variance = poly->a_search_variance;
+  tolerances[2] = ctx->params.a_final_tolerance;
+  mpz_init(product);
+  mpz_init(remaining);
+  mpz_init(scaled);
 
   /* The short low-end polynomials have fewer distinct A products.  q=1 has
    * only one useful nearest-prime choice, so accept it without a tolerance
@@ -2742,7 +2806,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
       mpz_set_ui(product, 1);
       for (i = 0; i + 1 < poly->q_count; i++) {
         int64_t wanted_index;
-        uint32_t wanted, index;
+        uint32_t index;
         if (stage == 3) {
           wanted_index = 1 + (int64_t)siqs_rand_range(
               &ctx->poly_rng, ctx->params.fb_size - 1);
@@ -2755,8 +2819,8 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
           if (wanted_index >= (int64_t)ctx->params.fb_size)
             wanted_index = ctx->params.fb_size - 1;
         }
-        wanted = ctx->fb[wanted_index].p;
-        index = siqs_nearest_available_fb(ctx, wanted);
+        index = siqs_nearest_available_fb_from_index(
+            ctx, (uint32_t)wanted_index);
         poly->a_index[i] = index;
         ctx->fb[index].in_a = 1;
         mpz_mul_ui(product, product, ctx->fb[index].p);
@@ -2772,7 +2836,6 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         mpz_mul_ui(product, product, ctx->fb[index].p);
       }
 
-      qsort(poly->a_index, poly->q_count, sizeof(uint32_t), siqs_u32_cmp);
       if (!acceptable) {
         mpz_mul_ui(scaled, product, tolerance);
         if (mpz_cmp(scaled, poly->target_A) >= 0) {
@@ -2781,6 +2844,8 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         }
       }
       if (acceptable) {
+        /* Canonical order is needed for history checks, not tolerance. */
+        siqs_sort_A_indices(poly->a_index, poly->q_count);
         fingerprint = siqs_a_fingerprint(poly->a_index, poly->q_count);
         if (siqs_hashset_insert(&ctx->a_hashes, fingerprint)) {
           mpz_set(poly->A, product);
@@ -2795,7 +2860,8 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         ctx->fb[poly->a_index[i]].in_a = 0;
     }
   }
-no_next_A:
+  /* Preserve canonical indices on exhausted searches as well. */
+  siqs_sort_A_indices(poly->a_index, poly->q_count);
   mpz_clear(product);
   mpz_clear(remaining);
   mpz_clear(scaled);
@@ -5180,9 +5246,10 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
                            uint32_t trial_start, int verbose,
                            uint32_t nthreads) {
   siqs_factor_array_t result;
+  const siqs_policy_band_t *profile;
   mpz_t work, divisor, root;
   size_t input_bits;
-  uint32_t bits, trial_limit, recovery_index;
+  uint32_t bits, trial_limit, next = 0U;
   int factor_found;
 
   if (verbose < 0)
@@ -5241,19 +5308,9 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
 
   factor_found = siqs_try_policy(
       n, work, &result, NULL, divisor, root, verbose, nthreads);
-  if (!factor_found) {
-    for (recovery_index = 0;
-         recovery_index < SIQS_RECOVERY_POLICY_COUNT &&
-           !factor_found;
-         recovery_index++) {
-      const siqs_policy_band_t *profile =
-          &siqs_recovery_policies[recovery_index];
-      if (bits < profile->first_bits || bits > profile->last_bits)
-        continue;
-      factor_found = siqs_try_policy(
-          n, work, &result, profile, divisor, root, verbose, nthreads);
-    }
-  }
+  while (!factor_found && (profile = siqs_next_policy(bits, &next)) != NULL)
+    factor_found = siqs_try_policy(
+        n, work, &result, profile, divisor, root, verbose, nthreads);
   siqs_verify_partition(n, &result);
 
 finish:
