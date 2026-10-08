@@ -1336,6 +1336,15 @@ static const siqs_policy_band_t siqs_recovery_policies[] = {
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  /* K60 cannot create missing q=3 A products.  After both q=3 attempts
+   * fail, use pair families with the same low-band FB/interval geometry.
+   * Larger 65--80-bit targets need not fit a pair, so keep this local. */
+  { "one_lp_k60_q2_geometry_recovery", 50, 64, 1, 2, 0, 0, 0,
+    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.315, 0.0, 65),
+    SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 }
 };
 #undef SIQS_LOW_SMOOTH_RECOVERY_POLICY
@@ -2654,14 +2663,9 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t stage, init_stage = 1;
   uint32_t last_stage = poly->q_count == 1 ? 1U : 2U;
   uint32_t attempt, i;
-  double ideal_d = pow(mpz_get_d(poly->target_A),
-                       1.0 / poly->q_count);
-  uint32_t ideal = ideal_d < 3.0 ? 3U : (uint32_t)ideal_d;
-  uint32_t center = siqs_nearest_fb_index(ctx, ideal);
-  uint32_t variance = (uint32_t)(0.75 * sqrt((double)ctx->params.fb_size));
+  double ideal_d;
+  uint32_t ideal, center, variance;
   mpz_t product, remaining, scaled;
-  if (variance < 8)
-    variance = 8;
   mpz_init(product);
   mpz_init(remaining);
   mpz_init(scaled);
@@ -2672,8 +2676,9 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
       ctx->fb[poly->a_index[i]].in_a = 0;
 
   /* Every A uses q distinct eligible primes.  Start a small-q search at
-   * the first stage whose window can contain even their smallest product;
-   * if no stage can, searching cannot succeed.  q=1 has no tolerance window. */
+   * the first stage whose window overlaps their minimum/maximum products;
+   * these bounds can reject impossible windows, but cannot guarantee an
+   * unused A.  q=1 has no tolerance window. */
   if (poly->q_count >= 2 && poly->q_count <= 3) {
     uint32_t count = 0;
     last_stage = 3;
@@ -2687,14 +2692,36 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     }
     if (count < poly->q_count)
       goto no_next_A;
+    /* Reuse the remaining-product scratch for the largest eligible A. */
+    count = 0;
+    mpz_set_ui(remaining, 1);
+    for (i = ctx->params.fb_size; i > 1 && count < poly->q_count; ) {
+      i--;
+      if (ctx->fb[i].sqrt_kn == 0)
+        continue;
+      mpz_mul_ui(remaining, remaining, ctx->fb[i].p);
+      count++;
+    }
     for (; init_stage <= last_stage; init_stage++) {
       mpz_mul_ui(scaled, poly->target_A, tolerances[init_stage - 1]);
-      if (mpz_cmp(product, scaled) <= 0)
+      if (mpz_cmp(product, scaled) > 0)
+        continue;
+      mpz_mul_ui(scaled, remaining, tolerances[init_stage - 1]);
+      if (mpz_cmp(scaled, poly->target_A) >= 0)
         break;
     }
     if (init_stage > last_stage)
       goto no_next_A;
   }
+
+  /* Compute the local search center only after rejecting impossible windows. */
+  ideal_d = pow(mpz_get_d(poly->target_A), 1.0 / poly->q_count);
+  ideal = ideal_d < 3.0 ? 3U
+        : ideal_d >= UINT32_MAX ? UINT32_MAX : (uint32_t)ideal_d;
+  center = siqs_nearest_fb_index(ctx, ideal);
+  variance = (uint32_t)(0.75 * sqrt((double)ctx->params.fb_size));
+  if (variance < 8)
+    variance = 8;
 
   /* The short low-end polynomials have fewer distinct A products.  q=1 has
    * only one useful nearest-prime choice, so accept it without a tolerance

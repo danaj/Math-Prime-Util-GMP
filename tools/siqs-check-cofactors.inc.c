@@ -111,6 +111,8 @@ static void cofactor_a_search_stages(void) {
     { "104339829049", 2, 1 },
     { "350190603377", 2, 2 },
     { "39586268787172817", 3, 2 },
+    { "597107386758137", 3, 3 }, /* Exactly one triple in the final window. */
+    { "610235247872417", 3, 0 }, /* Smallest triple exceeds every window. */
     { "68719477433", 2, 3 },
     { "137438955233", 2, 3 },
     { "37853468033", 1, 1 },
@@ -198,6 +200,16 @@ static void cofactor_a_search_stages(void) {
       mpz_set_ui(poly.target_A, 1000000);
       rng = ctx.poly_rng;
       CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
+    }
+    if (i == 1) {
+      /* The largest eligible product is below even the final window.
+       * Reject without consuming random draws, just like a too-small target. */
+      mpz_set_ui(poly.target_A, 1);
+      mpz_mul_2exp(poly.target_A, poly.target_A, 64);
+      rng = ctx.poly_rng;
+      CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
+      CHECK(ctx.a_hashes.count == 0);
+      for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb[j].in_a);
     }
     siqs_poly_clear(&ctx, &poly);
     for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb[j].in_a);
@@ -342,6 +354,62 @@ static void cofactor_q3_recovery(void) {
   gmp_siqs_free(factors, count);
   mpz_clear(n); mpz_clear(divisor); mpz_clear(root); mpz_clear(p); mpz_clear(q);
   puts("PASS cofactors: 50-64-bit q3 recovery preserves primary geometry and splits the exhaustion fixture");
+}
+
+static void cofactor_q2_geometry_recovery(void) {
+  static const struct { const char *n, *p, *q; } cases[] = {
+    { "597107386758137", "31287313", "19084649" },
+    { "610235247872417", "19489627", "31310771" },
+    { "1330578890360873", "29816789", "44625157" },
+    { "2941303423812353", "48138007", "61101479" },
+    { "39586268787172817", "4728917", "8371106701" }
+  };
+  const siqs_policy_band_t *profile = NULL;
+  siqs_factor_array_t partition;
+  siqs_parameters_t primary, recovery;
+  mpz_t n, divisor, root, p, q;
+  mpz_t *factors;
+  uint32_t i, count;
+  case_name = "50-64-q3-to-q2-geometry-recovery";
+  for (i = 0; i < SIQS_RECOVERY_POLICY_COUNT; i++)
+    if (strcmp(siqs_recovery_policies[i].name,
+               "one_lp_k60_q2_geometry_recovery") == 0)
+      profile = &siqs_recovery_policies[i];
+  CHECK(profile != NULL && profile->first_bits == 50 && profile->last_bits == 64);
+  mpz_init(n); mpz_init(divisor); mpz_init(root); mpz_init(p); mpz_init(q);
+  for (i = 50; i <= 64; i++) {
+    mpz_set_ui(n, 1); mpz_mul_2exp(n, n, i - 1U); mpz_add_ui(n, n, 1);
+    siqs_select_parameters(&primary, n, NULL);
+    siqs_select_parameters(&recovery, n, profile);
+    CHECK(primary.q_count == 3 && recovery.q_count == 2 &&
+          recovery.max_large_primes == 1 && recovery.one_lp_policy_multiplier == 60);
+    CHECK(primary.fb_size == recovery.fb_size &&
+          primary.half_interval == recovery.half_interval &&
+          primary.stage1_bias == recovery.stage1_bias &&
+          primary.relation_extra == recovery.relation_extra &&
+          primary.sieve_free_units == recovery.sieve_free_units &&
+          primary.a_final_tolerance == recovery.a_final_tolerance &&
+          primary.multiplier_refine_divisor == recovery.multiplier_refine_divisor);
+  }
+  for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    mpz_set_str(n, cases[i].n, 10);
+    mpz_set_str(p, cases[i].p, 10); mpz_set_str(q, cases[i].q, 10);
+    mpz_mul(divisor, p, q); CHECK(mpz_cmp(n, divisor) == 0);
+    siqs_factor_array_init(&partition, n);
+    CHECK(siqs_try_policy(n, n, &partition, profile, divisor, root, 0, 1));
+    factors = siqs_factor_array_release(&partition, &count);
+    CHECK(count == 2 &&
+          ((mpz_cmp(factors[0], p) == 0 && mpz_cmp(factors[1], q) == 0) ||
+           (mpz_cmp(factors[0], q) == 0 && mpz_cmp(factors[1], p) == 0)));
+    gmp_siqs_free(factors, count);
+    factors = gmp_siqs(n, &count, 0, 0);
+    CHECK(count == 2 &&
+          ((mpz_cmp(factors[0], p) == 0 && mpz_cmp(factors[1], q) == 0) ||
+           (mpz_cmp(factors[0], q) == 0 && mpz_cmp(factors[1], p) == 0)));
+    gmp_siqs_free(factors, count);
+  }
+  mpz_clear(n); mpz_clear(divisor); mpz_clear(root); mpz_clear(p); mpz_clear(q);
+  puts("PASS cofactors: terminal q2/K60 recovery changes A geometry and splits all five scarcity fixtures");
 }
 
 static void cofactor_cascade(void) {
@@ -491,6 +559,7 @@ static void suite_cofactors(void) {
   cofactor_a_search_stages();
   cofactor_low_smooth_recovery();
   cofactor_q3_recovery();
+  cofactor_q2_geometry_recovery();
   cofactor_classification();
   cofactor_lp_ceiling();
   cofactor_cascade();
