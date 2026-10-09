@@ -76,6 +76,10 @@
 #include "rootmod.h"
 #include "lanczos.h"
 
+#ifndef UINT64_C
+# define UINT64_C(value) ((uint64_t)(value))
+#endif
+
 typedef struct qs_factor_array_s qs_factor_array_t;
 static void insert_factor(qs_factor_array_t *fa, const mpz_t f);
 
@@ -1377,7 +1381,7 @@ static void mainRoutine(
   int have_solver_result, partition_refined;
   unsigned int block_attempts;
   uint64_t mask;
-  uint32_t lanczos_seed1, lanczos_seed2;
+  uint64_t lanczos_seed;
   unsigned long u1, p, reps, M, Mq, Mr, ncols, nrows, relsFound;
   unsigned long curves = 0;
   uint64_t *nullrows;
@@ -1411,10 +1415,9 @@ static void mainRoutine(
 
   verbose = get_verbose_level();
   s = mpz_sizeinbase(n, 2) / 28 + 1;
-  lanczos_seed1 = 11111111U ^ (uint32_t)randval
-                ^ (uint32_t)mpz_fdiv_ui(n, 4294967291UL);
-  lanczos_seed2 = 22222222U ^ ~(uint32_t)randval
-                ^ (uint32_t)mpz_fdiv_ui(n, 4294967279UL);
+  lanczos_seed = UINT64_C(0x83d2e5b79a4c610f) ^ (uint64_t)randval
+              ^ ((uint64_t)mpz_fdiv_ui(n, 4294967291UL) << 32)
+              ^ (uint64_t)mpz_fdiv_ui(n, 4294967279UL);
 
   Newz(0, aind,          s, unsigned long);
   Newz(0, amodp,         s, unsigned long);
@@ -1853,19 +1856,18 @@ static void mainRoutine(
        !partition_refined && block_attempts < 2;
        block_attempts++) {
     if (block_attempts != 0) {
-      lanczos_seed1 ^= 0x9e3779b9U;
-      lanczos_seed2 ^= 0x85ebca6bU;
+      lanczos_seed += UINT64_C(0x9e3779b97f4a7c15);
       if (verbose > 2)
         printf("Lanczos did not refine factors; retrying with all rows.\n");
     }
     if (block_attempts == 0)
       nullrows = la_block_lanczos(
-        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask,
+        nrows, 0, ncols, colarray, lanczos_seed, &mask,
         verbose - 2
       );
     else
       nullrows = la_block_lanczos_wide(
-        nrows, 0, ncols, colarray, lanczos_seed1, lanczos_seed2, &mask,
+        nrows, 0, ncols, colarray, lanczos_seed, &mask,
         verbose - 2
       );
     if (nullrows == NULL)

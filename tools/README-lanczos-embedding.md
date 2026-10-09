@@ -24,16 +24,17 @@ uint64_t *deps = la_dense_nullspace(nrows, ncols, cols, &mask);
 
 ```c
 /* Serial block Lanczos. Zero means no externally packed dense rows.
- * Seeds are caller-owned values; the final zero requests quiet output. */
+ * Seed is a caller-owned value; the final zero requests quiet output. */
 uint64_t *deps = la_block_lanczos(nrows, 0, ncols, cols,
-                                 31, 47, &mask, 0);
+                                 UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
 ```
 
 ```c
 /* Requires a PSIQS build. Request four total threads, including the caller.
  * retain_all_rows = 0, verbose = 0, nthreads = 4. */
 uint64_t *deps = la_block_lanczos_threaded(nrows, 0, ncols, cols,
-                                          31, 47, &mask, 0, 0, 4);
+                                          UINT64_C(0x83d2e5b79a4c610f),
+                                          &mask, 0, 0, 4);
 ```
 
 These are alternatives, not three allocations to put into one variable
@@ -41,6 +42,13 @@ without freeing the earlier result. Check `deps != NULL && mask != 0`, use
 the dependencies, then `free(deps)`. The solvers do not free or modify the
 supplied columns. The optional matrix reducer described below is different:
 it reorders columns and frees discarded column data.
+
+Lanczos takes one `uint64_t` seed. Each call uses standard SplitMix64 to
+initialize its random blocks, advancing one local state across internal
+retries. Any seed is valid, including zero. The examples use an arbitrary
+fixed seed for reproducibility; a host can supply different seeds for fresh
+dependency samples. There is no shared RNG state, and serial and threaded
+calls with the same matrix, seed, and row-retention setting agree.
 
 The host chooses the solver; there is no automatic public dispatcher. SIQS
 uses dense elimination through `LA_DENSE_CROSSOVER_COLS` (currently 1536
@@ -117,7 +125,7 @@ necessarily produce a nontrivial factor in a factoring application.
 `NULL` with `mask = 0` means no dependencies were returned, not proof that
 the matrix has no nullspace. Dense elimination can also return this on an
 allocation/size failure; Lanczos can exhaust its internal attempts. A host
-can try a different solver or seed pair, or collect more relations. Bound
+can try a different solver or seed, or collect more relations. Bound
 host retries rather than retrying the same unsuccessful work indefinitely.
 
 Use ordinary `free` for the returned array, with a compatible C runtime.
@@ -154,13 +162,15 @@ int main(int argc, char **argv) {
   if (strcmp(argv[1], "dense") == 0) {
     deps = la_dense_nullspace(nrows, ncols, cols, &mask);
   } else if (strcmp(argv[1], "lanczos") == 0) {
-    deps = la_block_lanczos(nrows, 0, ncols, cols, 31, 47, &mask, 0);
+    deps = la_block_lanczos(nrows, 0, ncols, cols,
+                            UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
   } else if (strcmp(argv[1], "wide") == 0) {
-    deps = la_block_lanczos_wide(nrows, 0, ncols, cols, 31, 47, &mask, 0);
+    deps = la_block_lanczos_wide(nrows, 0, ncols, cols,
+                                 UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
   } else if (strcmp(argv[1], "threaded") == 0) {
 #ifdef PSIQS
     deps = la_block_lanczos_threaded(nrows, 0, ncols, cols,
-                                    31, 47, &mask, 0, 0, 4);
+                                    UINT64_C(0x83d2e5b79a4c610f), &mask, 0, 0, 4);
 #else
     fprintf(stderr, "rebuild with -DPSIQS -pthread for this entry point\n");
     return 2;
@@ -299,7 +309,7 @@ For another dependency sample, use:
 
 ```c
 deps = la_block_lanczos_wide(nrows, 0, ncols, cols,
-                            31, 47, &mask, 0);
+                            UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
 /* Or use retain_all_rows = 1 in la_block_lanczos_threaded. */
 ```
 

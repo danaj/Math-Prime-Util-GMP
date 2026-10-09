@@ -34,13 +34,14 @@ extern uint64_t *la_dense_nullspace(unsigned long nrows,
                                     const la_col_t *cols,
                                     uint64_t *mask);
 
-/* Find nullspace dependencies with the sparse block-Lanczos solver. */
+/* Find nullspace dependencies with the sparse block-Lanczos solver.
+ * Seed initializes a per-call SplitMix64 state carried across retries.
+ * Every seed is valid, including zero; no shared RNG state is used. */
 extern uint64_t *la_block_lanczos(unsigned long nrows,
                                   unsigned long dense_rows,
                                   unsigned long ncols,
                                   la_col_t *cols,
-                                  uint32_t seed1,
-                                  uint32_t seed2,
+                                  uint64_t seed,
                                   uint64_t *mask, int verbose);
 
 /* Find a wider dependency sample by retaining all rows in the iteration. */
@@ -48,8 +49,7 @@ extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                        unsigned long dense_rows,
                                        unsigned long ncols,
                                        la_col_t *cols,
-                                       uint32_t seed1,
-                                       uint32_t seed2,
+                                       uint64_t seed,
                                        uint64_t *mask, int verbose);
 
 #ifdef PSIQS
@@ -58,8 +58,7 @@ extern uint64_t *la_block_lanczos_threaded(unsigned long nrows,
                                           unsigned long dense_rows,
                                           unsigned long ncols,
                                           la_col_t *cols,
-                                          uint32_t seed1,
-                                          uint32_t seed2,
+                                          uint64_t seed,
                                           uint64_t *mask,
                                           int retain_all_rows, int verbose,
                                           uint32_t nthreads);

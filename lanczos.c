@@ -7,8 +7,8 @@
  * implementation.  Its cache organization and post-Lanczos dense-row
  * treatment also draw on msieve.
  *
- * The random generator uses Marsaglia's multiply-with-carry construction
- * with the same multiplier as msieve.
+ * Initial random blocks use standard fixed-increment SplitMix64, with
+ * a caller-owned seed and a local state carried across solver retries.
  *
  * MPU-specific work includes matrix storage and reduction, dense
  * elimination, dependency verification, and pthread parallel kernels.
@@ -35,7 +35,6 @@
 
 #define NLA_EXTRA_COLUMNS 64UL
 #define NLA_MAX_ATTEMPTS 100U
-#define NLA_RAND_MULT 2131995753U
 
 /* Packing pays for its conversion at about 1024 active rows and is fastest
  * across the matrix sizes SIQS commonly reaches.  By roughly 40K columns the
@@ -129,11 +128,14 @@ static uint64_t nla_low_mask(unsigned int bits) {
   return bits >= 64U ? UINT64_MAX : (NLA_BIT(bits) - UINT64_C(1));
 }
 
-static uint32_t nla_rand32(uint32_t *low, uint32_t *high) {
-  uint64_t product = (uint64_t)(*low) * NLA_RAND_MULT + *high;
-  *low = (uint32_t)product;
-  *high = (uint32_t)(product >> 32);
-  return *low;
+/* Fixed-increment SplitMix64 with Stafford's Mix13 finalizer.
+ * Unsigned wraparound is intentional; zero state and output are valid.
+ * Reference: https://prng.di.unimi.it/splitmix64.c */
+static uint64_t nla_rand64(uint64_t *state) {
+  uint64_t z = (*state += UINT64_C(0x9e3779b97f4a7c15));
+  z = (z ^ (z >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+  z = (z ^ (z >> 27)) * UINT64_C(0x94d049bb133111eb);
+  return z ^ (z >> 31);
 }
 
 static int nla_compare_columns(const void *a, const void *b) {
@@ -1336,8 +1338,7 @@ static int nla_all_zero(const uint64_t *matrix) {
 }
 
 static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
-                                        uint32_t *seed1,
-                                        uint32_t *seed2,
+                                        uint64_t *rng_state,
                                         uint64_t *result_mask, int verbose) {
   uint64_t *v[3], *vnext, *x, *initial;
   uint64_t *row_scratch, *table;
@@ -1375,10 +1376,8 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
                                         sizeof(*row_scratch));
   table = (uint64_t *)nla_malloc(8U * 256U, sizeof(*table));
 
-  for (i = 0; i < matrix->ncols; i++) {
-    uint64_t high = nla_rand32(seed1, seed2);
-    x[i] = (high << 32) | nla_rand32(seed1, seed2);
-  }
+  for (i = 0; i < matrix->ncols; i++)
+    x[i] = nla_rand64(rng_state);
   nla_matrix_mul_symmetric(matrix, x, v[0], row_scratch, table);
   memcpy(initial, v[0], (size_t)matrix->ncols * sizeof(*initial));
 
@@ -1536,13 +1535,13 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
                                   unsigned long dense_rows,
                                   unsigned long ncols,
                                   la_col_t *cols,
-                                  uint32_t seed1,
-                                  uint32_t seed2,
+                                  uint64_t seed,
                                   uint64_t *mask,
                                   unsigned int post_rows,
                                   int verbose, uint32_t nthreads) {
   nla_matrix_t matrix;
   uint64_t *result = NULL;
+  uint64_t rng_state = seed;
   unsigned int attempt;
 
   if (verbose < 0)
@@ -1550,12 +1549,6 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
   *mask = 0;
   if (ncols == 0)
     return NULL;
-  if ((seed1 | seed2) == 0 ||
-      (seed1 == UINT32_MAX && seed2 == NLA_RAND_MULT - 1U)) {
-    seed1 = 11111111U;
-    seed2 = 22222222U;
-  }
-
   nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows, verbose);
 #ifdef PSIQS
   matrix.pool = nla_pool_create(&matrix, nthreads);
@@ -1565,7 +1558,7 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
   (void)nthreads;
 #endif
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
-    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask, verbose);
+    result = nla_block_lanczos_once(&matrix, &rng_state, mask, verbose);
     if (result != NULL && *mask != 0)
       break;
     free(result);
@@ -1584,22 +1577,20 @@ uint64_t *la_block_lanczos(unsigned long nrows,
                            unsigned long dense_rows,
                            unsigned long ncols,
                            la_col_t *cols,
-                           uint32_t seed1,
-                           uint32_t seed2,
+                           uint64_t seed,
                            uint64_t *mask, int verbose) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, NLA_POST_ROWS, verbose, 1U);
+                           seed, mask, NLA_POST_ROWS, verbose, 1U);
 }
 
 uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                 unsigned long dense_rows,
                                 unsigned long ncols,
                                 la_col_t *cols,
-                                uint32_t seed1,
-                                uint32_t seed2,
+                                uint64_t seed,
                                 uint64_t *mask, int verbose) {
   return nla_block_lanczos(nrows, dense_rows, ncols, cols,
-                           seed1, seed2, mask, 0U, verbose, 1U);
+                           seed, mask, 0U, verbose, 1U);
 }
 
 #ifdef PSIQS
@@ -1607,12 +1598,11 @@ uint64_t *la_block_lanczos_threaded(unsigned long nrows,
                                     unsigned long dense_rows,
                                     unsigned long ncols,
                                     la_col_t *cols,
-                                    uint32_t seed1,
-                                    uint32_t seed2,
+                                    uint64_t seed,
                                     uint64_t *mask,
                                     int retain_all_rows, int verbose,
                                     uint32_t nthreads) {
-  return nla_block_lanczos(nrows, dense_rows, ncols, cols, seed1, seed2, mask,
+  return nla_block_lanczos(nrows, dense_rows, ncols, cols, seed, mask,
                            retain_all_rows ? 0U : NLA_POST_ROWS, verbose, nthreads);
 }
 #endif

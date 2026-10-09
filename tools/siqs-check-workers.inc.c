@@ -519,10 +519,13 @@ static void worker_lanczos_failures(void) {
   }
   worker_fault_reset();
   CHECK(nla_pool_create(&matrix, 0) == NULL && nla_pool_create(&matrix, 1) == NULL);
-  serial = la_block_lanczos(129, 37, 32769, cols, 31, 47, &mask, 0);
+  serial = la_block_lanczos(129, 37, 32769, cols,
+                           UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
   matrix_verify_dependencies(129, 32769, 37, cols, serial, mask);
   seam_thread_after = 1;
-  fallback = la_block_lanczos_threaded(129, 37, 32769, cols, 31, 47, &other_mask, 0, 0, 4);
+  fallback = la_block_lanczos_threaded(129, 37, 32769, cols,
+                                      UINT64_C(0x83d2e5b79a4c610f),
+                                      &other_mask, 0, 0, 4);
   CHECK(mask == other_mask && memcmp(serial, fallback, 32769U * sizeof(uint64_t)) == 0);
   matrix_verify_dependencies(129, 32769, 37, cols, fallback, other_mask);
   free(serial); free(fallback); nla_matrix_clear(&matrix); matrix_free(cols, 32769);

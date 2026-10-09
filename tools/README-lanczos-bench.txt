@@ -45,7 +45,8 @@ Timed work includes the normal matrix conversion, pool creation, complete
 block-Lanczos iteration, dependency extraction/verification inside the solver,
 retries, and pool/storage teardown. It does not include matrix generation or
 the harness's independent validation. Each solve uses identical matrix data
-and solver seeds. Outside the timer, the harness checks A*X=0, nonempty and
+and the fixed SplitMix64 seed 0x83d2e5b79a4c610f. The local RNG state advances
+across solver retries. Outside the timer, the harness checks A*X=0, nonempty and
 independent dependency lanes, and bit-for-bit equality with the serial result.
 This finds dependencies, not integer factors.
 

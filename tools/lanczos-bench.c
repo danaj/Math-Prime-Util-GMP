@@ -138,7 +138,8 @@ static uint64_t *bench_solve(uint32_t rows, uint32_t count, la_col_t *cols,
                              uint64_t *mask) {
   nla_matrix_t matrix;
   uint64_t *result = NULL;
-  uint32_t seed1 = 31U, seed2 = 47U, attempt;
+  uint64_t rng_state = UINT64_C(0x83d2e5b79a4c610f);
+  uint32_t attempt;
   double wall = bench_wall(), cpu = bench_cpu();
   memset(run, 0, sizeof(*run));
   run->requested = threads;
@@ -150,7 +151,7 @@ static uint64_t *bench_solve(uint32_t rows, uint32_t count, la_col_t *cols,
   if (matrix.pool != NULL) run->effective = matrix.pool->nthreads;
   for (attempt = 0; attempt < NLA_MAX_ATTEMPTS; attempt++) {
     run->attempts++;
-    result = nla_block_lanczos_once(&matrix, &seed1, &seed2, mask, bench_verbose ? 3 : 0);
+    result = nla_block_lanczos_once(&matrix, &rng_state, mask, bench_verbose ? 3 : 0);
     if (result != NULL && *mask != 0) break;
     free(result);
     result = NULL;

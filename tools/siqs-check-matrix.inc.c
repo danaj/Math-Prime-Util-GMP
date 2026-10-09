@@ -363,6 +363,58 @@ static void matrix_from_relations(void) {
   free(nullrows); matrix_free(cols, count); relation_finish(&ctx, &result);
 }
 
+static void matrix_rng(void) {
+  static const struct {
+    uint64_t seed;
+    uint64_t output[4];
+  } vectors[] = {
+    { UINT64_C(0), {
+      UINT64_C(0xe220a8397b1dcdaf), UINT64_C(0x6e789e6aa1b965f4),
+      UINT64_C(0x06c45d188009454f), UINT64_C(0xf88bb8a8724c81ec) } },
+    { UINT64_C(0x83d2e5b79a4c610f), {
+      UINT64_C(0xbfb8539d14b5da28), UINT64_C(0xa44562599cc2f0c2),
+      UINT64_C(0x8842d535ffbed2c4), UINT64_C(0xd644e10e3fd85c53) } },
+    { UINT64_MAX, {
+      UINT64_C(0xe4d971771b652c20), UINT64_C(0xe99ff867dbf682c9),
+      UINT64_C(0x382ff84cb27281e9), UINT64_C(0x6d1db36ccba982d2) } }
+  };
+  const uint64_t increment = UINT64_C(0x9e3779b97f4a7c15);
+  unsigned int i, j;
+  uint64_t state;
+  nla_matrix_t matrix;
+  la_col_t *cols;
+
+  case_name = "splitmix64-known-answers-and-wraparound";
+  for (i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++) {
+    state = vectors[i].seed;
+    for (j = 0; j < 4; j++) {
+      CHECK(nla_rand64(&state) == vectors[i].output[j]);
+      CHECK(state == vectors[i].seed + (uint64_t)(j + 1U) * increment);
+    }
+  }
+  state = UINT64_C(0x61c8864680b583eb);
+  CHECK(nla_rand64(&state) == 0 && state == 0);
+  CHECK(nla_rand64(&state) == vectors[0].output[0]);
+
+  case_name = "splitmix64-state-continues-across-solver-attempts";
+  cols = matrix_fixture(101, 165, 0);
+  nla_matrix_init(&matrix, 101, 0, 165, cols, NLA_POST_ROWS, 0);
+  for (i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++) {
+    state = vectors[i].seed;
+    for (j = 0; j < 2; j++) {
+      uint64_t mask, *deps = nla_block_lanczos_once(&matrix, &state, &mask, 0);
+      CHECK(state == vectors[i].seed +
+            (uint64_t)(j + 1U) * matrix.ncols * increment);
+      if (deps != NULL)
+        matrix_verify_dependencies(101, 165, 0, cols, deps, mask);
+      free(deps);
+    }
+  }
+  nla_matrix_clear(&matrix);
+  matrix_free(cols, 165);
+  puts("PASS matrix: SplitMix64 known answers, zero/wrapping seeds, and state across retries");
+}
+
 static void matrix_solver_case(unsigned long rows, unsigned long count,
                                 unsigned long dense) {
   la_col_t *cols = matrix_fixture(rows, count, dense);
@@ -376,15 +428,18 @@ static void matrix_solver_case(unsigned long rows, unsigned long count,
     free(nullrows);
   }
   for (wide = 0; wide < 2; wide++) {
-    nullrows = wide ? la_block_lanczos_wide(rows, dense, count, cols, 31, 47, &mask, 0)
-                   : la_block_lanczos(rows, dense, count, cols, 31, 47, &mask, 0);
+    nullrows = wide ? la_block_lanczos_wide(rows, dense, count, cols,
+                                          UINT64_C(0x83d2e5b79a4c610f), &mask, 0)
+                   : la_block_lanczos(rows, dense, count, cols,
+                                     UINT64_C(0x83d2e5b79a4c610f), &mask, 0);
     matrix_verify_dependencies(rows, count, dense, cols, nullrows, mask);
 #ifdef PSIQS
     {
       uint32_t threads;
       for (threads = 2; threads <= 4; threads++) {
         uint64_t threaded_mask, *threaded = la_block_lanczos_threaded(
-            rows, dense, count, cols, 31, 47, &threaded_mask, wide, 0, threads);
+            rows, dense, count, cols, UINT64_C(0x83d2e5b79a4c610f),
+            &threaded_mask, wide, 0, threads);
         matrix_verify_dependencies(rows, count, dense, cols, threaded, threaded_mask);
         CHECK(threaded_mask == mask);
         CHECK(memcmp(threaded, nullrows, (size_t)count * sizeof(uint64_t)) == 0);
@@ -405,7 +460,7 @@ static void matrix_degenerate(void) {
   memset(cols, 0, sizeof(cols));
   nullrows = la_dense_nullspace(0, 0, cols, &mask);
   CHECK(nullrows == NULL && mask == 0);
-  nullrows = la_block_lanczos(0, 0, 0, cols, 0, 0, &mask, 0);
+  nullrows = la_block_lanczos(0, 0, 0, cols, 0, &mask, 0);
   CHECK(nullrows == NULL && mask == 0);
   nullrows = la_dense_nullspace(0, 3, cols, &mask);
   CHECK(mask == UINT64_C(7));
@@ -416,6 +471,7 @@ static void matrix_degenerate(void) {
 }
 
 static void suite_matrix(void) {
+  matrix_rng();
   matrix_from_relations();
   matrix_reduction();
   matrix_degenerate();

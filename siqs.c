@@ -4567,8 +4567,8 @@ static int siqs_use_dense_solver(unsigned long ncols) {
 
 static int siqs_solve(siqs_ctx_t *ctx) {
   unsigned long original_cols, nrows, ncols, i;
-  uint32_t seed1, seed2, block_attempt;
-  uint64_t mask = 0;
+  uint32_t block_attempt;
+  uint64_t seed, mask = 0;
   uint64_t *nullrows = NULL;
   la_col_t *columns;
   int dense_selected, dense_result = 0;
@@ -4611,24 +4611,23 @@ static int siqs_solve(siqs_ctx_t *ctx) {
     for (block_attempt = 0;
          block_attempt < 2 && !ctx->factor_found;
          block_attempt++) {
-      seed1 = (uint32_t)siqs_rand64(&ctx->la_rng);
-      seed2 = (uint32_t)siqs_rand64(&ctx->la_rng);
+      seed = siqs_rand64(&ctx->la_rng);
       if (block_attempt != 0 && ctx->verbose > 0)
         printf("Lanczos did not refine factors; retrying with all rows.\n");
 #ifdef PSIQS
       if (ctx->nthreads > 1U) {
         nullrows = la_block_lanczos_threaded(nrows, 0, ncols, columns,
-                                             seed1, seed2, &mask,
+                                             seed, &mask,
                                              block_attempt != 0, ctx->verbose,
                                              ctx->nthreads);
       } else
 #endif
       if (block_attempt == 0) {
         nullrows = la_block_lanczos(nrows, 0, ncols, columns,
-                                    seed1, seed2, &mask, ctx->verbose);
+                                    seed, &mask, ctx->verbose);
       } else {
         nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
-                                         seed1, seed2, &mask, ctx->verbose);
+                                         seed, &mask, ctx->verbose);
       }
       if (nullrows != NULL) {
         siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
