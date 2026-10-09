@@ -165,6 +165,16 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   master->split_rho += ctx->split_rho;
   master->split_fail += ctx->split_fail;
   master->split_rejected += ctx->split_rejected;
+#ifdef SIQS_TIMING
+  master->result->cofactor_time += worker->result.cofactor_time;
+  master->result->cofactor_calls += worker->result.cofactor_calls;
+  worker->result.cofactor_time = worker->result.cofactor_calls = 0;
+  master->result->primality_time += worker->result.primality_time;
+  master->result->primality_prime += worker->result.primality_prime;
+  master->result->primality_composite += worker->result.primality_composite;
+  worker->result.primality_time = worker->result.primality_prime =
+      worker->result.primality_composite = 0;
+#endif
   ctx->total_candidates = 0;
   ctx->split_attempts = 0;
   ctx->split_square = 0;

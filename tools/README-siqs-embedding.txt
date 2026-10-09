@@ -205,6 +205,47 @@ the whole loop and shutdown after it. For concurrent inputs, put startup before
 launching caller threads; each thread uses its own input/count/result storage
 (or shares only read-only input), and the host joins them all before shutdown.
 
+Optional timing
+---------------
+
+On POSIX hosts, compile with -DSIQS_TIMING to report timing for inputs that
+actually enter SIQS with at least 270 bits. Change the gate with
+-DSIQS_TIMING_MIN_BITS=N; keep the gate at least 129 to exclude small/internal
+solves. The option is off by default and prints independently of verbosity.
+
+The timers use clock_gettime(CLOCK_MONOTONIC). The total covers policy attempts
+through final partition verification, excluding initial trial division/pretests
+and final result release. Matrix preparation/reduction, dense or Lanczos solver
+calls, and dependency testing have separate wall timers, accumulated across
+retries.
+Solver time includes its packing, worker-pool setup, and internal verification.
+Splitter timing covers the cascade and pair validation, including failed
+splits, policy rejections, and nested SIQS work. Smooth/one-LP results and
+early rejection/primality checks are excluded. Every split attempt is timed,
+without a size gate; the gate above controls reporting and coordinator phases.
+The cofactor primality pretest has its own timer and counts of prime/composite
+answers. It excludes the checks of split factors, which remain in splitter
+time, and the below-pmax^2 shortcut that needs no primality test.
+Worker-local counters merge exactly once through the normal result handoff;
+repeated inputs and simultaneous callers have separate totals.
+
+Serial splitter percentage is its fraction of total elapsed wall time.
+Threaded splitter and primality times are SUMS of worker elapsed times, not
+job wall time. The splitter percentage divides its sum by total wall time
+times the REQUESTED thread count. This describes requested-thread capacity,
+not CPU utilization or the fraction of the critical path. Reduced/failed
+worker creation can leave that capacity unused. Timer overhead can affect
+measurements; compare identically instrumented builds.
+
+The cofactor pretest uses native BPSW: base-2 Miller-Rabin followed by
+almost-extra-strong Lucas, with GMP's perfect-square check before selecting P.
+Its arithmetic lives in mont64.h. One modulus context is shared by MR2
+and AES Lucas; hot operations stay in Montgomery form. ptypes.h supplies
+HAVE_UINT128 and the fixed-width types. Without 128-bit support, the same
+interface uses ordinary residues and portable double-and-add multiplication.
+Force that fallback with -DMONT64_HAVE_UINT128=0 when testing. Setup and
+representation conversions are included in the reported primality time.
+
 Validation and scope
 --------------------
 

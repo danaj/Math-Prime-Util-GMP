@@ -42,6 +42,7 @@ simpqs2.h
 simpqs2.c
 siqs.h
 siqs_dep.h
+mont64.h
 siqs.c
 psiqs_inc.c
 mpu-siqs.c

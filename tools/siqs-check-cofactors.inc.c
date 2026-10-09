@@ -1,6 +1,8 @@
 /* Cofactor acceptance/counter and nested-call checks, not a compilation unit. */
-static void cofactor_context(siqs_ctx_t *ctx) {
+static void cofactor_context(siqs_ctx_t *ctx, siqs_factor_array_t *result) {
   memset(ctx, 0, sizeof(*ctx));
+  memset(result, 0, sizeof(*result));
+  ctx->result = result;
   ctx->params.bits = 380;
   ctx->params.max_large_primes = 2;
   ctx->params.smooth_bound = UINT64_MAX;
@@ -11,6 +13,10 @@ static void cofactor_context(siqs_ctx_t *ctx) {
 static void cofactor_counts(const siqs_ctx_t *ctx) {
   CHECK(ctx->split_attempts == ctx->split_square + ctx->split_siqs +
         ctx->split_squfof + ctx->split_rho + ctx->split_fail + ctx->split_rejected);
+#ifdef SIQS_TIMING
+  CHECK(ctx->result->cofactor_calls == ctx->split_attempts);
+  CHECK(ctx->result->primality_composite >= ctx->split_attempts);
+#endif
 }
 static int cofactor_resolve(siqs_ctx_t *ctx, const char *value) {
   mpz_t n;
@@ -30,6 +36,7 @@ static int cofactor_resolve(siqs_ctx_t *ctx, const char *value) {
 }
 static void cofactor_classification(void) {
   siqs_ctx_t ctx;
+  siqs_factor_array_t result;
   mpz_t divisor;
   uint64_t a, b;
   case_name = "split-methods-versus-failures-and-rejections";
@@ -45,32 +52,32 @@ static void cofactor_classification(void) {
   mpz_set_ui(divisor, 1); mpz_mul_2exp(divisor, divisor, 64);
   CHECK(!siqs_u64_split_pair(divisor, 10403, &a, &b));
   mpz_clear(divisor);
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "10201")); /* 101^2 */
   CHECK(ctx.split_square == 1);
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "10403")); /* 101*103 */
   CHECK(ctx.split_squfof == 1);
-  cofactor_context(&ctx); ctx.params.large_prime_bound = 103;
+  cofactor_context(&ctx, &result); ctx.params.large_prime_bound = 103;
   CHECK(!cofactor_resolve(&ctx, "10807")); /* 101*107: split, LP-invalid */
   CHECK(ctx.split_rejected == 1 && ctx.split_fail == 0 && ctx.split_squfof == 0);
-  cofactor_context(&ctx); ctx.params.large_prime_bound = 100;
+  cofactor_context(&ctx, &result); ctx.params.large_prime_bound = 100;
   CHECK(!cofactor_resolve(&ctx, "10201"));
   CHECK(ctx.split_rejected == 1 && ctx.split_square == 0);
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(!cofactor_resolve(&ctx, "1113121")); /* 101*103*107, not a prime pair */
   CHECK(ctx.split_rejected == 1);
   cofactor_miss_squfof = 1;
   cofactor_miss_siqs = 1;
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053")); /* 211*223, beyond inner trial limit */
   CHECK(ctx.split_rho == 1);
   cofactor_miss_rho = 1;
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(!cofactor_resolve(&ctx, "47053"));
   CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0);
   cofactor_miss_rho = cofactor_miss_squfof = cofactor_miss_siqs = 0;
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "1") && ctx.split_attempts == 0);
   CHECK(!cofactor_resolve(&ctx, "18446744073709551616") && ctx.split_attempts == 0);
   ctx.params.large_prime_bound = 100;
@@ -87,8 +94,9 @@ static void cofactor_trace_reset(void) {
 
 static void cofactor_lp_ceiling(void) {
   siqs_ctx_t ctx;
+  siqs_factor_array_t result;
   case_name = "38-bit-LP-policy-ceiling";
-  cofactor_context(&ctx);
+  cofactor_context(&ctx, &result);
   /* Explicit independent R preserves this fixture's maximum residual range
    * even when LP hits its storage ceiling.  Coupled R is tested separately. */
   ctx.params.lp_multiplier = DBL_MAX;
@@ -420,32 +428,33 @@ static void cofactor_q2_geometry_recovery(void) {
 
 static void cofactor_cascade(void) {
   siqs_ctx_t ctx;
+  siqs_factor_array_t result;
   case_name = "cofactor-preferred-method-and-fallback-order";
   cofactor_miss_native = cofactor_trace = 1;
-  cofactor_trace_reset(); cofactor_context(&ctx);
+  cofactor_trace_reset(); cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053"));
   CHECK(ctx.split_squfof == 1 && cofactor_squfof_calls == 1 &&
         cofactor_prime_calls == 0 && cofactor_rho_calls == 0);
   cofactor_miss_squfof = 1;
-  cofactor_trace_reset(); cofactor_context(&ctx);
+  cofactor_trace_reset(); cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053"));
   CHECK(cofactor_squfof_calls == 1);
   CHECK(ctx.split_siqs == 1 && cofactor_prime_calls != 0 && cofactor_rho_calls == 0);
   cofactor_miss_siqs = 1;
-  cofactor_trace_reset(); cofactor_context(&ctx);
+  cofactor_trace_reset(); cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053"));
   CHECK(ctx.split_rho == 1 && cofactor_squfof_calls == 1 && cofactor_rho_calls == 1);
   CHECK(cofactor_prime_calls == 1);
 
   /* Easy rho recovery, but large enough that enabled SIQS skips SQUFOF. */
   cofactor_miss_squfof = 0;
-  cofactor_trace_reset(); cofactor_context(&ctx);
+  cofactor_trace_reset(); cofactor_context(&ctx, &result);
   ctx.largest_fb_prime = 397; ctx.params.large_prime_bound = UINT64_MAX;
   /* 1009 * 9007199254740881: both prime; skip the inner trial limit. */
   CHECK(cofactor_resolve(&ctx, "9088264048033548929"));
   CHECK(ctx.split_rho == 1 && cofactor_squfof_calls == 0 &&
         cofactor_prime_calls == 1 && cofactor_rho_calls == 1);
-  cofactor_trace_reset(); cofactor_context(&ctx); ctx.params.bits = 64;
+  cofactor_trace_reset(); cofactor_context(&ctx, &result); ctx.params.bits = 64;
   ctx.largest_fb_prime = 397; ctx.params.large_prime_bound = UINT64_MAX;
   CHECK(cofactor_resolve(&ctx, "9088264048033548929"));
   CHECK(ctx.split_siqs == 0 && cofactor_squfof_calls == 1 && cofactor_prime_calls == 0);
@@ -456,6 +465,7 @@ static void cofactor_cascade(void) {
 static void cofactor_miss_notice(void) {
   unsigned int verbose;
   siqs_ctx_t ctx;
+  siqs_factor_array_t result;
   mpz_t n;
   case_name = "cofactor-siqs-miss-diagnostic";
   cofactor_miss_native = cofactor_miss_squfof = cofactor_miss_siqs = 1;
@@ -468,7 +478,7 @@ static void cofactor_miss_notice(void) {
     CHECK(capture != NULL); fflush(stderr);
     saved_stderr = dup(STDERR_FILENO); CHECK(saved_stderr >= 0);
     CHECK(dup2(fileno(capture), STDERR_FILENO) >= 0);
-    cofactor_context(&ctx); ctx.verbose = (int)verbose;
+    cofactor_context(&ctx, &result); ctx.verbose = (int)verbose;
     accepted = siqs_resolve_cofactor(&ctx, n, &a, &b);
     fflush(stderr);
     CHECK(dup2(saved_stderr, STDERR_FILENO) >= 0); close(saved_stderr);
@@ -492,6 +502,7 @@ static void cofactor_miss_notice(void) {
  * reduction and any Lanczos fallback, must remain quiet without mutating it. */
 static void cofactor_nested_case(uint32_t bits) {
   siqs_ctx_t ctx;
+  siqs_factor_array_t result;
   mpz_t n;
   uint64_t a, b, input;
   uint32_t i;
@@ -505,7 +516,7 @@ static void cofactor_nested_case(uint32_t bits) {
     "18446743979220271189" /* 4294967291 * 4294967279, 64 bits */
   };
   for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
-    cofactor_context(&ctx); ctx.params.bits = bits;
+    cofactor_context(&ctx, &result); ctx.params.bits = bits;
     mpz_init_set_str(n, values[i], 10);
     CHECK(siqs_mpz_to_u64(n, &input));
     CHECK(siqs_resolve_cofactor(&ctx, n, &a, &b));
@@ -554,6 +565,251 @@ static void *cofactor_thread(void *unused) {
   return NULL;
 }
 #endif
+#ifdef SIQS_TIMING
+static void cofactor_timing(void) {
+  siqs_ctx_t ctx, other;
+  siqs_factor_array_t first, second;
+  mpz_t n;
+  uint64_t a, b, elapsed;
+  uint32_t count;
+  mpz_t *factors;
+  case_name = "splitter-timing-and-per-call-ownership";
+  mpz_init_set_ui(n, 103);
+  cofactor_context(&ctx, &first);
+  cofactor_context(&other, &second);
+  siqs_factor_array_init(&first, n);
+  siqs_factor_array_init(&second, n);
+  CHECK(siqs_resolve_cofactor(&ctx, n, &a, &b)); /* Prime: no splitter. */
+  CHECK(first.cofactor_time == 0 && first.cofactor_calls == 0);
+  CHECK(first.primality_time == 0 && first.primality_prime == 0 &&
+        first.primality_composite == 0); /* Below pmax^2: no pretest. */
+  ctx.params.bits = 64;
+  mpz_set_ui(n, 65537);
+  CHECK(siqs_resolve_cofactor(&ctx, n, &a, &b)); /* Prime above pmax^2. */
+  CHECK(first.primality_prime == 1 && first.primality_composite == 0 &&
+        first.cofactor_calls == 0);
+  mpz_set_ui(n, 10201); /* 101^2: always a split attempt, regardless of size. */
+  CHECK(siqs_resolve_cofactor(&ctx, n, &a, &b));
+  CHECK(first.cofactor_calls == 1);
+  elapsed = first.cofactor_time;
+  ctx.params.large_prime_bound = 100;
+  CHECK(!siqs_resolve_cofactor(&ctx, n, &a, &b)); /* Split, but policy-invalid. */
+  CHECK(first.cofactor_calls == 2 && first.cofactor_time >= elapsed);
+  mpz_set_ui(n, 65537);
+  CHECK(!siqs_resolve_cofactor(&ctx, n, &a, &b)); /* Prime, but above LP. */
+  CHECK(first.primality_prime == 2 && first.primality_composite == 2 &&
+        first.cofactor_calls == 2);
+  elapsed = first.primality_time;
+  mpz_set_ui(n, 10201);
+  ctx.params.smooth_bound = 100;
+  CHECK(!siqs_resolve_cofactor(&ctx, n, &a, &b)); /* Early R rejection. */
+  CHECK(first.cofactor_calls == 2);
+  CHECK(first.primality_time == elapsed && first.primality_prime == 2 &&
+        first.primality_composite == 2);
+  CHECK(second.cofactor_time == 0 && second.cofactor_calls == 0);
+  CHECK(second.primality_time == 0 && second.primality_prime == 0 &&
+        second.primality_composite == 0);
+  CHECK(siqs_resolve_cofactor(&other, n, &a, &b));
+  CHECK(second.cofactor_calls == 1 && first.cofactor_calls == 2);
+  CHECK(second.primality_prime == 0 && second.primality_composite == 1 &&
+        first.primality_prime == 2 && first.primality_composite == 2);
+  cofactor_counts(&ctx); cofactor_counts(&other);
+  factors = siqs_factor_array_release(&first, &count); gmp_siqs_free(factors, count);
+  factors = siqs_factor_array_release(&second, &count); gmp_siqs_free(factors, count);
+  mpz_clear(n);
+  puts("PASS cofactors: split-only timing, no size gate, early exits excluded, private totals");
+  puts("PASS cofactors: primality timing, prime/composite answers, shortcut exclusion, private totals");
+}
+#endif
+
+static void cofactor_mont64_case(uint64_t n, uint64_t a, uint64_t b) {
+  mont64_t ctx;
+  mpz_t zn, za, zb, expected;
+  uint64_t ma, mb, value;
+  mpz_init(zn); mpz_init(za); mpz_init(zb); mpz_init(expected);
+  mpz_import(zn, 1, -1, sizeof(n), 0, 0, &n);
+  mpz_import(za, 1, -1, sizeof(a), 0, 0, &a);
+  mpz_import(zb, 1, -1, sizeof(b), 0, 0, &b);
+  mont64_init(&ctx, n);
+  CHECK(ctx.one > 0 && ctx.one < n && mont64_enter(1, &ctx) == ctx.one);
+#if MONT64_HAVE_UINT128
+  CHECK(n * ctx.ninv == UINT64_MAX);
+  mpz_set_ui(expected, 1); mpz_mul_2exp(expected, expected, 64);
+  mpz_mod(expected, expected, zn);
+  CHECK(siqs_mpz_to_u64(expected, &value) && value == ctx.one);
+  mpz_set_ui(expected, 1); mpz_mul_2exp(expected, expected, 128);
+  mpz_mod(expected, expected, zn);
+  CHECK(siqs_mpz_to_u64(expected, &value) && value == ctx.r2);
+#else
+  CHECK(ctx.one == 1);
+#endif
+  ma = mont64_enter(a, &ctx); mb = mont64_enter(b, &ctx);
+  CHECK(ma < n && mb < n);
+  CHECK(mont64_exit(ma, &ctx) == a % n && mont64_exit(mb, &ctx) == b % n);
+  mpz_mul(expected, za, zb); mpz_mod(expected, expected, zn);
+  CHECK(siqs_mpz_to_u64(expected, &value));
+  CHECK(mont64_mulmod(a, b, n) == value);
+  CHECK(mont64_exit(mont64_mul(ma, mb, &ctx), &ctx) == value);
+  mpz_add(expected, za, zb); mpz_mod(expected, expected, zn);
+  CHECK(siqs_mpz_to_u64(expected, &value));
+  CHECK(mont64_exit(mont64_add(ma, mb, n), &ctx) == value);
+  mpz_sub(expected, za, zb); mpz_mod(expected, expected, zn);
+  CHECK(siqs_mpz_to_u64(expected, &value));
+  CHECK(mont64_exit(mont64_sub(ma, mb, n), &ctx) == value);
+  mpz_clear(zn); mpz_clear(za); mpz_clear(zb); mpz_clear(expected);
+}
+static void cofactor_mont64(void) {
+  static const uint64_t moduli[] = {
+    3, 5, 7, 65537, UINT64_C(4294967291),
+    UINT64_C(9223372036854775807), UINT64_C(9223372036854775809),
+    UINT64_C(18446744073709551557), UINT64_MAX - 2, UINT64_MAX
+  };
+  uint64_t n, values[5];
+  uint32_t i, j, k;
+  siqs_rng_t rng;
+  case_name = "mont64-arithmetic-and-full-width-carries";
+  for (i = 0; i < sizeof(moduli) / sizeof(moduli[0]); i++) {
+    n = moduli[i];
+    values[0] = 0; values[1] = 1; values[2] = n - 2;
+    values[3] = n - 1; values[4] = UINT64_MAX;
+    for (j = 0; j < 5; j++) for (k = 0; k < 5; k++)
+      cofactor_mont64_case(n, values[j], values[k]);
+  }
+  rng.state = UINT64_C(0x1705ca9eb82d643f);
+  for (i = 0; i < 2048; i++) {
+    uint64_t a, b;
+    n = siqs_rand64(&rng) | 1U;
+    if (n < 3) n = 3;
+    a = siqs_rand64(&rng); b = siqs_rand64(&rng);
+    cofactor_mont64_case(n, a, b);
+  }
+  printf("PASS cofactors: mont64 %s arithmetic matches GMP, conversions, carries and full-width moduli\n",
+         MONT64_HAVE_UINT128 ? "128-bit" : "portable");
+}
+
+/* Exercise the MR2 stage independently of the combined BPSW test. */
+static int cofactor_mr2_native(uint64_t n) {
+  mont64_t ctx;
+  if (n < 2 || (n & 1U) == 0)
+    return n == 2;
+  mont64_init(&ctx, n);
+  return siqs_miller_rabin_base_2_mont(&ctx);
+}
+/* Independent GMP-arithmetic reference for the base-2 stage. */
+static int cofactor_mr2_reference(uint64_t n) {
+  mpz_t z, d, x, minus_one;
+  mp_bitcnt_t s, i;
+  int pass;
+  if (n < 2 || (n & 1U) == 0)
+    return n == 2;
+  mpz_init(z); mpz_init(d); mpz_init(x); mpz_init(minus_one);
+  mpz_import(z, 1, -1, sizeof(n), 0, 0, &n);
+  mpz_sub_ui(minus_one, z, 1);
+  s = mpz_scan1(minus_one, 0);
+  mpz_fdiv_q_2exp(d, minus_one, s);
+  mpz_set_ui(x, 2);
+  mpz_powm(x, x, d, z);
+  pass = mpz_cmp_ui(x, 1) == 0 || mpz_cmp(x, minus_one) == 0;
+  for (i = 1; !pass && i < s; i++) {
+    mpz_mul(x, x, x);
+    mpz_mod(x, x, z);
+    pass = mpz_cmp(x, minus_one) == 0;
+  }
+  mpz_clear(z); mpz_clear(d); mpz_clear(x); mpz_clear(minus_one);
+  return pass;
+}
+static void cofactor_mr2(void) {
+  static const uint64_t edges[] = {
+    UINT64_C(1373653), UINT64_C(3215031751), UINT64_C(341550071728321),
+    UINT64_C(3825123056546413051), UINT64_C(18446744073709551557), UINT64_MAX
+  };
+  siqs_rng_t rng;
+  siqs_ctx_t ctx;
+  siqs_factor_array_t result;
+  uint64_t n;
+  uint32_t i;
+  case_name = "native-base-2-miller-rabin";
+  for (n = 0; n < 4096; n++)
+    CHECK(cofactor_mr2_native(n) == cofactor_mr2_reference(n));
+  for (i = 0; i < sizeof(edges) / sizeof(edges[0]); i++)
+    CHECK(cofactor_mr2_native(edges[i]) == cofactor_mr2_reference(edges[i]));
+  for (i = 1; i < 64; i++) {
+    n = UINT64_C(1) << i;
+    CHECK(cofactor_mr2_native(n - 1) == cofactor_mr2_reference(n - 1));
+    CHECK(cofactor_mr2_native(n + 1) == cofactor_mr2_reference(n + 1));
+  }
+  rng.state = UINT64_C(0x98374a52d1cf608b);
+  for (i = 0; i < 2048; i++) {
+    n = siqs_rand64(&rng);
+    if (i & 1U) n |= 1U;
+    if (i & 2U) n >>= 32;
+    CHECK(cofactor_mr2_native(n) == cofactor_mr2_reference(n));
+  }
+  /* 2047 = 23*89 passes base 2, but must fail the combined test. */
+  CHECK(cofactor_mr2_native(2047));
+  cofactor_context(&ctx, &result);
+  ctx.largest_fb_prime = 19; ctx.params.large_prime_bound = 100;
+  CHECK(cofactor_resolve(&ctx, "2047") && ctx.split_attempts == 1);
+#ifdef SIQS_TIMING
+  CHECK(result.primality_prime == 0 && result.primality_composite == 1);
+#endif
+  puts("PASS cofactors: native MR2 matches GMP base-2 reference, edges and pseudoprimes");
+}
+
+static void cofactor_bpsw_check(uint64_t n, mpz_t z) {
+  mpz_import(z, 1, -1, sizeof(n), 0, 0, &n);
+  CHECK(siqs_bpsw_u64(z, n) == (mpz_probab_prime_p(z, 25) != 0));
+}
+static void cofactor_bpsw(void) {
+  static const uint64_t edges[] = {
+    UINT64_C(2047), UINT64_C(1373653), UINT64_C(3215031751),
+    UINT64_C(341550071728321), UINT64_C(3825123056546413051),
+    UINT64_C(18446744073709551557), UINT64_MAX
+  };
+  static const uint64_t lucas_pseudoprimes[] = {989,3239,5777,10877,27971,29681};
+  mpz_t z, a;
+  siqs_rng_t rng;
+  uint64_t n, value;
+  uint32_t i;
+  case_name = "native-mr2-and-almost-extra-strong-lucas";
+  mpz_init(z); mpz_init(a);
+  for (n = 0; n < 65536; n++) cofactor_bpsw_check(n, z);
+  for (i = 0; i < sizeof(edges) / sizeof(edges[0]); i++)
+    cofactor_bpsw_check(edges[i], z);
+  for (i = 0; i < sizeof(lucas_pseudoprimes) / sizeof(lucas_pseudoprimes[0]); i++) {
+    mont64_t ctx;
+    mont64_init(&ctx, lucas_pseudoprimes[i]);
+    CHECK(siqs_lucas_aes_mont(&ctx));
+    cofactor_bpsw_check(lucas_pseudoprimes[i], z);
+  }
+  for (i = 1; i < 64; i++) {
+    n = UINT64_C(1) << i;
+    cofactor_bpsw_check(n - 1, z); cofactor_bpsw_check(n + 1, z);
+  }
+  /* Base-2 Wieferich-prime squares exercise the explicit square guard. */
+  cofactor_bpsw_check(UINT64_C(1093) * 1093, z);
+  cofactor_bpsw_check(UINT64_C(3511) * 3511, z);
+  rng.state = UINT64_C(0x29c514e670bd38a1);
+  for (i = 0; i < 2048; i++) {
+    n = siqs_rand64(&rng) | 1U;
+    if (i & 1U) n >>= 32;
+    cofactor_bpsw_check(n, z);
+    if (n >= 3 && (n & 1U)) {
+      value = siqs_rand64(&rng);
+      mpz_import(a, 1, -1, sizeof(value), 0, 0, &value);
+      CHECK(siqs_jacobi_u64(value, n) == mpz_jacobi(a, z));
+    }
+    if (i < 256) {
+      mpz_nextprime(z, z);
+      if (siqs_mpz_to_u64(z, &value)) CHECK(siqs_bpsw_u64(z, value));
+      value = siqs_rand64(&rng) & UINT32_MAX;
+      cofactor_bpsw_check(value * value, z);
+    }
+  }
+  mpz_clear(z); mpz_clear(a);
+  puts("PASS cofactors: native MR2/AES matches GMP, small exhaustive range, 64-bit primes/squares, Jacobi and pseudoprimes");
+}
+
 static void suite_cofactors(void) {
   int saved_verbose = verbose_level;
 #ifndef _WIN32
@@ -562,6 +818,12 @@ static void suite_cofactors(void) {
 #endif
   case_name = "nested-siqs-ownership-reentrancy-and-quiet-output";
   prime_iterator_global_startup();
+  cofactor_mont64();
+  cofactor_mr2();
+  cofactor_bpsw();
+#ifdef SIQS_TIMING
+  cofactor_timing();
+#endif
   cofactor_a_search_stages();
   cofactor_low_smooth_recovery();
   cofactor_q3_recovery();

@@ -31,6 +31,10 @@
 
 ============================================================================*/
 
+#if defined(SIQS_TIMING) && !defined(_POSIX_C_SOURCE)
+# define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -41,6 +45,7 @@
 #include <gmp.h>
 
 #include "ptypes.h"
+#include "mont64.h"
 #include "siqs.h"
 #include "siqs_dep.h"
 #include "lanczos.h"
@@ -59,6 +64,26 @@
 #endif
 #ifndef UINT64_C
 # define UINT64_C(value) ((uint64_t)(value))
+#endif
+
+/* Optional POSIX wall-clock instrumentation: build with -DSIQS_TIMING.
+ * The size gate applies to reporting and coordinator phases, not splitters.
+ * Totals are per factor call; workers accumulate privately and merge only
+ * through their normal result handoff.  No shared counters or atomics. */
+#ifdef SIQS_TIMING
+# include <time.h>
+# ifndef SIQS_TIMING_MIN_BITS
+#  define SIQS_TIMING_MIN_BITS 270U
+# endif
+static uint64_t siqs_timing_now(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+    croak("SIQS timing: clock_gettime failed\n");
+  return (uint64_t)ts.tv_sec * UINT64_C(1000000) + (uint64_t)ts.tv_nsec / 1000U;
+}
+static uint64_t siqs_timing_elapsed(uint64_t start) {
+  return siqs_timing_now() - start;
+}
 #endif
 
 #ifndef M_LN2
@@ -313,6 +338,13 @@ typedef struct {
   uint8_t *primality;
   uint32_t count;
   uint32_t alloc;
+#ifdef SIQS_TIMING
+  uint64_t cofactor_time;   /* Splitter/validation microseconds, summed over workers. */
+  uint64_t cofactor_calls;  /* Split attempts, excluding early cofactor checks. */
+  uint64_t primality_time; /* Cofactor pretest microseconds, summed over workers. */
+  uint64_t primality_prime, primality_composite; /* Pretest answers. */
+  uint64_t matrix_time, solver_time, dependency_time; /* Coordinator wall time. */
+#endif
 } siqs_factor_array_t;
 
 #define SIQS_FACTOR_UNKNOWN   0U
@@ -781,6 +813,11 @@ static uint32_t siqs_ctz32(uint32_t n) {
 static void siqs_factor_array_init(siqs_factor_array_t *fa, const mpz_t n) {
   fa->alloc = 16;
   fa->count = 1;
+#ifdef SIQS_TIMING
+  fa->cofactor_time = fa->cofactor_calls = 0;
+  fa->primality_time = fa->primality_prime = fa->primality_composite = 0;
+  fa->matrix_time = fa->solver_time = fa->dependency_time = 0;
+#endif
   fa->values = (mpz_t *)siqs_malloc(fa->alloc * sizeof(mpz_t));
   fa->primality = (uint8_t *)siqs_calloc(fa->alloc, sizeof(uint8_t));
   mpz_init_set(fa->values[0], n);
@@ -3884,6 +3921,105 @@ static int siqs_u64_probable_prime(uint64_t n) {
   return result;
 }
 
+/* Base-2 Miller-Rabin, sharing a modulus context with the Lucas stage. */
+static int siqs_miller_rabin_base_2_mont(const mont64_t *ctx) {
+  const uint64_t n = ctx->n;
+  uint64_t d, x = mont64_add(ctx->one, ctx->one, n), bit = UINT64_C(1) << 63;
+  uint32_t s = 0, i;
+  d = n - 1;
+  while ((d & 1U) == 0) {
+    d >>= 1;
+    s++;
+  }
+  /* Left-to-right exponentiation. Multiplying by base 2 is just a modular
+   * doubling, written without overflowing uint64_t. */
+  while ((d & bit) == 0)
+    bit >>= 1;
+  for (bit >>= 1; bit != 0; bit >>= 1) {
+    x = mont64_mul(x, x, ctx);
+    if (d & bit)
+      x = mont64_add(x, x, n);
+  }
+  if (x == ctx->one || x == n - ctx->one)
+    return 1;
+  for (i = 1; i < s; i++) {
+    x = mont64_mul(x, x, ctx);
+    if (x == n - ctx->one)
+      return 1;
+    if (x == ctx->one)
+      return 0;
+  }
+  return 0;
+}
+static int siqs_jacobi_u64(uint64_t a, uint64_t n) {
+  int sign = 1;
+  while (a != 0) {
+    uint64_t t;
+    while ((a & 1U) == 0) {
+      a >>= 1;
+      if ((n & 7U) == 3U || (n & 7U) == 5U)
+        sign = -sign;
+    }
+    if ((a & n & 3U) == 3U)
+      sign = -sign;
+    t = a; a = n % a; n = t;
+  }
+  return n == 1 ? sign : 0;
+}
+/* Almost-extra-strong Lucas: Q = 1, P = 3,4,5,... until Jacobi(P^2-4,n)
+ * is -1. Track V_k and V_(k+1), not U. Caller excluded evens and squares. */
+static int siqs_lucas_aes_mont(const mont64_t *ctx) {
+  const uint64_t n = ctx->n, two = mont64_add(ctx->one, ctx->one, n);
+  uint64_t P = 3, p, D, d, v, w, bit = UINT64_C(1) << 63;
+  int symbol;
+  uint32_t s = 1, i;
+  for (;;) {
+    D = mont64_sub(mont64_mulmod(P, P, n), 4U % n, n);
+    symbol = siqs_jacobi_u64(D, n);
+    if (symbol == -1)
+      break;
+    if (symbol == 0 && D != 0)
+      return 0;
+    P++;
+  }
+  p = mont64_enter(P, ctx);
+  v = p;
+  w = mont64_sub(mont64_mul(p, p, ctx), two, n);
+  /* Decompose n+1 without overflowing at UINT64_MAX. */
+  d = (n >> 1) + 1;
+  while ((d & 1U) == 0) { d >>= 1; s++; }
+  while ((d & bit) == 0) bit >>= 1;
+  for (bit >>= 1; bit != 0; bit >>= 1) {
+    uint64_t mixed = mont64_sub(mont64_mul(v, w, ctx), p, n);
+    if (d & bit) {
+      v = mixed;
+      w = mont64_sub(mont64_mul(w, w, ctx), two, n);
+    } else {
+      w = mixed;
+      v = mont64_sub(mont64_mul(v, v, ctx), two, n);
+    }
+  }
+  if (v == two || v == n - two)
+    return 1;
+  /* Accept a zero V_(d*2^r) for r = 0,...,s-2, not the last doubling. */
+  for (i = 1; i < s; i++) {
+    if (v == 0)
+      return 1;
+    v = mont64_sub(mont64_mul(v, v, ctx), two, n);
+  }
+  return 0;
+}
+static int siqs_bpsw_u64(const mpz_t rest, uint64_t n) {
+  mont64_t ctx;
+  if (n < 2 || (n & 1U) == 0)
+    return n == 2;
+  mont64_init(&ctx, n);
+  if (!siqs_miller_rabin_base_2_mont(&ctx))
+    return 0;
+  /* Also prevents an endless Lucas parameter search on an odd square. */
+  return !mpz_perfect_square_p(rest) && siqs_lucas_aes_mont(&ctx);
+}
+
 /* A splitter's success flag is not enough: obtain a proper exact pair before
  * crediting its method or distinguishing a policy rejection from a miss. */
 static int siqs_u64_split_pair(const mpz_t factor, uint64_t n,
@@ -3934,8 +4070,11 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
                                  uint64_t *lp1, uint64_t *lp2) {
   uint64_t n, pmax2, a = 0, b = 0;
   uint32_t nbits;
-  int valid, can_siqs, success = 0;
+  int prime, valid, can_siqs, success = 0;
   uint64_t *method_counter = NULL;
+#ifdef SIQS_TIMING
+  uint64_t timing_start;
+#endif
   *lp1 = *lp2 = 1;
   if (mpz_cmp_ui(rest, 1) == 0)
     return 1;
@@ -3956,7 +4095,18 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
     *lp2 = n;
     return 1;
   }
-  if (mpz_probab_prime_p(rest, 2)) {
+#ifdef SIQS_TIMING
+  timing_start = siqs_timing_now();
+#endif
+  prime = siqs_bpsw_u64(rest, n);
+#ifdef SIQS_TIMING
+  ctx->result->primality_time += siqs_timing_elapsed(timing_start);
+  if (prime)
+    ctx->result->primality_prime++;
+  else
+    ctx->result->primality_composite++;
+#endif
+  if (prime) {
     if (n <= ctx->largest_fb_prime)
       return 0;
     if (n > ctx->params.large_prime_bound)
@@ -3968,6 +4118,9 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
     return 0;
   ctx->split_attempts++;
   nbits = (uint32_t)mpz_sizeinbase(rest, 2);
+#ifdef SIQS_TIMING
+  timing_start = siqs_timing_now();
+#endif
 
 #if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
   /* Native rho is a fast pretest.  Its Montgomery arithmetic is restricted
@@ -4049,6 +4202,10 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
    * remaining factors can itself be composite. */
   if (valid && ctx->params.smooth_bound / pmax2 >= ctx->largest_fb_prime)
     valid = siqs_u64_probable_prime(a) && siqs_u64_probable_prime(b);
+#ifdef SIQS_TIMING
+  ctx->result->cofactor_time += siqs_timing_elapsed(timing_start);
+  ctx->result->cofactor_calls++;
+#endif
   if (!valid) {
     if (success)
       ctx->split_rejected++;
@@ -4459,6 +4616,9 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
                                   const uint64_t *nullrows, uint64_t mask) {
   uint32_t dependency, ndeps = 0;
   mpz_t lhs, rhs, power, delta, divisor;
+#ifdef SIQS_TIMING
+  uint64_t timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
+#endif
   if (ctx->verbose > 1) {
     for (dependency = 0; dependency < 64; dependency++)
       if (mask & (UINT64_C(1) << dependency))
@@ -4557,6 +4717,10 @@ next_dependency:
   mpz_clear(power);
   mpz_clear(delta);
   mpz_clear(divisor);
+#ifdef SIQS_TIMING
+  if (timing_start != 0)
+    ctx->result->dependency_time += siqs_timing_elapsed(timing_start);
+#endif
   return ctx->factor_found;
 }
 
@@ -4572,8 +4736,14 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   uint64_t *nullrows = NULL;
   la_col_t *columns;
   int dense_selected, dense_result = 0;
+#ifdef SIQS_TIMING
+  uint64_t timing_start;
+#endif
   if (ctx->full_count < SIQS_MATRIX_EXTRA_RELS(ctx))
     return 0;
+#ifdef SIQS_TIMING
+  timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
+#endif
   /* The retained incidence array amortizes repeated readiness checks while
    * collecting relations, but is dead once a solve begins.  Release it
    * before constructing the matrix; a rare return to collection rebuilds it
@@ -4584,6 +4754,10 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   columns = siqs_build_matrix(ctx, &nrows, &ncols);
   original_cols = ncols;
   la_reduce_matrix(&nrows, &ncols, columns, ctx->verbose);
+#ifdef SIQS_TIMING
+  if (timing_start != 0)
+    ctx->result->matrix_time += siqs_timing_elapsed(timing_start);
+#endif
   if (ncols == 0) {
     for (i = 0; i < original_cols; i++)
       free(columns[i].data);
@@ -4592,7 +4766,14 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   }
   dense_selected = siqs_use_dense_solver(ncols);
   if (dense_selected) {
+#ifdef SIQS_TIMING
+    timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
+#endif
     nullrows = la_dense_nullspace(nrows, ncols, columns, &mask);
+#ifdef SIQS_TIMING
+    if (timing_start != 0)
+      ctx->result->solver_time += siqs_timing_elapsed(timing_start);
+#endif
     dense_result = nullrows != NULL;
   }
 
@@ -4614,6 +4795,9 @@ static int siqs_solve(siqs_ctx_t *ctx) {
       seed = siqs_rand64(&ctx->la_rng);
       if (block_attempt != 0 && ctx->verbose > 0)
         printf("Lanczos did not refine factors; retrying with all rows.\n");
+#ifdef SIQS_TIMING
+      timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
+#endif
 #ifdef PSIQS
       if (ctx->nthreads > 1U) {
         nullrows = la_block_lanczos_threaded(nrows, 0, ncols, columns,
@@ -4629,6 +4813,10 @@ static int siqs_solve(siqs_ctx_t *ctx) {
         nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
                                          seed, &mask, ctx->verbose);
       }
+#ifdef SIQS_TIMING
+      if (timing_start != 0)
+        ctx->result->solver_time += siqs_timing_elapsed(timing_start);
+#endif
       if (nullrows != NULL) {
         siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
         free(nullrows);
@@ -5164,6 +5352,9 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
   size_t input_bits;
   uint32_t bits, trial_limit, next = 0U;
   int factor_found;
+#ifdef SIQS_TIMING
+  uint64_t timing_start = 0;
+#endif
 
   if (verbose < 0)
     verbose = 0;
@@ -5219,12 +5410,41 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
       }
   }
 
+#ifdef SIQS_TIMING
+  if (bits >= SIQS_TIMING_MIN_BITS)
+    timing_start = siqs_timing_now();
+#endif
   factor_found = siqs_try_policy(
       n, work, &result, NULL, divisor, root, verbose, nthreads);
   while (!factor_found && (profile = siqs_next_policy(bits, &next)) != NULL)
     factor_found = siqs_try_policy(
         n, work, &result, profile, divisor, root, verbose, nthreads);
   siqs_verify_partition(n, &result);
+
+#ifdef SIQS_TIMING
+  if (timing_start != 0) {
+    double total = (double)siqs_timing_elapsed(timing_start) / 1000000.0;
+    double cofactor = (double)result.cofactor_time / 1000000.0;
+    printf("# siqs timing  total %.6f s\n", total);
+    printf("# siqs timing  cofactor primality sum %.6f s (%llu prime, %llu composite)\n",
+           (double)result.primality_time / 1000000.0,
+           (unsigned long long)result.primality_prime,
+           (unsigned long long)result.primality_composite);
+    printf("# siqs timing  cofactor splitter sum %.6f s (%llu calls)\n",
+           cofactor, (unsigned long long)result.cofactor_calls);
+    printf("# siqs timing  matrix %.6f s, solver %.6f s, dependencies %.6f s\n",
+           (double)result.matrix_time / 1000000.0,
+           (double)result.solver_time / 1000000.0,
+           (double)result.dependency_time / 1000000.0);
+    if (nthreads == 1U)
+      printf("# siqs timing  cofactor splitter %.2f%% of total wall time\n",
+             total > 0.0 ? 100.0 * cofactor / total : 0.0);
+    else
+      printf("# siqs timing  cofactor splitter %.2f%% of requested %u-thread capacity\n",
+             total > 0.0 ? 100.0 * cofactor / (total * nthreads) : 0.0,
+             nthreads);
+  }
+#endif
 
 finish:
   mpz_clear(work);

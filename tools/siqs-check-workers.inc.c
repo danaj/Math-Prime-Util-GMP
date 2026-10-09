@@ -65,6 +65,11 @@ static void worker_assert_buffer_cleared(const psiqs_worker_t *worker) {
   CHECK(ctx->split_square == 0 && ctx->split_siqs == 0 &&
         ctx->split_squfof == 0 && ctx->split_rho == 0 &&
         ctx->split_fail == 0 && ctx->split_rejected == 0);
+#ifdef SIQS_TIMING
+  CHECK(worker->result.cofactor_time == 0 && worker->result.cofactor_calls == 0);
+  CHECK(worker->result.primality_time == 0 && worker->result.primality_prime == 0 &&
+        worker->result.primality_composite == 0);
+#endif
   if (ctx->raw_arena.current != NULL) {
     CHECK(ctx->raw_arena.current->used == 0 && ctx->raw_arena.current->previous == NULL);
   }
@@ -109,14 +114,43 @@ static void worker_reuse(void) {
         psiqs_worker_t *w = psiqs_pool_take(pool);
         uint64_t candidates = f.ctx.total_candidates + w->ctx.total_candidates;
         uint32_t full;
+#ifdef SIQS_TIMING
+        uint64_t cofactor_time, cofactor_calls;
+        uint64_t primality_time, primality_prime, primality_composite;
+        /* Inject nonzero totals even when this fixture bypasses these paths. */
+        w->result.cofactor_time += 7U + round;
+        w->result.cofactor_calls++;
+        w->result.primality_time += 11U + round;
+        w->result.primality_prime += 2U;
+        w->result.primality_composite++;
+        cofactor_time = f.result.cofactor_time + w->result.cofactor_time;
+        cofactor_calls = f.result.cofactor_calls + w->result.cofactor_calls;
+        primality_time = f.result.primality_time + w->result.primality_time;
+        primality_prime = f.result.primality_prime + w->result.primality_prime;
+        primality_composite = f.result.primality_composite + w->result.primality_composite;
+#endif
         CHECK(w->index < counts[t] && !seen[w->index]); seen[w->index] = 1;
         CHECK(w->state == PSIQS_IDLE && w->polynomials == 1U + round % 3U);
         psiqs_merge_worker(&f.ctx, w);
         CHECK(f.ctx.total_candidates == candidates); worker_assert_buffer_cleared(w);
+#ifdef SIQS_TIMING
+        CHECK(f.result.cofactor_time == cofactor_time &&
+              f.result.cofactor_calls == cofactor_calls);
+        CHECK(f.result.primality_time == primality_time &&
+              f.result.primality_prime == primality_prime &&
+              f.result.primality_composite == primality_composite);
+#endif
         /* A second merge of the now-empty parked buffer must add nothing. */
         full = f.ctx.full_count;
         psiqs_merge_worker(&f.ctx, w);
         CHECK(f.ctx.total_candidates == candidates && f.ctx.full_count == full);
+#ifdef SIQS_TIMING
+        CHECK(f.result.cofactor_time == cofactor_time &&
+              f.result.cofactor_calls == cofactor_calls);
+        CHECK(f.result.primality_time == primality_time &&
+              f.result.primality_prime == primality_prime &&
+              f.result.primality_composite == primality_composite);
+#endif
       }
       CHECK(pool->workers[0].ctx.candidate_at_wide == wide_map);
       for (i = 0; i < 65536; i++) CHECK(wide_map[i] == 0);

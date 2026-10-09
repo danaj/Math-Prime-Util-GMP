@@ -26,6 +26,7 @@
 # define SIQS_CHECK_SOURCE "../siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
+#include "../mont64.h"
 #undef squfof126
 #undef uvpbrent63
 #undef siqs_pbrent_factor
