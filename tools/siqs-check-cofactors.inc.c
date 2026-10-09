@@ -89,6 +89,10 @@ static void cofactor_lp_ceiling(void) {
   siqs_ctx_t ctx;
   case_name = "38-bit-LP-policy-ceiling";
   cofactor_context(&ctx);
+  /* Explicit independent R preserves this fixture's maximum residual range
+   * even when LP hits its storage ceiling.  Coupled R is tested separately. */
+  ctx.params.lp_multiplier = DBL_MAX;
+  ctx.params.residual_multiplier = DBL_MAX;
   siqs_set_large_prime_bounds(&ctx);
   CHECK(ctx.params.large_prime_bound == SIQS_LP_MAX);
   CHECK(ctx.params.smooth_bound == UINT64_MAX);
@@ -274,7 +278,8 @@ static void cofactor_low_smooth_recovery(void) {
       siqs_select_parameters(&primary, n, NULL);
       siqs_select_parameters(&recovery, n, profiles[j]);
       CHECK(primary.q_count == 2 && recovery.q_count == 1 &&
-            recovery.max_large_primes == 1 && recovery.one_lp_policy_multiplier == 1);
+            recovery.max_large_primes == 1 && recovery.lp_multiplier == 1.0 &&
+            recovery.residual_multiplier == 0.0);
       CHECK(primary.fb_size == recovery.fb_size &&
             primary.stage1_bias == recovery.stage1_bias &&
             primary.relation_extra == recovery.relation_extra &&
@@ -329,7 +334,7 @@ static void cofactor_q3_recovery(void) {
     siqs_select_parameters(&primary, n, NULL);
     siqs_select_parameters(&recovery, n, profile);
     CHECK(recovery.q_count == 3 && recovery.max_large_primes == 1 &&
-          recovery.one_lp_policy_multiplier == 60);
+          recovery.lp_multiplier == 60.0 && recovery.residual_multiplier == 0.0);
     CHECK(primary.fb_size == recovery.fb_size &&
           primary.half_interval == recovery.half_interval &&
           primary.stage1_bias == recovery.stage1_bias &&
@@ -382,7 +387,8 @@ static void cofactor_q2_geometry_recovery(void) {
     siqs_select_parameters(&primary, n, NULL);
     siqs_select_parameters(&recovery, n, profile);
     CHECK(primary.q_count == 3 && recovery.q_count == 2 &&
-          recovery.max_large_primes == 1 && recovery.one_lp_policy_multiplier == 60);
+          recovery.max_large_primes == 1 && recovery.lp_multiplier == 60.0 &&
+          recovery.residual_multiplier == 0.0);
     CHECK(primary.fb_size == recovery.fb_size &&
           primary.half_interval == recovery.half_interval &&
           primary.stage1_bias == recovery.stage1_bias &&

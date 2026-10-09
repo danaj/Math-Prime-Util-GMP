@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #ifndef _WIN32
 # include <unistd.h>
+# include <sys/wait.h>
 #endif
 #define main siqs_check_unused_driver_main
 #include "../mpu-siqs.c"
@@ -631,6 +632,166 @@ static void suite_sieve(void) {
          comparisons, maximum_score);
 }
 
+static void check_policy_curves(void) {
+  static const siqs_policy_curve_t line = {60.0, 1.25, 167, UINT16_MAX};
+  static const siqs_policy_curve_t ramp = {60.0, 80.0, 167, 177};
+  static const siqs_policy_curve_t descending = {120.0, 60.0, 167, 177};
+  static const siqs_policy_curve_t exact = {1.0e16, 0.125, 167, 177};
+  static const siqs_policy_curve_t single = {7.25, 7.25, 167, 167};
+  static const siqs_policy_curve_t derived = {0.0, 0.0, UINT16_MAX, UINT16_MAX};
+  case_name = "linear-and-endpoint-curves";
+  CHECK(siqs_policy_curve_value(&line, 160) == 51.25);
+  CHECK(siqs_policy_curve_value(&line, 180) == 76.25);
+  CHECK(siqs_policy_curve_value(&ramp, 167) == ramp.begin);
+  CHECK(siqs_policy_curve_value(&ramp, 172) == 70.0);
+  CHECK(siqs_policy_curve_value(&ramp, 177) == ramp.step_or_end);
+  CHECK(siqs_policy_curve_value(&descending, 172) == 90.0);
+  CHECK(siqs_policy_curve_value(&exact, 167) == exact.begin);
+  CHECK(siqs_policy_curve_value(&exact, 177) == exact.step_or_end);
+  CHECK(siqs_policy_curve_value(&single, 167) == single.begin);
+  CHECK(siqs_policy_derived_r(&derived) && !siqs_policy_derived_r(&line));
+  puts("PASS policies: linear extrapolation, interpolation, exact endpoints, one-bit ramps and R sentinel");
+}
+
+static void check_policy_bounds(void) {
+  siqs_ctx_t ctx;
+  uint64_t expected;
+  case_name = "factor-base-relative-bounds";
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.largest_fb_prime = 1009;
+  ctx.params.lp_multiplier = 1.25;
+  ctx.params.sieve_hit_bound_nominal = 10.0;
+  ctx.params.sieve_hit_residual_multiplier = 2.0;
+  ctx.params.max_large_primes = 1;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.large_prime_bound == 1261 && ctx.params.smooth_bound == 1261);
+  CHECK(ctx.params.sieve_hit_bound == 2522.0);
+  ctx.params.max_large_primes = 2;
+  siqs_set_large_prime_bounds(&ctx);
+  expected = UINT64_C(1261) * UINT64_C(1009);
+  CHECK(ctx.params.large_prime_bound == 1261 && ctx.params.smooth_bound == expected);
+  CHECK(ctx.params.sieve_hit_bound == 2.0 * (double)expected);
+  ctx.params.residual_multiplier = 2.5;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.large_prime_bound == 1261 && ctx.params.smooth_bound == 2545202);
+  ctx.params.max_large_primes = 1;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.smooth_bound == 2522);
+  ctx.params.sieve_hit_bound_nominal = 1.0e8;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.sieve_hit_bound == 1.0e8);
+  ctx.params.lp_multiplier = DBL_MAX;
+  ctx.params.residual_multiplier = 0.0;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.large_prime_bound == SIQS_LP_MAX && ctx.params.smooth_bound == SIQS_LP_MAX);
+  ctx.params.max_large_primes = 2;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.smooth_bound == SIQS_LP_MAX * UINT64_C(1009));
+  ctx.largest_fb_prime = UINT32_MAX;
+  ctx.params.residual_multiplier = DBL_MAX;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.smooth_bound == UINT64_MAX);
+  ctx.params.residual_multiplier = 0.0;
+  siqs_set_large_prime_bounds(&ctx);
+  CHECK(ctx.params.smooth_bound == UINT64_MAX);
+  CHECK(siqs_bound_product(UINT64_MAX, 2, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_bound_product(UINT64_MAX, 0, UINT64_MAX) == 0);
+  CHECK(siqs_scaled_bound(1009, 1.25, UINT64_MAX) == 1261);
+  CHECK(siqs_scaled_bound(UINT64_C(9007199254740993), 1.0, UINT64_MAX) ==
+        UINT64_C(9007199254740993));
+  CHECK(siqs_scaled_bound(UINT64_MAX, 1.0, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_scaled_bound(UINT64_MAX, 1.5, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_scaled_bound(1, (double)UINT64_MAX, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_scaled_bound(1, DBL_MAX, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_scaled_bound(UINT64_C(4294967297), 4294967297.0, UINT64_MAX) == UINT64_MAX);
+  CHECK(siqs_scaled_bound(0, DBL_MAX, UINT64_MAX) == 0);
+  puts("PASS policies: fractional/integral K, capped LP, coupled/independent R, final sieve bounds and saturation");
+}
+
+static void check_policy_profiles(void) {
+  static const struct { uint32_t last; double k; } original[] = {
+    {95, 1.0}, {103, 2.0}, {144, 4.0}, {166, 8.0}, {177, 16.0},
+    {192, 20.0}, {218, 32.0}, {236, 48.0}, {245, 72.0}
+  };
+  siqs_policy_t policy;
+  siqs_ctx_t ctx;
+  uint32_t bits, i, index = 0;
+  case_name = "primary-and-recovery-K-values";
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.largest_fb_prime = 1009;
+  for (bits = MPU_SIQS_MIN_BITS; bits <= MPU_SIQS_MAX_BITS; bits++) {
+    siqs_resolve_policy(&policy, bits, NULL);
+    CHECK(policy.lp_multiplier >= 1.0 && policy.residual_multiplier == 0.0);
+    if (bits > 245) continue;
+    while (bits > original[index].last) index++;
+    CHECK(policy.max_large_primes == 1 && policy.lp_multiplier == original[index].k);
+    ctx.params.lp_multiplier = policy.lp_multiplier;
+    ctx.params.residual_multiplier = policy.residual_multiplier;
+    ctx.params.max_large_primes = policy.max_large_primes;
+    siqs_set_large_prime_bounds(&ctx);
+    CHECK(ctx.params.large_prime_bound == (uint64_t)original[index].k * 1009U);
+    CHECK(ctx.params.smooth_bound == ctx.params.large_prime_bound);
+  }
+  for (i = 0; i < SIQS_RECOVERY_POLICY_COUNT; i++) {
+    const siqs_policy_band_t *band = &siqs_recovery_policies[i];
+    for (bits = band->first_bits; bits <= band->last_bits; bits++) {
+      siqs_resolve_policy(&policy, bits, band);
+      CHECK(policy.max_large_primes == 1 && policy.residual_multiplier == 0.0);
+      CHECK(policy.lp_multiplier == (i < 3 ? 1.0 : 60.0));
+    }
+  }
+  puts("PASS policies: every primary bit and recovery profile, unchanged smooth/1LP K values");
+}
+
+static void check_policy_errors(void) {
+#ifndef _WIN32
+  unsigned int fixture;
+  case_name = "invalid-policy-errors";
+  fflush(NULL);
+  for (fixture = 0; fixture < 11; fixture++) {
+    int status;
+    pid_t child = fork();
+    CHECK(child >= 0);
+    if (child == 0) {
+      siqs_policy_curve_t curve = {1.0, 1.0, 300, 310};
+      siqs_policy_band_t band = *siqs_policy_band(300);
+      siqs_policy_t policy;
+      uint32_t bits = 300;
+      if (freopen("/dev/null", "w", stderr) == NULL) _exit(1);
+      switch (fixture) {
+        case 0: bits = 299; break; /* even a constant RAMP cannot extrapolate */
+        case 1: bits = 311; break;
+        case 2: curve.first_bits = 311; break;
+        case 3: curve.last_bits = 300; curve.step_or_end = 2.0; break;
+        case 4: curve.first_bits = curve.last_bits = UINT16_MAX; break;
+        case 5: curve.first_bits = UINT16_MAX; break;
+        case 6: curve.begin = HUGE_VAL; break;
+        case 7: band.k_l.begin = band.k_l.step_or_end = 0.0; break;
+        case 8: band.k_r = curve; band.k_r.begin = band.k_r.step_or_end = 0.0; break;
+        case 9: band.k_r = curve; band.k_r.begin = band.k_r.step_or_end = -1.0; break;
+        case 10: curve.begin = DBL_MAX; curve.step_or_end = DBL_MAX;
+                 curve.first_bits = 1; curve.last_bits = UINT16_MAX; break;
+      }
+      if (fixture >= 7 && fixture <= 9) siqs_resolve_policy(&policy, 300, &band);
+      else (void)siqs_policy_curve_value(&curve, bits);
+      _exit(0);
+    }
+    CHECK(waitpid(child, &status, 0) == child);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
+  }
+  puts("PASS policies: invalid ranges, extrapolation, numeric sentinel misuse, nonfinite values and invalid K rejected");
+#else
+  puts("SKIP policies: fatal-diagnostic checks require POSIX fork");
+#endif
+}
+
+static void suite_policies(void) {
+  check_policy_curves();
+  check_policy_bounds();
+  check_policy_profiles();
+  check_policy_errors();
+}
+
 #include "siqs-check-relations.inc.c"
 #include "siqs-check-matrix.inc.c"
 #include "siqs-check-workers.inc.c"
@@ -643,6 +804,8 @@ typedef struct {
 } check_suite_t;
 
 static const check_suite_t suites[] = {
+  {"policies", "K curves, exact endpoints, LP/R bounds, saturation and recovery policies",
+   suite_policies},
   {"sieve", "wide-score oracle, byte kernels, blocking, roots, candidate maps",
    suite_sieve},
   {"relations", "congruences, cycle paths, ownership, partition and exponent limits",
@@ -656,7 +819,7 @@ static const check_suite_t suites[] = {
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|sieve|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|policies|sieve|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

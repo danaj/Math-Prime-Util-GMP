@@ -38,7 +38,7 @@ private packing/kernels, just as the main checker includes siqs.c.
 Suites and options
 ------------------
 
-One executable runs the named suites ("sieve", "relations", "matrix", "workers",
+One executable runs the named suites ("policies", "sieve", "relations", "matrix", "workers",
 "cofactors"). The default
 "all" selection runs every registered suite. --list describes available
 suites; --suite selects one. --extended adds more fixtures, policy endpoints,
@@ -71,6 +71,19 @@ padded stores; --debug separately enables SIQS_DEBUG's additional assertions
 and its bounds-checked padding behavior. Both are useful and are different
 checks. A run returns 0 on success, 1 on a failed check, or 2 on invalid checker
 arguments. Build errors and fatal engine diagnostics also return nonzero.
+
+Policy suite
+------------
+
+The policies suite checks LINEAR extrapolation, RAMP interpolation and exact
+endpoints, one-bit ramps, and the reserved derived-R sentinel.  It exercises
+fractional and integral K, coupled and independent LP/R bounds, saturation
+before integer conversion, and the final residual-dependent sieve allowance.
+Every production bit and recovery profile is resolved; smooth/1LP K values
+are checked against their pre-migration values.  POSIX child checks verify
+that malformed ramps, extrapolation, nonfinite values and invalid K produce
+fatal diagnostics instead of silently changing a policy.  These checks do
+not establish the performance of the provisional 2LP K curves.
 
 Sieve suite
 -----------

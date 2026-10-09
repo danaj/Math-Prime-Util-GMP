@@ -24,8 +24,14 @@
   Copyright (c) 2026 Dana Jacobsen
   Written by Dana Jacobsen, September 2026, with assistance from OpenAI Codex.
 
+  This implementation has benefited greatly from the work of many number
+  theorists and from earlier open-source work by Jason Papadopoulos (msieve
+  and more), Ben Buhrow (yafu and more), Tilman Neumann (Java Math Library),
+  William Hart (FLINT), and others.
+
 ============================================================================*/
 
+#include <float.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -95,11 +101,6 @@
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
-
-/* Used for sizing LP and R.  Higher uses more memory. */
-#ifndef SIQS_2LP_RESIDUAL_EXPONENT
-# define SIQS_2LP_RESIDUAL_EXPONENT 0.1555
-#endif
 
 /* This most strongly correlates to L1 data size.  Compromise. */
 #ifndef SIQS_SIEVE_BLOCK_SIZE
@@ -324,9 +325,8 @@ typedef struct {
   uint32_t policy_first_bits;
   uint32_t policy_last_bits;
   uint32_t max_large_primes;
-  uint32_t one_lp_policy_multiplier;
-  uint32_t lp_policy_multiplier_floor;
-  uint32_t lp_policy_product_multiplier_floor;
+  double lp_multiplier;
+  double residual_multiplier;   /* zero means derive R from the final LP */
   uint32_t fb_size;
   uint32_t half_interval;
   uint32_t q_count;
@@ -347,7 +347,6 @@ typedef struct {
   uint64_t smooth_bound;
   double fb_coefficient;
   double interval_scale;
-  double smooth_bound_exponent;
   double sieve_hit_exponent;
   double sieve_hit_bound_nominal;
   double sieve_hit_residual_multiplier;
@@ -928,11 +927,11 @@ static int siqs_hashset_insert(siqs_hashset_t *set, uint64_t h) {
  *----------------------------------------------------------------------------*/
 
 typedef struct {
-  double base;
-  double step;
-  uint16_t origin_bits;
-  uint8_t staged;
-} siqs_policy_linear_t;
+  double begin;
+  double step_or_end;
+  uint16_t first_bits;
+  uint16_t last_bits;
+} siqs_policy_curve_t;
 
 typedef struct {
   double amount;
@@ -950,9 +949,8 @@ typedef struct {
   uint8_t stage1_bias_base;
   uint8_t stage1_bias_step_bits;
   uint16_t stage1_bias_origin_bits;
-  uint8_t one_lp_multiplier;
-  uint8_t two_lp_multiplier_floor;
-  uint8_t two_lp_product_floor;
+  siqs_policy_curve_t k_l;
+  siqs_policy_curve_t k_r;
   uint8_t sieve_free_units;
   uint16_t sieve_start_prime_floor;
   uint16_t fb_floor;
@@ -960,11 +958,10 @@ typedef struct {
   uint8_t multiplier_refine_divisor;
   uint8_t a_final_tolerance;
   uint32_t fixed_half_interval;
-  siqs_policy_linear_t fb_coefficient;
-  siqs_policy_linear_t interval_base_scale;
+  siqs_policy_curve_t fb_coefficient;
+  siqs_policy_curve_t interval_base_scale;
   siqs_policy_ratio_t interval_lp_scale;
-  double smooth_bound_exponent;
-  siqs_policy_linear_t sieve_hit_exponent;
+  siqs_policy_curve_t sieve_hit_exponent;
   double sieve_start_index_exponent;
 } siqs_policy_band_t;
 
@@ -972,9 +969,8 @@ typedef struct {
   const siqs_policy_band_t *band;
   uint32_t max_large_primes;
   uint32_t q_count;
-  uint32_t one_lp_multiplier;
-  uint32_t lp_multiplier_floor;
-  uint32_t lp_product_floor;
+  double lp_multiplier;
+  double residual_multiplier;   /* zero means derive R from the final LP */
   uint32_t sieve_free_units;
   uint32_t sieve_start_prime_floor;
   double sieve_start_index_exponent;
@@ -986,336 +982,257 @@ typedef struct {
   uint8_t stage1_bias;
   double fb_coefficient;
   double interval_scale;
-  double smooth_bound_exponent;
   double sieve_hit_exponent;
 } siqs_policy_t;
 
+/* LINEAR permits extrapolation from its origin.  RAMP stores exact endpoints
+ * and permits interpolation only.  The reserved pair denotes derived R;
+ * it must never be evaluated as a numeric curve. */
 #define SIQS_POLICY_LINEAR(base, step, origin) \
-  { (base), (step), (origin), 0 }
-#define SIQS_POLICY_STAGED_LINEAR(base, step, origin) \
-  { (base), (step), (origin), 1 }
+  { (base), (step), (origin), UINT16_MAX }
+#define SIQS_POLICY_RAMP(beg, end, first_bits, last_bits) \
+  { (beg), (end), (first_bits), (last_bits) }
+#define SIQS_R_DERIVED_FROM_LP \
+  { 0.0, 0.0, UINT16_MAX, UINT16_MAX }
 #define SIQS_POLICY_RATIO(amount, numerator, step, denominator) \
   { (amount), (numerator), (step), (denominator) }
 
 /*
- * This is the single primary production bit-size policy.  Rows are meaningful
- * bands formed by actual structural changes or interpolation anchors; they
- * are not independently tuned bins.  The interval is the product of a base
- * scale and an optional large-prime-policy ratio, keeping its general size
- * trend separate from policy-specific adjustments.
- * Integer columns after the bit range are: LP count, q count, bias base,
- * bias step width/origin, 1LP K, conditional 2LP K/R floors, sieve byte
- * headroom, the first-sieved-prime floor, the factor-base floor, the initial
- * relation surplus, the multiplier-refinement divisor, final A-product
- * tolerance, and an optional fixed half interval.  A zero refinement divisor
- * disables the second multiplier-scoring stage.  The final column is the
- * optional factor-base index exponent used to choose the first sieved prime.
+ * Primary policy
+ * --------------
+ * Bands use the bit size of the post-trial cofactor N, before multiplying by
+ * k.  Each row is a complete collection policy: LP mode, q, factor base,
+ * interval and scoring choices must be evaluated together.
  *
- * The LP count is part of each complete policy row rather than an independent
- * crossover knob: changing it also requires changing the smooth exponent,
- * bounds, interval, and sieve-depth policy.  Fresh joint tuning found a
- * larger-FB 1LP q=10 policy preferable through 245 bits.  The near-tied upper
- * edge uses a single transition to 2LP q=11 at 246 instead of a one-bit
- * bridge.  The early q=11 geometry now uses one endpoint-preserving ramp
- * across 246--269; the distinct 270--299 policy is tuned separately.
+ * Row layout, after the name and bit range:
+ *   LP count, q; candidate-bias base, step width and origin;
+ *   K_L, K_R; sieve-byte headroom, sieve-prime floor, factor-base floor;
+ *   initial relation surplus, multiplier-refinement divisor, A tolerance;
+ *   fixed half interval; FB coefficient, interval scale and LP adjustment;
+ *   sieve-hit exponent, optional sieve-start index exponent.
+ * A zero refinement divisor disables the second multiplier-scoring stage.
  *
- * The 1LP factor-base coefficients are joint collection/matrix choices, not
- * smooth-yield targets.  The lower schedule rises from 0.315 to 0.320 before
- * 145 bits.  A later cleanup found K=8 neutral below the former 151-bit K
- * boundary and best above it; one endpoint-preserving taper now joins the
- * 145--156 geometry to the reduced factor-base curve through 166.  A second
- * q=9 cleanup keeps the 185--192 geometry and joins coefficient 0.320 at
- * 192 to 0.330 at 218, with interval scale rising from 1.2 to 1.3875.
- * The first-sieved-prime floor changes at 193; the multiplier selector's
- * fixed-depth cascade still starts independently at 201.  The selected 1LP
- * K values are 8, 16, 20, 32, 48, and 72 from 145, 167, 178, 193, 219, and
- * 237 bits.
+ * LP and residual bounds
+ * ----------------------
+ * With P the actual largest factor-base prime, LP = floor(K_L * P).
+ * Derived R equals the final capped LP in 1LP, or LP * P in 2LP.
+ * Explicit K_R instead gives floor(K_R * P) or floor(K_R * P^2).
+ * Existing storage ceilings apply to both bounds.  K_L = 1 admits only
+ * smooth relations, despite using the 1LP collection path.
  *
- * Cheap root updates changed the best q-count/interval balance substantially.
- * Fresh paired full-factor sweeps start q=7, 8, 9, 10, and 11 at 114, 145,
- * 185, 219, and 246 bits.  A later interval-only pass retuned the accompanying
- * curves after the multiplier and sieve hot-path changes; the shortest early
- * intervals deliberately reach the 4096 floor.  The new policy won at every
- * sampled changed or structural boundary through 269 bits.  A later
- * factor-base pass after the multiplier and hot-path changes
- * retained the existing schedule through 249, then selected a gradual
- * reduction and release through 269.  Fresh screening later selected about
- * 10% more factor-base primes at 250--269, tapering the increase back to the
- * former curve by 299.  A cleanup merged the former 270--275
- * basin and 276--299 release into an endpoint-preserving 270--299 line; it
- * was only 0.25% slower and uses a slightly larger, safer FB.  Later paired
- * tests favored extending that line and its 401/8 sieve profile through 304;
- * sequential full-factor checks then kept q=11 ahead of q=12 by 1.9--2.9%
- * at 305, 306, and 310.  A fresh interval pass retained 90% of that q=11
- * interval curve: shorter intervals failed on 300- and 310-bit inputs.
- * Replaying those inputs put q=11 and q=12 CPU times approximately level,
- * while q=12 used substantially less of the polynomial budget.  Prefer its
- * complete policy from 300 for safety, initially retaining the factor-base
- * curve and the measured 0.25 interval scale through 310.  The measured q=12
- * interval rise then reaches 0.6 at 330 and originally returned conservatively
- * to 1.0 at 366.  q=13 was slower in the 330-bit screen.
- * At the low end, q=1 with a wide interval covers inputs below 37 bits.  q=2
- * takes over at 37; a smaller factor base and wider final A tolerance improve
- * it substantially from 42 through 49, with explicit q=1 recovery profiles
- * for the rare exhausted primary.  q=3 is faster from 50 through 80, and q=4
- * at 81.
- * A complete-policy crossover pass after the interval retune keeps q=5 at
- * 96, starts q=6 at 104, and removes three superseded short policy rows.
- * The former 260--266 and 267--269 rows otherwise differed only by a tiny
- * sieve score release.  A single shallow 0.205--0.20535 ramp across 260--269
- * was modestly faster at all five tested anchors, so those rows are merged.
- * A subsequent 246--269 cleanup found a single FB/interval/score ramp within
- * 0.1% of a two-row alternative over 67 fresh matched inputs.  Prefer the
- * simpler merged row; its interval already includes the former LP adjustment.
- * A later .157 smooth-bound retune keeps the 246--269 geometry with
- * matched 88P/88P^2 floors, then uses 96P/96P^2 floors across 270--299,
- * with about 5% more FB primes at 270 and 5% fewer at 299.
- * Its interval keeps the 270 endpoint and is 5% shorter at 299.  This
- * retains most of the memory savings while limiting the low-end CPU cost.
- * A subsequent .157 screen reduced FB primes by about 14.5% at 300--310,
- * retaining q=12 and the interval; six fresh holdouts improved CPU time.
- * The q=11 factor-base release reaches approximately 0.308 at 299; the
- * q=12 bridge now rises from 0.3095 at 300 to 0.3112 at 310.  Larger q=12
- * bands retain the established curve reaching 0.325 at 366 bits.
- * The earlier 311--330 .157 screen retained its FB/interval geometry.
- * At .157, full factors at 331/340 supported the same FB and a 10% shorter
- * interval; higher collection probes were mixed
- * and do not establish end-to-end performance throughout the upper band.
- * A later .1555 screen retained the geometry through 310: the 270--299
- * endpoint fit did not improve fresh interior results.  At 330, endpoint
- * confirmation favored a 5% shorter interval with unchanged FB.  Taper
- * that reduction from zero at 311; its interior validation remains pending.
- * All 2LP rows now use SIQS_2LP_RESIDUAL_EXPONENT, retaining their LP/R floors.
+ * Geometry and scoring
+ * --------------------
+ * A fixed half interval overrides the interval curves; otherwise the base
+ * scale is multiplied by the optional LP adjustment.  LINEAR origins need
+ * not coincide with band boundaries, so moving a boundary need not retune
+ * the remaining geometry.
+ * The first-sieved-prime index starts at cbrt(FB), raised by an optional
+ * FB-index exponent and a prime-value floor.  Omitted primes are removed
+ * exactly in the candidate postfilter.
+ * The sieve-hit exponent sets a separate nominal candidate bound, raised
+ * to at least 2R; the fine filter and cofactor acceptance use the final R.
  *
- * JML SIQS showed that omitting substantially more small factor-base primes
- * from the dense sieve can pay even though the candidate postfilter then has
- * more work.  Its cutoff index grows approximately as FB^0.47.  Full-factor
- * sweeps here found a broad optimum from 0.43 through 0.45, so use 0.45 from
- * 96 through 192 bits.  Below 96 the smooth-only policies were inconsistent;
- * from 193 through 269 a prime-401 floor was both simpler and faster than
- * allowing the factor-base formula to keep growing.  At 270 the same floor
- * saved about 7%; later boundary tests initially retained it through 310.
- * The safety crossover now keeps the prime-401 floor through q=11's 299-bit
- * endpoint, then q=12 resumes the prime-384 floor at 300.  Bias 10, 12, 14,
- * 16, and 18 supply the corresponding extra coarse-filter headroom.
- * Full-factor sweeps put the first transitions at existing 117, 130, and
- * 167-bit policy boundaries;
- * fresh per-bit tests start bias 18 with the K=20 row at 178 bits.
- * After the fixed-hit sieve and candidate-resieve improvements, a fresh
- * full-factor comparison moved the prime-cutoff and geometry transition
- * from 185 to 193.  Results crossed noisily just below 193, but the best
- * monotone boundary kept the lower profile through 192; the upper profile
- * won clearly from 193 onward.  At the 269/270 policy boundary, bias 18 won
- * below it while 12 and 18 tied above it, so only the prime floor carries
- * across.
+ * Tuning notes
+ * ------------
+ * - FB and interval choices balance collection and matrix costs.
+ * - Prefer coherent bands over small, noisy per-bit timing wins.
+ * - The 2LP K curves are provisional tuning seeds; their inherited geometry
+ *   has not been retuned for the new bounds.
+ *
+ * Attribution
+ * -----------
+ * JML SIQS motivated testing larger omitted-small-prime regions.  The index
+ * exponent and prime-floor choices here were selected by our own sweeps.
  */
 static const siqs_policy_band_t siqs_policy_bands[] = {
-  /* These low rows remove the old 160-prime and 96-relation fixed-work floors.
-   * K=1 sets the large-prime bound to pmax, so they deliberately collect
-   * smooth relations only.  Below 37 bits, a compact q=1 interval normally
-   * fills the small matrix; increasing recovery intervals handle an unlucky
-   * choice for the one available A family.  q=2 then wins at 37--41.  Fresh
-   * low-band tests select q=2, a 36-prime floor, bias 3, and four extra
-   * relations at 42--49.  This gives up a small part of the floor-34 timing
-   * win for better health.  Its final A-product tolerance is local to that
-   * row; the staged recovery policies below handle its very rare exhaustion
-   * tail.  q=3 wins from 50 until the measured 80/81 crossover.  Its interval
-   * ramp begins at the fixed 4096 floor.  Their matrices are too small for an
-   * early readiness check.
-   * Full-factor sweeps put the return to q=5 and ordinary 1LP collection at
-   * the 95/96 boundary. */
+  /* Smooth-only low bands use small matrices and little relation surplus.
+   * q=1 has only one A family; recovery intervals change its A target. */
   { "smooth_k1_q1_low_4k", MPU_SIQS_MIN_BITS, 36, 1, 1, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 4096,
+    SIQS_POLICY_LINEAR(1.0, 0.0, MPU_SIQS_MIN_BITS), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 4096,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.0, 1),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q2_low", 37, 41, 1, 2, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(1.0, 0.0, 37), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.5, 0.0, 65),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
+  /* Wider A tolerance and q=1 recovery cover scarce q=2 products. */
   { "smooth_k1_q2_fb36_bias3", 42, 49, 1, 2, 3, 0, 0,
-    1, 60, 60, 8, 0, 36, 4, 0, 32, 4096,
+    SIQS_POLICY_LINEAR(1.0, 0.0, 42), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 36, 4, 0, 32, 4096,
     SIQS_POLICY_LINEAR(0.315, 0.0, 42),
     SIQS_POLICY_LINEAR(0.0, 0.0, 42),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 },
   { "smooth_k1_q3_floor40", 50, 64, 1, 3, 0, 0, 0,
-    1, 60, 60, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(1.0, 0.0, 50), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   { "smooth_k1_q3_fb_low", 65, 80, 1, 3, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(1.0, 0.0, 65), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.306956091, 0.0000655453, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
-  /* After multiplier and sieve hot-path changes, three fresh interval-only
-   * passes (20%, 10%, then 5% brackets) retuned the 81--249-bit curves.
-   * The dense final pass found no coherent band-wide move from these curves;
-   * q and factor-base choices remain separate tuning decisions. */
-  /* A fresh 30,000-input confirmation found a 3.0% joint win from bias 6
-   * and a uniform 95% factor-base scale.  Express that scale as a shallow
-   * coefficient ramp so the production policy needs no second FB knob. */
   { "smooth_k1_q4_fb_low", 81, 95, 1, 4, 6, 0, 0,
-    1, 60, 60, 8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(1.0, 0.0, 81), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 48, 4, 8, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.311589139, 0.0000229912, 81),
     SIQS_POLICY_LINEAR(0.78, 0.03, 81),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
-  /* Two extra relations cost 0.1% over this band while cutting matrix retries
-   * by 68% and reducing timing variance.  Four cost 0.8% and added little.
-   * A fresh three-group FB bracket selected 90% of the prior factor base at
-   * all three anchors, saving 1--2%. */
+  /* Two extra relations reduce matrix retries at little collection cost. */
   { "one_lp_k2_q5_geometry_ramp", 96, 103, 1, 5, 10, 3, 96,
-    2, 60, 60, 8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(2.0, 0.0, 96), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 2, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.308695990712, -0.000554318961222, 96),
     SIQS_POLICY_LINEAR(1.649, 0.03, 96),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 100), 0.45 },
-  /* A fresh three-group FB bracket selected the conservative 95% factor base
-   * through this short band.  Exact dense elimination normally succeeds at
-   * the minimum relation count.
-   * A 15,500-input audit of the original upper range needed four second
-   * matrix attempts, while fresh full-policy sweeps down through 104 bits had
-   * no failures.  The ordinary retry loop handles that rare tail. */
+  /* Minimal relation targets rely on the retry loop for rare solver misses. */
   { "one_lp_k4_q6_geometry_ramp", 104, 113, 1, 6, 16, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(4.0, 0.0, 104), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.299970911404, 0.000481696464734, 103),
     SIQS_POLICY_LINEAR(1.14583333333, 0.0607638888889, 117),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 117), 0.45 },
-  /* Stopping at the first full-rank-sized matrix remained healthy through
-   * 166 bits and saved about 1--5% across these bands. */
   { "one_lp_k4_q7_interval_ramp", 114, 144, 1, 7, 14, 0, 0,
-    4, 60, 60, 8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(4.0, 0.0, 114), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 0, 6, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.309768359, 0.0003559297, 130),
     SIQS_POLICY_LINEAR(0.927, 0.042, 134),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 140), 0.45 },
   { "one_lp_k8_q8_interval_ramp", 145, 166, 1, 8, 14, 0, 0,
-    8, 60, 60, 8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(8.0, 0.0, 145), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 0, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315224548968, 0.000017769605, 151),
     SIQS_POLICY_LINEAR(1.09025, 0.0245, 157),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  /* The readiness check makes the nominal 96 surplus nearly free here:
-   * +32 and +96 produced identical work throughout a coarse 167--177
-   * sample.  At the 167-bit lower edge, zero was 0.15% slower than +96 in
-   * a fresh 600-input order-balanced confirmation, so retain +96. */
-  { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0, 16, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.45 },
+  /* Readiness may stop collection before the nominal surplus is reached. */
+  { "one_lp_k16_q8", 167, 177, 1, 8, 16, 0, 0,
+    SIQS_POLICY_LINEAR(16.0, 0.0, 167), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 167),
     SIQS_POLICY_LINEAR(1.083, 0.038, 167),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k20_q8_interval_ramp", 178, 184, 1, 8, 18, 0, 0,
-    20, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_LINEAR(20.0, 0.0, 178), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(1.2, 0.042, 178),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.45 },
   { "one_lp_k20_q9", 185, 192, 1, 9, 18, 0, 0,
-    20, 60, 60, 8, 0, 160, 96,
+    SIQS_POLICY_LINEAR(20.0, 0.0, 185), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.0, 178),
     SIQS_POLICY_LINEAR(0.9, 0.075, 188),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.45 },
-  /* A smooth upper q=9 band replaces the former three rows.  Retain K=20
-   * below 193; K=32 gave a small broad gain on the merged curve.  Fresh
-   * +/-5% FB/interval confirmation did not justify changing its geometry. */
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.45 },
+  /* K=32 supports one smooth upper q=9 geometry rather than shorter bands. */
   { "one_lp_k32_q9_geometry_ramp", 193, 218, 1, 9, 18, 0, 0,
-    32, 60, 60, 8, 401, 160, 96,
+    SIQS_POLICY_LINEAR(32.0, 0.0, 193), SIQS_R_DERIVED_FROM_LP,
+    8, 401, 160, 96,
     0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.32, 0.000384615384615385, 192),
     SIQS_POLICY_LINEAR(1.2, 0.00721153846154231, 192),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.0 },
   { "one_lp_k48_q10_geometry_ramp", 219, 236, 1, 10, 18, 0, 0,
-    48, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(48.0, 0.0, 219), SIQS_R_DERIVED_FROM_LP,
+    8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.331, 0.0, 219),
     SIQS_POLICY_LINEAR(1.17545454545, 0.0, 219),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  /* The smaller K=48 geometry remains competitive through 236 bits.
-   * Keep this K=72 profile's original curves anchored at 232; moving its
-   * first bit does not retune the remaining upper q=10 range. */
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.0 },
+  /* Geometry stays anchored at 232, independently of the 237-bit start. */
   { "one_lp_k72_q10_fb_taper", 237, 245, 1, 10, 18, 0, 0,
-    72, 60, 60, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(72.0, 0.0, 237), SIQS_R_DERIVED_FROM_LP,
+    8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.340488506709531, -0.001055481282083, 232),
     SIQS_POLICY_LINEAR(1.238537142850445, -0.036017142857150, 232),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
-    SIQS_POLICY_STAGED_LINEAR(0.15, 0.0003, 150), 0.0 },
-  /* Keep the measured endpoint geometry with one smooth early q=11 row.
-   * The interval curve includes the old LP adjustment; do not apply it twice.
-   * A .157 floor screen favored 90P over 72P/80P; use the chosen nearby
-   * 88P/88P^2 floors without retuning the geometry. */
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
+    SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.0 },
+  /* The base interval includes the LP adjustment; leave its ratio at zero. */
   { "two_lp_q11_geometry_ramp", 246, 269, 2, 11, 18, 0, 0,
-    0, 88, 88, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(88.0, 0.0, 246), SIQS_R_DERIVED_FROM_LP,
+    8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.3006972, 0.00013433734808721733, 246),
     SIQS_POLICY_LINEAR(0.5391314710353, -0.003870024789247825, 246),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), SIQS_2LP_RESIDUAL_EXPONENT,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.205, 0.000015217391304347357, 246), 0.0 },
   { "two_lp_mid_fb_release", 270, 299, 2, 11, 12, 0, 0,
-    0, 96, 96, 8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_RAMP(96.0, 208.0, 270, 299), SIQS_R_DERIVED_FROM_LP,
+    8, 401, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30562684466875412, 0.000087009513864583026, 270),
     SIQS_POLICY_LINEAR(0.45, -0.006475862068965518, 270),
-    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30), SIQS_2LP_RESIDUAL_EXPONENT,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  /* Start q=12 early for safety: on the known difficult 300/310-bit inputs,
-   * its complete policy was approximately tied in CPU time but consumed
-   * less of the polynomial budget.  A later .157 retune reduced FB primes
-   * by about 14.5% while retaining the measured interval. */
+    SIQS_POLICY_RATIO(0.15231778066, 0, 1, 30),
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
+  /* Start q=12 early for safety: difficult 300/310-bit cases consumed less
+   * of the polynomial budget than with q=11. */
   { "two_lp_q12_safety_bridge", 300, 310, 2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_RAMP(208.0, 248.0, 300, 310), SIQS_R_DERIVED_FROM_LP,
+    16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.30947805274395174, 0.00017299534431592934, 300),
     SIQS_POLICY_LINEAR(0.25, 0.0, 305),
-    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  /* Keep the 311 endpoint; shorten M by 5% at 330, with unchanged FB. */
+    SIQS_POLICY_RATIO(0.15231778066, 50, -1, 50),
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_RAMP(248.0, 280.0, 311, 330), SIQS_R_DERIVED_FROM_LP,
+    16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(0.2675, 0.01592105263157895, 311),
-    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 },
-  /* Provisional high-end interval: full-factor evidence at 331/340,
-   * with short collection probes above that range, not full validation. */
+    SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50),
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
+  /* Upper geometry has sparse full-factor and probe evidence; end-to-end
+   * performance across the whole band is not established. */
   { "two_lp_high_q12_interval_finish", 331, MPU_SIQS_MAX_BITS,
     2, 12, 12, 0, 0,
-    0, 0, 0, 16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    /* 9 Oct: These are not tuned */
+    SIQS_POLICY_RAMP(280.0, 768.0, 331, MPU_SIQS_MAX_BITS), SIQS_R_DERIVED_FROM_LP,
+    16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
     SIQS_POLICY_LINEAR(0.54, 0.01, 330),
-    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50), SIQS_2LP_RESIDUAL_EXPONENT,
-    SIQS_POLICY_STAGED_LINEAR(0.18, 0.0003, 150), 0.0 }
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 }
 };
 
-/* Retry rare q=1 underfill below 37 bits and q=2 A-selection exhaustion at
- * 37--41 (e.g. 84098302697) with smooth-only q=1 profiles at 8K and 16K,
- * then with the former interval formula as a terminal safety net.  q=1 has
- * only one A family; each interval changes the A target. */
+/* Retry low q=1/q=2 failures with q=1 at 8K, 16K, then a larger variable
+ * interval.  Each interval changes the target for q=1's sole A family. */
 #define SIQS_LOW_SMOOTH_RECOVERY_POLICY(name, interval, scale) \
   { (name), MPU_SIQS_MIN_BITS, 41, 1, 1, 0, 0, 0, \
-    1, 60, 60, 8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    SIQS_POLICY_LINEAR(1.0, 0.0, MPU_SIQS_MIN_BITS), SIQS_R_DERIVED_FROM_LP, \
+    8, 0, 40, 2, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 65), \
     SIQS_POLICY_LINEAR((scale), 0.0, 1), \
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), \
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 }
 
 /* A rare 42--49 q=2 exhaustion needs one-large-prime pairs.  Most tails
  * finish before reaching the deliberately large final profile. */
 #define SIQS_LOW_ONE_LP_RECOVERY_POLICY(name, interval) \
   { (name), 42, 49, 1, 1, 0, 0, 0, \
-    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
+    SIQS_POLICY_LINEAR(60.0, 0.0, 42), SIQS_R_DERIVED_FROM_LP, \
+    8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, (interval), \
     SIQS_POLICY_LINEAR(0.315, 0.0, 42), \
     SIQS_POLICY_LINEAR(0.0, 0.0, 42), \
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12, \
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0), \
     SIQS_POLICY_LINEAR(0.15, 0.0, 42), 0.0 }
 static const siqs_policy_band_t siqs_recovery_policies[] = {
   SIQS_LOW_SMOOTH_RECOVERY_POLICY(
@@ -1336,19 +1253,21 @@ static const siqs_policy_band_t siqs_recovery_policies[] = {
    * (e.g. 39586268787172817).  Keep the primary FB/interval geometry, but
    * admit one-LP partials to obtain new relations after that policy fails. */
   { "one_lp_k60_q3_recovery", 50, 64, 1, 3, 0, 0, 0,
-    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(60.0, 0.0, 50), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 },
   /* K60 cannot create missing q=3 A products.  After both q=3 attempts
    * fail, use pair families with the same low-band FB/interval geometry.
    * Larger 65--80-bit targets need not fit a pair, so keep this local. */
   { "one_lp_k60_q2_geometry_recovery", 50, 64, 1, 2, 0, 0, 0,
-    60, 0, 0, 8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(60.0, 0.0, 50), SIQS_R_DERIVED_FROM_LP,
+    8, 0, 40, 4, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.315, 0.0, 65),
     SIQS_POLICY_LINEAR(0.0, 0.041666666666666667, 50),
-    SIQS_POLICY_RATIO(0.0, 0, 0, 0), 0.12,
+    SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0 }
 };
 #undef SIQS_LOW_SMOOTH_RECOVERY_POLICY
@@ -1370,25 +1289,45 @@ static const siqs_policy_band_t *siqs_next_policy(uint32_t bits,
 }
 
 #undef SIQS_POLICY_LINEAR
-#undef SIQS_POLICY_STAGED_LINEAR
+#undef SIQS_POLICY_RAMP
+#undef SIQS_R_DERIVED_FROM_LP
 #undef SIQS_POLICY_RATIO
 
 #define SIQS_POLICY_BAND_COUNT \
   ((uint32_t)(sizeof(siqs_policy_bands) / sizeof(siqs_policy_bands[0])))
 
-static double siqs_policy_linear_value(const siqs_policy_linear_t *line,
-                                       uint32_t bits) {
-  int32_t distance = (int32_t)bits - (int32_t)line->origin_bits;
-  volatile double delta;
-  if (line->step == 0.0)
-    return line->base;
-  /* Most legacy ramps were direct expressions; leave contraction to the
-   * compiler just as before.  The sieve increment was first assigned
-   * separately, so preserve that distinct rounding path explicitly. */
-  if (!line->staged)
-    return line->base + line->step * (double)distance;
-  delta = line->step * (double)distance;
-  return line->base + delta;
+static int siqs_policy_derived_r(const siqs_policy_curve_t *curve) {
+  return curve->first_bits == UINT16_MAX && curve->last_bits == UINT16_MAX;
+}
+
+static double siqs_policy_curve_value(const siqs_policy_curve_t *curve,
+                                      uint32_t bits) {
+  double value;
+  if (curve->first_bits == UINT16_MAX ||
+      !(curve->begin >= -DBL_MAX && curve->begin <= DBL_MAX) ||
+      !(curve->step_or_end >= -DBL_MAX && curve->step_or_end <= DBL_MAX))
+    croak("SIQS: invalid numeric policy curve");
+  if (curve->last_bits == UINT16_MAX) {
+    int32_t distance = (int32_t)bits - (int32_t)curve->first_bits;
+    value = curve->begin + curve->step_or_end * (double)distance;
+  } else {
+    if (curve->first_bits > curve->last_bits ||
+        (curve->first_bits == curve->last_bits &&
+         curve->begin != curve->step_or_end))
+      croak("SIQS: invalid endpoint policy ramp");
+    if (bits < curve->first_bits || bits > curve->last_bits)
+      croak("SIQS: cannot extrapolate policy ramp to %u bits", bits);
+    if (bits == curve->first_bits)
+      return curve->begin;
+    if (bits == curve->last_bits)
+      return curve->step_or_end;
+    value = curve->begin + (curve->step_or_end - curve->begin) *
+        ((double)(bits - curve->first_bits) /
+         (double)(curve->last_bits - curve->first_bits));
+  }
+  if (!(value >= -DBL_MAX && value <= DBL_MAX))
+    croak("SIQS: nonfinite policy curve value at %u bits", bits);
+  return value;
 }
 
 static double siqs_policy_ratio_value(const siqs_policy_band_t *band,
@@ -1434,12 +1373,14 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits,
     policy->stage1_bias += (uint8_t)(
         (bits - band->stage1_bias_origin_bits) /
         band->stage1_bias_step_bits);
-  policy->one_lp_multiplier = policy->max_large_primes == 1
-                            ? band->one_lp_multiplier : 0U;
-  policy->lp_multiplier_floor = policy->max_large_primes == 2
-                              ? band->two_lp_multiplier_floor : 0U;
-  policy->lp_product_floor = policy->max_large_primes == 2
-                           ? band->two_lp_product_floor : 0U;
+  policy->lp_multiplier = siqs_policy_curve_value(&band->k_l, bits);
+  if (!siqs_policy_derived_r(&band->k_r))
+    policy->residual_multiplier = siqs_policy_curve_value(&band->k_r, bits);
+  if (!(policy->lp_multiplier >= 1.0 && policy->lp_multiplier <= DBL_MAX) ||
+      (!siqs_policy_derived_r(&band->k_r) &&
+       !(policy->residual_multiplier > 0.0 &&
+         policy->residual_multiplier <= DBL_MAX)))
+    croak("SIQS: invalid K policy in %s", band->name);
   policy->sieve_free_units = band->sieve_free_units;
   policy->sieve_start_prime_floor = band->sieve_start_prime_floor;
   policy->sieve_start_index_exponent = band->sieve_start_index_exponent;
@@ -1449,19 +1390,18 @@ static void siqs_resolve_policy(siqs_policy_t *policy, uint32_t bits,
   policy->a_final_tolerance = band->a_final_tolerance;
   policy->fixed_half_interval = band->fixed_half_interval;
   policy->fb_coefficient =
-      siqs_policy_linear_value(&band->fb_coefficient, bits);
+      siqs_policy_curve_value(&band->fb_coefficient, bits);
   policy->interval_scale =
-      siqs_policy_linear_value(&band->interval_base_scale, bits) *
+      siqs_policy_curve_value(&band->interval_base_scale, bits) *
       siqs_policy_ratio_value(band, bits);
-  policy->smooth_bound_exponent = band->smooth_bound_exponent;
   policy->sieve_hit_exponent =
-      siqs_policy_linear_value(&band->sieve_hit_exponent, bits);
+      siqs_policy_curve_value(&band->sieve_hit_exponent, bits);
 }
 
 static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
                                    const siqs_policy_band_t *profile) {
   siqs_policy_t policy;
-  double ln_n, ln_term, fb, interval, smooth;
+  double ln_n, ln_term, fb, interval;
   double sieve_hit_residual_multiplier;
   /* n is the post-trial cofactor handed to SIQS.  Size policies deliberately
    * use this N rather than the later multiplier product kN. */
@@ -1471,9 +1411,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->policy_first_bits = policy.band->first_bits;
   p->policy_last_bits = policy.band->last_bits;
   p->max_large_primes = policy.max_large_primes;
-  p->one_lp_policy_multiplier = policy.one_lp_multiplier;
-  p->lp_policy_multiplier_floor = policy.lp_multiplier_floor;
-  p->lp_policy_product_multiplier_floor = policy.lp_product_floor;
+  p->lp_multiplier = policy.lp_multiplier;
+  p->residual_multiplier = policy.residual_multiplier;
   p->q_count = policy.q_count;
   p->sieve_free_units = policy.sieve_free_units;
   p->sieve_start_prime_floor = policy.sieve_start_prime_floor;
@@ -1485,7 +1424,6 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->fixed_half_interval = policy.fixed_half_interval;
   p->fb_coefficient = policy.fb_coefficient;
   p->interval_scale = policy.interval_scale;
-  p->smooth_bound_exponent = policy.smooth_bound_exponent;
   p->sieve_hit_exponent = policy.sieve_hit_exponent;
   p->stage1_bias = policy.stage1_bias;
   ln_n = p->bits * M_LN2;
@@ -1515,27 +1453,14 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
 
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
-  /* One-LP mode uses N^0.12 as its individual residual limit.  Two-LP mode
-   * uses a per-band exponent for the product bound (currently uniform
-   * across 2LP bands: SIQS_2LP_RESIDUAL_EXPONENT).
-   * After the factor base is built, the early 2LP policy may raise K and R
-   * to their measured floors; their upper tails remain automatic. */
-  smooth = exp(p->smooth_bound_exponent * ln_n);
-  /* Test the exponent before converting so an exact 2^64 boundary cannot
-   * round just below the intended saturated result in exp(). */
-  p->smooth_bound = p->smooth_bound_exponent * (double)p->bits >= 64.0
-                  ? SIQS_RESIDUAL_PRODUCT_MAX : (uint64_t)smooth;
-  if (p->smooth_bound < UINT64_C(1000000))
-    p->smooth_bound = UINT64_C(1000000);
+  /* LP and R depend on the actual factor base, not an N^exponent proxy.
+   * Finalize them before log weights or worker scratch are initialized. */
+  p->large_prime_bound = p->smooth_bound = 0;
 
   sieve_hit_residual_multiplier = 2.0;
   p->sieve_hit_residual_multiplier = sieve_hit_residual_multiplier;
   p->sieve_hit_bound_nominal = exp(p->sieve_hit_exponent * ln_n);
   p->sieve_hit_bound = p->sieve_hit_bound_nominal;
-  if (p->sieve_hit_bound < sieve_hit_residual_multiplier *
-                           (double)p->smooth_bound)
-    p->sieve_hit_bound = sieve_hit_residual_multiplier *
-                         (double)p->smooth_bound;
   p->log_scale = 0.0; /* Set after the factor base and kN are known. */
 }
 
@@ -4917,66 +4842,51 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
     croak("SIQS: d=2 polynomial requires kN congruent to 1 modulo 8");
 }
 
-static uint64_t siqs_scaled_bound(uint64_t base, uint32_t multiplier,
-                                  uint64_t maximum) {
-  if (multiplier == 0)
-    return 0;
-  return base > maximum / multiplier
-       ? maximum : base * (uint64_t)multiplier;
+static uint64_t siqs_bound_product(uint64_t a, uint64_t b, uint64_t maximum) {
+  return b != 0 && a > maximum / b ? maximum : a * b;
 }
 
-static int siqs_lp_floor_policy_active(const siqs_parameters_t *p) {
-  return p->max_large_primes == 2 &&
-         (p->lp_policy_multiplier_floor != 0 ||
-          p->lp_policy_product_multiplier_floor != 0);
+static uint64_t siqs_scaled_bound(uint64_t base, double multiplier,
+                                  uint64_t maximum) {
+  double value;
+  /* Callers validate finite, nonnegative multipliers once per input. */
+  if (base == 0 || multiplier == 0.0)
+    return 0;
+  /* In particular, (double)UINT64_MAX may round to 2^64.  Saturate before
+   * any conversion, and preserve exact products for integral K values. */
+  if (multiplier >= (double)maximum)
+    return maximum;
+  if (multiplier == floor(multiplier))
+    return siqs_bound_product(base, (uint64_t)multiplier, maximum);
+  value = (double)base * multiplier;
+  return value >= (double)maximum ? maximum : (uint64_t)value;
 }
 
 static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
   uint64_t pmax = ctx->largest_fb_prime;
-  uint64_t pmax2 = pmax * pmax;
-  uint64_t automatic_product_bound = ctx->params.smooth_bound;
-  uint64_t automatic_large_prime_bound = automatic_product_bound;
-  uint32_t one_lp_policy_multiplier =
-      ctx->params.one_lp_policy_multiplier;
-  int policy_active = siqs_lp_floor_policy_active(&ctx->params);
-  uint64_t limit;
+  siqs_parameters_t *p = &ctx->params;
+  if (pmax == 0 || pmax > UINT32_MAX ||
+      (p->max_large_primes != 1 && p->max_large_primes != 2) ||
+      !(p->lp_multiplier >= 1.0 && p->lp_multiplier <= DBL_MAX) ||
+      !(p->residual_multiplier >= 0.0 && p->residual_multiplier <= DBL_MAX))
+    croak("SIQS: invalid large-prime bound parameters");
 
-  if (ctx->params.max_large_primes == 2)
-    automatic_large_prime_bound = automatic_product_bound / pmax;
-  if (automatic_large_prime_bound > SIQS_LP_MAX)
-    automatic_large_prime_bound = SIQS_LP_MAX;
-  ctx->params.large_prime_bound = automatic_large_prime_bound;
-
-  /* Matched full-factor sweeps at 246--260 bits favored K=72/R=72 over
-   * K=60/R=60 by about 0.4--1%, with modest extra partial storage.  These
-   * are floors, not caps: larger automatic bounds take over as bits grow. */
-  if (policy_active) {
-    limit = siqs_scaled_bound(pmax,
-                              ctx->params.lp_policy_multiplier_floor,
-                              SIQS_LP_MAX);
-    if (ctx->params.large_prime_bound < limit)
-      ctx->params.large_prime_bound = limit;
-    limit = siqs_scaled_bound(
-        pmax2, ctx->params.lp_policy_product_multiplier_floor,
-        SIQS_RESIDUAL_PRODUCT_MAX);
-    if (ctx->params.smooth_bound < limit)
-      ctx->params.smooth_bound = limit;
-  }
-
-  if (one_lp_policy_multiplier != 0) {
-    limit = siqs_scaled_bound(pmax, one_lp_policy_multiplier, SIQS_LP_MAX);
-    ctx->params.large_prime_bound = limit;
-    ctx->params.smooth_bound = limit;
+  p->large_prime_bound = siqs_scaled_bound(pmax, p->lp_multiplier, SIQS_LP_MAX);
+  if (p->residual_multiplier != 0.0) {
+    uint64_t base = p->max_large_primes == 2 ? pmax * pmax : pmax;
+    p->smooth_bound = siqs_scaled_bound(base, p->residual_multiplier,
+                                      SIQS_RESIDUAL_PRODUCT_MAX);
+  } else {
+    /* Coupled R follows the final LP, including its storage ceiling. */
+    p->smooth_bound = p->max_large_primes == 2
+        ? siqs_bound_product(p->large_prime_bound, pmax, SIQS_RESIDUAL_PRODUCT_MAX)
+        : p->large_prime_bound;
   }
 
   /* The exact candidate postfilter must accept the complete residual range. */
-  ctx->params.sieve_hit_bound = ctx->params.sieve_hit_bound_nominal;
-  if (ctx->params.sieve_hit_bound <
-      ctx->params.sieve_hit_residual_multiplier *
-        (double)ctx->params.smooth_bound)
-    ctx->params.sieve_hit_bound =
-        ctx->params.sieve_hit_residual_multiplier *
-        (double)ctx->params.smooth_bound;
+  p->sieve_hit_bound = p->sieve_hit_bound_nominal;
+  if (p->sieve_hit_bound < p->sieve_hit_residual_multiplier * (double)p->smooth_bound)
+    p->sieve_hit_bound = p->sieve_hit_residual_multiplier * (double)p->smooth_bound;
 }
 
 /* Allocate polynomial/evaluation scratch, also used by private workers. */
