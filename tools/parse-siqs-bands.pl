@@ -265,8 +265,9 @@ sub sizes_at {
 
 sub coefficient_range {
   my ($unit, $first, $last) = @_;
-  my @text = map { $_ == 1 ? $unit : sprintf('%.6g', $_) . $unit } ($first, $last);
-  return $text[0] eq $text[1] ? $text[0] : "$text[0]${srange}$text[1]";
+  my @text = map { $_ == 1 ? "" : sprintf('%.6g', $_) } ($first, $last);
+  my $out = $text[0] eq $text[1] ? $text[0] : "$text[0]${srange}$text[1]";
+  return $out.$unit;
 }
 
 sub integer_text {

@@ -722,8 +722,48 @@ static void check_policy_profiles(void) {
   ctx.largest_fb_prime = 1009;
   for (bits = MPU_SIQS_MIN_BITS; bits <= MPU_SIQS_MAX_BITS; bits++) {
     siqs_resolve_policy(&policy, bits, NULL);
-    CHECK(policy.lp_multiplier >= 1.0 && policy.residual_multiplier == 0.0);
-    if (bits > 245) continue;
+    CHECK(policy.lp_multiplier >= 1.0);
+    if (bits >= 246 && bits <= 269) {
+      CHECK(policy.max_large_primes == 2 && policy.lp_multiplier == 112.0);
+      CHECK(policy.residual_multiplier == 168.0);
+      ctx.params.lp_multiplier = policy.lp_multiplier;
+      ctx.params.residual_multiplier = policy.residual_multiplier;
+      ctx.params.max_large_primes = policy.max_large_primes;
+      siqs_set_large_prime_bounds(&ctx);
+      CHECK(ctx.params.large_prime_bound == UINT64_C(112) * 1009U);
+      CHECK(ctx.params.smooth_bound == UINT64_C(168) * 1009U * 1009U);
+      continue;
+    }
+    if (bits >= 270 && bits <= 299) {
+      double t = (double)(bits - 270U) / 29.0;
+      double k_l = 112.0 + 54.0 * t;
+      double k_r = 168.0 + 82.0 * t;
+      CHECK(policy.max_large_primes == 2);
+      CHECK(fabs(policy.lp_multiplier - k_l) < 1e-12);
+      CHECK(fabs(policy.residual_multiplier - k_r) < 1e-12);
+      ctx.params.lp_multiplier = policy.lp_multiplier;
+      ctx.params.residual_multiplier = policy.residual_multiplier;
+      ctx.params.max_large_primes = policy.max_large_primes;
+      siqs_set_large_prime_bounds(&ctx);
+      CHECK(ctx.params.large_prime_bound == (uint64_t)(k_l * 1009.0));
+      CHECK(ctx.params.smooth_bound == (uint64_t)(k_r * (1009.0 * 1009.0)));
+      continue;
+    }
+    if (bits > 245) {
+      CHECK(policy.max_large_primes == 2);
+      ctx.params.lp_multiplier = policy.lp_multiplier;
+      ctx.params.residual_multiplier = policy.residual_multiplier;
+      ctx.params.max_large_primes = policy.max_large_primes;
+      siqs_set_large_prime_bounds(&ctx);
+      CHECK(ctx.params.large_prime_bound == (uint64_t)(policy.lp_multiplier * 1009.0));
+      if (policy.residual_multiplier == 0.0)
+        CHECK(ctx.params.smooth_bound == ctx.params.large_prime_bound * 1009U);
+      else
+        CHECK(ctx.params.smooth_bound ==
+              (uint64_t)(policy.residual_multiplier * (1009.0 * 1009.0)));
+      continue;
+    }
+    CHECK(policy.residual_multiplier == 0.0);
     while (bits > original[index].last) index++;
     CHECK(policy.max_large_primes == 1 && policy.lp_multiplier == original[index].k);
     ctx.params.lp_multiplier = policy.lp_multiplier;
