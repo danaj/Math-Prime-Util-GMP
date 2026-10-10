@@ -1,11 +1,12 @@
 /*
  * GF(2) linear-algebra solvers for Math::Prime::Util::GMP.
  *
- * The block-Lanczos algorithm is due to Peter Montgomery.  This
- * implementation's nonsingular-block selection and iteration/recovery
- * logic closely follow Jason Papadopoulos's public-domain msieve
- * implementation.  Its cache organization and post-Lanczos dense-row
- * treatment also draw on msieve.
+ * The block-Lanczos algorithm is due to Peter Montgomery.
+ * During development, this file briefly contained Jason Papadopoulos's
+ * solver, adapted for FLINT by William Hart and imported with SIMPQS2.
+ * Neither SIMPQS2 nor that solver appeared in an MPU-GMP release.
+ * This replacement follows Montgomery's published algorithm, with
+ * implementation choices also influenced by Papadopoulos's work in msieve.
  *
  * Initial random blocks use standard fixed-increment SplitMix64, with
  * a caller-owned seed and a local state carried across solver retries.
@@ -14,6 +15,23 @@
  * elimination, dependency verification, and pthread parallel kernels.
  *
  * Copyright (c) 2026 Dana Jacobsen.  See LICENSE for redistribution terms.
+ */
+
+/*
+ * Peter L. Montgomery, "A Block Lanczos Algorithm for Finding Dependencies
+ * over GF(2)", EUROCRYPT '95, LNCS 921, pp. 106-120 (1995).
+ * DOI: 10.1007/3-540-49264-X_9
+ * Readable paper mirror:
+ * https://scispace.com/pdf/a-block-lanczos-algorithm-for-finding-dependencies-over-gf-2-ezdu2qt0pp.pdf
+ *
+ * selector:    Section 8, Figure 1
+ * recurrence:  Section 6, equations (18)-(19)
+ * solution:    Section 7, equation (20)
+ * candidates:  Section 7, final recovery discussion using Z and BZ
+ *
+ * In particular, Papadopoulos's msieve implementation influenced the
+ * cache organization and the handling of dense rows deferred until
+ * dependency recovery.
  */
 
 #include <limits.h>
@@ -1094,7 +1112,10 @@ static void nla_matrix_mul_symmetric(const nla_matrix_t *matrix,
   nla_matrix_mul_transpose(matrix, row_scratch, output, table);
 }
 
-/* Invert a maximal nonsingular 64x64 submatrix, preferring new columns. */
+/* Montgomery, Section 8, Figure 1: select a maximal nonsingular submatrix.
+ * Previously selected columns go last, prioritizing those omitted before.
+ * Return the selected submatrix's inverse embedded in a 64x64 matrix, with
+ * zeros elsewhere; the full input matrix need not be invertible. */
 static unsigned int nla_find_nonsingular(const uint64_t *input,
                                          unsigned int *selected,
                                          const unsigned int *previous,
@@ -1148,7 +1169,8 @@ static unsigned int nla_find_nonsingular(const uint64_t *input,
       continue;
     }
 
-    /* Complete the inverse even when this column is outside the submatrix. */
+    /* Figure 1's dependent-column case: pivot in the identity half, then
+     * zero the row excluded from the embedded inverse. */
     for (j = i; j < 64U; j++) {
       uint64_t *candidate = augmented[order[j]];
       if (candidate[1] & NLA_BIT(pivot_column)) {
@@ -1376,6 +1398,8 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
                                         sizeof(*row_scratch));
   table = (uint64_t *)nla_malloc(8U * 256U, sizeof(*table));
 
+  /* Store X-Y directly: start with random Y and XOR in equation (20)'s terms.
+   * With A = B^T B, v[0] and initial start as V_0 = AY (Section 7). */
   for (i = 0; i < matrix->ncols; i++)
     x[i] = nla_rand64(rng_state);
   nla_matrix_mul_symmetric(matrix, x, v[0], row_scratch, table);
@@ -1400,7 +1424,9 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     for (i = 0; i < dim0; i++)
       mask0 |= NLA_BIT(selected[0][i]);
 
-    /* The coverage condition is unreliable only in the terminal region. */
+    /* Heuristic also used by msieve: relax full-column coverage once the
+     * accumulated dimension reaches the iteration row count minus one block.
+     * Recovered dependencies are verified against the original matrix. */
     if (matrix->active_rows > matrix->post_rows + 64UL &&
         dimensions_solved < matrix->active_rows - matrix->post_rows - 64UL &&
         (mask0 | mask1) != UINT64_MAX) {
@@ -1409,9 +1435,13 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     }
     dimensions_solved += dim0;
 
+    /* Section 9 replaces V_i^T V_0 inner products with a small-matrix
+     * recurrence after the first three iterations. */
     if (iteration <= 3)
       nla_solver_inner_product(matrix, v[0], initial, vt_v0[0], table);
 
+    /* Equations (18)-(19): form D/E/F and advance V_{i+1}.  Over GF(2),
+     * subtraction is XOR; mask0 represents the diagonal S_i S_i^T. */
     for (i = 0; i < 64UL; i++)
       d[i] = vt_a_v[0][i] ^ (vt_a2_v[0][i] & mask0);
     nla_small_multiply(winv[0], d, d, table);
@@ -1446,6 +1476,7 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
         vt_v0_next[i] ^= f[i];
     }
 
+    /* Accumulate equation (20)'s next term into X-Y. */
     nla_small_multiply(winv[0], vt_v0[0], d, table);
     nla_solver_vector_acc(matrix, v[0], d, x, UINT64_MAX, table);
 
@@ -1493,9 +1524,11 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     unsigned int dependencies;
     uint64_t actual_mask = 0;
 
+    /* Section 7 recovery: Z = [X-Y, V_m], with images BZ = [bx, bv]. */
     table = (uint64_t *)nla_malloc(8U * 256U, sizeof(*table));
     nla_matrix_mul(matrix, x, bx, table);
     nla_matrix_mul(matrix, v[0], bv, table);
+    /* Restore the deferred row constraints before eliminating BZ. */
     if (matrix->post_rows != 0) {
       nla_inner_product(matrix->post_bits, x, post_x,
                         matrix->ncols, table);
