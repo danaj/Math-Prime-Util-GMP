@@ -194,9 +194,18 @@ Build from the repository root, supplying your adapter in my-siqs-host.c:
 For parallel support, add -DPSIQS -pthread to that command. Both public entry
 points are then available; the example requests four workers. Valid counts
 are 1..PSIQS_MAX_THREADS. One worker and small/inline-solving policies use the
-serial path. Do not compile psiqs_inc.c or planczos_inc.c separately; they
-are included by siqs.c/lanczos.c. Use -march=native only for a local-machine
+serial path. Keep siqs_sieve_kernel_inc.c alongside siqs.c. Do not compile
+it, psiqs_inc.c or planczos_inc.c separately; they are implementation includes
+used by siqs.c/lanczos.c. Use -march=native only for a local-machine
 binary, not one intended for arbitrary other CPUs.
+
+For inputs above 128 bits, setup certifies the byte-score range once per
+factor base. Certified contexts keep the original kernel and scanner where
+their initializer also fits; others use raw scores, saturating only when
+necessary. Saturated candidates still undergo exact relation evaluation.
+These paths require no host callbacks or extra libraries. This protects
+byte headroom independently of tuning sieve_hit_exponent; it does not extend
+the public input limit or supply larger-input policies.
 
 The example is one synchronous call. For repeated inputs, keep startup before
 the whole loop and shutdown after it. For concurrent inputs, put startup before

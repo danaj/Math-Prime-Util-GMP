@@ -239,11 +239,15 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
     SIQS_MULTIPLIER_CASCADE_FIRST_BITS
 # error "fixed multiplier cascade must not precede the relative cascade"
 #endif
-/* With the current upper-band parameter curve, 432 bits requires more than
- * the 20 bits reserved for a packed factor-base row. */
-#if MPU_SIQS_MAX_BITS > 431U
-# error "431 bits is the maximum supported size before internal overflow"
+/* Packing and polynomial arithmetic have been bounded through 512 bits.
+ * The public maximum and policy coverage remain separately controlled. */
+#if MPU_SIQS_MAX_BITS > 512U
+# error "SIQS arithmetic bounds have only been validated through 512 bits"
 #endif
+
+#define SIQS_SIEVE_SCORE_BITS 8U
+#define SIQS_SIEVE_SCORE_TOP  (1U << (SIQS_SIEVE_SCORE_BITS - 1U))
+#define SIQS_SIEVE_SCORE_MAX  ((1U << SIQS_SIEVE_SCORE_BITS) - 1U)
 
 typedef struct {
   uint32_t divisor1, minimum1, maximum1, keep1;
@@ -385,6 +389,8 @@ typedef struct {
   uint32_t fixed_half_interval;
   uint8_t sieve_initial;
   uint8_t stage1_bias;
+  uint8_t sieve_raw_scores;     /* zero offset; otherwise retain legacy J */
+  uint8_t sieve_saturating;     /* score certificate requires saturation */
   uint64_t large_prime_bound;
   uint64_t smooth_bound;
   double fb_coefficient;
@@ -1090,7 +1096,7 @@ typedef struct {
  *
  * Row layout, after the name and bit range:
  *   LP count, q; candidate-bias base, step width and origin;
- *   K_L, K_R; sieve-byte headroom, sieve-prime floor, factor-base floor;
+ *   K_L, K_R; sieve rounding reserve, sieve-prime floor, factor-base floor;
  *   initial relation surplus, multiplier-refinement divisor, A tolerance;
  *   fixed half interval; FB coefficient, interval scale and LP adjustment;
  *   sieve-hit exponent, optional sieve-start index exponent.
@@ -1101,7 +1107,8 @@ typedef struct {
  * With P the actual largest factor-base prime, LP = floor(K_L * P).
  * Derived R equals the final capped LP in 1LP, or LP * P in 2LP.
  * Explicit K_R instead gives floor(K_R * P) or floor(K_R * P^2).
- * Existing storage ceilings apply to both bounds.  K_L = 1 admits only
+ * The LP policy cap and residual-product width cap apply afterward.
+ * K_L = 1 admits only
  * smooth relations, despite using the 1LP collection path.
  *
  * Geometry and scoring
@@ -1285,15 +1292,15 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RAMP(0.25, 0.44, 311, 331),
     SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50),
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
-  /* Values tuned only from 331-355 */
+  /* Most tuning at 331-355 bits.  FB refined at 397 bits. */
   { "two_lp_high_q12_interval_finish", 331, 400,
     2, 12, 12, 0, 0,
     SIQS_POLICY_RAMP(280.0, 384.0, 331, 400),                /* K_L     */
     SIQS_POLICY_RAMP(280.0, 768.0, 331, 400),                /* K_R     */
     16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.31466, 0.00026, 331),               /* FB      */
+    SIQS_POLICY_LINEAR(0.31466, 0.00020, 331),               /* FB      */
     SIQS_POLICY_LINEAR(0.44, 0.0054, 331),                   /* M       */
-    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),            /* hit-e   */
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),            /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 }             /* sieve-e */
 };
 
@@ -1512,6 +1519,7 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->interval_scale = policy.interval_scale;
   p->sieve_hit_exponent = policy.sieve_hit_exponent;
   p->stage1_bias = policy.stage1_bias;
+  p->sieve_raw_scores = p->sieve_saturating = 0;
   ln_n = p->bits * M_LN2;
   ln_term = sqrt(ln_n * log(ln_n));
 
@@ -1554,7 +1562,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->sieve_hit_residual_multiplier = sieve_hit_residual_multiplier;
   p->sieve_hit_bound_nominal = exp(p->sieve_hit_exponent * ln_n);
   if (!(p->sieve_hit_bound_nominal > 0.0 &&
-        p->sieve_hit_bound_nominal <= DBL_MAX) || p->sieve_free_units >= 128U)
+        p->sieve_hit_bound_nominal <= DBL_MAX) ||
+      p->sieve_free_units >= SIQS_SIEVE_SCORE_TOP)
     croak("SIQS: invalid sieve log scaling for policy %s", p->policy_name);
   p->sieve_hit_bound = p->sieve_hit_bound_nominal;
   p->log_scale = 0.0; /* Set after the factor base and kN are known. */
@@ -3168,8 +3177,8 @@ static void siqs_set_family_sieve_initial(siqs_ctx_t *ctx) {
     expected += roots * (double)ctx->fb[i].logp / ctx->fb[i].p;
   }
   initial = (uint32_t)(expected + 0.5);
-  if (initial > 127)
-    initial = 127;
+  if (initial >= SIQS_SIEVE_SCORE_TOP)
+    initial = SIQS_SIEVE_SCORE_TOP - 1U;
   ctx->active_sieve_initial = (uint8_t)initial;
 }
 
@@ -3266,14 +3275,14 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
   if (denom < 8.0)
     denom = 8.0;
   /* The fixed free units are added back in the initializer, so this leaves
-   * the real-log threshold unchanged while reserving enough byte headroom
-   * for rounding error at the upper end of the supported range. */
-  scale = (128.0 - free_units) / denom;
+   * the real-log threshold unchanged while allowing for weight rounding.
+   * The score certificate, not this reserve, controls byte overflow. */
+  scale = (SIQS_SIEVE_SCORE_TOP - (double)free_units) / denom;
   ctx->params.log_scale = scale;
   for (i = 0; i < ctx->params.fb_size; i++) {
     uint32_t weight = (uint32_t)(log((double)ctx->fb[i].p) * scale + 0.5);
     if (weight == 0) weight = 1;
-    if (weight > 127) weight = 127;
+    if (weight >= SIQS_SIEVE_SCORE_TOP) weight = SIQS_SIEVE_SCORE_TOP - 1U;
     ctx->fb[i].logp = (uint8_t)weight;
   }
 
@@ -3307,6 +3316,10 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
     if (ctx->params.sieve_start >= ctx->params.fb_size)
       croak("SIQS: first-sieved-prime floor exceeds the factor base");
   }
+  /* Workers inherit this fixed index. Prove the postfilter's stack capacity
+   * once during setup, including either optional cutoff override. */
+  if (ctx->params.sieve_start > SIQS_POSTFILTER_MAX_SMALL)
+    croak("SIQS: too many omitted primes for the candidate postfilter");
   for (i = 0; i < ctx->params.sieve_start; i++) {
     double contribution = (double)ctx->fb[i].logp / ctx->fb[i].p;
     /* The d=2 normalized polynomial vanishes in both residue classes mod 2;
@@ -3319,163 +3332,134 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
   if (ctx->params.poly_d == 2)
     root_weighted_unsieved += ctx->fb[0].logp;
   i = (uint32_t)(free_units + root_weighted_unsieved + 0.5);
-  if (i > 127)
-    i = 127;
+  if (i >= SIQS_SIEVE_SCORE_TOP)
+    i = SIQS_SIEVE_SCORE_TOP - 1U;
   ctx->params.sieve_initial = (uint8_t)i;
   ctx->active_sieve_initial = ctx->params.sieve_initial;
 }
 
-static INLINE void siqs_sieve_add(uint8_t *cell, uint8_t logp) {
-#ifdef SIQS_DEBUG
-  uint32_t value = (uint32_t)*cell + logp;
-  if (value > UINT8_MAX)
-    croak("SIQS: byte sieve score overflow");
-  *cell = (uint8_t)value;
-#else
-  *cell += logp;
-#endif
-}
+/* Generate both arithmetic variants from one kernel body.  Dispatch is
+ * outside the prime-hit loops, not a conditional in every addition. */
+#include "siqs_sieve_kernel_inc.c"
+#define SIQS_SATURATING_KERNEL
+#include "siqs_sieve_kernel_inc.c"
+#undef SIQS_SATURATING_KERNEL
 
-static INLINE void siqs_sieve_one_root(uint8_t *sieve, uint32_t length,
-                                       uint32_t root, uint32_t p,
-                                       uint8_t logp) {
-  size_t pos = root, gap = p, p3 = (size_t)3 * p;
-  while (pos + p3 < length) {
-    siqs_sieve_add(sieve + pos, logp);  pos += gap;
-    siqs_sieve_add(sieve + pos, logp);  pos += gap;
-    siqs_sieve_add(sieve + pos, logp);  pos += gap;
-    siqs_sieve_add(sieve + pos, logp);  pos += gap;
-  }
-  if (pos < length) { siqs_sieve_add(sieve + pos, logp);  pos += gap; }
-  if (pos < length) { siqs_sieve_add(sieve + pos, logp);  pos += gap; }
-  if (pos < length)   siqs_sieve_add(sieve + pos, logp);
-}
+/* Bound the raw sum of integer prime weights over every accepted family.
+ * For nonzero Q, each distinct hit prime divides |Q|.  DP[s] is the least
+ * product reaching score s, capped at 256.  All comparisons are exact.
+ * q>=4 uses the selector's tolerance-four A window; |B| <= (q/2+1)*A.
+ * Equal roots add once, including primes in A.  With d=2, Q is divisible
+ * by four and prime 2 is omitted, so bound only its odd hit-prime product.
+ * False means uncertified, not that overflow has been observed.  Changes
+ * to the A acceptance window or B construction must update this proof. */
+static int siqs_certify_sieve_scores(const siqs_ctx_t *ctx,
+                                     uint32_t *maximum_score) {
+  enum { limit = SIQS_SIEVE_SCORE_MAX + 1U };
+  mpz_t target, amin, amax, dmax, bmax, upper, t, dp[limit + 1];
+  uint8_t valid[limit + 1] = {0};
+  uint16_t kept[SIQS_SIEVE_SCORE_TOP] = {0};
+  uint32_t i, maximum = 0;
+  int s, certified;
 
-/* Alternating-root-gap sieve structure inspired by PARI/GP's MPQS sieve. */
-static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
-                                        uint32_t root1, uint32_t root2,
-                                        uint32_t p, uint8_t logp) {
-  /* clang vectorizer likes size_t here */
-  size_t final_offset;
-  size_t pos = root1;
-  size_t gap1 = root2 - root1;
-  size_t gap2 = p - gap1;
-  /* The eighth store is at pos + 3*p + gap1, not the next-cycle pos + 4*p. */
-  final_offset = (size_t)3 * p + gap1;
-  while (pos + final_offset < length) {
-    siqs_sieve_add(sieve + pos, logp); pos += gap1;
-    siqs_sieve_add(sieve + pos, logp); pos += gap2;
-    siqs_sieve_add(sieve + pos, logp); pos += gap1;
-    siqs_sieve_add(sieve + pos, logp); pos += gap2;
-    siqs_sieve_add(sieve + pos, logp); pos += gap1;
-    siqs_sieve_add(sieve + pos, logp); pos += gap2;
-    siqs_sieve_add(sieve + pos, logp); pos += gap1;
-    siqs_sieve_add(sieve + pos, logp); pos += gap2;
-  }
-  while (pos < length) {
-    siqs_sieve_add(sieve + pos, logp);
-    pos += gap1;
-    if (pos >= length)
-      break;
-    siqs_sieve_add(sieve + pos, logp);
-    pos += gap2;
-  }
-}
+  *maximum_score = limit;
+  if (ctx->params.q_count < 4 || ctx->params.q_count > SIQS_MAX_A_PRIMES ||
+      ctx->params.half_interval == 0 ||
+      (ctx->params.poly_d != 1 && ctx->params.poly_d != 2) ||
+      (ctx->params.poly_d == 2 && mpz_fdiv_ui(ctx->kn, 8) != 1) ||
+      ctx->params.sieve_start < 1 ||
+      ctx->params.sieve_start >= ctx->params.fb_size ||
+      ctx->fb == NULL || ctx->fb[0].p != 2 ||
+      mpz_sgn(ctx->kn) <= 0 || mpz_perfect_square_p(ctx->kn))
+    return 0;
 
-/* Fixed-hit large-prime tiers and their padded stores are inspired by JML's
- * sieving.  If p > length/count, a root has at most count locations in the
- * logical sieve.  The allocation below makes the final stores safe even when
- * they fall beyond that sieve, eliminating a position-range test per store.
- * Six locations over our combined +/- interval correspond to JML's three
- * locations in each separately processed half. */
-static INLINE void siqs_sieve_large(uint8_t *sieve, uint32_t length,
-                                     uint32_t root1, uint32_t root2,
-                                     uint32_t p, uint8_t logp,
-                                     uint32_t count) {
-  uint32_t i;
-  size_t pos = root1;
-  for (i = 0; i < count; i++, pos += p) {
-#ifdef SIQS_DEBUG
-    if (pos < length)
-      siqs_sieve_add(sieve + pos, logp);
-#else
-    siqs_sieve_add(sieve + pos, logp);
-#endif
+  mpz_inits(target, amin, amax, dmax, bmax, upper, t, NULL);
+  /* Match the exact target construction in siqs_poly_init. */
+  mpz_mul_ui(target, ctx->kn, 2);
+  mpz_sqrt(target, target);
+  mpz_fdiv_q_ui(target, target, ctx->params.half_interval);
+  mpz_fdiv_q_ui(target, target, ctx->params.poly_d);
+  mpz_cdiv_q_ui(amin, target, 4);
+  mpz_mul_ui(amax, target, 4);
+  if (mpz_sgn(amin) == 0) {
+    mpz_clears(target, amin, amax, dmax, bmax, upper, t, NULL);
+    return 0;
   }
-  if (root2 != root1) {
-    pos = root2;
-    for (i = 0; i < count; i++, pos += p) {
+
+  /* Positive endpoint magnitude increases with A. Negative magnitude is
+   * bounded by kN/(d*A), with its largest value at the smallest A. */
+  mpz_mul_ui(dmax, amax, ctx->params.poly_d);
+  mpz_mul_ui(bmax, amax, ctx->params.q_count + 2U);
+  mpz_fdiv_q_2exp(bmax, bmax, 1);
+  mpz_mul_ui(upper, dmax, ctx->params.half_interval);
+  mpz_add(upper, upper, bmax);
+  mpz_mul(upper, upper, upper);
+  mpz_sub(upper, upper, ctx->kn);
+  mpz_cdiv_q(upper, upper, dmax);
+  mpz_mul_ui(amin, amin, ctx->params.poly_d);
+  mpz_cdiv_q(t, ctx->kn, amin);
+  if (mpz_cmp(t, upper) > 0)
+    mpz_set(upper, t);
+  if (ctx->params.poly_d == 2)
+    mpz_fdiv_q_2exp(upper, upper, 2);
+
+  for (i = 0; i <= limit; i++)
+    mpz_init(dp[i]);
+  mpz_set_ui(dp[0], 1);
+  valid[0] = 1;
+  for (i = ctx->params.sieve_start; i < ctx->params.fb_size; i++) {
+    uint32_t w = ctx->fb[i].logp;
 #ifdef SIQS_DEBUG
-      if (pos < length)
-        siqs_sieve_add(sieve + pos, logp);
-#else
-      siqs_sieve_add(sieve + pos, logp);
+    if (w == 0 || w >= SIQS_SIEVE_SCORE_TOP)
+      croak("SIQS: invalid sieve weight during certification");
 #endif
+    /* Prime values increase. Beyond ceil(limit/w), same-weight primes
+     * cannot improve a minimum-product witness for capped score limit. */
+    if (kept[w] >= (limit + w - 1U) / w)
+      continue;
+    kept[w]++;
+    /* Descending states use each prime once; do not extend the cap state. */
+    for (s = limit - 1; s >= 0; s--) {
+      uint32_t next;
+      if (!valid[s])
+        continue;
+      next = (uint32_t)s + w;
+      if (next > limit)
+        next = limit;
+      mpz_mul_ui(t, dp[s], ctx->fb[i].p);
+      if (!valid[next] || mpz_cmp(t, dp[next]) < 0) {
+        mpz_set(dp[next], t);
+        valid[next] = 1;
+      }
     }
   }
-#ifndef SIQS_DEBUG
-  (void)length;
-#endif
+  certified = !valid[limit] || mpz_cmp(dp[limit], upper) > 0;
+  for (i = 0; i <= limit; i++)
+    if (valid[i] && mpz_cmp(dp[i], upper) <= 0)
+      maximum = i;
+  *maximum_score = maximum;
+  for (i = 0; i <= limit; i++)
+    mpz_clear(dp[i]);
+  mpz_clears(target, amin, amax, dmax, bmax, upper, t, NULL);
+  return certified;
 }
 
-#define SIQS_ONE_HIT_LOCAL_MIN_PRIMES  5200U
-#define SIQS_TWO_HIT_LOCAL_LENGTH_THRESHOLD (64U * 1024U)
-#define SIQS_ONE_HIT_SINK_STRIPE_SIZE  4096U
-
-/* Apply one root from the one-hit tier.  In release, redirect an
- * out-of-range store to the caller-supplied padding byte. */
-static INLINE void siqs_sieve_one_hit_local(uint8_t *sieve,
-                                            uint8_t logp, uint32_t root,
-                                            uint32_t length, uint32_t sink) {
-#ifdef SIQS_DEBUG
-  if (root < length)
-    siqs_sieve_add(sieve + root, logp);
-  (void)sink;
-#else
-  uint32_t pos = root < length ? root : sink;
-  siqs_sieve_add(sieve + pos, logp);
-#endif
-}
-
-/* For length/2 < p <= length, the first hit is always logical.  Localize
- * only the optional second hit, using the same padding stripe as one-hit
- * primes.  Native-width addition keeps the address calculation unwrapped. */
-static INLINE void siqs_sieve_two_hit_local(uint8_t *sieve,
-                                            uint8_t logp, uint32_t root,
-                                            uint32_t p, uint32_t length,
-                                            uint32_t sink) {
-  size_t pos = (size_t)root + p;
-  siqs_sieve_add(sieve + root, logp);
-#ifdef SIQS_DEBUG
-  if (pos < length)
-    siqs_sieve_add(sieve + pos, logp);
-  (void)sink;
-#else
-  pos = pos < length ? pos : sink;
-  siqs_sieve_add(sieve + pos, logp);
-#endif
-}
-
-/* Keep this loop out of the generic kernel so small-interval loops retain
- * their own compiler unrolling and register allocation.  Called once per
- * eligible sieve, not once per prime. */
-static NOINLINE size_t siqs_sieve_two_hit_range(
-    uint8_t *RESTRICT sieve, uint32_t length,
-    const uint32_t *RESTRICT prime, const uint32_t *RESTRICT root1,
-    const uint32_t *RESTRICT root2, const uint8_t *RESTRICT logp,
-    size_t first, size_t end) {
-  size_t i;
-  uint32_t sink = length;
-  for (i = first; i < end && prime[i] <= length; i++) {
-    siqs_sieve_two_hit_local(sieve, logp[i], root1[i], prime[i], length, sink);
-    if (root1[i] != root2[i])
-      siqs_sieve_two_hit_local(sieve, logp[i], root2[i], prime[i], length,
-                               sink + 1U);
-    sink += 2U;
-    if (sink == length + SIQS_ONE_HIT_SINK_STRIPE_SIZE)
-      sink = length;
-  }
-  return i;
+/* Keep small jobs, including recursive cofactor splits, on their existing
+ * path.  Certification runs only once per larger factor-base context, never
+ * in workers or prime-hit loops.  The setup initializer bounds family J:
+ * choosing a prime for A can only reduce its omitted-root expectation. */
+static void siqs_select_sieve_score_mode(siqs_ctx_t *ctx) {
+  uint32_t bound, initial;
+  int certified;
+  ctx->params.sieve_raw_scores = ctx->params.sieve_saturating = 0;
+  if (ctx->params.bits <= 128U)
+    return;
+  certified = siqs_certify_sieve_scores(ctx, &bound);
+  initial = (uint32_t)ctx->params.sieve_initial + ctx->params.stage1_bias;
+  if (certified && bound + initial <= SIQS_SIEVE_SCORE_MAX)
+    return;
+  ctx->params.sieve_raw_scores = 1;
+  ctx->params.sieve_saturating = !certified;
 }
 
 static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
@@ -3490,59 +3474,9 @@ static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
  * Initialization stays with the caller: the sparse suffix must augment,
  * not erase, the completed dense blocks.  Expose invariant arrays directly
  * to the hot per-prime loops. */
-static void siqs_run_sieve_kernel(
-    uint8_t *RESTRICT sieve, uint32_t length,
-    const uint32_t *RESTRICT prime, const uint32_t *RESTRICT root1,
-    const uint32_t *RESTRICT root2, const uint8_t *RESTRICT logp,
-    size_t first, size_t end) {
-  size_t i;
-  for (i = first; i < end && prime[i] <= length / 6U;
-       i++) {
-    if (root2[i] == root1[i]) {
-      siqs_sieve_one_root(sieve, length, root1[i], prime[i], logp[i]);
-    } else {
-      siqs_sieve_two_roots(sieve, length, root1[i], root2[i], prime[i],
-                           logp[i]);
-    }
-  }
-# define SIQS_SIEVE_LARGE_RANGE(bound, count) do {                         \
-    for (; i < end && prime[i] <= (bound); i++) {                           \
-      siqs_sieve_large(sieve, length, root1[i], root2[i], prime[i],         \
-                       logp[i], (count));                                   \
-    }                                                                       \
-  } while (0)
-  SIQS_SIEVE_LARGE_RANGE(length / 5U, 6U);
-  SIQS_SIEVE_LARGE_RANGE(length / 4U, 5U);
-  SIQS_SIEVE_LARGE_RANGE(length / 3U, 4U);
-  SIQS_SIEVE_LARGE_RANGE(length / 2U, 3U);
-  /* Local padding is worthwhile only when ordinary dummy stores scatter
-   * widely.  M1 Pro screens favored leaving intervals through 64 KiB alone;
-   * this also keeps the default balanced dense blocks on their old path. */
-  if (length <= SIQS_TWO_HIT_LOCAL_LENGTH_THRESHOLD) {
-    SIQS_SIEVE_LARGE_RANGE(length, 2U);
-  } else {
-    i = siqs_sieve_two_hit_range(sieve, length, prime, root1, root2, logp,
-                                i, end);
-  }
-  if (end - i < SIQS_ONE_HIT_LOCAL_MIN_PRIMES) {
-    SIQS_SIEVE_LARGE_RANGE(UINT32_MAX, 1U);
-  } else {
-    /* Once the one-hit tier is large, keep its out-of-range stores in a
-     * cache-local padding stripe.  Cycling through 4k avoids a
-     * single-address read-modify-write dependency chain.
-     * The minimum sieve allocation is twice an 8K logical interval,
-     * so every sink position is inside the existing padding. */
-    uint32_t sink = length;
-    for (; i < end; i++) {
-      siqs_sieve_one_hit_local(sieve, logp[i], root1[i], length, sink);
-      if (root1[i] != root2[i])
-        siqs_sieve_one_hit_local(sieve, logp[i], root2[i], length, sink + 1U);
-      sink += 2U;
-      if (sink == length + SIQS_ONE_HIT_SINK_STRIPE_SIZE)
-        sink = length;
-    }
-  }
-# undef SIQS_SIEVE_LARGE_RANGE
+
+static uint8_t siqs_sieve_byte_initial(const siqs_ctx_t *ctx) {
+  return ctx->params.sieve_raw_scores ? 0 : siqs_physical_sieve_initial(ctx);
 }
 
 static void siqs_block_workspace_allocate(siqs_ctx_t *ctx) {
@@ -3593,7 +3527,7 @@ static void siqs_advance_block_roots(
 static NOINLINE void siqs_run_blocked_sieve(siqs_ctx_t *ctx) {
   size_t first = ctx->params.sieve_start, count = ctx->block_prime_count;
   uint32_t offset = 0;
-  uint8_t initial = siqs_physical_sieve_initial(ctx);
+  uint8_t initial = siqs_sieve_byte_initial(ctx);
   memcpy(ctx->block_root1, ctx->root1 + first, count * sizeof(uint32_t));
   memcpy(ctx->block_root2, ctx->root2 + first, count * sizeof(uint32_t));
   while (offset < ctx->sieve_length) {
@@ -3601,7 +3535,12 @@ static NOINLINE void siqs_run_blocked_sieve(siqs_ctx_t *ctx) {
     if (length > ctx->block_length)
       length = ctx->block_length;
     memset(ctx->sieve + offset, initial, length);
-    siqs_run_sieve_kernel(ctx->sieve + offset, length, ctx->prime + first,
+    if (ctx->params.sieve_saturating)
+      siqs_run_sieve_kernel_sat(ctx->sieve + offset, length, ctx->prime + first,
+                          ctx->block_root1, ctx->block_root2,
+                          ctx->sieve_logp + first, 0, count);
+    else
+      siqs_run_sieve_kernel(ctx->sieve + offset, length, ctx->prime + first,
                           ctx->block_root1, ctx->block_root2,
                           ctx->sieve_logp + first, 0, count);
     offset += length;
@@ -3615,7 +3554,12 @@ static NOINLINE void siqs_run_blocked_sieve(siqs_ctx_t *ctx) {
    * the final partial block and localized one-hit padding stripe.
    * Sparse primes contribute only after all dense blocks are complete, so
    * no genuine sparse contribution is subsequently erased. */
-  siqs_run_sieve_kernel(ctx->sieve, ctx->sieve_length, ctx->prime, ctx->root1,
+  if (ctx->params.sieve_saturating)
+    siqs_run_sieve_kernel_sat(ctx->sieve, ctx->sieve_length, ctx->prime, ctx->root1,
+                        ctx->root2, ctx->sieve_logp, first + count,
+                        ctx->params.fb_size);
+  else
+    siqs_run_sieve_kernel(ctx->sieve, ctx->sieve_length, ctx->prime, ctx->root1,
                         ctx->root2, ctx->sieve_logp, first + count,
                         ctx->params.fb_size);
 }
@@ -3626,8 +3570,13 @@ static void siqs_run_sieve(siqs_ctx_t *ctx) {
   } else {
     uint8_t *sieve = ctx->sieve;
     uint32_t length = ctx->sieve_length;
-    memset(sieve, siqs_physical_sieve_initial(ctx), length);
-    siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
+    memset(sieve, siqs_sieve_byte_initial(ctx), length);
+    if (ctx->params.sieve_saturating)
+      siqs_run_sieve_kernel_sat(sieve, length, ctx->prime, ctx->root1, ctx->root2,
+                          ctx->sieve_logp, ctx->params.sieve_start,
+                          ctx->params.fb_size);
+    else
+      siqs_run_sieve_kernel(sieve, length, ctx->prime, ctx->root1, ctx->root2,
                           ctx->sieve_logp, ctx->params.sieve_start,
                           ctx->params.fb_size);
   }
@@ -3658,10 +3607,17 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
   if (ctx->candidate_count > ctx->candidate_alloc)
     croak("SIQS: candidate count exceeds capacity");
 #endif
-  if (physical_score < 128U ||
-      physical_score < ctx->params.stage1_bias)
-    croak("SIQS: invalid stage-1 candidate score");
-  logical_score = physical_score - ctx->params.stage1_bias;
+  if (ctx->params.sieve_raw_scores) {
+    int threshold = SIQS_SIEVE_SCORE_TOP - (int)siqs_physical_sieve_initial(ctx);
+    if (threshold > 0 && physical_score < (uint32_t)threshold)
+      croak("SIQS: invalid raw stage-1 candidate score");
+    logical_score = physical_score;
+  } else {
+    if (physical_score < 128U ||
+        physical_score < ctx->params.stage1_bias)
+      croak("SIQS: invalid stage-1 candidate score");
+    logical_score = physical_score - ctx->params.stage1_bias;
+  }
   if (ctx->candidate_count == UINT16_MAX) {
     uint32_t i;
     if (ctx->candidate_at_wide == NULL)
@@ -3706,7 +3662,53 @@ static NOINLINE void siqs_scan_candidate_word(siqs_ctx_t *ctx,
       siqs_add_candidate(ctx, pos + b);
 }
 
+static INLINE uint64_t siqs_raw_candidate_word(uint64_t word, uint64_t delta) {
+  return ((word + delta) | word) & UINT64_C(0x8080808080808080);
+}
+
+static NOINLINE void siqs_scan_raw_candidate_word(siqs_ctx_t *ctx,
+                                                 uint32_t pos,
+                                                 uint32_t threshold) {
+  uint32_t b;
+  for (b = 0; b < 8; b++)
+    if (ctx->sieve[pos + b] >= threshold)
+      siqs_add_candidate(ctx, pos + b);
+}
+
+static void siqs_find_raw_candidates(siqs_ctx_t *ctx) {
+  const uint64_t *S = (const uint64_t *)ctx->sieve;
+  uint32_t pos, bulk_length = ctx->sieve_length & ~31U;
+  int threshold = SIQS_SIEVE_SCORE_TOP - (int)siqs_physical_sieve_initial(ctx);
+  uint64_t delta;
+  siqs_clear_candidate_map(ctx);
+  if (threshold <= 0) {
+    for (pos = 0; pos < ctx->sieve_length; pos++)
+      siqs_add_candidate(ctx, pos);
+  } else {
+    delta = UINT64_C(0x0101010101010101) * (128U - (uint32_t)threshold);
+    for (pos = 0; pos < bulk_length; pos += 32, S += 4) {
+      uint64_t w0 = siqs_raw_candidate_word(S[0], delta);
+      uint64_t w1 = siqs_raw_candidate_word(S[1], delta);
+      uint64_t w2 = siqs_raw_candidate_word(S[2], delta);
+      uint64_t w3 = siqs_raw_candidate_word(S[3], delta);
+      if (!(w0 | w1 | w2 | w3)) continue;
+      if (w0) siqs_scan_raw_candidate_word(ctx, pos, (uint32_t)threshold);
+      if (w1) siqs_scan_raw_candidate_word(ctx, pos + 8U, (uint32_t)threshold);
+      if (w2) siqs_scan_raw_candidate_word(ctx, pos + 16U, (uint32_t)threshold);
+      if (w3) siqs_scan_raw_candidate_word(ctx, pos + 24U, (uint32_t)threshold);
+    }
+    for (; pos < ctx->sieve_length; pos++)
+      if (ctx->sieve[pos] >= (uint32_t)threshold)
+        siqs_add_candidate(ctx, pos);
+  }
+  ctx->total_candidates += ctx->candidate_count;
+}
+
 static void siqs_find_candidates(siqs_ctx_t *ctx) {
+  if (ctx->params.sieve_raw_scores) {
+    siqs_find_raw_candidates(ctx);
+    return;
+  }
   static const uint64_t high_bits = UINT64_C(0x8080808080808080);
   const uint64_t *S = (const uint64_t *)ctx->sieve;
   uint32_t pos, bulk_length = ctx->sieve_length & ~31U;
@@ -3823,10 +3825,12 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   mpz_ptr q = ctx->eval.q;
   mpz_ptr twice_b = ctx->eval.y;
   double log_smooth = log((double)ctx->params.smooth_bound);
+  double score_offset = ctx->params.sieve_raw_scores
+                      ? 0.0 : (double)ctx->active_sieve_initial;
 
+#ifdef SIQS_DEBUG
   if (ctx->params.sieve_start > SIQS_POSTFILTER_MAX_SMALL)
     croak("SIQS: too many omitted primes for the candidate postfilter");
-#ifdef SIQS_DEBUG
   if (ctx->hit_count != 0)
     croak("SIQS: candidate postfilter started with resieve hits");
 #endif
@@ -3866,10 +3870,14 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
         }
       }
       fine_margin = (double)candidate.sieve_score
-                  - (double)ctx->active_sieve_initial
+                  - score_offset
                   - ctx->params.log_scale *
                     (siqs_log_mpz(q) - log_smooth);
-      would_pass = fine_margin >= 0.0;
+      /* A saturated score is only a lower bound.  Keep it for exact
+       * resieving/evaluation, including the omitted-prime hits above. */
+      would_pass = fine_margin >= 0.0 ||
+          (ctx->params.sieve_saturating &&
+           candidate.sieve_score == SIQS_SIEVE_SCORE_MAX);
     }
 
     if (would_pass) {
@@ -5006,6 +5014,11 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
     if (ctx->full_count >= target)
       break;
 
+    /* A ready matrix may use the last permitted polynomial. If its solve
+     * fails, re-entry must not start another family past the work guard. */
+    if (*poly_count >= max_polynomials)
+      return 0;
+
     family_ok = siqs_new_family(ctx, poly);
     if (!family_ok) {
       if (verbose > 0)
@@ -5155,7 +5168,7 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
     p->smooth_bound = siqs_scaled_bound(base, p->residual_multiplier,
                                       SIQS_RESIDUAL_PRODUCT_MAX);
   } else {
-    /* Coupled R follows the final LP, including its storage ceiling. */
+    /* Coupled R follows the final LP, including its policy cap. */
     p->smooth_bound = p->max_large_primes == 2
         ? siqs_bound_product(p->large_prime_bound, pmax, SIQS_RESIDUAL_PRODUCT_MAX)
         : p->large_prime_bound;
@@ -5183,6 +5196,7 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
       ctx->fb_reciprocal[i] =
           (uint32_t)(UINT64_C(0x100000000) / ctx->prime[i]);
     }
+    siqs_select_sieve_score_mode(ctx);
   }
   ctx->fb_in_a = (uint8_t *)siqs_calloc(ctx->params.fb_size, 1U);
   ctx->root1 = (uint32_t *)siqs_malloc(

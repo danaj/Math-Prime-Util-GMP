@@ -38,11 +38,25 @@ private packing/kernels, just as the main checker includes siqs.c.
 Suites and options
 ------------------
 
-One executable runs the named suites ("policies", "sieve", "relations", "matrix", "workers",
+One executable runs the named suites ("policies", "sieve", "scores", "relations", "matrix", "workers",
 "cofactors"). The default
 "all" selection runs every registered suite. --list describes available
-suites; --suite selects one. --extended adds more fixtures, policy endpoints,
-and polynomials. The cofactors suite checks method counters, failed versus
+suites; --suite selects one. The scores suite checks exact certificates against
+independent subset enumeration, raw-score scan thresholds, saturating kernels
+against a wide oracle, fine-filter retention through exact relation evaluation,
+and worker inheritance. --score-bits 5 (or 6/7) makes a temporary reduced-score
+source copy for this suite; production sources and policies are never rewritten.
+--extended adds more fixtures, policy endpoints, and polynomials. For scores,
+it also constructs artificial 400/432/512-bit kN envelopes with multipliers
+1/2047, q12/q13, and a 600k factor base, without full sieving or solving.
+These are structural checks, not new supported factoring policies.
+The other suites cover full-width LP labels through UINT64_MAX, retained
+lookups after table growth, matrix columns beyond 65535 and row 2^21-1,
+setup-only omitted-prime limits, and collector re-entry at a spent budget.
+Arithmetic and storage coverage does not establish practical 512-bit
+factoring support. See misc/siqs-tuning/audit512-20261011/REPORT.txt for the
+checked envelope, remaining resource limits and validation scope.
+The cofactors suite checks method counters, failed versus
 rejected splits, 55--59/64-bit crossover cases, bounded nesting, quiet output
 and concurrent calls. It also checks the internal largest-two helper on
 multi-factor/repeated partitions, wider inputs, and uint64_t overflow, plus
@@ -54,6 +68,8 @@ be registered without creating separate executables or a large framework.
 
   perl tools/siqs-check.pl --list
   perl tools/siqs-check.pl --suite sieve --extended
+  perl tools/siqs-check.pl --suite scores --sanitize --debug --threaded
+  perl tools/siqs-check.pl --suite scores --score-bits 5 --sanitize --debug
   perl tools/siqs-check.pl --suite relations
   perl tools/siqs-check.pl --suite matrix --threaded --extended
   make check-psiqs SIQS_CHECK_ARGS='--suite workers'

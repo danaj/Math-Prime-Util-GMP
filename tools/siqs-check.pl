@@ -10,8 +10,10 @@ use Getopt::Long qw(GetOptions);
 use Text::ParseWords qw(shellwords);
 
 # Build a standalone checker in a disposable directory.  No blib, XS build,
-# MPU modules, or source rewriting.  The C executable owns suite selection.
+# MPU modules, or production source rewriting. Reduced-score tests use a
+# temporary source copy; the C executable owns suite selection.
 my ($extended, $verbose, $sanitize, $debug, $keep, $list, $help, $block, $threaded);
+my $score_bits = 8;
 my $suite = 'all';
 my $cc = $ENV{CC} // $Config{cc};
 my $cflags = '-O3';
@@ -21,10 +23,14 @@ GetOptions('suite=s' => \$suite, 'extended' => \$extended, 'verbose' => \$verbos
   'sanitize' => \$sanitize, 'debug' => \$debug, 'keep' => \$keep,
   'list' => \$list, 'help' => \$help, 'block-size=i' => \$block,
   'threaded' => \$threaded,
+  'score-bits=i' => \$score_bits,
   'cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags)
   or usage(2);
 usage(0) if $help;
 usage(2) if @ARGV;
+die "score bits must be 5, 6, 7, or 8\n" if $score_bits < 5 || $score_bits > 8;
+die "reduced score width requires --suite scores\n"
+  if $score_bits != 8 && $suite ne 'scores';
 die "block size must be zero or 4096..1048576 bytes\n"
   if defined($block) && $block != 0 && ($block < 4096 || $block > 1048576);
 my $temporary = tempdir('siqs-check-XXXXXX', TMPDIR => 1, CLEANUP => !$keep);
@@ -34,6 +40,23 @@ my @command = (shellwords($cc), shellwords($cflags));
 push @command, '-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all'
   if $sanitize;
 push @command, '-DSTANDALONE', "-I$root";
+if ($score_bits != 8) {
+  open my $input, '<', File::Spec->catfile($root, 'siqs.c') or die $!;
+  my $source = do { local $/; <$input> };
+  close $input or die $!;
+  $source =~ s/^#define SIQS_SIEVE_SCORE_BITS 8U$/#define SIQS_SIEVE_SCORE_BITS ${score_bits}U/m
+    or die "missing production score-width anchor\n";
+  my $anchor = '  p->stage1_bias = policy.stage1_bias;';
+  my $scaled = "$anchor\n"
+    . "  p->sieve_free_units = (p->sieve_free_units * SIQS_SIEVE_SCORE_TOP + 64U) / 128U;\n"
+    . "  p->stage1_bias = (uint8_t)((p->stage1_bias * SIQS_SIEVE_SCORE_TOP + 64U) / 128U);";
+  $source =~ s/\Q$anchor\E/$scaled/ or die "missing score-scaling anchor\n";
+  my $copy = File::Spec->catfile($temporary, "siqs-score-$score_bits.c");
+  open my $output, '>', $copy or die $!;
+  print {$output} $source or die $!;
+  close $output or die $!;
+  push @command, '-DSIQS_CHECK_SOURCE="' . $copy . '"';
+}
 push @command, '-DSIQS_DEBUG' if $debug;
 push @command, '-DPSIQS', '-pthread' if $threaded;
 push @command, "-DSIQS_SIEVE_BLOCK_SIZE=$block" if defined $block;
@@ -58,7 +81,8 @@ sub usage {
   my ($status) = @_;
   print <<'USAGE';
 usage: perl tools/siqs-check.pl [options]
-  --suite NAME          Run policies, sieve, relations, matrix, workers, cofactors, or all.
+  --suite NAME          Run policies, sieve, scores, relations, matrix, workers, cofactors, or all.
+  --score-bits N        Scratch 5/6/7-bit score model (--suite scores only).
   --extended           Broader fixtures and more polynomials, not full factors.
   --verbose            Report individual polynomial and matrix fixtures.
   --threaded           Also check pthread Lanczos and worker pools.

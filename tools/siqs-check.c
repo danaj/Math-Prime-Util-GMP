@@ -98,8 +98,8 @@ static size_t check_sieve_allocation(const siqs_ctx_t *ctx) {
  * to a wide logical cell.  Do not reuse production tier dispatch, padded
  * stores, block-root advancement, byte addition, or candidate scanning. */
 static uint32_t *reference_sieve(const siqs_ctx_t *ctx, uint32_t *maximum) {
-  uint32_t i, pos, initial = (uint32_t)ctx->active_sieve_initial
-                          + ctx->params.stage1_bias;
+  uint32_t i, pos, initial = ctx->params.sieve_raw_scores ? 0U
+      : (uint32_t)ctx->active_sieve_initial + ctx->params.stage1_bias;
   uint64_t ceiling = initial;
   uint32_t *score = (uint32_t *)check_allocate(ctx->sieve_length,
                                                sizeof(uint32_t));
@@ -137,9 +137,9 @@ static void compare_sieve(siqs_ctx_t *ctx) {
     CHECK(ctx->block_step[i] ==
           ctx->block_length % ctx->prime[ctx->params.sieve_start + i]);
   score = reference_sieve(ctx, &peak);
-  if (peak > UINT8_MAX)
+  if (peak > SIQS_SIEVE_SCORE_MAX && !ctx->params.sieve_saturating)
     for (pos = 0; pos < ctx->sieve_length; pos++)
-      if (score[pos] > UINT8_MAX)
+      if (score[pos] > SIQS_SIEVE_SCORE_MAX)
         check_fail("reference score overflow at pos=%u: score=%u (>255)",
                    pos, score[pos]);
   if (peak > maximum_score) maximum_score = peak;
@@ -149,7 +149,8 @@ static void compare_sieve(siqs_ctx_t *ctx) {
   memset(ctx->sieve, 0xd3, check_sieve_allocation(ctx));
   siqs_run_sieve(ctx);
   for (pos = 0; pos < ctx->sieve_length; pos++)
-    if (score[pos] != ctx->sieve[pos])
+    if ((ctx->params.sieve_saturating && score[pos] > SIQS_SIEVE_SCORE_MAX
+         ? SIQS_SIEVE_SCORE_MAX : score[pos]) != ctx->sieve[pos])
       check_fail("byte mismatch at pos=%u: reference=%u production=%u",
                  pos, score[pos], ctx->sieve[pos]);
   for (i = 0; i < ctx->params.fb_size; i++)
@@ -163,14 +164,20 @@ static void compare_sieve(siqs_ctx_t *ctx) {
   for (pos = 0; pos < ctx->sieve_length; pos++) {
     uint32_t map = ctx->candidate_wide ? ctx->candidate_at_wide[pos]
                                      : ctx->candidate_at[pos];
-    if (score[pos] >= 128U) {
+    int threshold = ctx->params.sieve_raw_scores
+        ? (int)SIQS_SIEVE_SCORE_TOP - ctx->active_sieve_initial - ctx->params.stage1_bias : 128;
+    uint32_t stored = ctx->params.sieve_saturating && score[pos] > SIQS_SIEVE_SCORE_MAX
+                    ? SIQS_SIEVE_SCORE_MAX : score[pos];
+    uint32_t logical = ctx->params.sieve_raw_scores
+                     ? stored : stored - ctx->params.stage1_bias;
+    if (threshold <= 0 || stored >= (uint32_t)threshold) {
       if (count >= ctx->candidate_count)
         check_fail("missing candidate at pos=%u index=%u score=%u", pos,
                    count, score[pos] - ctx->params.stage1_bias);
       if (ctx->candidates[count].x !=
           (int32_t)pos - (int32_t)ctx->params.half_interval ||
           ctx->candidates[count].sieve_score !=
-          score[pos] - ctx->params.stage1_bias)
+          logical)
         check_fail("candidate mismatch at pos=%u index=%u: x=%d score=%u",
                    pos, count, ctx->candidates[count].x,
                    (unsigned)ctx->candidates[count].sieve_score);
@@ -858,6 +865,7 @@ static void suite_policies(void) {
   check_policy_errors();
   check_arithmetic_bounds();
   check_parameter_envelope();
+  check_first_sieved_bounds();
   check_allocation_errors();
 }
 
@@ -865,6 +873,7 @@ static void suite_policies(void) {
 #include "siqs-check-matrix.inc.c"
 #include "siqs-check-workers.inc.c"
 #include "siqs-check-cofactors.inc.c"
+#include "siqs-check-scores.inc.c"
 
 typedef struct {
   const char *name;
@@ -877,6 +886,8 @@ static const check_suite_t suites[] = {
    suite_policies},
   {"sieve", "wide-score oracle, byte kernels, blocking, roots, candidate maps",
    suite_sieve},
+  {"scores", "exact certificates, raw scanning, saturation and fine-filter safety",
+   suite_scores},
   {"relations", "congruences, cycle paths, ownership, partition and exponent limits",
    suite_relations},
   {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
@@ -888,7 +899,7 @@ static const check_suite_t suites[] = {
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|policies|sieve|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|policies|sieve|scores|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

@@ -566,6 +566,56 @@ static void worker_budget_and_fallback(void) {
   puts("PASS workers: shortened last-family budget, executed-work accounting, total-create serial fallback");
 }
 
+/* A matrix may become ready on the last permitted polynomial.  If that solve
+ * fails, collector re-entry must not execute another family.  Use genuine
+ * small workspaces with synthetic executed counts, never a million sieves. */
+static void worker_budget_entry_guards(void) {
+  worker_fixture_t f;
+  uint32_t test, max_polys;
+  case_name = "spent-budget-collector-reentry";
+  worker_fault_reset(); worker_fixture_open(&f, 4, 0);
+  max_polys = f.ctx.params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  if (max_polys < 1000000U) max_polys = 1000000U;
+  for (test = 0; test < 4; test++) {
+    uint32_t families = 0, polys = max_polys + (test & 1U);
+    uint32_t before = polys, next = UINT32_MAX;
+    int collected;
+    if (test < 2)
+      collected = siqs_collect_relations(&f.ctx, &f.dispatch, UINT32_MAX,
+                                          &next, &families, &polys);
+    else
+      collected = psiqs_collect_relations(&f.ctx, &f.dispatch, UINT32_MAX,
+                                           &next, &families, &polys);
+    CHECK(!collected && polys == before && families == 0);
+    CHECK(f.ctx.total_candidates == 0 && f.ctx.a_hashes.count == 0);
+    CHECK(f.ctx.full_count == 0 && f.ctx.raw_count == 0);
+    CHECK(mpz_cmp_ui(f.dispatch.A, 0) == 0 && !f.ctx.factor_found);
+    worker_resources_clear();
+  }
+  /* Existing completion wins over the budget guard.  This valid relation
+   * supplies a reached target; factor discovery exercises the other exit. */
+  (void)relation_full_power(&f.ctx, 1, 2);
+  for (test = 0; test < 4; test++) {
+    uint32_t families = 0, polys = max_polys, next = UINT32_MAX;
+    uint32_t target = (test & 1U) ? UINT32_MAX : f.ctx.full_count;
+    int collected;
+    f.ctx.factor_found = (test & 1U) != 0;
+    if (test < 2)
+      collected = siqs_collect_relations(&f.ctx, &f.dispatch, target,
+                                          &next, &families, &polys);
+    else
+      collected = psiqs_collect_relations(&f.ctx, &f.dispatch, target,
+                                           &next, &families, &polys);
+    CHECK(collected && polys == max_polys && families == 0);
+    CHECK(f.ctx.total_candidates == 0 && f.ctx.a_hashes.count == 0);
+    CHECK(mpz_cmp_ui(f.dispatch.A, 0) == 0);
+    worker_resources_clear();
+  }
+  f.ctx.factor_found = 0;
+  worker_fixture_close(&f);
+  puts("PASS workers: spent/exceeded budget re-entry and completed targets execute no serial or parallel family");
+}
+
 /* Reuse the earlier Lanczos resource-failure cases, using the existing matrix
  * fixture generator and deterministic output checks rather than another tool. */
 static void worker_lanczos_failures(void) {
@@ -721,7 +771,8 @@ static void suite_workers(void) {
   prime_iterator_global_startup();
   worker_reuse(); worker_shutdown(); worker_early_shutdown();
   worker_merge_ownership(); worker_creation_failures();
-  worker_budget_and_fallback(); worker_lanczos_failures(); worker_public_calls();
+  worker_budget_and_fallback(); worker_budget_entry_guards();
+  worker_lanczos_failures(); worker_public_calls();
   worker_simultaneous_calls();
 #ifndef _WIN32
   worker_fatal_cases(); alarm(0); CHECK(signal(SIGALRM, SIG_DFL) != SIG_ERR);

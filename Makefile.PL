@@ -131,7 +131,9 @@ sub MY::postamble {
 SIQS_STANDALONE_SOURCES = mpu-siqs.c siqs.c lanczos.c prime_iterator.c \
 	squfof126.c
 SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h mont64.h \
-	prime_iterator.h squfof126.h misc_ui.h
+	prime_iterator.h squfof126.h misc_ui.h siqs_sieve_kernel_inc.c
+
+siqs$(OBJ_EXT): siqs_sieve_kernel_inc.c
 
 SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)

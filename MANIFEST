@@ -44,6 +44,7 @@ siqs.h
 siqs_dep.h
 mont64.h
 siqs.c
+siqs_sieve_kernel_inc.c
 psiqs_inc.c
 mpu-siqs.c
 tinyqs.h
@@ -127,6 +128,7 @@ t/93-release-spelling.t
 tools/build-siqs.pl
 tools/pthread-probe.c
 tools/siqs-check.c
+tools/siqs-check-scores.inc.c
 tools/siqs-check-relations.inc.c
 tools/siqs-check-packed.inc.c
 tools/siqs-check-bounds.inc.c

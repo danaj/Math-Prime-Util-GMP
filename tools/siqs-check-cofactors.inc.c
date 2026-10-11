@@ -92,7 +92,7 @@ static void cofactor_lp_ceiling(void) {
   case_name = "38-bit-LP-policy-ceiling";
   cofactor_context(&ctx, &result);
   /* Explicit independent R preserves this fixture's maximum residual range
-   * even when LP hits its storage ceiling.  Coupled R is tested separately. */
+   * even when LP hits its policy ceiling. Coupled R is tested separately. */
   ctx.params.lp_multiplier = DBL_MAX;
   ctx.params.residual_multiplier = DBL_MAX;
   siqs_set_large_prime_bounds(&ctx);

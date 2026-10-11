@@ -96,12 +96,42 @@ static void check_parameter_envelope(void) {
   puts("PASS policies: valid fractional FB/M limits, zero-scale minimum, fixed M limit and P=2^31-1");
 }
 
+/* Only the cutoff arithmetic needs testing here: synthetic increasing
+ * entries avoid building a factor base or allocating a large sieve. */
+static uint32_t check_sieve_start_fixture(double exponent, uint32_t floor) {
+  enum { count = 512 };
+  siqs_ctx_t ctx;
+  siqs_fb_t fb[count];
+  uint32_t i, result;
+  memset(&ctx, 0, sizeof(ctx)); memset(fb, 0, sizeof(fb));
+  for (i = 0; i < count; i++) { fb[i].p = i + 2U; fb[i].sqrt_kn = 1; }
+  ctx.fb = fb; ctx.params.fb_size = count;
+  ctx.params.half_interval = 4096; ctx.params.poly_d = 1;
+  ctx.params.sieve_free_units = 16; ctx.params.sieve_hit_bound = 1.0e30;
+  ctx.params.sieve_start_index_exponent = exponent;
+  ctx.params.sieve_start_prime_floor = floor;
+  mpz_init_set_ui(ctx.kn, 1); mpz_mul_2exp(ctx.kn, ctx.kn, 512);
+  mpz_sub_ui(ctx.kn, ctx.kn, 1); mpz_mul_ui(ctx.kn, ctx.kn, 2047);
+  siqs_set_log_weights(&ctx);
+  result = ctx.params.sieve_start; mpz_clear(ctx.kn);
+  return result;
+}
+
+static void check_first_sieved_bounds(void) {
+  case_name = "omitted-prime-setup-bound";
+  CHECK(siqs_icbrt_u64(SIQS_PACKED_FACTOR_ROW_MASK) == 127U);
+  CHECK(check_sieve_start_fixture(0.0, 0) == 8U);
+  CHECK(check_sieve_start_fixture(0.0, 258) == SIQS_POSTFILTER_MAX_SMALL);
+  CHECK(check_sieve_start_fixture(0.5, 0) == 22U);
+  puts("PASS policies: maximum-FB cbrt and optional first-sieved overrides fit the checked postfilter boundary");
+}
+
 static void check_allocation_errors(void) {
 #ifndef _WIN32
   unsigned int fixture;
   case_name = "cold-overflow-diagnostics";
   fflush(NULL);
-  for (fixture = 0; fixture < 30; fixture++) {
+  for (fixture = 0; fixture < 32; fixture++) {
     int status;
     pid_t child = fork();
     CHECK(child >= 0);
@@ -180,6 +210,8 @@ static void check_allocation_errors(void) {
         case 29:
           factors.alloc = factors.count = limit;
           siqs_factor_array_append(&factors, n); break;
+        case 30: (void)check_sieve_start_fixture(0.0, 259); break;
+        case 31: (void)check_sieve_start_fixture(0.9, 0); break;
       }
       if (fixture >= 13 && fixture <= 23) siqs_select_parameters(&p, n, &band);
       _exit(0);
@@ -187,7 +219,7 @@ static void check_allocation_errors(void) {
     CHECK(waitpid(child, &status, 0) == child);
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
   }
-  puts("PASS policies: 30 preallocation/conversion/growth failures rejected without huge allocations");
+  puts("PASS policies: 32 preallocation/conversion/growth/cutoff failures rejected without huge allocations");
 #else
   puts("SKIP policies: fatal allocation-boundary checks require POSIX fork");
 #endif

@@ -6,7 +6,8 @@
 
 /* While we work for small sizes, performance under 36-bits is suboptimal. */
 #define MPU_SIQS_MIN_BITS   1U
-/* 431 is a hard cap for this implementation.  No tuning done > 330 bits. */
+/* Current policy/support limit. Wider arithmetic validation alone does not
+ * supply tuned policies or establish supported factoring performance. */
 #define MPU_SIQS_MAX_BITS 400U
 
 /* Parallel collection is optional; small/inline-solving policies stay serial. */

@@ -470,8 +470,83 @@ static void matrix_degenerate(void) {
   CHECK(nullrows == NULL && mask == 0);
 }
 
+/* Thin matrices exercise real wide indices without allocating an FB-sized
+ * square matrix or running the solver.  Column IDs above UINT16_MAX must
+ * survive the original-column fallback, including the threaded kernels. */
+static void matrix_index_limits(void) {
+  const unsigned long columns = 65538UL, rows = 1024UL;
+  const uint32_t first_tail = 1021U;
+  uint32_t prefix[1021], tail[3] = {1021U, 1022U, 1023U};
+  la_col_t *cols = (la_col_t *)check_allocate(columns, sizeof(*cols));
+  uint64_t *input = (uint64_t *)check_allocate(columns, sizeof(*input));
+  uint64_t *output = (uint64_t *)check_allocate(columns, sizeof(*output));
+  uint64_t *scratch = (uint64_t *)check_allocate(rows, sizeof(*scratch));
+  uint64_t *table = (uint64_t *)check_allocate(8U * 256U, sizeof(*table));
+  nla_matrix_t matrix;
+  unsigned long i;
+  case_name = "wide-column-and-21-bit-row-indices";
+  for (i = 0; i < first_tail; i++) prefix[i] = (uint32_t)i;
+  cols[0].data = prefix; cols[0].weight = first_tail; input[0] = 8U;
+  for (i = 0; i < 3UL; i++) {
+    unsigned long column = 65535UL + i;
+    cols[column].orig = (uint32_t)column;
+    cols[column].weight = 1; cols[column].data = tail + i;
+    input[column] = UINT64_C(1) << i;
+  }
+  nla_matrix_init(&matrix, rows, 0, columns, cols, 48, 0);
+  CHECK(matrix.active_rows == rows && !matrix.packed);
+  CHECK(matrix.row_columns == NULL && matrix.post_rows == 0);
+  nla_matrix_mul(&matrix, input, scratch, table);
+  for (i = 0; i < rows; i++)
+    CHECK(scratch[i] == (i < first_tail ? 8U
+                           : UINT64_C(1) << (i - first_tail)));
+  nla_matrix_mul_transpose(&matrix, scratch, output, table);
+  CHECK(memcmp(input, output, columns * sizeof(*output)) == 0);
+  nla_matrix_mul_symmetric(&matrix, input, output, scratch, table);
+  CHECK(memcmp(input, output, columns * sizeof(*output)) == 0);
+#ifdef PSIQS
+  matrix.pool = nla_pool_create(&matrix, 3U);
+  CHECK(matrix.pool != NULL && matrix.pool->nthreads == 3U);
+  nla_matrix_mul_symmetric(&matrix, input, output, scratch, table);
+  CHECK(memcmp(input, output, columns * sizeof(*output)) == 0);
+  nla_pool_destroy(matrix.pool); matrix.pool = NULL;
+#endif
+  nla_matrix_clear(&matrix);
+  free(cols); free(input); free(output); free(scratch);
+  {
+    const unsigned long maximum_rows =
+        (unsigned long)SIQS_PACKED_FACTOR_ROW_MASK + 1UL;
+    uint32_t indices[3] = {0U, 65536U, SIQS_PACKED_FACTOR_ROW_MASK};
+    la_col_t thin[3];
+    uint64_t values[3] = {1U, 2U, 4U}, actual[3];
+    memset(thin, 0, sizeof(thin));
+    scratch = (uint64_t *)check_allocate(maximum_rows, sizeof(*scratch));
+    for (i = 0; i < 3UL; i++) {
+      thin[i].orig = (uint32_t)i;
+      thin[i].weight = 1; thin[i].data = indices + i;
+    }
+    nla_matrix_init(&matrix, maximum_rows, 0, 3UL, thin, 48, 0);
+    CHECK(matrix.input_rows == maximum_rows && matrix.active_rows == 3UL);
+    CHECK(!matrix.packed && matrix.iteration_rows == maximum_rows);
+    nla_matrix_mul(&matrix, values, scratch, table);
+    for (i = 0; i < maximum_rows; i++)
+      CHECK(scratch[i] == (i == indices[0] ? values[0]
+                          : i == indices[1] ? values[1]
+                          : i == indices[2] ? values[2] : 0U));
+    nla_matrix_mul_transpose(&matrix, scratch, actual, table);
+    CHECK(memcmp(values, actual, sizeof(actual)) == 0);
+    nla_matrix_mul_symmetric(&matrix, values, actual, scratch, table);
+    CHECK(memcmp(values, actual, sizeof(actual)) == 0);
+    nla_matrix_clear(&matrix);
+    free(scratch);
+  }
+  free(table);
+  puts("PASS matrix: column IDs 65535/65536/65537 and highest 21-bit factor-base row");
+}
+
 static void suite_matrix(void) {
   matrix_rng();
+  matrix_index_limits();
   matrix_from_relations();
   matrix_reduction();
   matrix_degenerate();

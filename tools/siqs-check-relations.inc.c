@@ -401,6 +401,172 @@ static void relation_large_lp_labels(void) {
   relation_finish(&ctx, &result);
 }
 
+static void relation_u64_conversions(void) {
+  const uint64_t values[] = {
+    0, 1, UINT32_MAX, UINT64_C(1) << 32,
+    (UINT64_C(1) << 38) - 1U, (UINT64_C(1) << 38) + 1U,
+    (UINT64_C(1) << 63) - 1U, UINT64_C(1) << 63, UINT64_MAX
+  };
+  mpz_t actual, expected;
+  uint64_t value;
+  uint32_t i;
+  case_name = "full-width-LP-GMP-conversions";
+  mpz_init(actual); mpz_init(expected);
+  for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
+    /* Each _ui argument fits even when unsigned long is only 32 bits. */
+    mpz_set_ui(expected, (unsigned long)(values[i] >> 32));
+    mpz_mul_2exp(expected, expected, 32);
+    mpz_add_ui(expected, expected, (unsigned long)(values[i] & UINT32_MAX));
+    siqs_mpz_set_u64(actual, values[i]);
+    CHECK(mpz_cmp(actual, expected) == 0);
+    CHECK(siqs_mpz_to_u64(expected, &value) && value == values[i]);
+  }
+  value = UINT64_C(0x123456789abcdef0);
+  mpz_add_ui(expected, expected, 1U); /* 2^64 is an unaccepted residual. */
+  CHECK(!siqs_mpz_to_u64(expected, &value));
+  CHECK(value == UINT64_C(0x123456789abcdef0));
+  mpz_set_si(expected, -1);
+  CHECK(!siqs_mpz_to_u64(expected, &value));
+  CHECK(value == UINT64_C(0x123456789abcdef0));
+  mpz_clear(actual); mpz_clear(expected);
+}
+
+static void relation_u64_label_tables(void) {
+  const uint64_t keys[] = {
+    0, 1, UINT32_MAX, UINT64_C(1) << 32,
+    (UINT64_C(1) << 38) - 1U, UINT64_C(1) << 38,
+    (UINT64_C(1) << 38) + 1U, (UINT64_C(1) << 63) - 1U,
+    UINT64_C(1) << 63, UINT64_MAX - 1U, UINT64_MAX
+  };
+  enum { count = 1500 };
+  siqs_ctx_t ctx;
+  siqs_factor_array_t result;
+  siqs_factor_t factor = {1, 2};
+  siqs_hashset_t hashes;
+  siqs_raw_relation_t *anchors[count];
+  uint32_t ids[count], key_ids[sizeof(keys) / sizeof(keys[0])], i;
+  mpz_t y;
+  case_name = "full-width-LP-table-keys-rehash-and-fingerprints";
+  relation_context(&ctx, &result, 1);
+  mpz_init_set_ui(y, 0);
+  siqs_hashset_init(&hashes, 16);
+  /* The graph's empty sentinel is a table ID, not a uint64_t key.  Even
+   * key zero can be represented here, although no real LP has value zero. */
+  for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+    key_ids[i] = siqs_graph_vertex(&ctx.graph, keys[i]);
+    /* Fingerprints are remixed to avoid the hash set's zero sentinel. */
+    CHECK(siqs_hashset_insert(&hashes, keys[i]));
+    CHECK(!siqs_hashset_insert(&hashes, keys[i]));
+  }
+  CHECK(key_ids[1] == 0 && key_ids[0] != key_ids[1]);
+  for (i = 0; i < count; i++) {
+    uint64_t label = UINT64_MAX - i;
+    ids[i] = siqs_graph_vertex(&ctx.graph, label);
+    CHECK(siqs_hashset_insert(&hashes, label) == (i >= 2U));
+    CHECK(ctx.graph.vertices[ids[i]].value == label);
+    anchors[i] = siqs_raw_relation_new(&ctx, y, &factor, 1, 1, label);
+    CHECK(siqs_one_lp_anchor_relation(&ctx.one_lp, label, anchors[i]) == NULL);
+  }
+  CHECK(ctx.graph.table_alloc > 2048 && ctx.graph.vertex_alloc > 1024);
+  CHECK(ctx.one_lp.count == count && ctx.one_lp.alloc > 1024);
+  CHECK(hashes.alloc > 16);
+  for (i = 0; i < count; i++) {
+    uint64_t label = UINT64_MAX - i;
+    CHECK(siqs_graph_vertex(&ctx.graph, label) == ids[i]);
+    CHECK(siqs_one_lp_anchor_relation(&ctx.one_lp, label, NULL) == anchors[i]);
+    CHECK(!siqs_hashset_insert(&hashes, label));
+  }
+  for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+    CHECK(siqs_graph_vertex(&ctx.graph, keys[i]) == key_ids[i]);
+    CHECK(!siqs_hashset_insert(&hashes, keys[i]));
+  }
+  CHECK(ctx.one_lp.count == count);
+  {
+    /* Equal low 32 bits must still give distinct relation fingerprints.
+     * The shallow copy is only read, and owns none of the original data. */
+    siqs_raw_relation_t low = *anchors[0];
+    low.lp2 = UINT32_MAX;
+    CHECK(siqs_relation_fingerprint(anchors[0]) != siqs_relation_fingerprint(&low));
+  }
+  siqs_hashset_clear(&hashes);
+  mpz_clear(y);
+  relation_finish(&ctx, &result);
+}
+
+static void relation_u64_label_cycles(void) {
+  const uint64_t upper[] = {
+    (UINT64_C(1) << 38) + 105U, (UINT64_C(1) << 63) + 105U, UINT64_MAX
+  };
+  siqs_ctx_t ctx;
+  siqs_factor_array_t result;
+  siqs_factor_t left = {1, 2}, right = {2, 2};
+  uint32_t i;
+  /* These synthetic labels bypass cofactor selection.  This tests storage
+   * and valid congruences, not acceptance above the current LP policy cap. */
+  for (i = 0; i < sizeof(upper) / sizeof(upper[0]); i++) {
+    uint64_t a = upper[i] - (upper[i] - 1U) % 35U;
+    uint64_t b = a - 35U, c = a - 70U;
+    CHECK(c > SIQS_LP_MAX);
+    case_name = "full-width-LP-graph-cycle-congruence";
+    relation_context(&ctx, &result, 2);
+    siqs_accept_raw_relation(&ctx, relation_raw(&ctx, a, b, &left, 1));
+    siqs_accept_raw_relation(&ctx, relation_raw(&ctx, b, c, &left, 1));
+    siqs_accept_raw_relation(&ctx, relation_raw(&ctx, c, a, &left, 1));
+    CHECK(ctx.graph.vertex_count == 4 && ctx.raw_count == 2);
+    CHECK(ctx.full_count == 1 && ctx.accepted_two_lp == 3);
+    CHECK(ctx.full[0]->nfactors == 1 && ctx.full[0]->factors[0].exponent == 6);
+    relation_finish(&ctx, &result);
+
+    case_name = "full-width-LP-anchor-pair-congruence";
+    relation_context(&ctx, &result, 1);
+    siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, a, &left, 1));
+    siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, a, &right, 1));
+    CHECK(ctx.one_lp.count == 1 && ctx.accepted_one_lp == 2);
+    CHECK(ctx.full_count == 1 && ctx.full[0]->nfactors == 2);
+    relation_finish(&ctx, &result);
+  }
+  /* UINT64_MAX is 15 modulo 35: it is a real graph label, not a sentinel,
+   * and its noninvertible square self-loop must discover the factor five. */
+  case_name = "UINT64-MAX-LP-self-loop-inverse-factor";
+  relation_context(&ctx, &result, 2);
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, UINT64_MAX, UINT64_MAX, &left, 1));
+  CHECK(ctx.graph.vertex_count == 2 && ctx.graph.vertices[1].value == UINT64_MAX);
+  CHECK(ctx.factor_found && ctx.full_count == 0 && result.count == 2);
+  relation_finish(&ctx, &result);
+  case_name = "UINT64-MAX-LP-anchor-inverse-factor";
+  relation_context(&ctx, &result, 1);
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, UINT64_MAX, &left, 1));
+  siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, UINT64_MAX, &right, 1));
+  CHECK(ctx.one_lp.count == 1 && ctx.accepted_one_lp == 2);
+  CHECK(ctx.factor_found && ctx.full_count == 0 && result.count == 2);
+  relation_finish(&ctx, &result);
+  puts("PASS relations: full uint64 LP conversions, labels, hash growth, pairs/cycles and UINT64_MAX inverse factor");
+}
+
+static void relation_lp_sentinel_rejections(void) {
+#ifndef _WIN32
+  uint32_t label;
+  case_name = "one-LP-empty-and-identity-sentinel-rejections";
+  fflush(NULL);
+  for (label = 0; label <= 1U; label++) {
+    int status;
+    pid_t child = fork();
+    CHECK(child >= 0);
+    if (child == 0) {
+      siqs_one_lp_state_t state;
+      if (freopen("/dev/null", "w", stderr) == NULL) _exit(1);
+      memset(&state, 0, sizeof(state));
+      (void)siqs_one_lp_anchor_relation(&state, label, NULL);
+      _exit(0);
+    }
+    CHECK(waitpid(child, &status, 0) == child);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
+  }
+#else
+  puts("SKIP relations: one-LP sentinel rejection diagnostics require POSIX fork");
+#endif
+}
+
 #include "siqs-check-packed.inc.c"
 
 static void suite_relations(void) {
@@ -416,6 +582,10 @@ static void suite_relations(void) {
   relation_arena_and_partition();
   relation_exponent_limits();
   relation_large_lp_labels();
+  relation_u64_conversions();
+  relation_u64_label_tables();
+  relation_u64_label_cycles();
+  relation_lp_sentinel_rejections();
   if (extended) relation_anchor_growth();
   puts("PASS relations: congruences, shared/rerooted cycles, ownership, inverse factors, exponent limits");
   fflush(stdout);
