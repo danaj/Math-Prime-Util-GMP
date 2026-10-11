@@ -4,9 +4,10 @@
   Included only by siqs.c when PSIQS is defined.  Do not compile this file
   separately: it uses the shared private SIQS types and static helpers.
 
-  Workers own polynomial/sieve scratch and buffer raw relations.  The caller
-  assigns distinct A families and merges each completed buffer into one relation
-  graph; factor partition updates and relation merging remain serial.
+  Workers share immutable factor-base tables, own polynomial/sieve scratch,
+  and buffer raw relations.  The caller assigns distinct A families and merges
+  each completed buffer into one relation graph; factor partition updates and
+  relation merging remain serial.
 
   Copyright (c) 2026 Dana Jacobsen
 ============================================================================*/
@@ -48,12 +49,12 @@ struct psiqs_pool_t {
   int stop;
 };
 
-/* Workers own every writable field.  Reuse scratch allocation and cleanup,
- * but never allocate a relation graph or rebuild the common factor base. */
+/* Workers own every writable field and borrow the collector's immutable FB
+ * tables.  Reuse scratch cleanup without allocating cycle/dependency scratch
+ * or a relation graph, and without rebuilding the common factor base. */
 static void psiqs_worker_init(psiqs_worker_t *worker,
                               const siqs_ctx_t *master, uint32_t index) {
   siqs_ctx_t *ctx = &worker->ctx;
-  uint32_t i;
   memset(worker, 0, sizeof(*worker));
   ctx->original_n = master->original_n;
   ctx->params = master->params;
@@ -66,12 +67,11 @@ static void psiqs_worker_init(psiqs_worker_t *worker,
   mpz_init(ctx->eval.y);
   mpz_init(ctx->eval.q);
   mpz_init(ctx->eval.rest);
-  ctx->fb = (siqs_fb_t *)siqs_malloc(
-      (size_t)ctx->params.fb_size * sizeof(*ctx->fb));
-  memcpy(ctx->fb, master->fb,
-         (size_t)ctx->params.fb_size * sizeof(*ctx->fb));
-  for (i = 0; i < ctx->params.fb_size; i++)
-    ctx->fb[i].in_a = 0;
+  ctx->shared_fb_tables = 1;
+  ctx->fb = master->fb;
+  ctx->prime = master->prime;
+  ctx->fb_reciprocal = master->fb_reciprocal;
+  ctx->sieve_logp = master->sieve_logp;
   ctx->cofactor_rng.state = siqs_mix64(
       master->cofactor_rng.state ^
       ((uint64_t)index + 1U) * UINT64_C(0x9e3779b97f4a7c15));
@@ -92,11 +92,11 @@ static int psiqs_assign_family(siqs_ctx_t *master, siqs_poly_t *dispatch,
     return 0;
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
-      ctx->fb[poly->a_index[i]].in_a = 0;
+      ctx->fb_in_a[poly->a_index[i]] = 0;
   memcpy(poly->a_index, dispatch->a_index,
          (size_t)poly->q_count * sizeof(*poly->a_index));
   for (i = 0; i < poly->q_count; i++)
-    ctx->fb[poly->a_index[i]].in_a = 1;
+    ctx->fb_in_a[poly->a_index[i]] = 1;
   mpz_set(poly->A, dispatch->A);
   mpz_set(poly->DA, dispatch->DA);
   worker->limit = limit;

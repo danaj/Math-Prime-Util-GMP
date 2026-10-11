@@ -259,7 +259,7 @@ static const siqs_multiplier_cascade_t siqs_multiplier_cascade = {
 /* Retained partials dominate relation-side storage.  Pack their factor-base
  * row and exponent into one checked word, while leaving smooth relations wide
  * so their factor vectors can move directly into the full-relation array. */
-#define SIQS_PACKED_FACTOR_ROW_BITS 20U
+#define SIQS_PACKED_FACTOR_ROW_BITS 21U
 #define SIQS_PACKED_FACTOR_ROW_MASK \
   ((1U << SIQS_PACKED_FACTOR_ROW_BITS) - 1U)
 #define SIQS_PACKED_FACTOR_EXP_MAX \
@@ -271,7 +271,6 @@ typedef struct {
   uint32_t p;
   uint32_t sqrt_kn;
   uint8_t logp;
-  uint8_t in_a;
 } siqs_fb_t;
 
 typedef struct {
@@ -462,7 +461,11 @@ typedef struct {
   mpz_t kn;
   unsigned long multiplier;
   siqs_parameters_t params;
+  /* FB records and lookup tables are read-only after workspace setup.  Workers
+   * borrow them from the collector, which outlives every joined worker. */
   siqs_fb_t *fb;
+  int shared_fb_tables;
+  uint8_t *fb_in_a;
   uint32_t *prime;
   /* Roots stay ordered; equality represents a one-root factor-base prime. */
   uint32_t *root1;
@@ -2566,12 +2569,12 @@ static uint32_t siqs_nearest_available_fb_from_index(const siqs_ctx_t *ctx,
   uint32_t step;
   for (step = 0; step < ctx->params.fb_size; step++) {
     uint32_t up = center + step;
-    if (up < ctx->params.fb_size && !ctx->fb[up].in_a &&
+    if (up < ctx->params.fb_size && !ctx->fb_in_a[up] &&
         ctx->fb[up].sqrt_kn != 0)
       return up;
     if (step != 0 && center >= step) {
       uint32_t down = center - step;
-      if (down > 0 && !ctx->fb[down].in_a &&
+      if (down > 0 && !ctx->fb_in_a[down] &&
           ctx->fb[down].sqrt_kn != 0)
         return down;
     }
@@ -2638,7 +2641,7 @@ static void siqs_poly_clear(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t i;
   for (i = 0; i < poly->q_count; i++) {
     if (poly->a_index[i] < ctx->params.fb_size)
-      ctx->fb[poly->a_index[i]].in_a = 0;
+      ctx->fb_in_a[poly->a_index[i]] = 0;
     mpz_clear(poly->H[i]);
   }
   free(poly->H);
@@ -2739,7 +2742,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
-      ctx->fb[poly->a_index[i]].in_a = 0;
+      ctx->fb_in_a[poly->a_index[i]] = 0;
   if (!poly->a_search_ready)
     siqs_prepare_A_search(ctx, poly);
   init_stage = poly->a_search_stage;
@@ -2787,7 +2790,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         index = siqs_nearest_available_fb_from_index(
             ctx, (uint32_t)wanted_index);
         poly->a_index[i] = index;
-        ctx->fb[index].in_a = 1;
+        ctx->fb_in_a[index] = 1;
         mpz_mul_ui(product, product, ctx->fb[index].p);
       }
       mpz_fdiv_q(remaining, poly->target_A, product);
@@ -2797,7 +2800,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         uint32_t index = siqs_nearest_available_fb(
             ctx, wanted > UINT32_MAX ? UINT32_MAX : (uint32_t)wanted);
         poly->a_index[poly->q_count - 1] = index;
-        ctx->fb[index].in_a = 1;
+        ctx->fb_in_a[index] = 1;
         mpz_mul_ui(product, product, ctx->fb[index].p);
       }
 
@@ -2822,7 +2825,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
         }
       }
       for (i = 0; i < poly->q_count; i++)
-        ctx->fb[poly->a_index[i]].in_a = 0;
+        ctx->fb_in_a[poly->a_index[i]] = 0;
     }
   }
   /* Preserve canonical indices on exhausted searches as well. */
@@ -2978,7 +2981,7 @@ static void siqs_verify_polynomial(const siqs_ctx_t *ctx,
     uint32_t p = ctx->fb[i].p;
     int expect_two = i == 0
                    ? ctx->params.poly_d == 2
-                   : !ctx->fb[i].in_a && ctx->fb[i].sqrt_kn != 0;
+                   : !ctx->fb_in_a[i] && ctx->fb[i].sqrt_kn != 0;
     if (ctx->root1[i] >= p ||
         siqs_debug_polynomial_at_root(ctx, poly, i, ctx->root1[i]) != 0)
       croak("SIQS: first polynomial root invariant failed");
@@ -3030,7 +3033,7 @@ static void siqs_first_B_and_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 
   for (j = 1; j < ctx->params.fb_size; j++) {
     uint32_t p = ctx->fb[j].p;
-    if (ctx->fb[j].in_a)
+    if (ctx->fb_in_a[j])
       continue;
     {
       uint32_t amod = (uint32_t)mpz_fdiv_ui(poly->DA, p);
@@ -3088,7 +3091,7 @@ static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t i;
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
-      ctx->fb[poly->a_index[i]].in_a = 0;
+      ctx->fb_in_a[poly->a_index[i]] = 0;
   if (!siqs_choose_A(ctx, poly))
     return 0;
   siqs_first_B_and_roots(ctx, poly);
@@ -5049,15 +5052,26 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
 
 /* Allocate polynomial/evaluation scratch, also used by private workers. */
 static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
-  uint32_t rows;
-  ctx->prime = (uint32_t *)siqs_malloc(
-      (size_t)ctx->params.fb_size * sizeof(uint32_t));
+  if (!ctx->shared_fb_tables) {
+    uint32_t i;
+    ctx->prime = (uint32_t *)siqs_malloc(
+        (size_t)ctx->params.fb_size * sizeof(uint32_t));
+    ctx->sieve_logp = (uint8_t *)siqs_malloc(ctx->params.fb_size);
+    ctx->fb_reciprocal = (uint32_t *)siqs_malloc(
+        (size_t)ctx->params.fb_size * sizeof(uint32_t));
+    siqs_set_log_weights(ctx);
+    for (i = 0; i < ctx->params.fb_size; i++) {
+      ctx->prime[i] = ctx->fb[i].p;
+      ctx->sieve_logp[i] = ctx->fb[i].logp;
+      ctx->fb_reciprocal[i] =
+          (uint32_t)(UINT64_C(0x100000000) / ctx->prime[i]);
+    }
+  }
+  ctx->fb_in_a = (uint8_t *)siqs_calloc(ctx->params.fb_size, 1U);
   ctx->root1 = (uint32_t *)siqs_malloc(
       (size_t)ctx->params.fb_size * sizeof(uint32_t));
   ctx->root2 = (uint32_t *)siqs_malloc(
       (size_t)ctx->params.fb_size * sizeof(uint32_t));
-  ctx->sieve_logp = (uint8_t *)siqs_malloc(ctx->params.fb_size);
-  siqs_set_log_weights(ctx);
   ctx->sieve_length = 2 * ctx->params.half_interval;
   {
     size_t sieve_alloc = 2U * (size_t)ctx->sieve_length;
@@ -5068,16 +5082,7 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
   }
   ctx->candidate_at = (uint16_t *)siqs_calloc(ctx->sieve_length,
                                               sizeof(uint16_t));
-  ctx->fb_reciprocal = (uint32_t *)siqs_malloc(
-      (size_t)ctx->params.fb_size * sizeof(uint32_t));
   {
-    uint32_t i;
-    for (i = 0; i < ctx->params.fb_size; i++) {
-      ctx->prime[i] = ctx->fb[i].p;
-      ctx->sieve_logp[i] = ctx->fb[i].logp;
-      ctx->fb_reciprocal[i] =
-          (uint32_t)(UINT64_C(0x100000000) / ctx->prime[i]);
-    }
     ctx->resieve_one_subtract_index = 0;
     while (ctx->resieve_one_subtract_index < ctx->params.fb_size &&
            ctx->prime[ctx->resieve_one_subtract_index] <=
@@ -5088,10 +5093,13 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
            ctx->prime[ctx->resieve_identity_index] < ctx->sieve_length)
       ctx->resieve_identity_index++;
   }
-  rows = ctx->params.fb_size + 1;
-  ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
-  ctx->factor_touched = (uint32_t *)siqs_malloc(
-      (size_t)rows * sizeof(uint32_t));
+  /* Only the collector materializes cycles and evaluates dependencies. */
+  if (!ctx->buffer_relations) {
+    uint32_t rows = ctx->params.fb_size + 1;
+    ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
+    ctx->factor_touched = (uint32_t *)siqs_malloc(
+        (size_t)rows * sizeof(uint32_t));
+  }
   siqs_block_workspace_allocate(ctx);
 }
 
@@ -5117,8 +5125,13 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
     siqs_full_relation_free(ctx->full[i]);
   free(ctx->raw);
   free(ctx->full);
-  free(ctx->fb);
-  free(ctx->prime);
+  if (!ctx->shared_fb_tables) {
+    free(ctx->fb);
+    free(ctx->prime);
+    free(ctx->sieve_logp);
+    free(ctx->fb_reciprocal);
+  }
+  free(ctx->fb_in_a);
   free(ctx->root1);
   free(ctx->root2);
   if (ctx->block_prime_count != 0) {
@@ -5126,8 +5139,6 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
     free(ctx->block_root2);
     free(ctx->block_step);
   }
-  free(ctx->sieve_logp);
-  free(ctx->fb_reciprocal);
   free(ctx->sieve);
   free(ctx->candidate_at);
   free(ctx->candidate_at_wide);

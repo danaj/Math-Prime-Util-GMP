@@ -10,7 +10,28 @@ typedef struct {
   siqs_factor_array_t result;
   siqs_poly_t dispatch;
   mpz_t n, prime;
+  unsigned char *shared_snapshot;
 } worker_fixture_t;
+
+/* Preserve exact bytes, including FB padding, across dispatch, root updates,
+ * merging, and pool teardown.  Only each context's in-A flags may change. */
+static void worker_shared_tables(worker_fixture_t *f, int capture) {
+  const void *tables[] = {
+    f->ctx.fb, f->ctx.prime, f->ctx.fb_reciprocal, f->ctx.sieve_logp
+  };
+  const size_t widths[] = {
+    sizeof(*f->ctx.fb), sizeof(*f->ctx.prime),
+    sizeof(*f->ctx.fb_reciprocal), sizeof(*f->ctx.sieve_logp)
+  };
+  unsigned char *snapshot = f->shared_snapshot;
+  size_t i;
+  for (i = 0; i < sizeof(tables) / sizeof(*tables); i++) {
+    size_t bytes = (size_t)f->ctx.params.fb_size * widths[i];
+    if (capture) memcpy(snapshot, tables[i], bytes);
+    else CHECK(memcmp(snapshot, tables[i], bytes) == 0);
+    snapshot += bytes;
+  }
+}
 
 static void worker_resources_clear(void) {
   CHECK(seam_threads_live == 0 && seam_mutexes_live == 0 && seam_conditions_live == 0);
@@ -42,6 +63,12 @@ static void worker_fixture_open(worker_fixture_t *f, uint32_t threads, int wide)
   f->ctx.nthreads = threads;
   CHECK(siqs_ctx_allocate(&f->ctx));
   CHECK(!f->ctx.factor_found && f->ctx.params.q_count > 2);
+  CHECK(!f->ctx.shared_fb_tables && f->ctx.fb_in_a != NULL);
+  CHECK(f->ctx.factor_counts != NULL && f->ctx.factor_touched != NULL);
+  f->shared_snapshot = (unsigned char *)check_allocate(f->ctx.params.fb_size,
+      sizeof(*f->ctx.fb) + sizeof(*f->ctx.prime) +
+      sizeof(*f->ctx.fb_reciprocal) + sizeof(*f->ctx.sieve_logp));
+  worker_shared_tables(f, 1);
   siqs_poly_init(&f->ctx, &f->dispatch);
   case_ctx = &f->ctx;
 }
@@ -51,6 +78,8 @@ static void worker_fixture_close(worker_fixture_t *f) {
   mpz_t product, *values;
   for (i = 0; i < f->ctx.full_count; i++) relation_verify_full(&f->ctx, f->ctx.full[i]);
   CHECK(f->ctx.factor_touched_count == 0);
+  worker_shared_tables(f, 0);
+  free(f->shared_snapshot);
   mpz_init_set_ui(product, 1);
   for (i = 0; i < f->result.count; i++) mpz_mul(product, product, f->result.values[i]);
   CHECK(mpz_cmp(product, f->n) == 0); mpz_clear(product);
@@ -103,7 +132,19 @@ static void worker_reuse(void) {
       for (i = 0; i < counts[t]; i++) {
         uint32_t j;
         psiqs_worker_t *w = pool->workers + i;
-        CHECK(w->ctx.fb != f.ctx.fb && w->ctx.sieve != f.ctx.sieve);
+        CHECK(w->ctx.shared_fb_tables && w->ctx.fb == f.ctx.fb);
+        CHECK(w->ctx.prime == f.ctx.prime &&
+              w->ctx.fb_reciprocal == f.ctx.fb_reciprocal &&
+              w->ctx.sieve_logp == f.ctx.sieve_logp);
+        CHECK(w->ctx.fb_in_a != f.ctx.fb_in_a &&
+              w->ctx.root1 != f.ctx.root1 && w->ctx.root2 != f.ctx.root2 &&
+              w->ctx.sieve != f.ctx.sieve);
+        CHECK(w->ctx.factor_counts == NULL && w->ctx.factor_touched == NULL);
+        for (j = 0; j < i; j++) {
+          const siqs_ctx_t *other = &pool->workers[j].ctx;
+          CHECK(w->ctx.fb_in_a != other->fb_in_a &&
+                w->ctx.root1 != other->root1 && w->ctx.root2 != other->root2);
+        }
         CHECK(psiqs_pool_assign(pool, &f.ctx, &f.dispatch, w, 1U + round % 3U));
         CHECK(used < 32);
         mpz_set(assigned[used], w->poly.A);

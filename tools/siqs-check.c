@@ -413,7 +413,7 @@ static void check_polynomial_roots(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
   mpz_init(x); mpz_init(value);
   for (i = 0; i < ctx->params.fb_size; i++) {
     CHECK(ctx->root1[i] <= ctx->root2[i] && ctx->root2[i] < ctx->prime[i]);
-    if (ctx->fb[i].in_a) special_a++;
+    if (ctx->fb_in_a[i]) special_a++;
     if (i != 0 && ctx->fb[i].sqrt_kn == 0) special_k++;
     for (r = 0; r < (ctx->root1[i] == ctx->root2[i] ? 1U : 2U); r++) {
       uint32_t root = r == 0 ? ctx->root1[i] : ctx->root2[i];
@@ -451,11 +451,12 @@ static void check_A_search_cache(void) {
   siqs_ctx_t ctx;
   siqs_poly_t poly;
   siqs_fb_t fb[6];
+  uint8_t in_a[6] = {0};
   uint32_t eligible, occupied, center, i;
   size_t fixture;
   case_name = "A-search-cache";
   memset(&ctx, 0, sizeof(ctx)); memset(fb, 0, sizeof(fb));
-  ctx.fb = fb; ctx.params.fb_size = 6U;
+  ctx.fb = fb; ctx.fb_in_a = in_a; ctx.params.fb_size = 6U;
   case_ctx = &ctx;
   for (i = 0; i < 6U; i++) fb[i].p = primes[i];
   for (eligible = 1U; eligible < 32U; eligible++) {
@@ -463,17 +464,17 @@ static void check_A_search_cache(void) {
       if ((eligible & ~occupied) == 0U) continue;
       for (i = 1U; i < 6U; i++) {
         fb[i].sqrt_kn = (eligible >> (i - 1U)) & 1U;
-        fb[i].in_a = (occupied >> (i - 1U)) & 1U;
+        in_a[i] = (occupied >> (i - 1U)) & 1U;
       }
       for (center = 1U; center < 6U; center++) {
         uint32_t step, expected = SIQS_NO_INDEX;
         /* Independent old scan: upward wins every equal-distance tie. */
         for (step = 0U; step < 6U; step++) {
           uint32_t up = center + step, down = center >= step ? center - step : 0U;
-          if (up < 6U && fb[up].sqrt_kn && !fb[up].in_a) {
+          if (up < 6U && fb[up].sqrt_kn && !in_a[up]) {
             expected = up; break;
           }
-          if (step && down && fb[down].sqrt_kn && !fb[down].in_a) {
+          if (step && down && fb[down].sqrt_kn && !in_a[down]) {
             expected = down; break;
           }
         }
@@ -488,7 +489,7 @@ static void check_A_search_cache(void) {
   mpz_init_set_ui(ctx.kn, 100U);
   for (fixture = 0; fixture < sizeof(windows) / sizeof(*windows); fixture++) {
     uint32_t repeat;
-    for (i = 1U; i < 4U; i++) { fb[i].sqrt_kn = 1U; fb[i].in_a = 0U; }
+    for (i = 1U; i < 4U; i++) { fb[i].sqrt_kn = 1U; in_a[i] = 0U; }
     ctx.params.q_count = windows[fixture].q;
     ctx.params.a_final_tolerance = windows[fixture].tolerance;
     siqs_poly_init(&ctx, &poly);
@@ -501,9 +502,9 @@ static void check_A_search_cache(void) {
     else {
       poly.a_index[0] = 1U;
       for (repeat = 0U; repeat < 2U; repeat++) {
-        fb[1].in_a = 1U;
+        in_a[1] = 1U;
         CHECK(!siqs_choose_A(&ctx, &poly));
-        CHECK(!fb[1].in_a && poly.a_search_ready && !poly.a_search_stage &&
+        CHECK(!in_a[1] && poly.a_search_ready && !poly.a_search_stage &&
               !poly.a_search_center && !poly.a_search_variance);
       }
     }
@@ -557,7 +558,7 @@ static void check_real_case(const mpz_t n, unsigned long forced_k,
     CHECK(poly.a_search_stage == cached_stage &&
           poly.a_search_center == cached_center &&
           poly.a_search_variance == cached_variance);
-    for (i = 1U; i < ctx.params.fb_size; i++) marked += ctx.fb[i].in_a != 0;
+    for (i = 1U; i < ctx.params.fb_size; i++) marked += ctx.fb_in_a[i] != 0;
     CHECK(marked == (found ? poly.q_count : 0U));
     if (!found) break;
     for (polynomial = 0; polynomial < (extended ? 8U : 3U); polynomial++) {

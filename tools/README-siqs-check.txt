@@ -182,6 +182,10 @@ Small genuine polynomial jobs check 1/2/4-worker reuse, independent scratch,
 distinct A families, exactly-once merges, and reuse after a forced wide
 candidate-map allocation. Buffered GMP records must be cleared before their
 arena is reset. Normal blocks are retained; older/oversized blocks are released.
+
+Workers share the collector's immutable FB and lookup tables, with private
+in-A flags and roots and no cycle/dependency scratch. Exact table snapshots
+must survive dispatch, merging, pool teardown, and worker-creation failures.
 Synthetic buffers check deep-copy ownership, cross-worker cycles, and factor
 discovery during a partial merge or without any emitted relation.
 

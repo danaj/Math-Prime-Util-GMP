@@ -180,7 +180,7 @@ static void cofactor_a_search_stages(void) {
       CHECK(ctx.a_hashes.count == 1);
       for (j = 0; j < poly.q_count; j++) {
         CHECK(poly.a_index[j] > 0 && poly.a_index[j] < ctx.params.fb_size);
-        CHECK(ctx.fb[poly.a_index[j]].in_a && ctx.fb[poly.a_index[j]].sqrt_kn != 0);
+        CHECK(ctx.fb_in_a[poly.a_index[j]] && ctx.fb[poly.a_index[j]].sqrt_kn != 0);
         if (j) CHECK(poly.a_index[j - 1] < poly.a_index[j]);
       }
       if (poly.q_count != 1) {
@@ -196,7 +196,7 @@ static void cofactor_a_search_stages(void) {
       }
     } else {
       CHECK(ctx.a_hashes.count == 0);
-      for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb[j].in_a);
+      for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
     }
     if (i == 0) {
       /* Fewer than q eligible odd primes must fail without entering the
@@ -215,10 +215,10 @@ static void cofactor_a_search_stages(void) {
       rng = ctx.poly_rng;
       CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
       CHECK(ctx.a_hashes.count == 0);
-      for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb[j].in_a);
+      for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
     }
     siqs_poly_clear(&ctx, &poly);
-    for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb[j].in_a);
+    for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
     siqs_ctx_clear(&ctx);
     factors = siqs_factor_array_release(&partition, &count);
     gmp_siqs_free(factors, count);
