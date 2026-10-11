@@ -129,9 +129,9 @@ sub MY::postamble {
   return <<'MAKE_FRAG';
 
 SIQS_STANDALONE_SOURCES = mpu-siqs.c siqs.c lanczos.c prime_iterator.c \
-	squfof126.c pbrent63.c
+	squfof126.c
 SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h mont64.h \
-	prime_iterator.h squfof126.h pbrent63.h utility.h misc_ui.h
+	prime_iterator.h squfof126.h misc_ui.h
 
 SIQS_ARCH_FLAGS = -march=native
 SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
@@ -175,10 +175,10 @@ lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep
 
 # Build only: a fixed-work byte-sieve block-size/concurrency screen.
 siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
 siqs-autotune-check: tools/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
 check-siqs-autotune: siqs-autotune-check
 	./siqs-autotune-check

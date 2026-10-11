@@ -3,11 +3,11 @@ Embedding SIQS/PSIQS in a C host
 
 This describes the current in-tree C interfaces, not a separately packaged
 library or a new initialization wrapper. Public declarations are in siqs.h;
-standalone host adapters are in siqs_dep.h. mpu-siqs.c is the reference driver
+standalone host adapter is in siqs_dep.h. mpu-siqs.c is the reference driver
 and adapter implementation. Its normal command-line startup already handles
 the lifecycle below. The Perl/MPU-GMP host also has its own initialization.
 
-The matrix solver is independent of the SIQS host adapters. Standalone users
+The matrix solver is independent of the SIQS host adapter. Standalone users
 can compile lanczos.c with lanczos.h and ptypes.h; add PSIQS/pthreads and
 planczos_inc.c for parallel support. No GMP dependency or prime-cache startup
 is needed by the solver itself. Matrix/seed/thread inputs and diagnostic
@@ -43,7 +43,7 @@ inside that lifetime. This does not make the entire MPU-GMP API thread-safe.
 
 The standalone API has per-call writable sieve/graph/solver state. Separate
 gmp_siqs or gmp_psiqs calls may run concurrently under the stable cache lifetime
-with reentrant adapters. Each caller must supply its own count output and own
+with a reentrant adapter. Each caller must supply its own count output and own
 its returned array. Inputs may be shared read-only, but must not be mutated
 or cleared while calls use them. Returned mpz_t values are independent copies,
 not borrowed inputs or prime-cache storage.
@@ -53,30 +53,28 @@ has to wait for its own caller threads before shutdown. Each call's nthreads
 is a pool size, not a global scheduler/core limit: simultaneous calls can
 oversubscribe the machine and consume the sum of their private scratch.
 
-Standalone host adapters
+Standalone host adapter
 ------------------------
 
 Compile a standalone embedding with STANDALONE, without STANDALONE_ECPP.
-Supply these two definitions with the exact siqs_dep.h prototypes:
+Supply this definition with the exact siqs_dep.h prototype:
 
   int siqs_is_prob_prime(const mpz_t n);
     Return nonzero for prime/probably-prime, zero for composite; do not modify n.
     The current standalone driver uses mpz_probab_prime_p(n, 25).
 
-  int siqs_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds);
-    n is read-only and f is already initialized by SIQS. Perform a bounded
-    Pollard-Brent attempt using a and rounds. Return nonzero only after setting
-    a proper divisor 1 < f < n that divides n; return zero on a miss. Do not
-    clear n or f. Use local temporaries/RNG state, not shared writable scratch.
-
-The driver contains a portable GMP implementation of the second adapter.
-Reuse/adapt its two host functions in your host source; do not link its main
+Reuse/adapt that host function from the driver; do not link its main
 alongside your own main. Include siqs_dep.h in the adapter translation unit.
-The UV type comes from ptypes.h; use the same build flags/types across units.
+Use the same build flags/types across units.
 
-Callbacks may execute in native worker threads. They must be reentrant and
+Cofactors are split internally with SQUFOF or quiet serial SIQS. No
+Pollard-Brent adapter or source file is needed. A rare splitter miss drops
+that candidate relation and increments the failed-split counter; an inner
+SIQS miss reports the residual when the outer call's verbosity is enabled.
+
+The callback may execute in native worker threads. It must be reentrant and
 must not call unaudited Perl APIs/error machinery. Normal non-standalone builds
-map these names to MPU-GMP functions; STANDALONE_ECPP deliberately retains that
+map this name to the MPU-GMP function; STANDALONE_ECPP deliberately retains that
 full-host mapping. Those modes are not the lightweight standalone adapter mode,
 and PSIQS currently requires the standalone host.
 
@@ -187,10 +185,10 @@ a complete factorization.
     return status;
   }
 
-Build from the repository root, supplying your two adapters in my-siqs-host.c:
+Build from the repository root, supplying your adapter in my-siqs-host.c:
 
   cc -O3 -DSTANDALONE -I. -o my-factor my-factor.c my-siqs-host.c \
-    siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+    siqs.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
   ./my-factor 22095311209999409685885162322219
 
 For parallel support, add -DPSIQS -pthread to that command. Both public entry

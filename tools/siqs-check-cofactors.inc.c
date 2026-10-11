@@ -40,7 +40,6 @@ static void cofactor_classification(void) {
   mpz_t divisor;
   uint64_t a, b;
   case_name = "split-methods-versus-failures-and-rejections";
-  cofactor_miss_native = 1;
   mpz_init_set_ui(divisor, 0);
   CHECK(!siqs_u64_split_pair(divisor, 10403, &a, &b));
   mpz_set_ui(divisor, 10403);
@@ -70,13 +69,9 @@ static void cofactor_classification(void) {
   cofactor_miss_squfof = 1;
   cofactor_miss_siqs = 1;
   cofactor_context(&ctx, &result);
-  CHECK(cofactor_resolve(&ctx, "47053")); /* 211*223, beyond inner trial limit */
-  CHECK(ctx.split_rho == 1);
-  cofactor_miss_rho = 1;
-  cofactor_context(&ctx, &result);
-  CHECK(!cofactor_resolve(&ctx, "47053"));
-  CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0);
-  cofactor_miss_rho = cofactor_miss_squfof = cofactor_miss_siqs = 0;
+  CHECK(!cofactor_resolve(&ctx, "47053")); /* 211*223, beyond inner trial limit */
+  CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0 && ctx.split_rho == 0);
+  cofactor_miss_squfof = cofactor_miss_siqs = 0;
   cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "1") && ctx.split_attempts == 0);
   CHECK(!cofactor_resolve(&ctx, "18446744073709551616") && ctx.split_attempts == 0);
@@ -84,12 +79,11 @@ static void cofactor_classification(void) {
   CHECK(!cofactor_resolve(&ctx, "107") && ctx.split_attempts == 0);
   ctx.params.smooth_bound = 5000;
   CHECK(!cofactor_resolve(&ctx, "10403") && ctx.split_attempts == 0);
-  cofactor_miss_native = 0;
   puts("PASS cofactors: accepted methods, bounded misses, invalid pairs, and counter conservation");
 }
 
 static void cofactor_trace_reset(void) {
-  cofactor_squfof_calls = cofactor_prime_calls = cofactor_rho_calls = 0;
+  cofactor_squfof_calls = cofactor_prime_calls = 0;
 }
 
 static void cofactor_lp_ceiling(void) {
@@ -430,36 +424,43 @@ static void cofactor_cascade(void) {
   siqs_ctx_t ctx;
   siqs_factor_array_t result;
   case_name = "cofactor-preferred-method-and-fallback-order";
-  cofactor_miss_native = cofactor_trace = 1;
+  cofactor_trace = 1;
   cofactor_trace_reset(); cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053"));
   CHECK(ctx.split_squfof == 1 && cofactor_squfof_calls == 1 &&
-        cofactor_prime_calls == 0 && cofactor_rho_calls == 0);
+        cofactor_prime_calls == 0);
   cofactor_miss_squfof = 1;
   cofactor_trace_reset(); cofactor_context(&ctx, &result);
   CHECK(cofactor_resolve(&ctx, "47053"));
   CHECK(cofactor_squfof_calls == 1);
-  CHECK(ctx.split_siqs == 1 && cofactor_prime_calls != 0 && cofactor_rho_calls == 0);
+  CHECK(ctx.split_siqs == 1 && cofactor_prime_calls != 0);
   cofactor_miss_siqs = 1;
   cofactor_trace_reset(); cofactor_context(&ctx, &result);
-  CHECK(cofactor_resolve(&ctx, "47053"));
-  CHECK(ctx.split_rho == 1 && cofactor_squfof_calls == 1 && cofactor_rho_calls == 1);
+  CHECK(!cofactor_resolve(&ctx, "47053"));
+  CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0 && ctx.split_rho == 0 &&
+        cofactor_squfof_calls == 1);
   CHECK(cofactor_prime_calls == 1);
 
-  /* Easy rho recovery, but large enough that enabled SIQS skips SQUFOF. */
+  /* Above the crossover, a SIQS miss is terminal: no SQUFOF retry. */
   cofactor_miss_squfof = 0;
   cofactor_trace_reset(); cofactor_context(&ctx, &result);
   ctx.largest_fb_prime = 397; ctx.params.large_prime_bound = UINT64_MAX;
   /* 1009 * 9007199254740881: both prime; skip the inner trial limit. */
-  CHECK(cofactor_resolve(&ctx, "9088264048033548929"));
-  CHECK(ctx.split_rho == 1 && cofactor_squfof_calls == 0 &&
-        cofactor_prime_calls == 1 && cofactor_rho_calls == 1);
+  CHECK(!cofactor_resolve(&ctx, "9088264048033548929"));
+  CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0 && ctx.split_rho == 0 &&
+        cofactor_squfof_calls == 0 && cofactor_prime_calls == 1);
   cofactor_trace_reset(); cofactor_context(&ctx, &result); ctx.params.bits = 64;
   ctx.largest_fb_prime = 397; ctx.params.large_prime_bound = UINT64_MAX;
   CHECK(cofactor_resolve(&ctx, "9088264048033548929"));
   CHECK(ctx.split_siqs == 0 && cofactor_squfof_calls == 1 && cofactor_prime_calls == 0);
-  cofactor_miss_siqs = cofactor_miss_native = cofactor_trace = 0;
-  puts("PASS cofactors: SQUFOF/SIQS crossover, low-bit SIQS recovery, rho fallback, and recursion guard");
+  /* A nested-size input cannot re-enter SIQS even when SQUFOF misses. */
+  cofactor_miss_squfof = 1;
+  cofactor_trace_reset(); cofactor_context(&ctx, &result); ctx.params.bits = 64;
+  CHECK(!cofactor_resolve(&ctx, "47053"));
+  CHECK(ctx.split_fail == 1 && ctx.split_rejected == 0 &&
+        cofactor_squfof_calls == 1 && cofactor_prime_calls == 0);
+  cofactor_miss_siqs = cofactor_miss_squfof = cofactor_trace = 0;
+  puts("PASS cofactors: SQUFOF/SIQS crossover, low-bit SIQS recovery, terminal misses, and recursion guard");
 }
 #ifndef _WIN32
 static void cofactor_miss_notice(void) {
@@ -468,7 +469,7 @@ static void cofactor_miss_notice(void) {
   siqs_factor_array_t result;
   mpz_t n;
   case_name = "cofactor-siqs-miss-diagnostic";
-  cofactor_miss_native = cofactor_miss_squfof = cofactor_miss_siqs = 1;
+  cofactor_miss_squfof = cofactor_miss_siqs = 1;
   mpz_init_set_ui(n, 47053);
   for (verbose = 0; verbose <= 1; verbose++) {
     FILE *capture = tmpfile();
@@ -482,19 +483,20 @@ static void cofactor_miss_notice(void) {
     accepted = siqs_resolve_cofactor(&ctx, n, &a, &b);
     fflush(stderr);
     CHECK(dup2(saved_stderr, STDERR_FILENO) >= 0); close(saved_stderr);
-    CHECK(accepted && ctx.split_rho == 1 && a == 211 && b == 223);
+    CHECK(!accepted && ctx.split_fail == 1 && ctx.split_rejected == 0 &&
+          ctx.split_rho == 0 && a == 1 && b == 1);
     cofactor_counts(&ctx);
     rewind(capture);
     if (verbose) {
       CHECK(fgets(message, sizeof(message), capture) != NULL);
-      CHECK(strstr(message, "failed to split 47053 (16 bits); trying rho") != NULL);
+      CHECK(strstr(message, "failed to split 47053 (16 bits)") != NULL);
     }
     CHECK(fgets(message, sizeof(message), capture) == NULL);
     fclose(capture);
   }
   mpz_clear(n);
-  cofactor_miss_native = cofactor_miss_squfof = cofactor_miss_siqs = 0;
-  puts("PASS cofactors: SIQS miss reports residual at verbose level 1+, quiet level stays silent");
+  cofactor_miss_squfof = cofactor_miss_siqs = 0;
+  puts("PASS cofactors: SIQS miss drops the relation, reports residual at verbose level 1+, and stays quiet at level 0");
 }
 #endif
 
@@ -835,7 +837,6 @@ static void suite_cofactors(void) {
   cofactor_miss_notice();
 #endif
   case_name = "nested-siqs-ownership-reentrancy-and-quiet-output";
-  cofactor_miss_native = 1;
   verbose_level = 5;
 #ifndef _WIN32
   capture = tmpfile(); CHECK(capture != NULL);
@@ -860,7 +861,7 @@ static void suite_cofactors(void) {
   CHECK(dup2(saved_stdout, STDOUT_FILENO) >= 0);
   close(saved_stdout); fclose(capture);
 #endif
-  verbose_level = saved_verbose; cofactor_miss_native = 0;
+  verbose_level = saved_verbose;
   prime_iterator_global_shutdown();
   puts("PASS cofactors: largest-two helper, 55-59/64-bit cases, wide input, overflow, and quiet/reentrant calls");
 }

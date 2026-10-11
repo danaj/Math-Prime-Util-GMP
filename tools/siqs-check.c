@@ -2,7 +2,7 @@
  *
  * Direct build from the repository root (GMP required, Perl not required):
  *   cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
- *     prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+ *     prime_iterator.c squfof126.c -lgmp -lm
  *   /tmp/siqs-check --suite sieve
  *
  * Include the current implementation to test its private interfaces without
@@ -28,8 +28,6 @@
 #include SIQS_CHECK_SOURCE
 #include "../mont64.h"
 #undef squfof126
-#undef uvpbrent63
-#undef siqs_pbrent_factor
 #undef siqs_is_prob_prime
 #undef malloc
 #undef calloc

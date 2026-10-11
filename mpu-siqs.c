@@ -5,8 +5,7 @@
   Direct build:
 
     cc -O3 -DSTANDALONE -o msiqs \
-      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
-      -lgmp -lm
+      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
   Add -march=native when building a binary for the local machine only.
   Add -DPSIQS -pthread for the parallel build.  After perl Makefile.PL,
@@ -39,84 +38,6 @@ int siqs_is_prob_prime(const mpz_t n) {
   return mpz_probab_prime_p(n, 25);
 }
 
-#define SIQS_TEST_FOR_2357(n, f) \
-  do { \
-    if (mpz_divisible_ui_p((n), 2)) { mpz_set_ui((f), 2); return 1; } \
-    if (mpz_divisible_ui_p((n), 3)) { mpz_set_ui((f), 3); return 1; } \
-    if (mpz_divisible_ui_p((n), 5)) { mpz_set_ui((f), 5); return 1; } \
-    if (mpz_divisible_ui_p((n), 7)) { mpz_set_ui((f), 7); return 1; } \
-    if (mpz_cmp_ui((n), 121) < 0) return 0; \
-  } while (0)
-
-/* Portable GMP Pollard--Brent fallback for residual cofactor splitting.
- * Keep this algorithm aligned with _GMP_pbrent_factor until the cofactor
- * splitters have a shared lower-level interface. */
-int siqs_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds) {
-  mpz_t xi, xm, saved_xi, product, temporary;
-  UV i, r;
-  const UV inner = 256;
-
-  SIQS_TEST_FOR_2357(n, f);
-  mpz_init_set_ui(xi, 2);
-  mpz_init_set_ui(xm, 2);
-  mpz_init(product);
-  mpz_init(temporary);
-  mpz_init(saved_xi);
-
-  r = 1;
-  mpz_set_ui(f, 1);
-  while (rounds > 0) {
-    UV rleft = r > rounds ? rounds : r;
-    while (rleft > 0) {
-      UV dorounds = rleft > inner ? inner : rleft;
-      mpz_set_ui(product, 1);
-      mpz_set(saved_xi, xi);
-      for (i = 0; i < dorounds; i++) {
-        mpz_mul(temporary, xi, xi);
-        mpz_add_ui(temporary, temporary, a);
-        mpz_tdiv_r(xi, temporary, n);
-        mpz_sub(f, xm, xi);
-        mpz_mul(product, product, f);
-        if ((i % 4) == ((dorounds - 1) % 4))
-          mpz_tdiv_r(product, product, n);
-      }
-      rleft -= dorounds;
-      rounds -= dorounds;
-      mpz_gcd(f, product, n);
-      if (mpz_cmp_ui(f, 1) != 0)
-        break;
-    }
-    if (mpz_cmp_ui(f, 1) == 0) {
-      r *= 2;
-      mpz_set(xm, xi);
-      continue;
-    }
-    if (mpz_cmp(f, n) == 0) {
-      mpz_set(xi, saved_xi);
-      do {
-        mpz_mul(temporary, xi, xi);
-        mpz_add_ui(temporary, temporary, a);
-        mpz_tdiv_r(xi, temporary, n);
-        mpz_sub(f, xm, xi);
-        if (mpz_sgn(f) < 0)
-          mpz_add(f, f, n);
-        mpz_gcd(f, f, n);
-      } while (mpz_cmp_ui(f, 1) == 0 && r-- != 0);
-    }
-    break;
-  }
-
-  mpz_clear(xi);
-  mpz_clear(xm);
-  mpz_clear(saved_xi);
-  mpz_clear(product);
-  mpz_clear(temporary);
-  if (mpz_cmp_ui(f, 1) == 0 || mpz_cmp(f, n) == 0) {
-    mpz_set(f, n);
-    return 0;
-  }
-  return 1;
-}
 
 static void print_usage(FILE *stream, const char *program) {
   fprintf(stream,

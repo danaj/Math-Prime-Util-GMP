@@ -26,7 +26,7 @@ be installed or built. Use --keep to retain the binary.
 Direct build without Perl or a generated Makefile, from the repository root:
 
   cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
-    prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+    prime_iterator.c squfof126.c -lgmp -lm
   /tmp/siqs-check --suite sieve
   /tmp/siqs-check --extended --verbose
 
@@ -46,7 +46,9 @@ and polynomials. The cofactors suite checks method counters, failed versus
 rejected splits, 55--59/64-bit crossover cases, bounded nesting, quiet output
 and concurrent calls. It also checks the internal largest-two helper on
 multi-factor/repeated partitions, wider inputs, and uint64_t overflow, plus
-low-bit SIQS recovery, rho fallback, and verbose diagnostics on SIQS misses.
+low-bit SIQS recovery and terminal splitter misses: a miss drops the relation,
+increments the failure counter (not the policy-rejection counter), and reports
+the residual only when verbosity is enabled. No rho fallback is required.
 --verbose reports individual polynomial/matrix fixtures. New suites can
 be registered without creating separate executables or a large framework.
 

@@ -5,7 +5,7 @@
  *
  * cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
  *   -o siqs-sieve-bench tools/siqs-sieve-bench.c lanczos.c \
- *   prime_iterator.c squfof126.c pbrent63.c -lgmp -lm
+ *   prime_iterator.c squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */
 #ifndef _POSIX_C_SOURCE

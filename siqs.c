@@ -49,7 +49,6 @@
 #include "siqs.h"
 #include "siqs_dep.h"
 #include "lanczos.h"
-#include "pbrent63.h"
 #include "prime_iterator.h"
 #include "squfof126.h"
 
@@ -4122,23 +4121,6 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   timing_start = siqs_timing_now();
 #endif
 
-#if BITS_PER_WORD == 64 && HAVE_STD_U64 && defined(__GNUC__) && defined(__x86_64__)
-  /* Native rho is a fast pretest.  Its Montgomery arithmetic is restricted
-   * to 63 bits, while the portable cascade below also handles a miss and the
-   * complete 64-bit residual range. */
-  if (nbits <= 63) {
-    UV factors[2];
-    int count = uvpbrent63((UV)n, factors, 30000,
-                           (UV)(siqs_rand64(&ctx->cofactor_rng) | 1U));
-    if (count == 2) {
-      a = factors[0];
-      b = factors[1];
-      success = a > 1 && b > 1 && n % a == 0 && n / a == b;
-      if (success)
-        method_counter = &ctx->split_rho;
-    }
-  }
-#endif
   if (!success) {
     if (mpz_perfect_square_p(rest)) {
       mpz_t factor;
@@ -4170,28 +4152,17 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   }
   /* Scratch/RNGs are private, the initialized prime cache is read-only, and
    * verbosity zero is per-call rather than host-global.  A low-bit SQUFOF
-   * miss reaches SIQS too; a high-bit SIQS miss goes directly to rho. */
+   * miss reaches SIQS too.  We used to have a rho fallback, but it was
+   * removed for simplicity. */
   if (!success && can_siqs) {
     success = siqs_split_to_u64(rest, ctx->largest_fb_prime, &a, &b);
     if (success)
       method_counter = &ctx->split_siqs;
     else if (ctx->verbose > 0) {
-      fprintf(stderr, "# siqs cofactor SIQS failed to split %llu "
-                      "(%u bits); trying rho\n",
+      fprintf(stderr, "# siqs cofactor SIQS failed to split %llu (%u bits)\n",
               (unsigned long long)n, nbits);
       fflush(stderr);
     }
-  }
-  if (!success) {
-    mpz_t factor;
-    mpz_init(factor);
-    success = siqs_pbrent_factor(
-        rest, factor,
-        (UV)(3 + (siqs_rand64(&ctx->cofactor_rng) & 0xffffU)),
-        250000) && siqs_u64_split_pair(factor, n, &a, &b);
-    if (success)
-      method_counter = &ctx->split_rho;
-    mpz_clear(factor);
   }
 
   valid = success && a > 1 && b > 1 && n % a == 0 && n / a == b &&
