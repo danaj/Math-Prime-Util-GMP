@@ -62,7 +62,7 @@ before running "make siqs" to return to autodetection, or after changing the
 compiler, build flags, or environment.
 
 With no integer arguments, msiqs reads whitespace-separated decimal
-integers from standard input.  It supports positive inputs through 370 bits.
+integers from standard input.  It supports positive inputs through 400 bits.
 It retries any composite cofactors it splits off; an unsplit composite is
 marked [incomplete] on the result line, reported on stderr, and makes the
 program exit unsuccessfully.  Use -v for progress or -vv for relation updates;
@@ -75,8 +75,7 @@ For a local optimized build, use:
 It can also be compiled directly without Perl or a generated Makefile:
 
    cc -O3 -march=native -DSTANDALONE -o msiqs \
-      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c pbrent63.c \
-      -lgmp -lm
+      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
 When built with pthreads, the same executable supports a runtime worker count:
 
@@ -108,8 +107,11 @@ included by siqs.c and lanczos.c; do not compile them separately.
 To call gmp_siqs/gmp_psiqs from a custom C host, see siqs.h and
 tools/README-siqs-embedding.txt. The host must initialize the shared prime cache
 once before calls and shut it down only after all calls/caller threads finish.
-Standalone embedding also requires the three siqs_dep.h host adapters. Existing
-MPU-GMP/command-line hosts already own initialization; do not initialize again.
+Standalone hosts supply siqs_is_prob_prime(n), declared in siqs_dep.h.  This
+is normally just a one-line wrapper around GMP’s primality test.
+Standalone hosts must provide siqs_is_prob_prime delared in siqs_dep.h.
+Existing MPU-GMP/command-line hosts already own initialization;
+do not initialize again.
 
 
 DEPENDENCIES

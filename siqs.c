@@ -3913,14 +3913,19 @@ static int siqs_mpz_to_u64(const mpz_t n, uint64_t *value) {
   return 1;
 }
 
-static int siqs_u64_probable_prime(uint64_t n) {
-  int result;
-  mpz_t z;
-  mpz_init(z);
-  mpz_import(z, 1, -1, sizeof(n), 0, 0, &n);
-  result = mpz_probab_prime_p(z, 3) != 0;
-  mpz_clear(z);
-  return result;
+static uint32_t siqs_isqrt64(uint64_t n) {
+  /* The small addition means we only need to check for fixing downwards. */
+  int64_t r = (int64_t)(sqrt((double)n) + 1e-6f);
+  int64_t diff = n - (uint64_t)r*r;
+  return (uint32_t)(r - (diff < 0));
+}
+
+static int siqs_is_perfect_square(uint64_t n) {
+  uint32_t r;
+  if ((UINT64_C(1) << (n&63)) & UINT64_C(0xfdfdfdedfdfcfdec))
+    return 0;
+  r = siqs_isqrt64(n);
+  return (uint64_t)r*r == n;
 }
 
 /* Base-2 Miller-Rabin, sharing a modulus context with the Lucas stage. */
@@ -4011,15 +4016,16 @@ static int siqs_lucas_aes_mont(const mont64_t *ctx) {
   }
   return 0;
 }
-static int siqs_bpsw_u64(const mpz_t rest, uint64_t n) {
+static int siqs_bpsw_u64(uint64_t n) {
   mont64_t ctx;
   if (n < 2 || (n & 1U) == 0)
     return n == 2;
   mont64_init(&ctx, n);
   if (!siqs_miller_rabin_base_2_mont(&ctx))
     return 0;
-  /* Also prevents an endless Lucas parameter search on an odd square. */
-  return !mpz_perfect_square_p(rest) && siqs_lucas_aes_mont(&ctx);
+  if (siqs_is_perfect_square(n))
+    return 0;
+  return siqs_lucas_aes_mont(&ctx);
 }
 
 /* A splitter's success flag is not enough: obtain a proper exact pair before
@@ -4100,7 +4106,7 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
 #ifdef SIQS_TIMING
   timing_start = siqs_timing_now();
 #endif
-  prime = siqs_bpsw_u64(rest, n);
+  prime = siqs_bpsw_u64(n);
 #ifdef SIQS_TIMING
   ctx->result->primality_time += siqs_timing_elapsed(timing_start);
   if (prime)
@@ -4175,7 +4181,7 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   /* All factor-base primes were removed.  Below pmax^3, neither of two
    * remaining factors can itself be composite. */
   if (valid && ctx->params.smooth_bound / pmax2 >= ctx->largest_fb_prime)
-    valid = siqs_u64_probable_prime(a) && siqs_u64_probable_prime(b);
+    valid = siqs_bpsw_u64(a) && siqs_bpsw_u64(b);
 #ifdef SIQS_TIMING
   ctx->result->cofactor_time += siqs_timing_elapsed(timing_start);
   ctx->result->cofactor_calls++;

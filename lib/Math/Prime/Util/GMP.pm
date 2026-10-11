@@ -2675,13 +2675,19 @@ the small ones.
   my @factors = trial_factor($n);
   my @factors = trial_factor($n, 1000);
 
-Given a positive number input, tries to discover a factor using trial division.
-The resulting array will contain either two factors (it succeeded) or the
-original number (no factor was found).  In either case, multiplying @factors
-yields the original input.  An optional divisor limit may be given as the
+Given a non-negative integer input, tries to discover a factor using trial division.
+An optional divisor limit may be given as the
 second parameter.  Factoring will stop when the input is a prime, one factor
 is found, or the input has been tested for divisibility with all primes less
 than or equal to the limit.  If no limit is given, then C<2**31-1> will be used.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+The final returned factor is not necessarily prime.
 
 This is a good and fast initial test, and will be very fast for small numbers
 (e.g. under 1 million).  For larger numbers, faster methods for complete
@@ -2698,11 +2704,18 @@ composites or looking for very small factors.
   my @factors = prho_factor($n, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Pollard's Rho
-method.  The resulting array will contain either two factors (it succeeded)
-or the original number (no factor was found).  In either case, multiplying
-@factors yields the original input.  An optional number of rounds may be
-given as the second parameter.  Factoring will stop when the input is a prime,
-one factor has been found, or the number of rounds has been exceeded.
+method.
+An optional number of rounds may be given as the second parameter.
+Factoring will stop when the input is a prime, one factor has been found,
+or the number of rounds has been exceeded.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 This is the Pollard Rho method with C<f = x^2 + 3> and default rounds 64M.  It
 is very good at finding small factors.  Typically L</pbrent_factor> will be
@@ -2716,12 +2729,18 @@ different parameters however, so are not completely identical.
   my @factors = pbrent_factor($n, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Pollard's Rho
-method with Brent's algorithm.  The resulting array will contain either two
-factors (it succeeded) or the original number (no factor was found).  In
-either case, multiplying @factors yields the original input.  An optional
-number of rounds may be given as the second parameter.  Factoring will stop
-when the input is a prime, one factor has been found, or the number of
-rounds has been exceeded.
+method with Brent's cycle algorithm.
+An optional number of rounds may be given as the second parameter.
+Factoring will stop when the input is a prime, one factor has been found,
+or the number of rounds has been exceeded.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 This is the Pollard Rho method using Brent's modified cycle detection,
 delayed C<gcd> computations, and backtracking.  It is essentially
@@ -2740,15 +2759,22 @@ and default rounds 64M.  It is very good at finding small factors.
   my @factors = pminus1_factor($n, 10_000_000, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Pollard's
-C<p-1> method.  The resulting array will contain either two factors (it
-succeeded) or the original number (no factor was found).  In either case,
-multiplying @factors yields the original input.  An optional first stage
+C<p-1> method.
+An optional first stage
 smoothness factor (B1) may be given as the second parameter.  This will be
 the smoothness limit B1 for the first stage, and will use C<10*B1> for
 the second stage limit B2.  If a third parameter is given, it will be used
 as the second stage limit B2.
 Factoring will stop when the input is a prime, one factor has been found, or
 the algorithm fails to find a factor with the given smoothness.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 This is Pollard's C<p-1> method using a default smoothness of 5M and a
 second stage of C<B2 = 10 * B1>.  It can quickly find a factor C<p> of the
@@ -2772,14 +2798,20 @@ to the speed of the version included with modern GMP-ECM with large B values
   my @factors = pplus1_factor($n);
 
 Given a positive number input, tries to discover a factor using Williams'
-C<p+1> method.  The resulting array will contain either two factors (it
-succeeded) or the original number (no factor was found).  In either case,
-multiplying @factors yields the original input.  An optional first stage
+C<p+1> method.
+An optional first stage
 smoothness factor (B1) may be given as the second parameter.  This will be
 the smoothness limit B1 for the first stage.
 Factoring will stop when the input is a prime, one factor has been found,
 or the algorithm fails to find a factor with the given smoothness.
 
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 =head2 cheb_factor
 
@@ -2791,6 +2823,14 @@ of Chebyshev polynomials (particularly that C<T_mn(x) = T_m(T_n(x))>)
 and their relationship with the Lucas sequence.
 This works when C<p-1> or C<p+1> is smooth.
 
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
+
 
 =head2 holf_factor
 
@@ -2798,11 +2838,18 @@ This works when C<p-1> or C<p+1> is smooth.
   my @factors = holf_factor($n, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Hart's OLF
-method.  The resulting array will contain either two factors (it succeeded)
-or the original number (no factor was found).  In either case, multiplying
-@factors yields the original input.  An optional number of rounds may be
-given as the second parameter.  Factoring will stop when the input is a
-prime, one factor has been found, or the number of rounds has been exceeded.
+method.
+An optional number of rounds may be given as the second parameter.
+Factoring will stop when the input is a prime, one factor has been found,
+or the number of rounds has been exceeded.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 This is Hart's One Line Factorization method, which is a variant of Fermat's
 algorithm.  A premultiplier of 480 is used.  It is very good at factoring
@@ -2828,21 +2875,26 @@ only a few milliseconds.
   my @factors = squfof_factor($n, 100_000_000);
 
 Given a positive number input, tries to discover a factor using Shanks'
-square forms factorization method (usually known as SQUFOF).  The resulting
-array will contain either two factors (it succeeded) or the original number
-(no factor was found).  In either case, multiplying @factors yields the
-original input.  An optional number of rounds may be given as the second
-parameter.  Factoring will stop when the input is a prime, one factor has
-been found, or the number of rounds has been exceeded.
+square forms factorization method (usually known as SQUFOF).
+An optional number of rounds may be given as the second parameter.
+Factoring will stop when the input is a prime, one factor has been found,
+or the number of rounds has been exceeded.
 
-This is Daniel Shanks' SQUFOF (square forms factorization) algorithm.  The
-particular implementation is a non-racing multiple-multiplier version, based
-on code ideas of Ben Buhrow and Jason Papadopoulos as well as many others.
-SQUFOF is often the preferred method for small numbers, and L<Math::Prime::Util>
-as well as many other packages use it was the default method for native size
-(e.g. 32-bit or 64-bit) numbers after trial division.  The GMP version used
-in this module will work for larger values, but my testing indicates it is
-generally slower than the C<prho> and C<pbrent> implementations.
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
+
+This is Daniel Shanks' SQUFOF (square forms factorization) algorithm.
+The implementation is custom, drawing on code ideas from Ben Buhrow,
+Jason Papadopoulos, and others.
+It races many multipliers in interleaved groups of up to four,
+allowing compiler SIMD optimizations.
+It supports inputs up to 126 bits and is excellent for small inputs;
+larger inputs are generally better with ECM or SIQS.
 
 
 =head2 ecm_factor
@@ -2851,13 +2903,19 @@ generally slower than the C<prho> and C<pbrent> implementations.
   my @factors = ecm_factor($n, 12500);      # B1 = 12500
   my @factors = ecm_factor($n, 12500, 10);  # B1 = 12500, curves = 10
 
-Given a positive number input, tries to discover a factor using ECM.  The
-resulting array will contain either two factors (it succeeded) or the original
-number (no factor was found).  In either case, multiplying @factors yields the
-original input.  An optional maximum smoothness may be given as the second
-parameter, which relates to the size of factor to search for.  An optional
-third parameter indicates the number of random curves to use at each
-smoothness value being searched.
+Given a positive number input, tries to discover a factor using ECM.
+An optional maximum smoothness may be given as the second
+parameter, which relates to the size of factor to search for.
+An optional third parameter indicates the number of random curves to
+use at each smoothness value being searched.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into two
+factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 This is an implementation of Hendrik Lenstra's elliptic curve factoring
 method, usually referred to as ECM.  The implementation is reasonable,
@@ -2873,16 +2931,24 @@ factoring reasonably sized inputs.
   my @factors = qs_factor($n, $implementation);
 
 Given a positive number input, tries to discover factors using QS (the
-quadratic sieve).  The resulting array will contain one or more numbers such
-that multiplying @factors yields the original input.  Typically multiple
-factors will be produced, unlike the other C<..._factor> routines.
+quadratic sieve).
+Unlike the other C<..._factor> routines, SIQS can split the remaining
+cofactor into more than two factors in a single call.
+
+Returns a partial factorization list whose product is the input.
+Input 0 returns the one-element list C<(0)> and input 1 returns an empty list.
+All occurrences of the prime factors 2, 3, and 5 are extracted first
+and included in the returned list, with multiplicity.
+Any remaining cofactor is either returned unchanged or split into
+two or more factors if the algorithm succeeds.
+Returned factors are not necessarily prime.
 
 The current implementation is SIQS written for this module.  It uses
 self-initializing polynomial families, one- and two-large-prime relation
 combination, dynamic relation sufficiency checks,
 dense elimination for small matrices,
 and block Lanczos for larger matrices/fallback.
-It handles inputs from 1 to 110 decimal digits.
+It handles inputs from 1 to 120 decimal digits.
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
 SIQS takes about one hour to factor a 100-digit balanced semiprime,
@@ -2891,13 +2957,14 @@ one second at 63 digits,
 and one millisecond at 31 digits.
 The time for individual inputs can vary.
 All computations are single threaded, but the function is thread safe.
+The included SIQS can be built as a standalone fully parallel program.
 
 The optional implementation selector is 0 for SIQS (the default), 1 for the
 older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the
 requested QS directly and is useful for benchmarking or compatibility
 comparisons; it does not run the generic factoring routine's preliminary
 methods.  TinyQS is tuned for inputs no larger than 128 bits.
-All three are currently slower at all sizes than SIQS.
+SIQS is the recommended method and is typically faster than the others.
 
 With SIQS, verbose setting 3 gives output describing the parameters chosen
 before the factoring starts, then when all relations have been collected,
@@ -3145,7 +3212,7 @@ TinyQS has since been expanded and tuned for 50- to 128-bit inputs.
 William Hart wrote SIMPQS, which is the basis for SIMPQS2.  Hugo van der
 Sanden added combined partial relations, integrated block Lanczos, and made
 substantial memory and performance improvements for SIMPQS2.
-The independent SIQS uses it's own dense and block Lanczos implementations.
+The independent SIQS uses its own dense and block Lanczos implementations.
 
 
 =head1 ACKNOWLEDGEMENTS

@@ -760,7 +760,7 @@ static void cofactor_mr2(void) {
 
 static void cofactor_bpsw_check(uint64_t n, mpz_t z) {
   mpz_import(z, 1, -1, sizeof(n), 0, 0, &n);
-  CHECK(siqs_bpsw_u64(z, n) == (mpz_probab_prime_p(z, 25) != 0));
+  CHECK(siqs_bpsw_u64(n) == (mpz_probab_prime_p(z, 25) != 0));
 }
 static void cofactor_bpsw(void) {
   static const uint64_t edges[] = {
@@ -803,7 +803,7 @@ static void cofactor_bpsw(void) {
     }
     if (i < 256) {
       mpz_nextprime(z, z);
-      if (siqs_mpz_to_u64(z, &value)) CHECK(siqs_bpsw_u64(z, value));
+      if (siqs_mpz_to_u64(z, &value)) CHECK(siqs_bpsw_u64(value));
       value = siqs_rand64(&rng) & UINT32_MAX;
       cofactor_bpsw_check(value * value, z);
     }
