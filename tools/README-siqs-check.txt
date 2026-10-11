@@ -38,7 +38,7 @@ private packing/kernels, just as the main checker includes siqs.c.
 Suites and options
 ------------------
 
-One executable runs the named suites ("policies", "sieve", "scores", "relations", "matrix", "workers",
+One executable runs the named suites ("policies", "sieve", "scores", "setup", "relations", "matrix", "workers",
 "cofactors"). The default
 "all" selection runs every registered suite. --list describes available
 suites; --suite selects one. The scores suite checks exact certificates against
@@ -103,12 +103,46 @@ that malformed ramps, extrapolation, nonfinite values and invalid K produce
 fatal diagnostics instead of silently changing a policy.  These checks do
 not establish the performance of the provisional 2LP K curves.
 
+The upper-policy sweep uses the production rows at every bit 400-512, odd
+residue classes near both ends of each bit range, and small/large forced
+multipliers through 4095. It checks geometry, alignment, unique band ownership,
+both d modes, and effective LP/R bounds against GMP products. P values are
+synthetic (including nonprime cap-boundary values), not actual factor-base
+maxima. No factor base, worker workspace, sieve or factoring job is created.
+The current coverage is 9,040 setup classes and 72,320 synthetic-P bounds.
+
 Cold-path arithmetic checks cover allocation products/padding, checked
 capacity doubling, and cached 70% hash thresholds through 2^31 slots. Small
 real tables exercise growth and duplicate detection. Synthetic parameter
 limits check fractional FB/M conversion and P < 2^31 before narrowing.
-POSIX children verify 30 fatal conversion/allocation/growth paths without
+POSIX children verify 32 fatal conversion/allocation/growth/cutoff paths without
 making huge allocations. These are boundary tests, not 512-bit factoring.
+
+Setup suite (opt-in)
+-------------------
+
+  perl tools/siqs-check.pl --suite setup --extended --verbose
+
+Use the actual production policies at 400/401, 430/431, 463, 496 and 512 bits.
+Deterministic composites have known large factors, so factor-base construction
+need not be bypassed or given a fake N. Force multipliers 1, 2 and 2047 across
+odd residue classes, plus one 512-bit 4095 override fixture. All 29 cases build
+real factor bases, set LP/R and weights, certify scores, and check two distinct
+A families and three consecutive polynomials per family (174 total).
+
+Check A/B geometry and coefficients, all root ranges, GMP root congruences at
+small/spread/A-prime indices, and exact Q envelopes and scores at four positions.
+No full sieve, candidate-map allocation, relation collection or solver runs.
+--verbose records actual P, effective LP/R, score mode, fixed-array payload and
+CPU time for each fixture. These are safety/setup checks, not yield benchmarks.
+
+Each case has a 120-second POSIX alarm (SIQS_CHECK_SETUP_TIMEOUT can override).
+Windows reports SKIP for that timeout mechanism but still runs the fixtures.
+Major fixed-array payload is checked against 128 MiB before FB allocation;
+that limit excludes GMP/iterator storage, allocator overhead and sanitizer RSS.
+The current peak major payload is 55.9 MiB. Without --extended this suite reports
+SKIP; --suite all --extended includes it. Successful setup does not establish
+practical upper-band factoring performance.
 
 Sieve suite
 -----------

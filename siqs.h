@@ -8,7 +8,7 @@
 #define MPU_SIQS_MIN_BITS   1U
 /* Current policy/support limit. Wider arithmetic validation alone does not
  * supply tuned policies or establish supported factoring performance. */
-#define MPU_SIQS_MAX_BITS 400U
+#define MPU_SIQS_MAX_BITS 512U
 
 /* Parallel collection is optional; small/inline-solving policies stay serial. */
 #define PSIQS_MAX_THREADS 256U

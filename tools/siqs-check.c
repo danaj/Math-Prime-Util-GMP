@@ -865,6 +865,7 @@ static void suite_policies(void) {
   check_policy_errors();
   check_arithmetic_bounds();
   check_parameter_envelope();
+  check_upper_policy_sweep();
   check_first_sieved_bounds();
   check_allocation_errors();
 }
@@ -874,6 +875,7 @@ static void suite_policies(void) {
 #include "siqs-check-workers.inc.c"
 #include "siqs-check-cofactors.inc.c"
 #include "siqs-check-scores.inc.c"
+#include "siqs-check-setup.inc.c"
 
 typedef struct {
   const char *name;
@@ -888,6 +890,8 @@ static const check_suite_t suites[] = {
    suite_sieve},
   {"scores", "exact certificates, raw scanning, saturation and fine-filter safety",
    suite_scores},
+  {"setup", "opt-in production upper-policy factor bases, A families and roots",
+   suite_setup},
   {"relations", "congruences, cycle paths, ownership, partition and exponent limits",
    suite_relations},
   {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
@@ -899,7 +903,7 @@ static const check_suite_t suites[] = {
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|policies|sieve|scores|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|policies|sieve|scores|setup|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

@@ -81,7 +81,7 @@ sub usage {
   my ($status) = @_;
   print <<'USAGE';
 usage: perl tools/siqs-check.pl [options]
-  --suite NAME          Run policies, sieve, scores, relations, matrix, workers, cofactors, or all.
+  --suite NAME          Run policies, sieve, scores, setup, relations, matrix, workers, cofactors, or all.
   --score-bits N        Scratch 5/6/7-bit score model (--suite scores only).
   --extended           Broader fixtures and more polynomials, not full factors.
   --verbose            Report individual polynomial and matrix fixtures.

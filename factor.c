@@ -329,7 +329,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         }
 
         if (!success)  success = run_factor_pretests(n, f, nbits, &o);
-        if (nbits <= MPU_SIQS_MAX_BITS)
+        if (nbits <= MPU_SIQS_MAX_BITS && nbits <= 400)
           try_siqs = 1;
       }
 

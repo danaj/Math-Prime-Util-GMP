@@ -96,6 +96,131 @@ static void check_parameter_envelope(void) {
   puts("PASS policies: valid fractional FB/M limits, zero-scale minimum, fixed M limit and P=2^31-1");
 }
 
+/* Independent GMP products check the effective, capped scalar bounds. */
+static void check_upper_bound_value(uint64_t actual, uint64_t a, uint64_t b,
+                                    double multiplier, uint64_t maximum) {
+  mpz_t expected, factor, limit, observed;
+  mpz_inits(expected, factor, limit, observed, NULL);
+  siqs_mpz_set_u64(expected, a);
+  siqs_mpz_set_u64(factor, b);
+  mpz_mul(expected, expected, factor);
+  siqs_mpz_set_u64(limit, maximum);
+  if (multiplier == floor(multiplier)) {
+    mpz_set_d(factor, multiplier);
+    mpz_mul(expected, expected, factor);
+  } else {
+    double value;
+    CHECK(b == 0 || a <= UINT64_MAX / b);
+    value = (double)(a * b) * multiplier;
+    if (value >= (double)maximum) mpz_set(expected, limit);
+    else mpz_set_d(expected, value);
+  }
+  if (mpz_cmp(expected, limit) > 0) mpz_set(expected, limit);
+  siqs_mpz_set_u64(observed, actual);
+  CHECK(mpz_cmp(expected, observed) == 0);
+  mpz_clears(expected, factor, limit, observed, NULL);
+}
+
+/* Resolve actual upper policies, but never build an FB or worker workspace.
+ * P values below are synthetic, including nonprime cap-boundary fixtures. */
+static void check_upper_policy_sweep(void) {
+  static const unsigned long multipliers[] = {
+    1, 2, 3, 5, 7, 19, 41, 43, 2047, 4095
+  };
+  static const uint32_t p_values[] = {
+    1009, 993481, 25695647, 154981283, 154981284,
+    715827882, 715827883, UINT32_C(0x7fffffff)
+  };
+  siqs_ctx_t ctx;
+  uint32_t bits, edge, residue, i, j, setups = 0, bounds = 0, d_modes = 0;
+  uint32_t maximum_fb = 0, maximum_m = 0, lp_clips = 0, r_clips = 0;
+  char name[80];
+  memset(&ctx, 0, sizeof(ctx));
+  mpz_inits(ctx.n, ctx.kn, NULL);
+  case_ctx = &ctx;
+  case_name = "upper-bound-GMP-reference";
+  check_upper_bound_value(1261, 1009, 1, 1.25, SIQS_LP_MAX);
+  check_upper_bound_value(2545202, 1009, 1009, 2.5, SIQS_RESIDUAL_PRODUCT_MAX);
+  for (bits = 400; bits <= 512; bits++) {
+    const siqs_policy_band_t *band = siqs_policy_band(bits);
+    uint32_t owners = 0;
+    case_name = "upper-policy-ownership";
+    CHECK(band != NULL);
+    for (i = 0; i < SIQS_POLICY_BAND_COUNT; i++)
+      if (bits >= siqs_policy_bands[i].first_bits &&
+          bits <= siqs_policy_bands[i].last_bits) owners++;
+    CHECK(owners == 1);
+    for (edge = 0; edge < 2; edge++) {
+      for (residue = 1; residue < 8; residue += 2) {
+        siqs_parameters_t selected;
+        mpz_set_ui(ctx.n, 1);
+        mpz_mul_2exp(ctx.n, ctx.n, edge ? bits : bits - 1U);
+        if (edge) mpz_sub_ui(ctx.n, ctx.n, 8U - residue);
+        else mpz_add_ui(ctx.n, ctx.n, residue);
+        sprintf(name, "upper-policy-b%u-edge%u-mod8-%u", bits, edge, residue);
+        case_name = name;
+        CHECK(mpz_sizeinbase(ctx.n, 2) == bits);
+        CHECK(mpz_fdiv_ui(ctx.n, 8) == residue);
+        memset(&selected, 0, sizeof(selected));
+        siqs_select_parameters(&selected, ctx.n, NULL);
+        CHECK(selected.bits == bits);
+        CHECK(selected.policy_first_bits == band->first_bits);
+        CHECK(selected.policy_last_bits == band->last_bits);
+        CHECK(selected.max_large_primes == 2);
+        CHECK(selected.q_count >= 1 && selected.q_count <= SIQS_MAX_A_PRIMES);
+        CHECK(selected.fb_size >= 1 && selected.fb_size <= SIQS_PACKED_FACTOR_ROW_MASK);
+        CHECK(selected.half_interval >= 4096 && selected.half_interval <= SIQS_HALF_INTERVAL_MAX);
+        CHECK((selected.half_interval & (SIQS_SIEVE_ALIGN - 1U)) == 0);
+        CHECK(selected.target_relations == selected.fb_size + 1U + selected.relation_extra);
+        CHECK((uint64_t)selected.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB < (UINT64_C(1) << 30));
+        CHECK(selected.sieve_hit_bound_nominal > 0.0 && selected.sieve_hit_bound_nominal <= DBL_MAX);
+        CHECK(selected.sieve_free_units < SIQS_SIEVE_SCORE_TOP);
+        if (selected.fb_size > maximum_fb) maximum_fb = selected.fb_size;
+        if (selected.half_interval > maximum_m) maximum_m = selected.half_interval;
+        for (i = 0; i < sizeof(multipliers) / sizeof(multipliers[0]); i++) {
+          ctx.params = selected;
+          ctx.multiplier = multipliers[i];
+          mpz_mul_ui(ctx.kn, ctx.n, ctx.multiplier);
+          ctx.params.poly_d = mpz_fdiv_ui(ctx.kn, 8) == 1 ? 2U : 1U;
+          d_modes |= 1U << ctx.params.poly_d;
+          CHECK(mpz_sizeinbase(ctx.kn, 2) <= bits + 12U);
+          CHECK(ctx.params.bits == mpz_sizeinbase(ctx.n, 2));
+          setups++;
+          for (j = 0; j < sizeof(p_values) / sizeof(p_values[0]); j++) {
+            uint64_t pmax = p_values[j];
+            sprintf(name, "upper-policy-b%u-edge%u-mod8-%u-k%lu-P%u",
+                    bits, edge, residue, ctx.multiplier, p_values[j]);
+            ctx.largest_fb_prime = p_values[j];
+            siqs_set_large_prime_bounds(&ctx);
+            check_upper_bound_value(ctx.params.large_prime_bound, pmax, 1,
+                                    ctx.params.lp_multiplier, SIQS_LP_MAX);
+            if (ctx.params.residual_multiplier != 0.0)
+              check_upper_bound_value(ctx.params.smooth_bound, pmax, pmax,
+                  ctx.params.residual_multiplier, SIQS_RESIDUAL_PRODUCT_MAX);
+            else
+              check_upper_bound_value(ctx.params.smooth_bound,
+                  ctx.params.large_prime_bound, pmax, 1.0, SIQS_RESIDUAL_PRODUCT_MAX);
+            CHECK(ctx.params.sieve_hit_bound >= ctx.params.sieve_hit_bound_nominal);
+            CHECK(ctx.params.sieve_hit_bound >=
+                  ctx.params.sieve_hit_residual_multiplier * (double)ctx.params.smooth_bound);
+            CHECK(ctx.params.sieve_hit_bound > 0.0 && ctx.params.sieve_hit_bound <= DBL_MAX);
+            if (ctx.params.large_prime_bound == SIQS_LP_MAX) lp_clips++;
+            if (ctx.params.smooth_bound == SIQS_RESIDUAL_PRODUCT_MAX) r_clips++;
+            bounds++;
+          }
+        }
+      }
+    }
+  }
+  case_ctx = NULL;
+  mpz_clears(ctx.n, ctx.kn, NULL);
+  case_name = "upper-production-policy-sweep";
+  CHECK(d_modes == ((1U << 1) | (1U << 2)));
+  printf("PASS policies: 400-512, %u setup classes, %u synthetic-P bounds, "
+         "both d modes, peak FB=%u M=%u, LP/R clips=%u/%u; no sieving\n",
+         setups, bounds, maximum_fb, maximum_m, lp_clips, r_clips);
+}
+
 /* Only the cutoff arithmetic needs testing here: synthetic increasing
  * entries avoid building a factor base or allocating a large sieve. */
 static uint32_t check_sieve_start_fixture(double exponent, uint32_t floor) {

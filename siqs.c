@@ -1301,6 +1301,26 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.31466, 0.00020, 331),               /* FB      */
     SIQS_POLICY_LINEAR(0.44, 0.0054, 331),                   /* M       */
     SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),            /* M ratio */
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },            /* sieve-e */
+  /* Untested.  Continue q12 with shallower FB and interval growth. */
+  { "two_lp_q12_high_level", 401, 430,
+    2, 12, 12, 0, 0,
+    SIQS_POLICY_RAMP(384.0, 384.0, 401, 430),                /* K_L     */
+    SIQS_POLICY_RAMP(768.0, 768.0, 401, 430),                /* K_R     */
+    16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.328, -0.00033, 401),                /* FB */
+    SIQS_POLICY_LINEAR(0.818, -0.002, 401),                  /* M */
+    SIQS_POLICY_RATIO(0.15231778066, -51, -1, 50),           /* M ratio */
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },            /* sieve-e */
+  /* Untested.  No claims to being good choices. */
+  { "two_lp_q13_vhigh", 431, 512,
+    2, 13, 12, 0, 0,
+    SIQS_POLICY_RAMP(384.0, 384.0, 431, 512),                /* K_L     */
+    SIQS_POLICY_RAMP(768.0, 768.0, 431, 512),                /* K_R     */
+    16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
+    SIQS_POLICY_LINEAR(0.3181, -0.00025, 431),               /* FB */
+    SIQS_POLICY_LINEAR(0.758, -0.002, 431),                  /* M */
+    SIQS_POLICY_RATIO(0.15231778066, -81, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 }             /* sieve-e */
 };
 

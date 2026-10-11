@@ -240,13 +240,13 @@ is_deeply(
 );
 # Keep the rejected input a balanced semiprime so future perfect-power and
 # small-factor pretests cannot make this upper-gate check unexpectedly split.
-my $siqs_432_semiprime =
-  '11090678776483259438313656736572334813745748301503266300681918232311163562937550678742065927194668247415363180975575053625700041063';
+my $siqs_513_semiprime =
+  '18721552363479303746321219479337457708232289782378860032662701839554283972801858883023656951079654521889290650220611822656197444148297507132175213064139701';
 is_deeply(
   [ map { "$_" } Math::Prime::Util::GMP::qs_factor(
-      $siqs_432_semiprime, 0) ],
-  [$siqs_432_semiprime],
-  "SIQS leaves a 432-bit input beyond its internal hard cap"
+      $siqs_513_semiprime, 0) ],
+  [$siqs_513_semiprime],
+  "SIQS leaves a 513-bit input beyond its internal hard cap"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('194927', 0) ],
