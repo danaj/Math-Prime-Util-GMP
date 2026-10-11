@@ -310,6 +310,7 @@ static void relation_anchor_growth(void) {
     siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, last, &left, 1));
   }
   CHECK(ctx.one_lp.count == 900 && ctx.one_lp.alloc > 1024);
+  CHECK(ctx.one_lp.grow_at == siqs_hash_grow_at(ctx.one_lp.alloc));
   CHECK(ctx.raw_arena.current->previous != NULL);
   siqs_accept_raw_relation(&ctx, relation_raw(&ctx, 1, last, &right, 1));
   CHECK(ctx.full_count == 1 && ctx.full[0]->nfactors == 2);
@@ -346,7 +347,7 @@ static void relation_exponent_limits(void) {
   CHECK(!siqs_touch_factor(&ctx, 1, 1));
   CHECK(ctx.factor_counts[1] == UINT32_MAX && ctx.factor_touched_count == 1);
   siqs_reset_touched_factors(&ctx);
-  /* Synthetic wide vectors bypass packed raw's 12-bit exponent limit. */
+  /* Synthetic wide vectors bypass packed raw's exponent limit. */
   for (i = 0; i < 2; i++) {
     raw[i] = relation_raw(&ctx, 1, 1, &f, 1);
     siqs_store_raw(&ctx, raw[i]);
@@ -400,7 +401,14 @@ static void relation_large_lp_labels(void) {
   relation_finish(&ctx, &result);
 }
 
+#include "siqs-check-packed.inc.c"
+
 static void suite_relations(void) {
+  relation_packed_envelope();
+  relation_packed_boundaries();
+  relation_large_polynomials();
+  relation_zero_polynomial();
+  relation_packed_failures();
   relation_smooth_and_pairs();
   relation_general_pairs();
   relation_inverse_failures();

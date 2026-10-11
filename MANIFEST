@@ -128,6 +128,8 @@ tools/build-siqs.pl
 tools/pthread-probe.c
 tools/siqs-check.c
 tools/siqs-check-relations.inc.c
+tools/siqs-check-packed.inc.c
+tools/siqs-check-bounds.inc.c
 tools/siqs-check-matrix.inc.c
 tools/siqs-check-cofactors.inc.c
 tools/siqs-check-workers.inc.c

@@ -22,10 +22,18 @@
 #undef main
 #include "siqs-check-thread-seams.h"
 #include "siqs-check-cofactor-seams.h"
+/* Only fatal-boundary child fixtures set this.  Normal/threaded runs leave
+ * it zero, so real factor-base construction uses the unmodified iterator. */
+static UV forced_fb_prime;
+static UV check_fb_prime_next(prime_iterator *iter) {
+  return forced_fb_prime != 0 ? forced_fb_prime : prime_iterator_next(iter);
+}
+#define prime_iterator_next check_fb_prime_next
 #ifndef SIQS_CHECK_SOURCE
 # define SIQS_CHECK_SOURCE "../siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
+#undef prime_iterator_next
 #include "../mont64.h"
 #undef squfof126
 #undef siqs_is_prob_prime
@@ -783,6 +791,21 @@ static void check_policy_profiles(void) {
   puts("PASS policies: every primary bit and recovery profile, unchanged smooth/1LP K values");
 }
 
+static void check_frozen_upper_band(void) {
+  uint32_t i, found = 0;
+  case_name = "upper-band-independent-of-supported-limit";
+  for (i = 0; i < SIQS_POLICY_BAND_COUNT; i++) {
+    const siqs_policy_band_t *band = &siqs_policy_bands[i];
+    if (band->first_bits != 331U) continue;
+    found++;
+    CHECK(band->last_bits == 400U);
+    CHECK(band->k_l.first_bits == 331U && band->k_l.last_bits == 400U);
+    CHECK(band->k_r.first_bits == 331U && band->k_r.last_bits == 400U);
+  }
+  CHECK(found == 1U);
+  puts("PASS policies: 331-400 band and K endpoints are independent of the supported-size limit");
+}
+
 static void check_policy_errors(void) {
 #ifndef _WIN32
   unsigned int fixture;
@@ -825,11 +848,17 @@ static void check_policy_errors(void) {
 #endif
 }
 
+#include "siqs-check-bounds.inc.c"
+
 static void suite_policies(void) {
   check_policy_curves();
   check_policy_bounds();
   check_policy_profiles();
+  check_frozen_upper_band();
   check_policy_errors();
+  check_arithmetic_bounds();
+  check_parameter_envelope();
+  check_allocation_errors();
 }
 
 #include "siqs-check-relations.inc.c"

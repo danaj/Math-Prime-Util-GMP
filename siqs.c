@@ -61,6 +61,9 @@
 #ifndef UINT32_MAX
 # define UINT32_MAX 4294967295U
 #endif
+#ifndef UINT32_C
+# define UINT32_C(value) ((uint32_t)(value))
+#endif
 #ifndef UINT64_C
 # define UINT64_C(value) ((uint64_t)(value))
 #endif
@@ -117,7 +120,8 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
  * matrices need.  Check the matrix while consuming their candidate list so
  * a successful dependency does not require finishing the whole polynomial. */
 #define SIQS_INLINE_MATRIX_Q2_MAX_BITS 43U
-#define SIQS_EVAL_MAX_EXTRA_FACTORS 18U
+#define SIQS_MAX_A_PRIMES          16U
+#define SIQS_EVAL_MAX_EXTRA_FACTORS (SIQS_MAX_A_PRIMES + 2U)
 #define SIQS_EVAL_INITIAL_FACTORS   64U
 /* Policy ceiling, not a packing limit: graph labels are stored as uint64_t.
  * Keep this independent of the residual-product bound. */
@@ -125,6 +129,7 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #define SIQS_RESIDUAL_PRODUCT_MAX UINT64_C(0xffffffffffffffff)
 #define SIQS_NO_INDEX      UINT32_MAX
 #define SIQS_SIEVE_ALIGN          256U
+#define SIQS_HALF_INTERVAL_MAX   (UINT32_C(1) << 30)
 
 /* This most strongly correlates to L1 data size.  Compromise. */
 #ifndef SIQS_SIEVE_BLOCK_SIZE
@@ -264,6 +269,12 @@ static const siqs_multiplier_cascade_t siqs_multiplier_cascade = {
   ((1U << SIQS_PACKED_FACTOR_ROW_BITS) - 1U)
 #define SIQS_PACKED_FACTOR_EXP_MAX \
   (UINT32_MAX >> SIQS_PACKED_FACTOR_ROW_BITS)
+/* For N < 2^512 and k < 2^12, the validated q/M/d envelope gives
+ * A < 2^512, |B| <= 9*A and |Q(x)| < 2^574.  A nonzero Q contributes
+ * at most 573 copies of any prime; the A/d extras add at most 17.
+ * Thus a raw exponent is <= 590, below this layout's 2047 ceiling.
+ * Zero Q takes the divisor path instead.  Cycle sums use wide exponents.
+ * The relation checker verifies the bound and packing boundaries. */
 #define SIQS_RAW_BLOCK_INITIAL (1U << 14)
 #define SIQS_RAW_BLOCK_MAX     (1U << 20)
 
@@ -325,6 +336,7 @@ typedef struct {
   siqs_one_lp_anchor_t *anchors;
   uint32_t count;
   uint32_t alloc;
+  uint32_t grow_at;
   mpz_t y;
   mpz_t large_prime;
   mpz_t inverse;
@@ -392,6 +404,7 @@ typedef struct {
   uint64_t *slots;
   uint32_t alloc;
   uint32_t count;
+  uint32_t grow_at;
 } siqs_hashset_t;
 
 typedef struct {
@@ -409,6 +422,7 @@ typedef struct {
   uint32_t vertex_alloc;
   uint32_t *table;
   uint32_t table_alloc;
+  uint32_t table_grow_at;
   uint32_t mark;
   int initialized;
   /* Cycle closures are frequent in 2LP collection.  Retain both their path
@@ -559,6 +573,30 @@ static int siqs_use_one_lp_relation_path(const siqs_ctx_t *ctx) {
  * Basic allocation, random, and integer helpers
  *----------------------------------------------------------------------------*/
 
+/* Allocation arithmetic belongs on setup/growth paths, not on each hit. */
+static size_t siqs_array_size(size_t count, size_t size) {
+  if (size != 0 && count > (size_t)-1 / size)
+    croak("SIQS: allocation size overflow");
+  return count * size;
+}
+
+static size_t siqs_size_add(size_t size, size_t extra) {
+  if (extra > (size_t)-1 - size)
+    croak("SIQS: allocation size overflow");
+  return size + extra;
+}
+
+static uint32_t siqs_capacity_double(uint32_t capacity) {
+  if (capacity > UINT32_MAX / 2U)
+    croak("SIQS: allocation capacity overflow");
+  return capacity * 2U;
+}
+
+/* ceil(7 * capacity / 10), without an overflowing insertion-time product. */
+static uint32_t siqs_hash_grow_at(uint32_t capacity) {
+  return (uint32_t)(((uint64_t)capacity * 7U + 9U) / 10U);
+}
+
 static void *siqs_malloc(size_t size) {
   void *p = malloc(size ? size : 1);
   if (p == NULL)
@@ -567,7 +605,11 @@ static void *siqs_malloc(size_t size) {
 }
 
 static void *siqs_calloc(size_t count, size_t size) {
-  void *p = calloc(count ? count : 1, size ? size : 1);
+  void *p;
+  count = count ? count : 1;
+  size = size ? size : 1;
+  (void)siqs_array_size(count, size);
+  p = calloc(count, size);
   if (p == NULL)
     croak("SIQS: unable to allocate memory");
   return p;
@@ -820,18 +862,19 @@ static void siqs_factor_array_init(siqs_factor_array_t *fa, const mpz_t n) {
   fa->primality_time = fa->primality_prime = fa->primality_composite = 0;
   fa->matrix_time = fa->solver_time = fa->dependency_time = 0;
 #endif
-  fa->values = (mpz_t *)siqs_malloc(fa->alloc * sizeof(mpz_t));
+  fa->values = (mpz_t *)siqs_malloc(
+      siqs_array_size(fa->alloc, sizeof(mpz_t)));
   fa->primality = (uint8_t *)siqs_calloc(fa->alloc, sizeof(uint8_t));
   mpz_init_set(fa->values[0], n);
 }
 
 static void siqs_factor_array_append(siqs_factor_array_t *fa, const mpz_t n) {
   if (fa->count == fa->alloc) {
-    fa->alloc *= 2;
+    fa->alloc = siqs_capacity_double(fa->alloc);
     fa->values = (mpz_t *)siqs_realloc(fa->values,
-                                       fa->alloc * sizeof(mpz_t));
+        siqs_array_size(fa->alloc, sizeof(mpz_t)));
     fa->primality = (uint8_t *)siqs_realloc(
-        fa->primality, fa->alloc * sizeof(uint8_t));
+        fa->primality, siqs_array_size(fa->alloc, sizeof(uint8_t)));
   }
   mpz_init_set(fa->values[fa->count], n);
   fa->primality[fa->count++] = SIQS_FACTOR_UNKNOWN;
@@ -914,10 +957,11 @@ void gmp_siqs_free(mpz_t *factors, uint32_t nfactors) {
 static void siqs_hashset_init(siqs_hashset_t *set, uint32_t initial) {
   uint32_t n = 16;
   while (n < initial)
-    n <<= 1;
+    n = siqs_capacity_double(n);
   set->slots = (uint64_t *)siqs_calloc(n, sizeof(uint64_t));
   set->alloc = n;
   set->count = 0;
+  set->grow_at = siqs_hash_grow_at(n);
 }
 
 static void siqs_hashset_clear(siqs_hashset_t *set) {
@@ -928,7 +972,8 @@ static void siqs_hashset_clear(siqs_hashset_t *set) {
 static void siqs_hashset_grow(siqs_hashset_t *set) {
   uint64_t *old = set->slots;
   uint32_t oldn = set->alloc, i;
-  set->alloc *= 2;
+  set->alloc = siqs_capacity_double(set->alloc);
+  set->grow_at = siqs_hash_grow_at(set->alloc);
   set->slots = (uint64_t *)siqs_calloc(set->alloc, sizeof(uint64_t));
   set->count = 0;
   for (i = 0; i < oldn; i++) {
@@ -948,7 +993,7 @@ static void siqs_hashset_grow(siqs_hashset_t *set) {
 static int siqs_hashset_insert(siqs_hashset_t *set, uint64_t h) {
   uint32_t pos;
   h = siqs_mix64(h);
-  if (set->count * 10 >= set->alloc * 7)
+  if (set->count >= set->grow_at)
     siqs_hashset_grow(set);
   pos = (uint32_t)h & (set->alloc - 1);
   while (set->slots[pos] != SIQS_HASH_EMPTY) {
@@ -1241,10 +1286,10 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50),
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
   /* Values tuned only from 331-355 */
-  { "two_lp_high_q12_interval_finish", 331, MPU_SIQS_MAX_BITS,
+  { "two_lp_high_q12_interval_finish", 331, 400,
     2, 12, 12, 0, 0,
-    SIQS_POLICY_RAMP(280.0, 384.0, 331, MPU_SIQS_MAX_BITS),  /* K_L     */
-    SIQS_POLICY_RAMP(280.0, 768.0, 331, MPU_SIQS_MAX_BITS),  /* K_R     */
+    SIQS_POLICY_RAMP(280.0, 384.0, 331, 400),                /* K_L     */
+    SIQS_POLICY_RAMP(280.0, 768.0, 331, 400),                /* K_R     */
     16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
     SIQS_POLICY_LINEAR(0.31466, 0.00026, 331),               /* FB      */
     SIQS_POLICY_LINEAR(0.44, 0.0054, 331),                   /* M       */
@@ -1453,6 +1498,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->lp_multiplier = policy.lp_multiplier;
   p->residual_multiplier = policy.residual_multiplier;
   p->q_count = policy.q_count;
+  if (p->q_count == 0 || p->q_count > SIQS_MAX_A_PRIMES)
+    croak("SIQS: invalid A-prime count for policy %s", p->policy_name);
   p->sieve_free_units = policy.sieve_free_units;
   p->sieve_start_prime_floor = policy.sieve_start_prime_floor;
   p->sieve_start_index_exponent = policy.sieve_start_index_exponent;
@@ -1470,12 +1517,15 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
 
   fb = exp(p->fb_coefficient * ln_term);
   if (fb < (double)p->fb_floor) fb = (double)p->fb_floor;
-  p->fb_size = (uint32_t)fb;
-  if (p->fb_size > SIQS_PACKED_FACTOR_ROW_MASK)
+  /* Ordered comparisons also reject NaN/infinity before narrowing.  Permit
+   * the same fractional values that previously truncated to a valid size. */
+  if (!(fb >= 1.0 && fb < (double)SIQS_PACKED_FACTOR_ROW_MASK + 1.0))
     croak("SIQS: factor base is too large for packed partial relations");
+  p->fb_size = (uint32_t)fb;
 
   if (p->fixed_half_interval != 0) {
     if (p->fixed_half_interval < 4096 ||
+        p->fixed_half_interval > SIQS_HALF_INTERVAL_MAX ||
         (p->fixed_half_interval & (SIQS_SIEVE_ALIGN - 1)) != 0)
       croak("SIQS: invalid fixed half interval for policy %s",
             p->policy_name);
@@ -1483,6 +1533,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   } else {
     interval = 6144.0 + exp(0.37 * ln_term);
     interval *= p->interval_scale;
+    if (!(interval >= 0.0 && interval < (double)SIQS_HALF_INTERVAL_MAX + 1.0))
+      croak("SIQS: half interval exceeds the supported envelope");
     p->half_interval = (uint32_t)interval;
     p->half_interval = (p->half_interval + SIQS_SIEVE_ALIGN - 1)
                      & ~(SIQS_SIEVE_ALIGN - 1);
@@ -1490,6 +1542,8 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
       p->half_interval = 4096;
   }
 
+  /* The 21-bit FB bound leaves ample room for sign/extra rows and the
+   * collector's 512-relation retry limit in these u32 targets. */
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
   /* LP and R depend on the actual factor base, not an N^exponent proxy.
@@ -1499,6 +1553,9 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   sieve_hit_residual_multiplier = 2.0;
   p->sieve_hit_residual_multiplier = sieve_hit_residual_multiplier;
   p->sieve_hit_bound_nominal = exp(p->sieve_hit_exponent * ln_n);
+  if (!(p->sieve_hit_bound_nominal > 0.0 &&
+        p->sieve_hit_bound_nominal <= DBL_MAX) || p->sieve_free_units >= 128U)
+    croak("SIQS: invalid sieve log scaling for policy %s", p->policy_name);
   p->sieve_hit_bound = p->sieve_hit_bound_nominal;
   p->log_scale = 0.0; /* Set after the factor base and kN are known. */
 }
@@ -1802,9 +1859,19 @@ static int siqs_build_factor_base(siqs_ctx_t *ctx) {
   count++;
   prime_iterator_setprime(&iter, 2);
   while (count < ctx->params.fb_size) {
-    uint32_t p = (uint32_t)prime_iterator_next(&iter);
-    uint32_t r = (uint32_t)mpz_fdiv_ui(ctx->kn, p);
-    int symbol = siqs_legendre_u32(r, p);
+    UV next_prime = prime_iterator_next(&iter);
+    uint32_t p, r;
+    int symbol;
+    /* Roots and their updates may add two residues.  Check the native
+     * iterator value before narrowing, guaranteeing those sums fit u32. */
+    if (next_prime >= (UV)UINT32_C(0x80000000)) {
+      prime_iterator_destroy(&iter);
+      mpz_clear(divisor);
+      croak("SIQS: factor-base prime exceeds the supported envelope");
+    }
+    p = (uint32_t)next_prime;
+    r = (uint32_t)mpz_fdiv_ui(ctx->kn, p);
+    symbol = siqs_legendre_u32(r, p);
     if (symbol < 0)
       continue;
     if (r == 0 && mpz_divisible_ui_p(ctx->n, p)) {
@@ -1893,7 +1960,7 @@ static siqs_raw_relation_t *siqs_raw_relation_new(siqs_ctx_t *ctx,
           factors[i].row, factors[i].exponent);
   } else {
     r->factors.wide = (siqs_factor_t *)siqs_malloc(
-        (size_t)nfactors * sizeof(*r->factors.wide));
+        siqs_array_size(nfactors, sizeof(*r->factors.wide)));
     memcpy(r->factors.wide, factors,
            (size_t)nfactors * sizeof(*r->factors.wide));
   }
@@ -1977,21 +2044,34 @@ static void siqs_verify_raw_relation(const siqs_ctx_t *ctx,
 }
 #endif
 
+/* Indexed vectors grow by checked doubling from a power of two.  Thus their
+ * capacities never exceed 2^31, count++ fits u32, and SIQS_NO_INDEX stays
+ * reserved.  Hash counts are additionally bounded by their cached load limit. */
 static uint32_t siqs_store_raw(siqs_ctx_t *ctx, siqs_raw_relation_t *r) {
+#ifdef SIQS_DEBUG
+  if (ctx->raw_count > ctx->raw_alloc)
+    croak("SIQS: raw relation count exceeds capacity");
+#endif
   if (ctx->raw_count == ctx->raw_alloc) {
-    ctx->raw_alloc = ctx->raw_alloc ? ctx->raw_alloc * 2 : 1024;
+    ctx->raw_alloc = ctx->raw_alloc
+                   ? siqs_capacity_double(ctx->raw_alloc) : 1024;
     ctx->raw = (siqs_raw_relation_t **)siqs_realloc(
-        ctx->raw, (size_t)ctx->raw_alloc * sizeof(*ctx->raw));
+        ctx->raw, siqs_array_size(ctx->raw_alloc, sizeof(*ctx->raw)));
   }
   ctx->raw[ctx->raw_count] = r;
   return ctx->raw_count++;
 }
 
 static void siqs_store_full(siqs_ctx_t *ctx, siqs_full_relation_t *r) {
+#ifdef SIQS_DEBUG
+  if (ctx->full_count > ctx->full_alloc)
+    croak("SIQS: full relation count exceeds capacity");
+#endif
   if (ctx->full_count == ctx->full_alloc) {
-    ctx->full_alloc = ctx->full_alloc ? ctx->full_alloc * 2 : 1024;
+    ctx->full_alloc = ctx->full_alloc
+                    ? siqs_capacity_double(ctx->full_alloc) : 1024;
     ctx->full = (siqs_full_relation_t **)siqs_realloc(
-        ctx->full, (size_t)ctx->full_alloc * sizeof(*ctx->full));
+        ctx->full, siqs_array_size(ctx->full_alloc, sizeof(*ctx->full)));
   }
   ctx->full[ctx->full_count++] = r;
 }
@@ -2041,7 +2121,7 @@ static siqs_factor_t *siqs_merge_relation_factors(
   }
   li = ri = 0;
   merged = (siqs_factor_t *)siqs_malloc(
-      (size_t)unique * sizeof(*merged));
+      siqs_array_size(unique, sizeof(*merged)));
 
   while (li < left->nfactors || ri < right->nfactors) {
     if (ri == right->nfactors ||
@@ -2085,6 +2165,7 @@ static uint32_t siqs_graph_hash(uint64_t value, uint32_t mask) {
 static void siqs_one_lp_init(siqs_one_lp_state_t *state) {
   memset(state, 0, sizeof(*state));
   state->alloc = 1024;
+  state->grow_at = siqs_hash_grow_at(state->alloc);
   state->anchors = (siqs_one_lp_anchor_t *)siqs_calloc(
       state->alloc, sizeof(*state->anchors));
   mpz_init(state->y);
@@ -2111,9 +2192,8 @@ static void siqs_one_lp_clear(siqs_ctx_t *ctx) {
 static void siqs_one_lp_rehash(siqs_one_lp_state_t *state) {
   siqs_one_lp_anchor_t *old = state->anchors;
   uint32_t old_alloc = state->alloc, i;
-  if (old_alloc > UINT32_MAX / 2)
-    croak("SIQS: one-large-prime anchor table is too large");
-  state->alloc *= 2;
+  state->alloc = siqs_capacity_double(state->alloc);
+  state->grow_at = siqs_hash_grow_at(state->alloc);
   state->anchors = (siqs_one_lp_anchor_t *)siqs_calloc(
       state->alloc, sizeof(*state->anchors));
   for (i = 0; i < old_alloc; i++) {
@@ -2135,7 +2215,7 @@ static siqs_raw_relation_t *siqs_one_lp_anchor_relation(
   uint32_t pos;
   if (label <= 1)
     croak("SIQS: invalid one-large-prime anchor label");
-  if (state->count * 10 >= state->alloc * 7)
+  if (state->count >= state->grow_at)
     siqs_one_lp_rehash(state);
   pos = siqs_graph_hash(label, state->alloc - 1);
   while (state->anchors[pos].label != 0) {
@@ -2188,6 +2268,7 @@ static void siqs_graph_rehash(siqs_graph_t *g, uint32_t new_size) {
   uint32_t i;
   g->table = (uint32_t *)siqs_calloc(new_size, sizeof(uint32_t));
   g->table_alloc = new_size;
+  g->table_grow_at = siqs_hash_grow_at(new_size);
   for (i = 0; i < g->vertex_count; i++) {
     uint32_t pos = siqs_graph_hash(g->vertices[i].value, new_size - 1);
     while (g->table[pos] != 0)
@@ -2201,15 +2282,16 @@ static void siqs_graph_init(siqs_graph_t *g) {
   memset(g, 0, sizeof(*g));
   g->vertex_alloc = 1024;
   g->vertices = (siqs_vertex_t *)siqs_malloc(
-      (size_t)g->vertex_alloc * sizeof(*g->vertices));
+      siqs_array_size(g->vertex_alloc, sizeof(*g->vertices)));
   g->table_alloc = 2048;
+  g->table_grow_at = siqs_hash_grow_at(g->table_alloc);
   g->table = (uint32_t *)siqs_calloc(g->table_alloc, sizeof(uint32_t));
   g->cycle_edge_alloc = 64;
   g->cycle_edges = (uint32_t *)siqs_malloc(
-      (size_t)g->cycle_edge_alloc * sizeof(*g->cycle_edges));
+      siqs_array_size(g->cycle_edge_alloc, sizeof(*g->cycle_edges)));
   g->cycle_vertex_alloc = 64;
   g->cycle_vertices = (uint32_t *)siqs_malloc(
-      (size_t)g->cycle_vertex_alloc * sizeof(*g->cycle_vertices));
+      siqs_array_size(g->cycle_vertex_alloc, sizeof(*g->cycle_vertices)));
   mpz_init(g->cycle_y);
   mpz_init(g->cycle_lp_product);
   mpz_init(g->cycle_lp_value);
@@ -2252,21 +2334,17 @@ static void siqs_graph_reserve_cycle_path(uint32_t **values,
   if (size == 0)
     size = 64;
   while (size < required) {
-    if (size > UINT32_MAX / 2)
-      croak("SIQS: relation cycle is too large");
-    size *= 2;
+    size = siqs_capacity_double(size);
   }
-  if ((size_t)size > (size_t)-1 / sizeof(**values))
-    croak("SIQS: relation cycle is too large");
   *values = (uint32_t *)siqs_realloc(
-      *values, (size_t)size * sizeof(**values));
+      *values, siqs_array_size(size, sizeof(**values)));
   *allocated = size;
 }
 
 static uint32_t siqs_graph_vertex(siqs_graph_t *g, uint64_t value) {
   uint32_t pos;
-  if (g->vertex_count * 10 >= g->table_alloc * 7)
-    siqs_graph_rehash(g, g->table_alloc * 2);
+  if (g->vertex_count >= g->table_grow_at)
+    siqs_graph_rehash(g, siqs_capacity_double(g->table_alloc));
   pos = siqs_graph_hash(value, g->table_alloc - 1);
   while (g->table[pos] != 0) {
     uint32_t id = g->table[pos] - 1;
@@ -2275,9 +2353,10 @@ static uint32_t siqs_graph_vertex(siqs_graph_t *g, uint64_t value) {
     pos = (pos + 1) & (g->table_alloc - 1);
   }
   if (g->vertex_count == g->vertex_alloc) {
-    g->vertex_alloc *= 2;
+    g->vertex_alloc = siqs_capacity_double(g->vertex_alloc);
     g->vertices = (siqs_vertex_t *)siqs_realloc(
-        g->vertices, (size_t)g->vertex_alloc * sizeof(*g->vertices));
+        g->vertices,
+        siqs_array_size(g->vertex_alloc, sizeof(*g->vertices)));
   }
   {
     uint32_t id = g->vertex_count++;
@@ -2400,7 +2479,7 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
   mpz_init_set(full->y, y);
   full->nfactors = nfactors;
   full->factors = (siqs_factor_t *)siqs_malloc(
-      (size_t)nfactors * sizeof(*full->factors));
+      siqs_array_size(nfactors, sizeof(*full->factors)));
   for (i = 0; i < nfactors; i++) {
     uint32_t row = ctx->factor_touched[i];
     full->factors[i].row = row;
@@ -2614,17 +2693,24 @@ static uint64_t siqs_a_fingerprint(const uint32_t *indices, uint32_t count) {
 static void siqs_poly_init(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t i;
   memset(poly, 0, sizeof(*poly));
+  if (ctx->params.q_count == 0 || ctx->params.q_count > SIQS_MAX_A_PRIMES ||
+      ctx->params.half_interval == 0 ||
+      ctx->params.half_interval > SIQS_HALF_INTERVAL_MAX ||
+      (ctx->params.poly_d != 1 && ctx->params.poly_d != 2))
+    croak("SIQS: polynomial geometry exceeds the supported envelope");
   poly->q_count = ctx->params.q_count;
   poly->b_limit = 1U << (poly->q_count - 1);
   poly->a_index = (uint32_t *)siqs_malloc(
-      (size_t)poly->q_count * sizeof(uint32_t));
-  poly->H = (mpz_t *)siqs_malloc((size_t)poly->q_count * sizeof(mpz_t));
+      siqs_array_size(poly->q_count, sizeof(uint32_t)));
+  poly->H = (mpz_t *)siqs_malloc(
+      siqs_array_size(poly->q_count, sizeof(mpz_t)));
   for (i = 0; i < poly->q_count; i++) {
     poly->a_index[i] = SIQS_NO_INDEX;
     mpz_init(poly->H[i]);
   }
   poly->corrections = (uint32_t *)siqs_malloc(
-      (size_t)(poly->q_count - 1) * ctx->params.fb_size * sizeof(uint32_t));
+      siqs_array_size(poly->q_count - 1,
+          siqs_array_size(ctx->params.fb_size, sizeof(uint32_t))));
   mpz_init(poly->A);
   mpz_init(poly->DA);
   mpz_init(poly->B);
@@ -3199,11 +3285,13 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
   if (ctx->params.sieve_start < 1)
     ctx->params.sieve_start = 1;
   if (ctx->params.sieve_start_index_exponent > 0.0) {
-    uint32_t index = (uint32_t)pow(
+    double estimate = pow(
         (double)ctx->params.fb_size,
         ctx->params.sieve_start_index_exponent);
-    if (index >= ctx->params.fb_size)
+    uint32_t index;
+    if (!(estimate >= 0.0 && estimate < (double)ctx->params.fb_size))
       croak("SIQS: first-sieved-prime index exceeds the factor base");
+    index = (uint32_t)estimate;
     if (index > ctx->params.sieve_start)
       ctx->params.sieve_start = index;
   }
@@ -3474,11 +3562,11 @@ static void siqs_block_workspace_allocate(siqs_ctx_t *ctx) {
   if (ctx->block_prime_count == 0)
     return;
   ctx->block_root1 = (uint32_t *)siqs_malloc(
-      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+      siqs_array_size(ctx->block_prime_count, sizeof(uint32_t)));
   ctx->block_root2 = (uint32_t *)siqs_malloc(
-      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+      siqs_array_size(ctx->block_prime_count, sizeof(uint32_t)));
   ctx->block_step = (uint32_t *)siqs_malloc(
-      (size_t)ctx->block_prime_count * sizeof(uint32_t));
+      siqs_array_size(ctx->block_prime_count, sizeof(uint32_t)));
   for (i = 0; i < ctx->block_prime_count; i++)
     ctx->block_step[i] = ctx->block_length % ctx->prime[first + i];
 }
@@ -3566,6 +3654,10 @@ static void siqs_clear_candidate_map(siqs_ctx_t *ctx) {
 static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
   uint32_t physical_score = ctx->sieve[pos];
   uint32_t logical_score;
+#ifdef SIQS_DEBUG
+  if (ctx->candidate_count > ctx->candidate_alloc)
+    croak("SIQS: candidate count exceeds capacity");
+#endif
   if (physical_score < 128U ||
       physical_score < ctx->params.stage1_bias)
     croak("SIQS: invalid stage-1 candidate score");
@@ -3588,10 +3680,10 @@ static void siqs_add_candidate(siqs_ctx_t *ctx, uint32_t pos) {
   }
   if (ctx->candidate_count == ctx->candidate_alloc) {
     ctx->candidate_alloc = ctx->candidate_alloc
-                         ? ctx->candidate_alloc * 2 : 1024;
+                         ? siqs_capacity_double(ctx->candidate_alloc) : 1024;
     ctx->candidates = (siqs_candidate_t *)siqs_realloc(
         ctx->candidates,
-        (size_t)ctx->candidate_alloc * sizeof(*ctx->candidates));
+        siqs_array_size(ctx->candidate_alloc, sizeof(*ctx->candidates)));
   }
   ctx->candidates[ctx->candidate_count].x =
       (int32_t)pos - (int32_t)ctx->params.half_interval;
@@ -3637,10 +3729,15 @@ static void siqs_find_candidates(siqs_ctx_t *ctx) {
 static void siqs_add_hit(siqs_ctx_t *ctx, uint32_t candidate,
                          uint32_t fb_index) {
   siqs_candidate_t *c = &ctx->candidates[candidate];
+#ifdef SIQS_DEBUG
+  if (ctx->hit_count > ctx->hit_alloc)
+    croak("SIQS: resieve hit count exceeds capacity");
+#endif
   if (ctx->hit_count == ctx->hit_alloc) {
-    ctx->hit_alloc = ctx->hit_alloc ? ctx->hit_alloc * 2 : 8192;
+    ctx->hit_alloc = ctx->hit_alloc
+                   ? siqs_capacity_double(ctx->hit_alloc) : 8192;
     ctx->hits = (siqs_hit_t *)siqs_realloc(
-        ctx->hits, (size_t)ctx->hit_alloc * sizeof(*ctx->hits));
+        ctx->hits, siqs_array_size(ctx->hit_alloc, sizeof(*ctx->hits)));
   }
   ctx->hits[ctx->hit_count].fb_index = fb_index;
   ctx->hits[ctx->hit_count].next = c->first_hit;
@@ -4216,7 +4313,8 @@ static siqs_factor_t *siqs_eval_reserve_factors(siqs_ctx_t *ctx,
   if (alloc < required)
     alloc = required;
   workspace->factors = (siqs_factor_t *)siqs_realloc(
-      workspace->factors, (size_t)alloc * sizeof(*workspace->factors));
+      workspace->factors,
+      siqs_array_size(alloc, sizeof(*workspace->factors)));
   workspace->factor_alloc = alloc;
   return workspace->factors;
 }
@@ -4465,7 +4563,7 @@ static la_col_t *siqs_build_matrix(siqs_ctx_t *ctx,
       if (r->factors[j].exponent & 1U)
         weight++;
     columns[i].data = (uint32_t *)siqs_malloc(
-        (size_t)weight * sizeof(*columns[i].data));
+        siqs_array_size(weight, sizeof(*columns[i].data)));
     columns[i].weight = 0;
     columns[i].orig = i;
     for (j = 0; j < r->nfactors; j++)
@@ -4489,6 +4587,7 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
   size_t *offsets, *next;
   uint8_t *removed;
   size_t entries = 0;
+  uint64_t entry_count = 0;
   uint32_t row, col, head, tail, removed_count = 0;
 
   counts = (uint32_t *)siqs_calloc(nrows, sizeof(*counts));
@@ -4502,12 +4601,19 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
       if (row >= nrows)
         croak("SIQS: relation contains an invalid matrix row");
       counts[row]++;
-      entries++;
+      entry_count++;
     }
   }
 
-  offsets = (size_t *)siqs_malloc((size_t)(nrows + 1) * sizeof(*offsets));
-  next = (size_t *)siqs_malloc((size_t)nrows * sizeof(*next));
+  /* Each column has at most fb_size + 1 distinct rows.  The validated row
+   * and column capacities bound this total below 2^53, even on a 32-bit
+   * host; narrow only after checking the complete allocation size. */
+  if (entry_count > (size_t)-1 / sizeof(*incidence))
+    croak("SIQS: matrix readiness incidence is too large");
+  entries = (size_t)entry_count;
+  offsets = (size_t *)siqs_malloc(
+      siqs_array_size((size_t)nrows + 1U, sizeof(*offsets)));
+  next = (size_t *)siqs_malloc(siqs_array_size(nrows, sizeof(*next)));
   offsets[0] = 0;
   for (row = 0; row < nrows; row++)
     offsets[row + 1] = offsets[row] + counts[row];
@@ -4525,7 +4631,7 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
       croak("SIQS: matrix readiness incidence is too large");
     ctx->matrix_ready_incidence = (uint32_t *)siqs_realloc(
         ctx->matrix_ready_incidence,
-        new_alloc * sizeof(*ctx->matrix_ready_incidence));
+        siqs_array_size(new_alloc, sizeof(*ctx->matrix_ready_incidence)));
     ctx->matrix_ready_incidence_alloc = new_alloc;
   }
   incidence = ctx->matrix_ready_incidence;
@@ -4542,7 +4648,7 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
   free(next);
 
   removed = (uint8_t *)siqs_calloc(ncols, sizeof(*removed));
-  queue = (uint32_t *)siqs_malloc((size_t)nrows * sizeof(*queue));
+  queue = (uint32_t *)siqs_malloc(siqs_array_size(nrows, sizeof(*queue)));
   head = tail = 0;
   for (row = 0; row < nrows; row++)
     if (counts[row] == 1)
@@ -4861,6 +4967,11 @@ static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
   fflush(stdout);
 }
 
+/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials.  Retries
+ * and stopped workers leave both polynomial/family counts below 2^31;
+ * 2M <= 2^31 then bounds candidate visits below 2^62.  Accepted/split stats
+ * count subsets of those visits, so their u64 increments need no hot checks.
+ * Full-count scheduling additions also fit u32 under the vector bounds. */
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
                                   uint32_t *next_matrix_check,
@@ -5061,10 +5172,10 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
   if (!ctx->shared_fb_tables) {
     uint32_t i;
     ctx->prime = (uint32_t *)siqs_malloc(
-        (size_t)ctx->params.fb_size * sizeof(uint32_t));
+        siqs_array_size(ctx->params.fb_size, sizeof(uint32_t)));
     ctx->sieve_logp = (uint8_t *)siqs_malloc(ctx->params.fb_size);
     ctx->fb_reciprocal = (uint32_t *)siqs_malloc(
-        (size_t)ctx->params.fb_size * sizeof(uint32_t));
+        siqs_array_size(ctx->params.fb_size, sizeof(uint32_t)));
     siqs_set_log_weights(ctx);
     for (i = 0; i < ctx->params.fb_size; i++) {
       ctx->prime[i] = ctx->fb[i].p;
@@ -5075,16 +5186,16 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
   }
   ctx->fb_in_a = (uint8_t *)siqs_calloc(ctx->params.fb_size, 1U);
   ctx->root1 = (uint32_t *)siqs_malloc(
-      (size_t)ctx->params.fb_size * sizeof(uint32_t));
+      siqs_array_size(ctx->params.fb_size, sizeof(uint32_t)));
   ctx->root2 = (uint32_t *)siqs_malloc(
-      (size_t)ctx->params.fb_size * sizeof(uint32_t));
+      siqs_array_size(ctx->params.fb_size, sizeof(uint32_t)));
   ctx->sieve_length = 2 * ctx->params.half_interval;
   {
-    size_t sieve_alloc = 2U * (size_t)ctx->sieve_length;
+    size_t sieve_alloc = siqs_array_size(ctx->sieve_length, 2U);
     size_t pmax_alloc = (size_t)ctx->fb[ctx->params.fb_size - 1U].p + 1U;
     if (sieve_alloc < pmax_alloc)
       sieve_alloc = pmax_alloc;
-    ctx->sieve = (uint8_t *)siqs_calloc(sieve_alloc + 8U, 1U);
+    ctx->sieve = (uint8_t *)siqs_calloc(siqs_size_add(sieve_alloc, 8U), 1U);
   }
   ctx->candidate_at = (uint16_t *)siqs_calloc(ctx->sieve_length,
                                               sizeof(uint16_t));
@@ -5104,7 +5215,7 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
     uint32_t rows = ctx->params.fb_size + 1;
     ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
     ctx->factor_touched = (uint32_t *)siqs_malloc(
-        (size_t)rows * sizeof(uint32_t));
+        siqs_array_size(rows, sizeof(uint32_t)));
   }
   siqs_block_workspace_allocate(ctx);
 }

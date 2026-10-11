@@ -87,6 +87,13 @@ that malformed ramps, extrapolation, nonfinite values and invalid K produce
 fatal diagnostics instead of silently changing a policy.  These checks do
 not establish the performance of the provisional 2LP K curves.
 
+Cold-path arithmetic checks cover allocation products/padding, checked
+capacity doubling, and cached 70% hash thresholds through 2^31 slots. Small
+real tables exercise growth and duplicate detection. Synthetic parameter
+limits check fractional FB/M conversion and P < 2^31 before narrowing.
+POSIX children verify 30 fatal conversion/allocation/growth paths without
+making huge allocations. These are boundary tests, not 512-bit factoring.
+
 Sieve suite
 -----------
 
@@ -147,6 +154,21 @@ The earlier exponent fixtures are retained: exact uint32_t limits, repeated
 overflow rejection without mutation, scratch reset, and a valid later cycle or
 dependency after an overflowing one. Artificial wide raw/full exponents test
 arithmetic limits; they do not claim such an overflow occurred on a real input.
+
+The packed-factor checks cover the 21-row/11-exponent layout: endpoint round
+trips, the combined UINT32_MAX word, and rejection of row 2097152 or exponent
+2048. Exact arithmetic verifies the conservative raw-exponent bound of 590
+over 1-512-bit input bounds, q=1..16, both d modes and multipliers through 4095.
+The default maximum multiplier 2047 makes a 512-bit kN at most 523 bits.
+
+Separate 512-bit fixtures use tiny real-prime factor bases, not large sieve
+allocations. They run the actual H/B/C and Gray-code root-update helpers, check
+signed-sum and polynomial identities, and spot-check ordinary/special roots.
+--debug adds production root checks on every step. --extended covers every
+q=1..16 rather than q=1,2,3,13,16. A zero-Q fixture checks that factor removal
+and packed storage are bypassed. No high-bit factoring success is claimed;
+these internal fixtures neither extend the public size limit nor call the
+collection loop. Geometry guards reject unsupported q/M/d before poly setup.
 
 Matrix suite
 ------------
