@@ -1233,20 +1233,21 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   { "two_lp_high_q12_interval_rise", 311, 330, 2, 12, 12, 0, 0,
     SIQS_POLICY_RAMP(248.0, 280.0, 311, 330), SIQS_R_DERIVED_FROM_LP,
     16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.315, 0.000163934426229508, 305),
-    SIQS_POLICY_LINEAR(0.2675, 0.01592105263157895, 311),
+    /* Geometry meets the next band's 331-bit setup. */
+    SIQS_POLICY_RAMP(0.31138, 0.31466, 311, 331),
+    SIQS_POLICY_RAMP(0.25, 0.44, 311, 331),
     SIQS_POLICY_RATIO(0.15231778066, 39, -1, 50),
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 },
   /* Values tuned only from 331-355 */
   { "two_lp_high_q12_interval_finish", 331, MPU_SIQS_MAX_BITS,
     2, 12, 12, 0, 0,
-    SIQS_POLICY_RAMP(280.0, 768.0, 331, MPU_SIQS_MAX_BITS),
-    SIQS_POLICY_RAMP(280.0, 768.0, 331, MPU_SIQS_MAX_BITS),
+    SIQS_POLICY_RAMP(280.0, 384.0, 331, MPU_SIQS_MAX_BITS),  /* K_L     */
+    SIQS_POLICY_RAMP(280.0, 768.0, 331, MPU_SIQS_MAX_BITS),  /* K_R     */
     16, 384, 160, 96, 0, SIQS_A_FINAL_TOLERANCE_DEFAULT, 0,
-    SIQS_POLICY_LINEAR(0.31466, 0.00026, 331),
-    SIQS_POLICY_LINEAR(0.44, 0.0054, 331),
-    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),
-    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 }
+    SIQS_POLICY_LINEAR(0.31466, 0.00026, 331),               /* FB      */
+    SIQS_POLICY_LINEAR(0.44, 0.0054, 331),                   /* M       */
+    SIQS_POLICY_RATIO(0.15231778066, 19, -1, 50),            /* hit-e   */
+    SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0 }             /* sieve-e */
 };
 
 /* Retry low q=1/q=2 failures with q=1 at 8K, 16K, then a larger variable
