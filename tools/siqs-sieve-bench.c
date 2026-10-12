@@ -323,6 +323,11 @@ static bench_worker_t *bench_prepare_workers(bench_pool_t *pool, const mpz_t n) 
     memcpy(worker->reference, ctx->sieve, ctx->sieve_length);
   }
   siqs_poly_clear(&master, &dispatch);
+  /* Workers borrow the immutable factor-base tables. Transfer their ownership
+   * to worker zero before clearing the temporary master; cleanup frees that
+   * worker last, after all borrowers have stopped and been cleared. */
+  workers[0].prepared.ctx.shared_fb_tables = 0;
+  master.shared_fb_tables = 1;
   siqs_ctx_clear(&master);
   free(factors.primality);
   gmp_siqs_free(factors.values, factors.count);
@@ -363,7 +368,7 @@ static void bench_pool_stop(bench_pool_t *pool) {
 
 static void bench_clear_workers(bench_worker_t *workers, uint32_t count) {
   uint32_t i;
-  for (i = 0; i < count; i++) {
+  for (i = count; i-- > 0;) {
     free(workers[i].reference);
     psiqs_worker_clear(&workers[i].prepared);
   }

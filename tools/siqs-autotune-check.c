@@ -102,17 +102,17 @@ static void check_scores(void) {
   puts("PASS aggregate: compromise, scale invariance, ties, culling, extension and aliases");
 }
 
-static void check_pool_inputs(void) {
+static void check_pool_inputs(uint32_t count) {
   bench_pool_t pool;
   bench_worker_t *workers[2];
   bench_case_t geometry;
   mpz_t n[2];
-  uint32_t p, repeat;
+  uint32_t p, i, repeat;
   double wall, cpu;
   uint64_t checksum;
   memset(&pool, 0, sizeof(pool));
   memset(&geometry, 0, sizeof(geometry));
-  pool.count = 3;
+  pool.count = count;
   geometry.maximum = 64U*1024U;
   geometry.minimum = 5U*geometry.maximum/2U;
   prime_iterator_global_startup();
@@ -121,7 +121,20 @@ static void check_pool_inputs(void) {
     mpz_init(n[p]);
     bench_validate_input(n[p], p ? autotune_large_n : bench_default_n);
     workers[p] = bench_prepare_workers(&pool, n[p]);
+    check(!workers[p][0].prepared.ctx.shared_fb_tables,
+          "worker zero owns the prepared factor-base tables");
+    for (i = 1; i < pool.count; i++) {
+      const siqs_ctx_t *owner = &workers[p][0].prepared.ctx;
+      const siqs_ctx_t *borrower = &workers[p][i].prepared.ctx;
+      check(borrower->shared_fb_tables && borrower->fb == owner->fb &&
+            borrower->prime == owner->prime &&
+            borrower->fb_reciprocal == owner->fb_reciprocal &&
+            borrower->sieve_logp == owner->sieve_logp,
+            "other workers borrow their input's factor-base tables");
+    }
   }
+  check(workers[0][0].prepared.ctx.prime != workers[1][0].prepared.ctx.prime,
+        "prepared inputs own distinct factor-base tables");
   pool.workers = workers[0];
   bench_pool_start(&pool);
   for (repeat = 0; repeat < 3; repeat++)
@@ -137,11 +150,13 @@ static void check_pool_inputs(void) {
     mpz_clear(n[p]);
   }
   prime_iterator_global_shutdown();
-  puts("PASS pool: repeated serial/threaded switches, exact work and byte references");
+  printf("PASS pool (%u workers): table ownership, repeated serial/threaded "
+         "switches, exact work and byte references\n", pool.count);
 }
 
 int main(void) {
   check_scores();
-  check_pool_inputs();
+  check_pool_inputs(1);
+  check_pool_inputs(3);
   return 0;
 }
