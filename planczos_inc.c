@@ -61,43 +61,51 @@ static void nla_pool_execute(nla_worker_t *worker) {
   unsigned long i, column;
 
   switch (pool->job) {
-    case NLA_JOB_FORWARD:
-      memset(worker->rows, 0, (size_t)matrix->input_rows * sizeof(uint64_t));
+    case NLA_JOB_FORWARD: {
+      const uint64_t *RESTRICT input = pool->left;
+      uint64_t *RESTRICT rows = worker->rows;
+      memset(rows, 0, (size_t)matrix->input_rows * sizeof(*rows));
       for (column = worker->col_begin; column < worker->col_end; column++) {
         const la_col_t *c = matrix->cols + column;
         const uint32_t *dense = matrix->input_dense_rows != 0 ?
                                  c->data + c->weight : NULL;
-        uint64_t value = pool->left[column];
+        uint64_t value = input[column];
         for (i = 0; i < c->weight; i++)
-          worker->rows[c->data[i]] ^= value;
+          rows[c->data[i]] ^= value;
         for (i = 0; i < matrix->input_dense_rows; i++)
           if (dense[i >> 5] & ((uint32_t)1U << (i & 31UL)))
-            worker->rows[i] ^= value;
+            rows[i] ^= value;
       }
       break;
-    case NLA_JOB_REDUCE:
+    }
+    case NLA_JOB_REDUCE: {
+      uint64_t *RESTRICT output = pool->output;
       for (i = worker->row_begin; i < worker->row_end; i++) {
         uint32_t t;
         uint64_t value = pool->workers[0].rows[i];
         for (t = 1; t < pool->nthreads; t++)
           value ^= pool->workers[t].rows[i];
-        pool->output[i] = value;
+        output[i] = value;
       }
       break;
-    case NLA_JOB_TRANSPOSE:
+    }
+    case NLA_JOB_TRANSPOSE: {
+      const uint64_t *RESTRICT input = pool->left;
+      uint64_t *RESTRICT output = pool->output;
       for (column = worker->col_begin; column < worker->col_end; column++) {
         const la_col_t *c = matrix->cols + column;
         const uint32_t *dense = matrix->input_dense_rows != 0 ?
                                  c->data + c->weight : NULL;
         uint64_t value = 0;
         for (i = 0; i < c->weight; i++)
-          value ^= pool->left[c->data[i]];
+          value ^= input[c->data[i]];
         for (i = 0; i < matrix->input_dense_rows; i++)
           if (dense[i >> 5] & ((uint32_t)1U << (i & 31UL)))
-            value ^= pool->left[i];
-        pool->output[column] = value;
+            value ^= input[i];
+        output[column] = value;
       }
       break;
+    }
     case NLA_JOB_INNER:
       nla_inner_product(pool->left + worker->vector_begin,
                          pool->right + worker->vector_begin,
@@ -106,9 +114,10 @@ static void nla_pool_execute(nla_worker_t *worker) {
                          worker->bins);
       break;
     case NLA_JOB_VECTOR:
-      for (i = worker->vector_begin; i < worker->vector_end; i++)
-        pool->output[i] = (pool->output[i] & pool->mask) ^
-                           nla_apply_small(pool->left[i], pool->table);
+      nla_vector_table_mask_acc(pool->left + worker->vector_begin,
+                                 pool->output + worker->vector_begin,
+                                 worker->vector_end - worker->vector_begin,
+                                 pool->mask, pool->table);
       break;
   }
 }
@@ -258,8 +267,10 @@ static void nla_pool_dispatch(nla_pool_t *pool, nla_job_t job) {
   pthread_mutex_unlock(&pool->mutex);
 }
 
-static void nla_pool_mul_symmetric(nla_pool_t *pool, const uint64_t *input,
-                                    uint64_t *output, uint64_t *row_scratch) {
+static void nla_pool_mul_symmetric(nla_pool_t *pool,
+                                    const uint64_t *RESTRICT input,
+                                    uint64_t *RESTRICT output,
+                                    uint64_t *RESTRICT row_scratch) {
   pool->left = input;
   nla_pool_dispatch(pool, NLA_JOB_FORWARD);
   pool->output = row_scratch;
@@ -270,7 +281,8 @@ static void nla_pool_mul_symmetric(nla_pool_t *pool, const uint64_t *input,
 }
 
 static void nla_pool_inner_product(nla_pool_t *pool, const uint64_t *left,
-                                    const uint64_t *right, uint64_t *product) {
+                                    const uint64_t *right,
+                                    uint64_t *RESTRICT product) {
   unsigned int bit;
   uint32_t t;
   pool->left = left;
@@ -284,9 +296,10 @@ static void nla_pool_inner_product(nla_pool_t *pool, const uint64_t *left,
   }
 }
 
-static void nla_pool_vector_acc(nla_pool_t *pool, const uint64_t *vector,
-                                 uint64_t *output, uint64_t mask,
-                                 const uint64_t *table) {
+static void nla_pool_vector_acc(nla_pool_t *pool,
+                                 const uint64_t *RESTRICT vector,
+                                 uint64_t *RESTRICT output, uint64_t mask,
+                                 const uint64_t *RESTRICT table) {
   pool->left = vector;
   pool->output = output;
   pool->mask = mask;

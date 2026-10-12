@@ -214,9 +214,6 @@ static void matrix_kernel_case(unsigned long rows, unsigned long count,
     matrix_reference_transpose(count, dense, cols, row_values, want);
     nla_matrix_mul_symmetric(&matrix, input, got, row_actual, table);
     CHECK(memcmp(want, got, (size_t)count * sizeof(uint64_t)) == 0);
-    memcpy(got, input, (size_t)count * sizeof(uint64_t));
-    nla_matrix_mul_symmetric(&matrix, got, got, row_actual, table);
-    CHECK(memcmp(want, got, (size_t)count * sizeof(uint64_t)) == 0);
 #ifdef PSIQS
     if (!matrix.packed && count > 32768) {
       uint32_t threads;
@@ -229,9 +226,6 @@ static void matrix_kernel_case(unsigned long rows, unsigned long count,
         CHECK(matrix.pool != NULL && matrix.pool->nthreads == threads);
         nla_matrix_mul_symmetric(&matrix, input, got, row_actual, table);
         CHECK(memcmp(want, got, (size_t)count * sizeof(uint64_t)) == 0);
-        memcpy(got, input, (size_t)count * sizeof(uint64_t));
-        nla_matrix_mul_symmetric(&matrix, got, got, row_actual, table);
-        CHECK(memcmp(want, got, (size_t)count * sizeof(uint64_t)) == 0);
         for (bit = 0; bit < 64; bit++) small[bit] = matrix_random64();
         for (c = 0; c < count; c++) {
           uint64_t value = 0, bits = input[c];
@@ -243,9 +237,9 @@ static void matrix_kernel_case(unsigned long rows, unsigned long count,
         }
         nla_solver_inner_product(&matrix, input, want, actual_inner, table);
         CHECK(memcmp(inner, actual_inner, sizeof(inner)) == 0);
-        /* Aliased input/output, to expose an overwrite-before-read mistake. */
+        /* Seed the distinct destination before masked accumulation. */
         memcpy(want, input, (size_t)count * sizeof(uint64_t));
-        nla_solver_vector_acc(&matrix, want, small, want, keep, table);
+        nla_solver_vector_acc(&matrix, input, small, want, keep, table);
         CHECK(memcmp(want, got, (size_t)count * sizeof(uint64_t)) == 0);
         nla_pool_destroy(matrix.pool); matrix.pool = NULL;
         /* Restore the symmetric reference for the next thread count. */

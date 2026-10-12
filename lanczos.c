@@ -807,20 +807,24 @@ static void nla_matrix_clear(nla_matrix_t *matrix) {
   memset(matrix, 0, sizeof(*matrix));
 }
 
-/* Build the eight byte-index tables in Gray-code order (255 XORs each). */
-static void nla_precompute_small(const uint64_t *matrix, uint64_t *table) {
+/* Numerical kernels require distinct input, output and scratch arrays unless
+ * explicitly noted otherwise. Read-only operands may coincide. */
+
+/* Build contiguous table halves: each new half adds one basis row.
+ * This retains 255 XORs per byte while allowing SIMD across independent entries. */
+static void nla_precompute_small(const uint64_t *RESTRICT matrix,
+                                  uint64_t *RESTRICT table) {
   unsigned int byte;
   for (byte = 0; byte < 8U; byte++) {
-    uint64_t accum = 0;
-    unsigned int previous = 0;
-    unsigned int i;
-    table[byte * 256U] = 0;
-    for (i = 1; i < 256U; i++) {
-      unsigned int gray = i ^ (i >> 1);
-      unsigned int changed = gray ^ previous;
-      accum ^= matrix[byte * 8U + nla_ctz64(changed)];
-      table[byte * 256U + gray] = accum;
-      previous = gray;
+    uint64_t *byte_table = table + byte * 256U;
+    unsigned int bit;
+    byte_table[0] = 0;
+    for (bit = 0; bit < 8U; bit++) {
+      unsigned int half = 1U << bit;
+      uint64_t value = matrix[byte * 8U + bit];
+      unsigned int i;
+      for (i = 0; i < half; i++)
+        byte_table[half + i] = byte_table[i] ^ value;
     }
   }
 }
@@ -837,8 +841,8 @@ static uint64_t nla_apply_small(uint64_t row, const uint64_t *table) {
 }
 
 /* Fixed 64x64 products do not amortize the larger byte tables. */
-static void nla_precompute_nibbles(const uint64_t *matrix,
-                                   uint64_t *table) {
+static void nla_precompute_nibbles(const uint64_t *RESTRICT matrix,
+                                   uint64_t *RESTRICT table) {
   unsigned int nibble;
   for (nibble = 0; nibble < 16U; nibble++) {
     uint64_t accum = 0;
@@ -874,10 +878,12 @@ static uint64_t nla_apply_nibbles(uint64_t row, const uint64_t *table) {
          table[15U * 16U + (unsigned int)( row >> 60)];
 }
 
+/* The recurrence requires product to be allowed to alias either input.
+ * Compute the full result before copying back; table must remain separate. */
 static void nla_small_multiply(const uint64_t *left,
                                const uint64_t *right,
                                uint64_t *product,
-                               uint64_t *table) {
+                               uint64_t *RESTRICT table) {
   uint64_t temporary[64];
   unsigned int i;
   nla_precompute_nibbles(right, table);
@@ -887,7 +893,8 @@ static void nla_small_multiply(const uint64_t *left,
 }
 
 /* Input and output must not alias. */
-static void nla_small_transpose(const uint64_t *input, uint64_t *output) {
+static void nla_small_transpose(const uint64_t *RESTRICT input,
+                                 uint64_t *RESTRICT output) {
   static const uint64_t masks[6] = {
     UINT64_C(0x00000000ffffffff), UINT64_C(0x0000ffff0000ffff),
     UINT64_C(0x00ff00ff00ff00ff), UINT64_C(0x0f0f0f0f0f0f0f0f),
@@ -909,24 +916,35 @@ static void nla_small_transpose(const uint64_t *input, uint64_t *output) {
   }
 }
 
-static void nla_vector_small_mask_acc(const uint64_t *vector,
-                                      const uint64_t *small,
-                                      uint64_t *output,
+/* Share the no-alias application loop with the pthread kernel: qualifications
+ * on the coordinator's arguments do not reach pointers stored in the pool. */
+static void nla_vector_table_mask_acc(const uint64_t *RESTRICT vector,
+                                      uint64_t *RESTRICT output,
                                       unsigned long length,
                                       uint64_t mask,
-                                      uint64_t *table) {
+                                      const uint64_t *RESTRICT table) {
   unsigned long i;
-  nla_precompute_small(small, table);
   for (i = 0; i < length; i++)
     output[i] = (output[i] & mask) ^ nla_apply_small(vector[i], table);
 }
 
-/* Compute transpose(left) * right for two length-n arrays of 64-bit rows. */
+static void nla_vector_small_mask_acc(const uint64_t *RESTRICT vector,
+                                      const uint64_t *RESTRICT small,
+                                      uint64_t *RESTRICT output,
+                                      unsigned long length,
+                                      uint64_t mask,
+                                      uint64_t *RESTRICT table) {
+  nla_precompute_small(small, table);
+  nla_vector_table_mask_acc(vector, output, length, mask, table);
+}
+
+/* Compute transpose(left) * right for two length-n arrays of 64-bit rows.
+ * left and right may coincide for a Gram product; neither is modified. */
 static void nla_inner_product(const uint64_t *left,
                               const uint64_t *right,
-                              uint64_t *product,
+                              uint64_t *RESTRICT product,
                               unsigned long length,
-                              uint64_t *bins) {
+                              uint64_t *RESTRICT bins) {
   unsigned long i;
   unsigned int byte;
   memset(bins, 0, 8U * 256U * sizeof(*bins));
@@ -961,9 +979,9 @@ static void nla_inner_product(const uint64_t *left,
 }
 
 static void nla_matrix_mul(const nla_matrix_t *matrix,
-                           const uint64_t *input,
-                           uint64_t *output,
-                           uint64_t *table) {
+                           const uint64_t *RESTRICT input,
+                           uint64_t *RESTRICT output,
+                           uint64_t *RESTRICT table) {
   unsigned long column;
   unsigned int dense_rows, sparse_row, sparse_rows;
   const size_t *row_offsets;
@@ -1011,9 +1029,9 @@ static void nla_matrix_mul(const nla_matrix_t *matrix,
 }
 
 static void nla_matrix_mul_transpose(const nla_matrix_t *matrix,
-                                     const uint64_t *input,
-                                     uint64_t *output,
-                                     uint64_t *table) {
+                                     const uint64_t *RESTRICT input,
+                                     uint64_t *RESTRICT output,
+                                     uint64_t *RESTRICT table) {
   unsigned long column;
   unsigned int dense_rows, sparse_row, sparse_rows;
   const size_t *row_offsets;
@@ -1070,8 +1088,8 @@ static void nla_matrix_mul_transpose(const nla_matrix_t *matrix,
 static void nla_solver_inner_product(const nla_matrix_t *matrix,
                                       const uint64_t *left,
                                       const uint64_t *right,
-                                      uint64_t *product,
-                                      uint64_t *table) {
+                                      uint64_t *RESTRICT product,
+                                      uint64_t *RESTRICT table) {
 #ifdef PSIQS
   if (matrix->pool != NULL) {
     nla_pool_inner_product(matrix->pool, left, right, product);
@@ -1082,11 +1100,11 @@ static void nla_solver_inner_product(const nla_matrix_t *matrix,
 }
 
 static void nla_solver_vector_acc(const nla_matrix_t *matrix,
-                                   const uint64_t *vector,
-                                   const uint64_t *small,
-                                   uint64_t *output,
+                                   const uint64_t *RESTRICT vector,
+                                   const uint64_t *RESTRICT small,
+                                   uint64_t *RESTRICT output,
                                    uint64_t mask,
-                                   uint64_t *table) {
+                                   uint64_t *RESTRICT table) {
 #ifdef PSIQS
   if (matrix->pool != NULL) {
     nla_precompute_small(small, table);
@@ -1098,10 +1116,10 @@ static void nla_solver_vector_acc(const nla_matrix_t *matrix,
 }
 
 static void nla_matrix_mul_symmetric(const nla_matrix_t *matrix,
-                                     const uint64_t *input,
-                                     uint64_t *output,
-                                     uint64_t *row_scratch,
-                                     uint64_t *table) {
+                                     const uint64_t *RESTRICT input,
+                                     uint64_t *RESTRICT output,
+                                     uint64_t *RESTRICT row_scratch,
+                                     uint64_t *RESTRICT table) {
 #ifdef PSIQS
   if (matrix->pool != NULL) {
     nla_pool_mul_symmetric(matrix->pool, input, output, row_scratch);
