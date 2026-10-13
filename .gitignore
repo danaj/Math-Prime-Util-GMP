@@ -7,6 +7,7 @@ GMP.bs
 XS.c
 msiqs
 lanczos-bench
+siqs-la-bench
 siqs-sieve-bench
 siqs-autotune-check
 *.o

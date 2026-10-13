@@ -175,6 +175,10 @@ msiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczo
 lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/lanczos-bench.c -lm
 
+# Build only: compare both solvers on identical real reduced SIQS matrices.
+siqs-la-bench: tools/siqs-la-bench.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -UPSIQS -o $@ tools/siqs-la-bench.c siqs.c prime_iterator.c squfof126.c -lgmp -lm
+
 # Build only: a fixed-work byte-sieve block-size/concurrency screen.
 siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm

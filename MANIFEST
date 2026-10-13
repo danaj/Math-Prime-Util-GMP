@@ -144,6 +144,8 @@ tools/README-siqs-embedding.txt
 tools/README-lanczos-embedding.md
 tools/lanczos-bench.c
 tools/README-lanczos-bench.txt
+tools/siqs-la-bench.c
+tools/README-siqs-la-bench.txt
 tools/siqs-sieve-bench.c
 tools/README-siqs-sieve-bench.txt
 tools/siqs-autotune.pl
