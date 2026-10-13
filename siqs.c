@@ -114,7 +114,7 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 #define SIQS_PROGRESS_WORK_INTERVAL \
   (SIQS_PROGRESS_WORK_PER_SEC * SIQS_PROGRESS_OUTPUT_EVERY_NSECS)
-#define SIQS_POLYNOMIAL_NOTICE_PER_FB 160U
+#define SIQS_POLYNOMIAL_NOTICE_PER_FB 180U
 #define SIQS_MATRIX_RETRY_BATCH_MAX 128U
 /* Low q=1/q=2 polynomials can produce far more relations than their tiny
  * matrices need.  Check the matrix while consuming their candidate list so
