@@ -36,9 +36,11 @@ static void check_score_certificates(void) {
   ctx.params.q_count = 4; ctx.params.half_interval = 4096;
   fb[0].p = 2;
   mpz_init(ctx.kn); mpz_inits(product, upper, prime, NULL);
-  for (round = 0; round < 6; round++) {
+  for (round = 0; round < 18; round++) {
     uint32_t previous = 0;
     int certified;
+    ctx.params.bits = 129; ctx.params.sieve_start = 1;
+    ctx.params.sieve_score_bound = 0;
     ctx.params.poly_d = round & 1U ? 2 : 1;
     mpz_set_ui(ctx.kn, 1); mpz_mul_2exp(ctx.kn, ctx.kn, 40 + 2 * round);
     mpz_add_ui(ctx.kn, ctx.kn, 1);
@@ -49,19 +51,44 @@ static void check_score_certificates(void) {
                           : round < 4 ? 1 + (i % 3) * (SIQS_SIEVE_SCORE_TOP / 8)
                           : SIQS_SIEVE_SCORE_TOP / 4);
     }
+    if (round < 2) {
+      /* These weights are constant.  Mark their trivial capped bound to
+       * exercise skipping a same-weight tail after the retention limit. */
+      ctx.params.sieve_score_bound = SIQS_SIEVE_SCORE_MAX + 1U;
+    } else if (round >= 6) {
+      /* Exercise the cheap bound with real rounded weights, both d values,
+       * and different scales; the same independent enumeration checks it. */
+      ctx.params.sieve_free_units = SIQS_SIEVE_SCORE_TOP / 8U;
+      ctx.params.sieve_hit_bound = round < 12 ? 16.0 : 1048576.0;
+      siqs_set_log_weights(&ctx);
+      CHECK(ctx.params.sieve_score_bound != 0);
+    }
     score_reference_upper(upper, &ctx);
     maximum = score = 0; mpz_set_ui(product, 1);
     for (m = 1; m < (1U << count); m++) {
       uint32_t gray = m ^ (m >> 1), changed = gray ^ previous;
       uint32_t index = siqs_ctz32(changed) + 1;
-      if (gray & changed) { mpz_mul_ui(product, product, fb[index].p); score += fb[index].logp; }
-      else { mpz_divexact_ui(product, product, fb[index].p); score -= fb[index].logp; }
+      if (index >= ctx.params.sieve_start) {
+        if (gray & changed) { mpz_mul_ui(product, product, fb[index].p); score += fb[index].logp; }
+        else { mpz_divexact_ui(product, product, fb[index].p); score -= fb[index].logp; }
+      }
       if (mpz_cmp(product, upper) <= 0 && score > maximum) maximum = score;
       previous = gray;
     }
     certified = siqs_certify_sieve_scores(&ctx, &bound);
     CHECK(certified == (maximum <= SIQS_SIEVE_SCORE_MAX));
     CHECK(bound == (maximum > SIQS_SIEVE_SCORE_MAX ? SIQS_SIEVE_SCORE_MAX + 1U : maximum));
+    if (ctx.params.sieve_score_bound != 0) {
+      CHECK(bound <= ctx.params.sieve_score_bound);
+      CHECK(mpz_sizeinbase(upper, 2) <= siqs_sieve_score_envelope_bits(&ctx));
+      if (ctx.params.sieve_score_bound <= SIQS_SIEVE_SCORE_MAX) {
+        ctx.params.sieve_initial = (uint8_t)(SIQS_SIEVE_SCORE_MAX
+                                             - ctx.params.sieve_score_bound);
+        ctx.params.stage1_bias = 0;
+        siqs_select_sieve_score_mode(&ctx);
+        CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
+      }
+    }
     ctx.params.bits = 129; ctx.params.sieve_initial = 0; ctx.params.stage1_bias = 0;
     siqs_select_sieve_score_mode(&ctx);
     CHECK(ctx.params.sieve_saturating == !certified);
@@ -76,14 +103,22 @@ static void check_score_certificates(void) {
     }
   }
   ctx.params.q_count = 3; CHECK(!siqs_certify_sieve_scores(&ctx, &bound));
+  CHECK(siqs_sieve_score_envelope_bits(&ctx) == 0);
   ctx.params.q_count = 4; mpz_set_ui(ctx.kn, 49);
   CHECK(!siqs_certify_sieve_scores(&ctx, &bound));
+  CHECK(siqs_sieve_score_envelope_bits(&ctx) == 0);
+  mpz_set_ui(ctx.kn, 57); ctx.params.poly_d = 1;
+  siqs_set_log_weights(&ctx);
+  CHECK(ctx.params.sieve_score_bound == 0);
+  CHECK(!siqs_certify_sieve_scores(&ctx, &bound)); /* rounded target is zero */
+  siqs_select_sieve_score_mode(&ctx);
+  CHECK(ctx.params.sieve_raw_scores && ctx.params.sieve_saturating);
   mpz_set_ui(ctx.kn, 0); ctx.params.bits = 128;
   ctx.params.sieve_raw_scores = ctx.params.sieve_saturating = 1;
   siqs_select_sieve_score_mode(&ctx);
   CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
   mpz_clears(ctx.kn, product, upper, prime, NULL);
-  puts("PASS scores: subset certificates, exact byte boundaries, uncertified cases, small-input bypass");
+  puts("PASS scores: subset certificates, cheap headroom proof, exact byte boundaries, uncertified cases, small-input bypass");
 }
 
 static void check_raw_score_scan(void) {
@@ -273,6 +308,10 @@ static void check_score_upper_envelope(void) {
     CHECK(ctx.params.fb_size == cases[c].count);
     siqs_set_large_prime_bounds(&ctx); siqs_set_log_weights(&ctx);
     certified = siqs_certify_sieve_scores(&ctx, &bound);
+    CHECK(ctx.params.sieve_score_bound != 0);
+    CHECK(bound <= ctx.params.sieve_score_bound);
+    score_reference_upper(upper, &ctx);
+    CHECK(mpz_sizeinbase(upper, 2) <= siqs_sieve_score_envelope_bits(&ctx));
     siqs_select_sieve_score_mode(&ctx);
     CHECK(ctx.params.sieve_saturating == !certified);
     CHECK(!ctx.params.sieve_saturating || ctx.params.sieve_raw_scores);
