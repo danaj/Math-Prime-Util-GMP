@@ -3204,6 +3204,8 @@ static void siqs_set_family_sieve_initial(siqs_ctx_t *ctx) {
   ctx->active_sieve_initial = (uint8_t)initial;
 }
 
+static void siqs_set_q1_sieve_scores(siqs_ctx_t *, const siqs_poly_t *);
+
 static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t i;
   for (i = 0; i < poly->q_count; i++)
@@ -3213,6 +3215,8 @@ static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
     return 0;
   siqs_first_B_and_roots(ctx, poly);
   siqs_set_family_sieve_initial(ctx);
+  if (poly->q_count == 1)
+    siqs_set_q1_sieve_scores(ctx, poly);
   return 1;
 }
 
@@ -3330,7 +3334,7 @@ static uint32_t siqs_next_sieve_weight(const siqs_ctx_t *ctx, uint32_t i) {
   return lo;
 }
 
-static void siqs_set_log_weights(siqs_ctx_t *ctx) {
+static void siqs_set_log_weights_min(siqs_ctx_t *ctx, double minimum_log_q) {
   uint32_t i;
   uint32_t envelope_bits = siqs_sieve_score_envelope_bits(ctx);
   uint32_t ratio_weight = 0, ratio_bits = 1;
@@ -3338,9 +3342,10 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
   double log_q = 0.5 * siqs_log_mpz(ctx->kn)
                + log((double)ctx->params.half_interval)
                + 0.5 * M_LN2;
-  double denom = log_q - log(ctx->params.sieve_hit_bound);
-  double scale;
+  double denom, scale;
   uint32_t free_units = ctx->params.sieve_free_units;
+  if (log_q < minimum_log_q) log_q = minimum_log_q;
+  denom = log_q - log(ctx->params.sieve_hit_bound);
   if (denom < 8.0)
     denom = 8.0;
   /* The fixed free units are added back in the initializer, so this leaves
@@ -3437,6 +3442,98 @@ static void siqs_set_log_weights(siqs_ctx_t *ctx) {
     i = SIQS_SIEVE_SCORE_TOP - 1U;
   ctx->params.sieve_initial = (uint8_t)i;
   ctx->active_sieve_initial = ctx->params.sieve_initial;
+}
+
+static void siqs_set_log_weights(siqs_ctx_t *ctx) {
+  siqs_set_log_weights_min(ctx, 0.0);
+}
+
+static void siqs_q1_sieve_norm(mpz_ptr upper, const siqs_ctx_t *ctx,
+                              const siqs_poly_t *poly) {
+  mpz_t twice_b, value;
+  long endpoint, vertex;
+  mpz_inits(twice_b, value, NULL);
+  mpz_mul_2exp(twice_b, poly->B, 1);
+  /* q1 constructs 0 <= B < 3*d*A/4.  Thus the closest integer to
+   * -B/(d*A) is 0 or -1, and the farthest endpoint is on the other side.
+   * Checking those two points gives the exact integer-interval norm. */
+  if (mpz_cmp(twice_b, poly->DA) <= 0) {
+    endpoint = -(long)ctx->params.half_interval;
+    vertex = 0;
+  } else {
+    endpoint = (long)ctx->params.half_interval - 1;
+    vertex = -1;
+  }
+  mpz_mul_si(upper, poly->DA, endpoint);
+  mpz_add(upper, upper, twice_b);
+  mpz_mul_si(upper, upper, endpoint);
+  mpz_add(upper, upper, poly->C);
+  mpz_abs(upper, upper);
+  mpz_mul_si(value, poly->DA, vertex);
+  mpz_add(value, value, twice_b);
+  mpz_mul_si(value, value, vertex);
+  mpz_add(value, value, poly->C);
+  mpz_abs(value, value);
+  if (mpz_cmp(value, upper) > 0) mpz_set(upper, value);
+  mpz_clears(twice_b, value, NULL);
+}
+
+/* q1 accepts its nearest eligible prime without an A tolerance.  Account
+ * for the actual polynomial size before setting its byte-score mode.
+ * This path is serial and each q1 family has only one B polynomial. */
+static void siqs_set_q1_sieve_scores(siqs_ctx_t *ctx,
+                                    const siqs_poly_t *poly) {
+  mpz_t upper;
+  uint32_t i, ratio_weight = 0, ratio_bits = 1, norm_bits, initial;
+  uint64_t bound;
+  /* A failed proof must not retain a previous family's fast mode/bound. */
+  ctx->params.sieve_raw_scores = ctx->params.sieve_saturating = 1;
+  ctx->params.sieve_score_bound = 0;
+  if (ctx->params.q_count != 1 || poly->q_count != 1 ||
+      ctx->shared_fb_tables || ctx->params.half_interval == 0 ||
+      mpz_sgn(poly->DA) <= 0 || mpz_sgn(poly->B) < 0 ||
+      mpz_cmp(poly->B, poly->DA) >= 0 ||
+      mpz_sgn(ctx->kn) <= 0 || mpz_perfect_square_p(ctx->kn) ||
+      ctx->params.sieve_start < 1 || ctx->fb[0].p != 2 ||
+      (ctx->params.poly_d != 1 && ctx->params.poly_d != 2) ||
+      (ctx->params.poly_d == 2 && mpz_fdiv_ui(ctx->kn, 8) != 1))
+    return;
+  mpz_init(upper);
+  siqs_q1_sieve_norm(upper, ctx, poly);
+  if (mpz_sgn(upper) <= 0) {
+    mpz_clear(upper);
+    return;
+  }
+  /* Use raw Q for the scale: the family initializer already accounts for
+   * guaranteed powers of two. Rebuild from logs, never from rounded weights. */
+  siqs_set_log_weights_min(ctx, siqs_log_mpz(upper));
+  for (i = 0; i < ctx->params.fb_size; i++)
+    ctx->sieve_logp[i] = ctx->fb[i].logp;
+  siqs_set_family_sieve_initial(ctx);
+  /* For d=2, Q is divisible by four and the sieve hits only odd primes. */
+  if (ctx->params.poly_d == 2) mpz_fdiv_q_2exp(upper, upper, 2);
+  norm_bits = (uint32_t)mpz_sizeinbase(upper, 2);
+  for (i = ctx->params.sieve_start; i < ctx->params.fb_size; i++) {
+    uint32_t weight = ctx->fb[i].logp, bits = 0;
+    uint64_t square = (uint64_t)ctx->fb[i].p * ctx->fb[i].p;
+    while (square >>= 1) bits++;
+    if (weight * ratio_bits > ratio_weight * bits) {
+      ratio_weight = weight;
+      ratio_bits = bits;
+    }
+  }
+  /* Nonzero |Q| bounds the product of distinct hit primes by U<2^bits.
+   * Actual rounded weights satisfy w/log2(p^2)<=ratio, hence the strict
+   * raw-score bound S<2*bits*ratio. No score-knapsack calculation is needed. */
+  if (ratio_weight != 0) {
+    bound = (2ULL * norm_bits * ratio_weight - 1U) / ratio_bits;
+    initial = (uint32_t)ctx->active_sieve_initial + ctx->params.stage1_bias;
+    ctx->params.sieve_score_bound = bound > SIQS_SIEVE_SCORE_MAX
+        ? SIQS_SIEVE_SCORE_MAX + 1U : (uint16_t)bound;
+    ctx->params.sieve_raw_scores = bound + initial > SIQS_SIEVE_SCORE_MAX;
+    ctx->params.sieve_saturating = bound > SIQS_SIEVE_SCORE_MAX;
+  }
+  mpz_clear(upper);
 }
 
 /* Generate both arithmetic variants from one kernel body.  Dispatch is
@@ -3563,6 +3660,11 @@ static void siqs_select_sieve_score_mode(siqs_ctx_t *ctx) {
   uint32_t bound, initial;
   int certified;
   ctx->params.sieve_raw_scores = ctx->params.sieve_saturating = 0;
+  /* q1 has no A tolerance. Its actual-family proof runs after B is known. */
+  if (ctx->params.q_count == 1) {
+    ctx->params.sieve_raw_scores = ctx->params.sieve_saturating = 1;
+    return;
+  }
   if (ctx->params.bits <= 128U)
     return;
   initial = (uint32_t)ctx->params.sieve_initial + ctx->params.stage1_bias;
@@ -4819,9 +4921,11 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
          (uint64_t)*surviving_rows + SIQS_MATRIX_EXTRA_RELS(ctx);
 }
 
-static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
+static int siqs_test_dependencies_checked(siqs_ctx_t *ctx,
+                                  const la_col_t *columns,
                                   unsigned long ncols,
-                                  const uint64_t *nullrows, uint64_t mask) {
+                                  const uint64_t *nullrows, uint64_t mask,
+                                  int *all_tested) {
   uint32_t dependency, ndeps = 0;
   mpz_t lhs, rhs, power, delta, divisor;
 #ifdef SIQS_TIMING
@@ -4834,6 +4938,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
     printf("# siqs solver returned %u dependenc%s\n",
            ndeps, ndeps==1 ? "y" : "ies");
   }
+  if (all_tested != NULL) *all_tested = 1;
   mpz_init(lhs);
   mpz_init(rhs);
   mpz_init(power);
@@ -4861,6 +4966,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
         for (j = 0; j < r->nfactors; j++) {
           if (!siqs_touch_factor(ctx, r->factors[j].row,
                                 r->factors[j].exponent)) {
+            if (all_tested != NULL) *all_tested = 0;
             if (ctx->verbose > 0)
               printf("# siqs skipped dependency %u: factor exponent "
                      "overflow\n", dependency);
@@ -4932,6 +5038,15 @@ next_dependency:
   return ctx->factor_found;
 }
 
+/* Preserve the ordinary dependency tester for callers that do not need
+ * a completeness certificate. */
+static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
+                                  unsigned long ncols,
+                                  const uint64_t *nullrows, uint64_t mask) {
+  return siqs_test_dependencies_checked(ctx, columns, ncols, nullrows,
+                                        mask, NULL);
+}
+
 static int siqs_use_dense_solver(unsigned long ncols) {
   return LA_DENSE_CROSSOVER_COLS != 0 &&
          ncols <= LA_DENSE_CROSSOVER_COLS;
@@ -4943,7 +5058,7 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   uint64_t seed, mask = 0;
   uint64_t *nullrows = NULL;
   la_col_t *columns;
-  int dense_selected, dense_result = 0;
+  int dense_selected, dense_result = 0, dense_tested = 0;
 #ifdef SIQS_TIMING
   uint64_t timing_start;
 #endif
@@ -4986,17 +5101,21 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   }
 
   if (dense_result) {
-    siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
+    siqs_test_dependencies_checked(ctx, columns, ncols, nullrows, mask,
+                                   &dense_tested);
     free(nullrows);
     nullrows = NULL;
   }
 
-  /* A valid exact basis can, in principle, consist entirely of trivial
-   * congruences.  Try the fast packed solver first.  If its compact dependency
-   * sample does not split the input, retain every row in a fresh Lanczos
-   * iteration to recover the dependency width before collecting more
-   * relations.  This also handles a dense allocation or verification failure. */
-  if (!dense_result || !ctx->factor_found) {
+  /* Dense elimination returns min(nullity, 64) independent vectors. A
+   * verified result with fewer than 64 vectors therefore spans this
+   * reduced matrix's kernel. For unit relations, the dependency-to-root
+   * map is a homomorphism: if a complete basis gives no further split,
+   * neither can another basis of this same kernel. Collect new relations.
+   * An exponent-overflow skip does not certify that conclusion.
+   * Keep Lanczos for dense failure or a possibly incomplete sample. */
+  if (!dense_result ||
+      (!ctx->factor_found && (!dense_tested || mask == UINT64_MAX))) {
     for (block_attempt = 0;
          block_attempt < 2 && !ctx->factor_found;
          block_attempt++) {

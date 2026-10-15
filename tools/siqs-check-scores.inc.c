@@ -121,6 +121,94 @@ static void check_score_certificates(void) {
   puts("PASS scores: subset certificates, cheap headroom proof, exact byte boundaries, uncertified cases, small-input bypass");
 }
 
+/* Evaluate every Q by the square identity and obtain scores by divisibility,
+ * independently of the production norm formula and root progressions. */
+static void check_q1_score_family(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
+  mpz_t y, value, observed, upper;
+  uint32_t i, pos, peak = 0;
+  case_ctx = ctx;
+  mpz_inits(y, value, observed, upper, NULL);
+  for (i = 0; i < ctx->params.fb_size; i++)
+    CHECK(ctx->fb[i].logp == ctx->sieve_logp[i]);
+  for (pos = 0; pos < ctx->sieve_length; pos++) {
+    uint32_t score = 0;
+    mpz_mul_si(y, poly->DA, (long)pos - (long)ctx->params.half_interval);
+    mpz_add(y, y, poly->B);
+    mpz_mul(value, y, y); mpz_sub(value, value, ctx->kn);
+    CHECK(mpz_divisible_p(value, poly->DA));
+    mpz_divexact(value, value, poly->DA); mpz_abs(value, value);
+    CHECK(mpz_sgn(value) != 0);
+    if (mpz_cmp(value, observed) > 0) mpz_set(observed, value);
+    for (i = ctx->params.sieve_start; i < ctx->params.fb_size; i++) {
+      uint32_t r = pos % ctx->fb[i].p;
+      int divides = mpz_divisible_ui_p(value, ctx->fb[i].p);
+      CHECK(divides == (r == ctx->root1[i] || r == ctx->root2[i]));
+      if (divides) score += ctx->fb[i].logp;
+    }
+    if (score > peak) peak = score;
+  }
+  siqs_q1_sieve_norm(upper, ctx, poly);
+  CHECK(mpz_cmp(upper, observed) == 0);
+  CHECK(ctx->params.sieve_score_bound != 0);
+  CHECK(ctx->params.sieve_score_bound > SIQS_SIEVE_SCORE_MAX ||
+        peak <= ctx->params.sieve_score_bound);
+  compare_sieve(ctx); /* Also checks every byte and the candidate map. */
+  mpz_clears(y, value, observed, upper, NULL);
+}
+
+static void check_q1_score_regressions(void) {
+  const char *inputs[] = {"934189", "4395473", "49293573089"};
+  mpz_t n, saved_b;
+  uint32_t c, modes = 0;
+  prime_iterator_global_startup();
+  mpz_inits(n, saved_b, NULL);
+  for (c = 0; c < sizeof(inputs) / sizeof(*inputs); c++) {
+    siqs_ctx_t ctx;
+    siqs_poly_t poly;
+    siqs_factor_array_t result;
+    uint32_t count;
+    mpz_t *values;
+    double nominal_scale;
+    case_name = inputs[c];
+    mpz_set_str(n, inputs[c], 10);
+    siqs_factor_array_init(&result, n);
+    siqs_ctx_init(&ctx, n, n, &result, NULL, 0); case_ctx = &ctx;
+    CHECK(siqs_ctx_allocate(&ctx) && ctx.params.q_count == 1);
+    /* Until A and B are known, no nominal-size proof applies to q=1. */
+    CHECK(ctx.params.sieve_raw_scores && ctx.params.sieve_saturating);
+    nominal_scale = ctx.params.log_scale;
+    siqs_poly_init(&ctx, &poly); CHECK(siqs_new_family(&ctx, &poly));
+    CHECK(ctx.params.log_scale <= nominal_scale);
+    if (c < 2) CHECK(ctx.params.log_scale < nominal_scale);
+    CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
+    modes |= 1U << ctx.params.poly_d;
+    check_q1_score_family(&ctx, &poly);
+
+    /* Cross the physical-byte bound while the raw score still fits. */
+    ctx.params.stage1_bias = (uint8_t)(SIQS_SIEVE_SCORE_MAX + 1U
+        - ctx.params.sieve_score_bound - ctx.active_sieve_initial);
+    siqs_set_q1_sieve_scores(&ctx, &poly);
+    CHECK(ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
+    check_q1_score_family(&ctx, &poly);
+
+    /* Reject an unsupported B, then reconstruct the valid family's state. */
+    ctx.params.stage1_bias = 0;
+    mpz_set(saved_b, poly.B); mpz_set(poly.B, poly.DA);
+    siqs_set_q1_sieve_scores(&ctx, &poly);
+    CHECK(ctx.params.sieve_raw_scores && ctx.params.sieve_saturating);
+    CHECK(ctx.params.sieve_score_bound == 0);
+    mpz_set(poly.B, saved_b); siqs_set_q1_sieve_scores(&ctx, &poly);
+    CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
+    check_q1_score_family(&ctx, &poly);
+    siqs_poly_clear(&ctx, &poly); siqs_ctx_clear(&ctx); case_ctx = NULL;
+    values = siqs_factor_array_release(&result, &count);
+    gmp_siqs_free(values, count);
+  }
+  CHECK(modes == ((1U << 1) | (1U << 2)));
+  mpz_clears(n, saved_b, NULL); prime_iterator_global_shutdown();
+  puts("PASS scores: q=1 actual norms, corrected weights, full-interval bytes, raw boundary and stale-proof reset");
+}
+
 static void check_raw_score_scan(void) {
   siqs_ctx_t ctx;
   uint32_t t, lane, a, b, i, cells[] = {2, 7};
@@ -393,6 +481,7 @@ static void check_score_worker_inheritance(void) {
 
 static void suite_scores(void) {
   check_score_certificates(); check_raw_score_scan();
+  if (SIQS_SIEVE_SCORE_BITS == 8U) check_q1_score_regressions();
   check_saturating_scores(); check_saturated_fine_filter();
   if (extended) check_score_upper_envelope();
 #ifdef PSIQS

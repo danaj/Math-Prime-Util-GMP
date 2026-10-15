@@ -336,6 +336,7 @@ static void relation_exponent_limits(void) {
   siqs_factor_t f = {1, 2};
   siqs_raw_relation_t *raw[2];
   uint32_t edges[2] = {0, 1}, i;
+  int all_tested;
   la_col_t columns[3];
   uint64_t nullrows[3] = {UINT64_C(1), UINT64_C(1), UINT64_C(2)};
   case_name = "exponent-overflow-and-recovery";
@@ -374,10 +375,17 @@ static void relation_exponent_limits(void) {
   (void)relation_full_power(&ctx, 1, UINT32_C(2147483648));
   (void)relation_full_power(&ctx, 1, UINT32_C(2147483648));
   mpz_set_ui(relation_full_power(&ctx, 2, 2)->y, 18); /* 18^2 == 3^2 mod 35. */
-  CHECK(!siqs_test_dependencies(&ctx, columns, 3, nullrows, UINT64_C(1)));
+  CHECK(!siqs_test_dependencies_checked(&ctx, columns, 3, nullrows,
+                                        UINT64_C(1), &all_tested));
+  CHECK(!all_tested);
   CHECK(!ctx.factor_found && result.count == 1); relation_scratch(&ctx);
-  CHECK(siqs_test_dependencies(&ctx, columns, 3, nullrows, UINT64_C(3)));
+  CHECK(siqs_test_dependencies_checked(&ctx, columns, 3, nullrows,
+                                       UINT64_C(3), &all_tested));
+  CHECK(!all_tested);
   CHECK(ctx.factor_found && result.count == 2 && siqs_all_factors_prime(&result));
+  CHECK(siqs_test_dependencies_checked(&ctx, columns, 3, nullrows,
+                                       UINT64_C(2), &all_tested));
+  CHECK(all_tested); /* A later complete call must clear the skipped status. */
   relation_finish(&ctx, &result);
 }
 

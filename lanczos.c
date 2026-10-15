@@ -30,8 +30,8 @@
  * candidates:  Section 7, final recovery discussion using Z and BZ
  *
  * In particular, Papadopoulos's msieve implementation influenced the
- * cache organization and the handling of dense rows deferred until
- * dependency recovery.
+ * byte-indexed lookup-table approach in the multiplication kernels and
+ * the handling of dense rows deferred until dependency recovery.
  */
 
 #include <limits.h>

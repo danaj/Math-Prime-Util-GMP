@@ -36,7 +36,7 @@ plan tests => 0 + 57
                 + 3
                 + 2
                 + 25  # individual tests for factoring methods
-                + 12  # lower SIQS profile boundaries and recovery
+                + 14  # lower SIQS profiles, byte scores, and recovery
                 + 1   # SIQS even multiplier
                 + 2   # SIQS upper-range acceptance and developer hard cap
                 + 1*$extra # SQUFOF fail case
@@ -252,6 +252,16 @@ is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('194927', 0) ],
   ['397', '491'],
   "SIQS factors a semiprime with its compact q=1 profile"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('934189', 0) ],
+  ['937', '997'],
+  "SIQS factors the 20-bit q=1 byte-score overflow regression"
+);
+is_deeply(
+  [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor('4395473', 0) ],
+  ['2053', '2141'],
+  "SIQS factors the 23-bit q=1 byte-score overflow regression"
 );
 is_deeply(
   [ sort {$a<=>$b} Math::Prime::Util::GMP::qs_factor(

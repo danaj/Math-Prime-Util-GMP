@@ -357,6 +357,58 @@ static void matrix_from_relations(void) {
   free(nullrows); matrix_free(cols, count); relation_finish(&ctx, &result);
 }
 
+/* These square relations have only trivial roots modulo 35.  Inspect the
+ * Lanczos RNG to detect retries without changing either solver interface. */
+static void matrix_complete_basis_retry(void) {
+  const uint32_t q_values[] = {1, 2, 3, SIQS_MAX_A_PRIMES};
+  const uint32_t counts[] = {32, 63, 64};
+  uint32_t q, c, i;
+  uint64_t seed = UINT64_C(0x19c3e74b62a85d0f);
+  case_name = "complete-basis-retry";
+  for (q = 0; q < sizeof(q_values) / sizeof(*q_values); q++) {
+    for (c = 0; c < sizeof(counts) / sizeof(*counts); c++) {
+      siqs_ctx_t ctx;
+      siqs_factor_array_t result;
+      uint32_t count = counts[c];
+      relation_context(&ctx, &result, 1);
+      ctx.params.q_count = q_values[q];
+      ctx.la_rng.state = seed;
+      for (i = 0; i < count; i++)
+        (void)relation_full_power(&ctx, 1, 2U * (i + 1U));
+      CHECK(!siqs_solve(&ctx));
+      CHECK(result.count == 1);
+      /* At 64 dependencies the dense result may be truncated: retain the
+       * fallback. Below 64 it is complete, for every q. */
+      CHECK((ctx.la_rng.state == seed) == (count < 64));
+      if (count < 64) {
+        /* Fresh information can split the input on the next solve. */
+        mpz_set_ui(relation_full_power(&ctx, 2, 2)->y, 18);
+        CHECK(siqs_solve(&ctx));
+        CHECK(ctx.la_rng.state == seed && siqs_all_factors_prime(&result));
+      }
+      relation_finish(&ctx, &result);
+    }
+  }
+  {
+    siqs_ctx_t ctx;
+    siqs_factor_array_t result;
+    siqs_factor_t factors[3] = {{0, 1}, {1, UINT32_C(2147483649)}, {2, 1}};
+    case_name = "skipped-basis-dependency-retry";
+    relation_context(&ctx, &result, 1);
+    ctx.params.q_count = 2;
+    ctx.la_rng.state = seed;
+    /* Each column has the same nonzero parity. Every dependency combines
+     * at least two columns and overflows the factor-2 exponent sum. */
+    for (i = 0; i < 32; i++)
+      siqs_materialize_smooth_relation(&ctx,
+          relation_raw(&ctx, 1, 1, factors, 3));
+    CHECK(!siqs_solve(&ctx));
+    CHECK(result.count == 1 && ctx.la_rng.state != seed);
+    relation_finish(&ctx, &result);
+  }
+  puts("PASS matrix: q-independent retry guard, new relations, 64-vector and exponent-overflow fallbacks");
+}
+
 static void matrix_rng(void) {
   static const struct {
     uint64_t seed;
@@ -542,6 +594,7 @@ static void suite_matrix(void) {
   matrix_rng();
   matrix_index_limits();
   matrix_from_relations();
+  matrix_complete_basis_retry();
   matrix_reduction();
   matrix_degenerate();
   CHECK(siqs_use_dense_solver(1536) && !siqs_use_dense_solver(1537));
