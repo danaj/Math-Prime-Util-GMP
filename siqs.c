@@ -93,7 +93,16 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 
 #define SIQS_MAX_EXTRA_RELS      512U
-/* Normal collection stops at graph readiness.  This is only a generous
+/* Bounded Incremental Dependency Solver: rows include the sign. Collection
+ * stops at a complete partition or FB+1+EXTRA_RELS, with pending work drained.
+ * Larger factor bases retain matrix readiness and the dense/Lanczos solvers. */
+#ifndef SIQS_BIDS_MAX_FB
+# define SIQS_BIDS_MAX_FB        4095U
+#endif
+#ifndef SIQS_BIDS_EXTRA_RELS
+# define SIQS_BIDS_EXTRA_RELS     512U
+#endif
+/* Batch collection stops at graph readiness. This is only a generous
  * terminal failure guard for unusually slow relation streams, not an expected
  * work target.  Both collectors allow max(1000000, 512 * FB) polynomials. */
 #define SIQS_MAX_POLYNOMIALS_PER_FB 512U
@@ -476,6 +485,35 @@ typedef struct {
   uint32_t next;
 } siqs_hit_t;
 
+typedef enum {
+  SIQS_BIDS_COLLECTING, SIQS_BIDS_BUDGET, SIQS_BIDS_UNCERTIFIED
+} siqs_bids_stop_t;
+
+typedef enum {
+  SIQS_DEPENDENCY_UNKNOWN, SIQS_DEPENDENCY_TRIVIAL, SIQS_DEPENDENCY_NONTRIVIAL
+} siqs_dependency_result_t;
+
+typedef struct {
+  uint32_t rows, words, rank, processed;
+  uint32_t *original, *basis_slot;
+  uint64_t *storage, *parity, *combination, *work_parity, *work_combination;
+  la_col_t *columns;
+  uint64_t *nullrows;
+  int failed, progress;
+  uint32_t dependencies, trivial, useful, unknown, partial;
+#ifdef SIQS_DEBUG
+  uint32_t *debug_rows;
+  size_t debug_alloc;
+#endif
+} siqs_bids_t;
+
+/* Keep the one-word basis in one allocation, with scalar elimination. */
+typedef struct {
+  siqs_bids_t state;
+  uint64_t parity[64], combination[64];
+  uint32_t original[64];
+} siqs_bids_word_t;
+
 typedef struct {
   mpz_srcptr original_n;
   mpz_t n;
@@ -557,12 +595,21 @@ typedef struct {
   uint32_t block_length;
   int polynomial_notice_printed;
   int verbose; /* Per-call: nested cofactor SIQS must not change host state. */
+  siqs_bids_t *bids;
+  uint32_t bids_cap;
+  int use_bids;
+  siqs_bids_stop_t bids_stop;
 } siqs_ctx_t;
 
 static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
                            uint32_t trial_start, int verbose,
                            uint32_t nthreads);
 
+static int siqs_bids_enabled(const siqs_ctx_t *ctx) {
+  return ctx->params.fb_size <= SIQS_BIDS_MAX_FB && !ctx->buffer_relations;
+}
+static void siqs_bids_add(siqs_ctx_t *ctx);
+static void siqs_bids_note_progress(siqs_ctx_t *ctx);
 static int siqs_solve(siqs_ctx_t *ctx);
 #ifdef PSIQS
 static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
@@ -913,15 +960,44 @@ static int siqs_insert_divisor(siqs_factor_array_t *fa, const mpz_t d) {
   return changed;
 }
 
+/* A newly classified composite is checked once. An exact power is split
+ * into two factors; both receive fresh primality/power classifications.
+ * A root can itself be composite, so this is not a completion certificate. */
+static int siqs_split_perfect_power(siqs_factor_array_t *fa, uint32_t index) {
+  mpz_t root, quotient;
+  uint32_t exponent, bits;
+  int split = 0;
+  if (!mpz_perfect_power_p(fa->values[index])) return 0;
+  bits = (uint32_t)mpz_sizeinbase(fa->values[index], 2);
+  mpz_init(root);
+  mpz_init(quotient);
+  for (exponent = 2; exponent <= bits; exponent++) {
+    if (!mpz_root(root, fa->values[index], exponent)) continue;
+    mpz_divexact(quotient, fa->values[index], root);
+    mpz_set(fa->values[index], root);
+    fa->primality[index] = SIQS_FACTOR_UNKNOWN;
+    siqs_factor_array_append(fa, quotient);
+    split = 1;
+    break;
+  }
+  mpz_clear(root);
+  mpz_clear(quotient);
+  return split;
+}
+
 static int siqs_all_factors_prime(siqs_factor_array_t *fa) {
-  uint32_t i;
+  uint32_t i = 0;
   int all_prime = 1;
-  for (i = 0; i < fa->count; i++) {
-    if (fa->primality[i] == SIQS_FACTOR_UNKNOWN)
+  while (i < fa->count) {
+    if (fa->primality[i] == SIQS_FACTOR_UNKNOWN) {
       fa->primality[i] = siqs_is_prob_prime(fa->values[i])
                        ? SIQS_FACTOR_PRIME : SIQS_FACTOR_COMPOSITE;
-    if (fa->primality[i] != SIQS_FACTOR_PRIME)
-      all_prime = 0;
+      if (fa->primality[i] == SIQS_FACTOR_COMPOSITE &&
+          siqs_split_perfect_power(fa, i))
+        continue;
+    }
+    if (fa->primality[i] != SIQS_FACTOR_PRIME) all_prime = 0;
+    i++;
   }
   return all_prime;
 }
@@ -2105,6 +2181,7 @@ static void siqs_store_full(siqs_ctx_t *ctx, siqs_full_relation_t *r) {
         ctx->full, siqs_array_size(ctx->full_alloc, sizeof(*ctx->full)));
   }
   ctx->full[ctx->full_count++] = r;
+  siqs_bids_add(ctx);
 }
 
 /* A smooth raw relation is already a factor-base relation.  Move its GMP and
@@ -2277,6 +2354,7 @@ static int siqs_materialize_one_lp_pair(siqs_ctx_t *ctx,
         siqs_insert_divisor(ctx->result, state->y)) {
       ctx->factor_found = 1;
       siqs_verify_partition(ctx->original_n, ctx->result);
+      siqs_bids_note_progress(ctx);
     }
     return 0;
   }
@@ -2496,6 +2574,7 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
         siqs_insert_divisor(ctx->result, gcd)) {
       ctx->factor_found = 1;
       siqs_verify_partition(ctx->original_n, ctx->result);
+      siqs_bids_note_progress(ctx);
     }
     siqs_reset_touched_factors(ctx);
     return;
@@ -4619,8 +4698,10 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
   if (mpz_sgn(q) == 0) {
     mpz_gcd(rest, y, ctx->n);
     if (mpz_cmp_ui(rest, 1) > 0 && mpz_cmp(rest, ctx->n) < 0 &&
-        siqs_insert_divisor(ctx->result, rest))
+        siqs_insert_divisor(ctx->result, rest)) {
       ctx->factor_found = 1;
+      siqs_bids_note_progress(ctx);
+    }
     return;
   }
   if (mpz_sgn(q) < 0) {
@@ -4712,7 +4793,14 @@ static int siqs_try_inline_matrix(siqs_ctx_t *ctx) {
 static void siqs_evaluate_candidates(siqs_ctx_t *ctx,
                                      const siqs_poly_t *poly) {
   uint32_t i;
-  if (ctx->inline_matrix_solves) {
+  if (ctx->use_bids) {
+    /* A budget or uncertainty stop ends collection after pending work. Finish
+     * candidates already produced by this polynomial, unless the factor
+     * partition is complete. Do not start a new list after a stop request. */
+    if (!ctx->bids_stop)
+      for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++)
+        siqs_evaluate_candidate(ctx, poly, i);
+  } else if (ctx->inline_matrix_solves) {
     for (i = 0; i < ctx->candidate_count && !ctx->factor_found; i++) {
       siqs_evaluate_candidate(ctx, poly, i);
       if (siqs_try_inline_matrix(ctx))
@@ -4921,17 +5009,20 @@ static int siqs_matrix_ready(siqs_ctx_t *ctx,
          (uint64_t)*surviving_rows + SIQS_MATRIX_EXTRA_RELS(ctx);
 }
 
-static int siqs_test_dependencies_checked(siqs_ctx_t *ctx,
+/* BIDS requests a classification for its single dependency. Batch callers
+ * use only the all_tested certificate and leave classification NULL. */
+static int siqs_test_dependencies_classified(siqs_ctx_t *ctx,
                                   const la_col_t *columns,
                                   unsigned long ncols,
                                   const uint64_t *nullrows, uint64_t mask,
-                                  int *all_tested) {
+                                  int *all_tested,
+                                  siqs_dependency_result_t *classification) {
   uint32_t dependency, ndeps = 0;
   mpz_t lhs, rhs, power, delta, divisor;
 #ifdef SIQS_TIMING
   uint64_t timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
 #endif
-  if (ctx->verbose > 1) {
+  if (ctx->verbose > 1 && !ctx->use_bids) {
     for (dependency = 0; dependency < 64; dependency++)
       if (mask & (UINT64_C(1) << dependency))
         ndeps++;
@@ -4939,6 +5030,7 @@ static int siqs_test_dependencies_checked(siqs_ctx_t *ctx,
            ndeps, ndeps==1 ? "y" : "ies");
   }
   if (all_tested != NULL) *all_tested = 1;
+  if (classification != NULL) *classification = SIQS_DEPENDENCY_UNKNOWN;
   mpz_init(lhs);
   mpz_init(rhs);
   mpz_init(power);
@@ -5011,9 +5103,17 @@ static int siqs_test_dependencies_checked(siqs_ctx_t *ctx,
     mpz_sub(delta, lhs, rhs);
     mpz_gcd(divisor, delta, ctx->n);
     if (mpz_cmp_ui(divisor, 1) <= 0 || mpz_cmp(divisor, ctx->n) == 0) {
+      int minus_one = mpz_cmp_ui(divisor, 1) == 0;
+      int minus_n = mpz_cmp(divisor, ctx->n) == 0;
       mpz_add(delta, lhs, rhs);
       mpz_gcd(divisor, delta, ctx->n);
+      if (classification != NULL &&
+          ((minus_one && mpz_cmp(divisor, ctx->n) == 0) ||
+           (minus_n && mpz_cmp_ui(divisor, 1) == 0)))
+        *classification = SIQS_DEPENDENCY_TRIVIAL;
     }
+    if (classification != NULL && mpz_cmp_ui(divisor, 1) > 0 &&
+        mpz_cmp(divisor, ctx->n) < 0) *classification = SIQS_DEPENDENCY_NONTRIVIAL;
     if (mpz_cmp_ui(divisor, 1) > 0 && mpz_cmp(divisor, ctx->n) < 0 &&
         siqs_insert_divisor(ctx->result, divisor)) {
       ctx->factor_found = 1;
@@ -5038,6 +5138,13 @@ next_dependency:
   return ctx->factor_found;
 }
 
+static int siqs_test_dependencies_checked(siqs_ctx_t *ctx,
+                         const la_col_t *columns, unsigned long ncols,
+                         const uint64_t *nullrows, uint64_t mask, int *all_tested) {
+  return siqs_test_dependencies_classified(ctx, columns, ncols, nullrows,
+                                          mask, all_tested, NULL);
+}
+
 /* Preserve the ordinary dependency tester for callers that do not need
  * a completeness certificate. */
 static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
@@ -5045,6 +5152,290 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
                                   const uint64_t *nullrows, uint64_t mask) {
   return siqs_test_dependencies_checked(ctx, columns, ncols, nullrows,
                                         mask, NULL);
+}
+
+/******************************************************************************/
+/*
+ *     BIDS  :  Bounded Incremental Dependency Solver
+ *
+ * Used instead of the standard solvers for factor bases <= SIQS_BIDS_MAX_FB.
+ * As relations come in, they are processed using a persistent dense GF(2)
+ * elimination basis.
+ *
+ * This started with a problem at very small sizes: we could collect enough
+ * relations to run the solver, only to get trivial factors.  We would then
+ * collect more relations and retry, repeating much of the same work.
+ *
+ * The first idea was a checker/filter: could we recognize unhelpful
+ * redundancy and avoid some of those unsuccessful solver runs?
+ * But checking whether a dependency was useful already involved trying
+ * to extract its factors.  The checker was doing the essential work of
+ * a solver.
+ *
+ * So we let it *become* the solver, keeping its work as relations arrive.
+ * We don't need a separate batch solver run -- this *is* the solver.  It
+ * can also finish before the ordinary relation target, saving sieving work.
+ *
+ * The big question is then: what does this cost?
+ * For small factor bases, it turns out it runs *faster* than the dense
+ * solver ... sort of.  A lot of the speed comes from being able to
+ * recognize we have the factor and can stop working right away.  Some tiny
+ * inputs finish after collecting only 60-90% of their relation target,
+ * which is a massive amount of sieving work saved.  We also save time by
+ * not performing matrix readiness tests and reducing the matrix.
+ *
+ * We are, however, building a dense matrix, even if it's efficiently packed.
+ * As the input size goes up, the FB rises, and hence our time and memory.
+ * BIDS remains useful into the input range where the ordinary batch
+ * path already uses Lanczos, helped by being able to stop earlier.
+ *
+ * Again, this is for relatively small factor bases, for inputs under 200 or
+ * so bits.  This has no impact on the main solver for larger inputs.
+ *
+ * We take into account multiple factors, so we don't stop immediately if
+ * any part of the partition remains composite, but instead collect more
+ * relations until the partition is complete or a collection limit is reached.
+ *
+ * We retain a terminal failure guard (defined as FB+513) similar to the
+ * standard solvers, and a similar relaxed stop to allow pending worker
+ * buffers to still be processed.
+ *
+ * FB under 64 can fit in a single word width, making it extremely fast and
+ * compact for 64-bit inputs.  For larger sizes we pack prefixes which can
+ * almost halve the basis storage at negligible CPU cost.
+ *
+ * After completion, a literature search was done, and we found:
+ *
+ *   Compact incremental Gaussian elimination over Z/2Z
+ *   Arjen K. Lenstra and Mark S. Manasse
+ *   Technical Report 88-16, October 1988
+ *
+ * This implementation was developed independently; the reference above
+ * was found afterward. BIDS combines a persistent elimination basis,
+ * immediate factor testing, packed parity/provenance prefixes, and a
+ * bounded collection policy for small factor bases.
+ * I have not found a published description of this combination.
+ */
+
+/* BIDS retains every full relation and tests each fundamental dependency
+ * once. Provenance names only independent original relations, so its width
+ * is bounded by FB+sign even when the stream grows beyond that many columns.
+ *
+ * Multiword parity ends at its pivot; provenance ends at its insertion rank.
+ * Pack those whole-word prefixes into two contiguous arrays. basis_slot[pivot]
+ * holds insertion rank+1 (zero means unoccupied). Storage is allocated once.
+ * The offset sums floor(i/64)+1 for 0 <= i < index. */
+static size_t siqs_bids_prefix_offset(uint32_t index) {
+  size_t group = (size_t)index / 64U;
+  return (32U * group + index % 64U) * (group + 1U);
+}
+
+static siqs_bids_t *siqs_bids_create(uint32_t fb_size) {
+  siqs_bids_t *s;
+  size_t cells, support, groups, prefix_cells;
+  if (fb_size < 64U) {
+    siqs_bids_word_t *word = siqs_calloc(1, sizeof(*word));
+    s = &word->state;
+    s->rows = fb_size + 1U;
+    s->words = 1;
+    s->parity = word->parity;
+    s->combination = word->combination;
+    s->original = word->original;
+    return s;
+  }
+  s = siqs_calloc(1, sizeof(*s));
+  s->rows = fb_size + 1U;
+  s->words = (s->rows + 63U) / 64U;
+  /* Check the largest offset once; subsequent indices are below rows. */
+  groups = (size_t)s->rows / 64U;
+  prefix_cells = siqs_array_size(32U * groups + s->rows % 64U, groups + 1U);
+  cells = siqs_array_size(siqs_size_add(prefix_cells, s->words), 2U);
+  support = (size_t)s->rows + 1U;
+  s->storage = siqs_calloc(cells, sizeof(uint64_t));
+  s->parity = s->storage;
+  s->combination = s->parity + prefix_cells;
+  s->work_parity = s->combination + prefix_cells;
+  s->work_combination = s->work_parity + s->words;
+  s->original = siqs_calloc(s->rows, sizeof(*s->original));
+  s->basis_slot = siqs_calloc(s->rows, sizeof(*s->basis_slot));
+  s->columns = siqs_calloc(support, sizeof(*s->columns));
+  s->nullrows = siqs_calloc(support, sizeof(*s->nullrows));
+  return s;
+}
+
+static void siqs_bids_free(siqs_bids_t *s) {
+  if (s == NULL) return;
+  if (s->words > 1U) {
+    free(s->storage);
+    free(s->original);
+    free(s->basis_slot);
+    free(s->columns);
+    free(s->nullrows);
+  }
+#ifdef SIQS_DEBUG
+  free(s->debug_rows);
+#endif
+  free(s);
+}
+
+/* A failed large-prime inverse or a polynomial zero can also split N.
+ * Continue with the same basis until the whole partition is prime or a
+ * collection limit is reached. Progress survives an incomplete attempt. */
+static void siqs_bids_note_progress(siqs_ctx_t *ctx) {
+  if (!ctx->use_bids || !ctx->factor_found) return;
+  if (ctx->bids == NULL)
+    ctx->bids = siqs_bids_create(ctx->params.fb_size);
+  ctx->bids->progress = 1;
+  if (!siqs_all_factors_prime(ctx->result)) {
+    ctx->bids->partial++;
+    ctx->factor_found = 0;
+  }
+}
+
+static void siqs_bids_dependency(siqs_ctx_t *ctx, uint32_t id,
+                                 const uint64_t *combination,
+                                 la_col_t *columns, uint64_t *nullrows) {
+  siqs_bids_t *s = ctx->bids;
+  uint32_t count = 0, w;
+  int all_tested = 0;
+  siqs_dependency_result_t classification = SIQS_DEPENDENCY_UNKNOWN;
+  for (w = 0; w < s->words; w++) {
+    uint64_t bits = combination[w];
+    while (bits) {
+      uint32_t slot = w * 64U + (uint32_t)__builtin_ctzll(bits);
+      if (slot >= s->rank) { s->failed = 1; return; }
+      columns[count].orig = s->original[slot];
+      nullrows[count++] = 1;
+      bits &= bits - 1U;
+    }
+  }
+  columns[count].orig = id;
+  nullrows[count++] = 1;
+#ifdef SIQS_DEBUG
+  {
+    size_t needed = 0, offset = 0;
+    uint32_t i;
+    for (i = 0; i < count; i++)
+      needed = siqs_size_add(needed, ctx->full[columns[i].orig]->nfactors);
+    if (needed > s->debug_alloc) {
+      s->debug_rows = siqs_realloc(s->debug_rows,
+          siqs_array_size(needed, sizeof(*s->debug_rows)));
+      s->debug_alloc = needed;
+    }
+    for (i = 0; i < count; i++) {
+      const siqs_full_relation_t *selected = ctx->full[columns[i].orig];
+      uint32_t j;
+      columns[i].data = s->debug_rows ? s->debug_rows + offset : NULL;
+      columns[i].weight = 0;
+      for (j = 0; j < selected->nfactors; j++)
+        if (selected->factors[j].exponent & 1U) {
+          s->debug_rows[offset++] = selected->factors[j].row;
+          columns[i].weight++;
+        }
+    }
+  }
+#endif
+  siqs_test_dependencies_classified(ctx, columns, count, nullrows, 1,
+                                    &all_tested, &classification);
+  if (!all_tested) classification = SIQS_DEPENDENCY_UNKNOWN;
+  s->dependencies++;
+  s->trivial += classification == SIQS_DEPENDENCY_TRIVIAL;
+  s->useful += classification == SIQS_DEPENDENCY_NONTRIVIAL;
+  s->unknown += classification == SIQS_DEPENDENCY_UNKNOWN;
+  if (classification == SIQS_DEPENDENCY_UNKNOWN) s->failed = 1;
+  siqs_bids_note_progress(ctx);
+}
+
+/* Scalar elimination for FB <= 63. Provenance remains one machine word. */
+static void siqs_bids_add_word(siqs_ctx_t *ctx, uint32_t id) {
+  siqs_bids_t *s = ctx->bids;
+  const siqs_full_relation_t *r = ctx->full[id];
+  uint64_t parity = 0, combination = 0;
+  uint32_t i;
+  for (i = 0; i < r->nfactors; i++) {
+    uint32_t row = r->factors[i].row;
+    if (row >= s->rows) { s->failed = 1; return; }
+    if (r->factors[i].exponent & 1U) parity ^= UINT64_C(1) << row;
+  }
+  while (parity) {
+    uint32_t pivot = 63U - (uint32_t)__builtin_clzll(parity);
+    if (s->parity[pivot] == 0) {
+      if (s->rank >= s->rows) { s->failed = 1; return; }
+      s->original[s->rank] = id;
+      s->parity[pivot] = parity;
+      s->combination[pivot] = combination | (UINT64_C(1) << s->rank);
+      s->rank++;
+      return;
+    }
+    parity ^= s->parity[pivot];
+    combination ^= s->combination[pivot];
+  }
+  {
+    la_col_t columns[65] = {{0}};
+    uint64_t nullrows[65];
+    siqs_bids_dependency(ctx, id, &combination, columns, nullrows);
+  }
+}
+
+static void siqs_bids_add_packed(siqs_ctx_t *ctx, uint32_t id) {
+  siqs_bids_t *s = ctx->bids;
+  const siqs_full_relation_t *r = ctx->full[id];
+  uint64_t *parity = s->work_parity, *combination = s->work_combination;
+  uint32_t i, w, top = s->words;
+  memset(parity, 0, (size_t)2U * s->words * sizeof(*parity));
+  for (i = 0; i < r->nfactors; i++) {
+    uint32_t row = r->factors[i].row;
+    if (row >= s->rows) { s->failed = 1; return; }
+    if (r->factors[i].exponent & 1U)
+      parity[row / 64U] ^= UINT64_C(1) << (row % 64U);
+  }
+  while (top) {
+    uint32_t pivot, cw, slot;
+    uint64_t *p, *c;
+    if (!parity[top - 1U]) { top--; continue; }
+    pivot = (top - 1U) * 64U + 63U
+          - (uint32_t)__builtin_clzll(parity[top - 1U]);
+    p = s->parity + siqs_bids_prefix_offset(pivot);
+    slot = s->basis_slot[pivot];
+    if (slot == 0) {
+      if (s->rank >= s->rows) { s->failed = 1; return; }
+      combination[s->rank / 64U] |= UINT64_C(1) << (s->rank % 64U);
+      cw = (s->rank + 64U) / 64U;
+      c = s->combination + siqs_bids_prefix_offset(s->rank);
+      memcpy(p, parity, (size_t)top * sizeof(*p));
+      memcpy(c, combination, (size_t)cw * sizeof(*c));
+      s->basis_slot[pivot] = s->rank + 1U;
+      s->original[s->rank++] = id;
+      return;
+    }
+    c = s->combination + siqs_bids_prefix_offset(slot - 1U);
+    cw = (slot + 63U) / 64U;
+    for (w = 0; w < top; w++) parity[w] ^= p[w];
+    for (w = 0; w < cw; w++) combination[w] ^= c[w];
+  }
+  siqs_bids_dependency(ctx, id, combination, s->columns, s->nullrows);
+}
+
+static void siqs_bids_add(siqs_ctx_t *ctx) {
+  siqs_bids_t *s;
+  uint32_t id = ctx->full_count - 1U;
+  if (!ctx->use_bids) return;
+  if (ctx->bids == NULL) ctx->bids = siqs_bids_create(ctx->params.fb_size);
+  s = ctx->bids;
+  if (s->failed) return;
+  if (s->processed != id) s->failed = 1;
+  else {
+    s->processed = ctx->full_count;
+    if (s->words == 1U) siqs_bids_add_word(ctx, id);
+    else siqs_bids_add_packed(ctx, id);
+  }
+  if (s->failed) ctx->bids_stop = SIQS_BIDS_UNCERTIFIED;
+  else if (!ctx->bids_stop && ctx->full_count >= ctx->bids_cap) {
+    ctx->bids_stop = SIQS_BIDS_BUDGET;
+    if (ctx->verbose > 0)
+      printf("# siqs BIDS relation budget reached at %u; finishing pending work\n",
+             ctx->full_count);
+  }
 }
 
 static int siqs_use_dense_solver(unsigned long ncols) {
@@ -5332,6 +5723,38 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
        : ctx->full_count >= target || ctx->factor_found;
 }
 
+/* BIDS owns the serial relation stream. FB remains the reporting reference.
+ * FB+1+SIQS_BIDS_EXTRA_RELS requests a stop in collection: candidates from the
+ * current polynomial can still contribute relations beyond that budget.
+ * Completion or source exhaustion also ends collection. There is no
+ * matrix-readiness scan or periodic batch-solver request. */
+static void siqs_collect_bids(siqs_ctx_t *ctx, siqs_poly_t *poly,
+                               uint32_t *families, uint32_t *polynomials) {
+  uint32_t max_polynomials = ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  uint64_t report_step = siqs_progress_poly_step(ctx, 1U);
+  uint64_t next_report = (uint64_t)*polynomials + report_step;
+  if (max_polynomials < 1000000U) max_polynomials = 1000000U;
+  while (!ctx->factor_found && !ctx->bids_stop) {
+    if (*polynomials >= max_polynomials || !siqs_new_family(ctx, poly)) break;
+    (*families)++;
+    for (;;) {
+      siqs_sieve_polynomial(ctx, poly);
+      (*polynomials)++;
+      if (ctx->verbose > 1 && (uint64_t)*polynomials >= next_report) {
+        siqs_print_polynomial_notice(ctx, *polynomials);
+        siqs_print_relation_report(ctx, ctx->params.fb_size, *polynomials);
+        next_report = (uint64_t)*polynomials + report_step;
+      }
+      if (ctx->factor_found || ctx->bids_stop || *polynomials >= max_polynomials)
+        break;
+      if (!siqs_next_B(ctx, poly)) break;
+    }
+  }
+  if (ctx->verbose > 0) siqs_print_polynomial_notice(ctx, *polynomials);
+  if (ctx->verbose > 1)
+    siqs_print_relation_report(ctx, ctx->params.fb_size, *polynomials);
+}
+
 static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
                           const mpz_t n, siqs_factor_array_t *result,
                           const siqs_policy_band_t *profile, int verbose) {
@@ -5489,6 +5912,7 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
     siqs_full_relation_free(ctx->full[i]);
   free(ctx->raw);
   free(ctx->full);
+  siqs_bids_free(ctx->bids);
   if (!ctx->shared_fb_tables) {
     free(ctx->fb);
     free(ctx->prime);
@@ -5554,6 +5978,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
   ctx->matrix_last_count = 0;
   ctx->matrix_retry_batch = retry_batch;
   ctx->matrix_target_limit = target_limit;
+  ctx->use_bids = siqs_bids_enabled(ctx);
+  ctx->bids_cap = ctx->params.fb_size + 1U + SIQS_BIDS_EXTRA_RELS;
+  if (ctx->use_bids) ctx->inline_matrix_solves = 0;
+
   if (!siqs_ctx_allocate(ctx)) {
     return ctx->factor_found;
   }
@@ -5587,7 +6015,17 @@ static int siqs_run(siqs_ctx_t *ctx) {
     fflush(stdout);
   }
 
-  if (ctx->inline_matrix_solves) {
+  if (ctx->use_bids) {
+#ifdef PSIQS
+    if (threaded)
+      (void)psiqs_collect_relations(ctx, &poly, ctx->params.fb_size,
+                                   &next_matrix_check, &family_count, &poly_count);
+    else
+#endif
+      siqs_collect_bids(ctx, &poly, &family_count, &poly_count);
+    /* Exhaustion, the relation budget, or an uncertified BIDS state ends
+     * this attempt. Retain useful factors; do not re-solve this matrix. */
+  } else if (ctx->inline_matrix_solves) {
     (void)siqs_collect_relations(ctx, &poly, target, &next_matrix_check,
                                  &family_count, &poly_count);
   } else {
@@ -5617,10 +6055,36 @@ static int siqs_run(siqs_ctx_t *ctx) {
       next_matrix_check = target;
     }
   }
+  if (ctx->use_bids && ctx->verbose > 0) {
+    const siqs_bids_t *s = ctx->bids;
+    const char *reason = ctx->factor_found ? "complete"
+        : ctx->bids_stop == SIQS_BIDS_BUDGET ? "relation budget exhausted"
+        : ctx->bids_stop == SIQS_BIDS_UNCERTIFIED ? "uncertified state"
+        : "source or work limit exhausted";
+    printf("# siqs BIDS: %u relations processed, rank %u/%u, %u dependenc%s "
+           "(%u trivial, %u nontrivial, %u uncertified)\n",
+           s ? s->processed : 0U, s ? s->rank : 0U, ctx->params.fb_size+1U,
+           s ? s->dependencies : 0U,
+           s && s->dependencies == 1U ? "y" : "ies", s ? s->trivial : 0U,
+           s ? s->useful : 0U, s ? s->unknown : 0U);
+    if (s && s->partial > 0)
+      printf("# siqs BIDS: %u partial refinements\n", s->partial);
+    printf("# siqs BIDS: %s.  %u relations received", reason, ctx->full_count);
+    if (ctx->full_count > ctx->bids_cap)
+      printf(" (%u more than cap)\n", ctx->full_count - ctx->bids_cap);
+    else if (ctx->full_count > ctx->params.target_relations)
+      printf(" (%u above batch target)\n", ctx->full_count - ctx->params.target_relations);
+    else if (ctx->full_count < ctx->params.target_relations)
+      printf(" (%u below batch target)\n", ctx->params.target_relations - ctx->full_count);
+    else
+      printf(" (same as batch target)\n");
+  }
+  if (ctx->bids != NULL && ctx->bids->progress)
+    ctx->factor_found = 1;
   /* Exhaustion can leave an untested partial batch in either collector.
    * Try its new relations once before discarding the context or recovering
    * under a wider policy; never retry a matrix with no additional columns. */
-  if (!ctx->factor_found &&
+  if (!ctx->use_bids && !ctx->factor_found &&
       ctx->full_count > ctx->matrix_last_count &&
       ctx->full_count >= SIQS_MATRIX_EXTRA_RELS(ctx)) {
     ctx->matrix_last_count = ctx->full_count;

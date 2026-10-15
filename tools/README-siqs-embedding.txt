@@ -125,6 +125,30 @@ complete factoring, it must iteratively refine composite elements and enforce
 progress/bounded retries; never keep retrying an unchanged composite forever.
 The msiqs command-line driver handles this separately.
 
+Solver selection
+----------------
+
+Factor bases of at most 4095 primes use BIDS, the Bounded Incremental
+Dependency Solver. It consumes full relations as they arrive, retains a basis
+across partial splits, and continues until the partition is prime or collection
+ends. Newly classified composite perfect powers are refined before declaring
+completion. The scalar basis handles FB<=63; larger bases use packed whole-word
+prefixes for parity and provenance.
+
+BIDS requests a collection stop at FB+513 full relations: one sign row plus
+512 extra relations. The current serial candidate list or joined worker buffers
+can still contribute useful relations beyond that cap. Exhaustion or an
+uncertified dependency ends the attempt with any useful partial partition
+retained. There is no dense/Lanczos handoff for that matrix. Larger factor
+bases use the existing readiness, reduction, dense and Block Lanczos paths.
+SIQS_BIDS_MAX_FB and SIQS_BIDS_EXTRA_RELS are compile-time settings in siqs.c.
+
+In verbose mode, BIDS reports relations processed, rank, dependency outcomes,
+nonzero partial refinements, and why collection ended. The final count of full
+relations is compared with the configured batch target; if it exceeds the
+BIDS cap, the overrun is reported instead. The batch target is a reference:
+matrix readiness can end ordinary collection before that target is reached.
+
 Minimal caller example
 ----------------------
 

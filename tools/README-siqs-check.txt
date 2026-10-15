@@ -38,7 +38,7 @@ private packing/kernels, just as the main checker includes siqs.c.
 Suites and options
 ------------------
 
-One executable runs the named suites ("policies", "sieve", "scores", "setup", "relations", "matrix", "workers",
+One executable runs the named suites ("policies", "sieve", "scores", "setup", "relations", "matrix", "bids", "workers",
 "cofactors"). The default
 "all" selection runs every registered suite. --list describes available
 suites; --suite selects one. The scores suite checks exact certificates against
@@ -72,6 +72,7 @@ be registered without creating separate executables or a large framework.
   perl tools/siqs-check.pl --suite scores --score-bits 5 --sanitize --debug
   perl tools/siqs-check.pl --suite relations
   perl tools/siqs-check.pl --suite matrix --threaded --extended
+  perl tools/siqs-check.pl --suite bids --sanitize --debug --threaded
   make check-psiqs SIQS_CHECK_ARGS='--suite workers'
   perl tools/siqs-check.pl --block-size 32768
   perl tools/siqs-check.pl --block-size 0
@@ -89,6 +90,20 @@ padded stores; --debug separately enables SIQS_DEBUG's additional assertions
 and its bounds-checked padding behavior. Both are useful and are different
 checks. A run returns 0 on success, 1 on a failed check, or 2 on invalid checker
 arguments. Build errors and fatal engine diagnostics also return nonzero.
+
+BIDS suite
+----------
+
+Checks the scalar basis through 64 rows and packed parity/provenance prefixes
+across word boundaries through 4096 rows (4095 FB primes plus the sign).
+Shuffled pivots and triangular column transforms exercise insertion order
+independently of pivot order, using valid congruences with known rank.
+Additional fixtures cover partial splits with the basis retained, prime and
+composite perfect powers, the FB+513 soft budget, useful pending relations
+after the stop request, and uncertified dependencies after exponent overflow.
+With --threaded, two/four-worker collectors drain their buffers after a small
+test budget, and a failed worker pool uses the BIDS serial collector. Neither
+path performs matrix-readiness scans. No production test hooks are required.
 
 Policy suite
 ------------

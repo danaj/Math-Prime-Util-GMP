@@ -189,6 +189,7 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
     for (i = 0; i < worker->result.count; i++)
       if (siqs_insert_divisor(master->result, worker->result.values[i]))
         master->factor_found = 1;
+    siqs_bids_note_progress(master);
   }
   for (i = 0; i < ctx->raw_count; i++) {
     const siqs_raw_relation_t *raw = ctx->raw[i];
@@ -399,13 +400,17 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
     check_interval = SIQS_MATRIX_CHECK_MIN;
   if (check_interval > SIQS_MATRIX_CHECK_MAX)
     check_interval = SIQS_MATRIX_CHECK_MAX;
-  if (ctx->factor_found || ctx->full_count >= target)
+  if (ctx->factor_found || (ctx->use_bids ? ctx->bids_stop : ctx->full_count >= target))
     return 1;
   if (*poly_count >= max_polynomials)
     return 0;
   pool = psiqs_pool_create(ctx);
   if (pool == NULL) {
     fprintf(stderr, "PSIQS: worker pool unavailable; using serial collection\n");
+    if (ctx->use_bids) {
+      siqs_collect_bids(ctx, dispatch, family_count, poly_count);
+      return ctx->factor_found || ctx->bids_stop;
+    }
     return siqs_collect_relations(ctx, dispatch, target, next_matrix_check,
                                   family_count, poly_count);
   }
@@ -433,7 +438,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
     (*family_count)++;
     *poly_count += worker->polynomials;
     psiqs_merge_worker(ctx, worker);
-    if (ctx->full_count >= *next_matrix_check && !ctx->factor_found) {
+    if (!ctx->use_bids && ctx->full_count >= *next_matrix_check && !ctx->factor_found) {
       uint32_t rows, columns;
       ready = siqs_matrix_ready(ctx, &rows, &columns);
       *next_matrix_check = ctx->full_count + check_interval;
@@ -454,7 +459,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
       last_report_polys = *poly_count;
       next_report = (uint64_t)*poly_count + report_step;
     }
-    if (ctx->factor_found || ctx->full_count >= target) {
+    if (ctx->factor_found || (ctx->use_bids ? ctx->bids_stop : ctx->full_count >= target)) {
       complete = 1;
       break;
     }
@@ -483,7 +488,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
   }
   if (verbose > 0)
     siqs_print_polynomial_notice(ctx, *poly_count);
-  if (ctx->factor_found || ctx->full_count >= target)
+  if (ctx->factor_found || (ctx->use_bids ? ctx->bids_stop : ctx->full_count >= target))
     complete = 1;
   if (ready && verbose > 1) {
     uint32_t rows, columns;

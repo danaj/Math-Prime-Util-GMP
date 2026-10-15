@@ -873,6 +873,7 @@ static void suite_policies(void) {
 #include "siqs-check-relations.inc.c"
 #include "siqs-check-matrix.inc.c"
 #include "siqs-check-workers.inc.c"
+#include "siqs-check-bids.inc.c"
 #include "siqs-check-cofactors.inc.c"
 #include "siqs-check-scores.inc.c"
 #include "siqs-check-setup.inc.c"
@@ -896,6 +897,8 @@ static const check_suite_t suites[] = {
    suite_relations},
   {"matrix", "original-column oracles, reduction, packing and nullspace solvers",
    suite_matrix},
+  {"bids", "scalar/packed prefixes, incremental dependencies, completion and soft budgets",
+   suite_bids},
   {"workers", "pthread pool lifecycle, reuse, shutdown and injected failures",
    suite_workers},
   {"cofactors", "split counters, acceptance, bounded nested SIQS and quiet/reentrant calls",
@@ -903,7 +906,7 @@ static const check_suite_t suites[] = {
 };
 
 static void usage(void) {
-  puts("usage: siqs-check [--suite all|policies|sieve|scores|setup|relations|matrix|workers|cofactors] [--extended] [--verbose] [--list]");
+  puts("usage: siqs-check [--suite all|policies|sieve|scores|setup|relations|matrix|bids|workers|cofactors] [--extended] [--verbose] [--list]");
 }
 
 int main(int argc, char **argv) {

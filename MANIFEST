@@ -134,6 +134,7 @@ tools/siqs-check-relations.inc.c
 tools/siqs-check-packed.inc.c
 tools/siqs-check-bounds.inc.c
 tools/siqs-check-matrix.inc.c
+tools/siqs-check-bids.inc.c
 tools/siqs-check-cofactors.inc.c
 tools/siqs-check-workers.inc.c
 tools/siqs-check-thread-seams.h
