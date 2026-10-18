@@ -65,6 +65,18 @@ static void check_parameter_envelope(void) {
   band.interval_lp_scale.amount = 0.0;
   siqs_select_parameters(&p, n, &band);
   CHECK(p.half_interval == 4096);
+  band.half_interval_floor = SIQS_SIEVE_ALIGN;
+  band.interval_base_scale.begin = -0.01;
+  siqs_select_parameters(&p, n, &band);
+  CHECK(p.half_interval == SIQS_SIEVE_ALIGN);
+  band.interval_base_scale.begin = 0.0;
+  band.half_interval_floor = 1792;
+  siqs_select_parameters(&p, n, &band);
+  CHECK(p.half_interval == 1792);
+  band.fixed_half_interval = SIQS_SIEVE_ALIGN;
+  siqs_select_parameters(&p, n, &band);
+  CHECK(p.half_interval == SIQS_SIEVE_ALIGN);
+  band.fixed_half_interval = band.half_interval_floor = 0;
   band.fb_floor = 0;
   band.fb_coefficient = (siqs_policy_curve_t){
       log((double)SIQS_PACKED_FACTOR_ROW_MASK + 0.5) / ln_term,
@@ -256,7 +268,7 @@ static void check_allocation_errors(void) {
   unsigned int fixture;
   case_name = "cold-overflow-diagnostics";
   fflush(NULL);
-  for (fixture = 0; fixture < 32; fixture++) {
+  for (fixture = 0; fixture < 38; fixture++) {
     int status;
     pid_t child = fork();
     CHECK(child >= 0);
@@ -337,14 +349,23 @@ static void check_allocation_errors(void) {
           siqs_factor_array_append(&factors, n); break;
         case 30: (void)check_sieve_start_fixture(0.0, 259); break;
         case 31: (void)check_sieve_start_fixture(0.9, 0); break;
+        case 32: band.half_interval_floor = SIQS_SIEVE_ALIGN - 1; break;
+        case 33: band.half_interval_floor = SIQS_SIEVE_ALIGN + 1; break;
+        case 34: band.half_interval_floor = SIQS_HALF_INTERVAL_MAX + SIQS_SIEVE_ALIGN; break;
+        case 35: band.half_interval_floor = SIQS_SIEVE_ALIGN;
+                 band.interval_base_scale.begin = -HUGE_VAL; break;
+        case 36: band.half_interval_floor = SIQS_SIEVE_ALIGN;
+                 band.interval_base_scale.begin = NAN; break;
+        case 37: band.fixed_half_interval = SIQS_SIEVE_ALIGN - 1; break;
       }
-      if (fixture >= 13 && fixture <= 23) siqs_select_parameters(&p, n, &band);
+      if ((fixture >= 13 && fixture <= 23) || fixture >= 32)
+        siqs_select_parameters(&p, n, &band);
       _exit(0);
     }
     CHECK(waitpid(child, &status, 0) == child);
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
   }
-  puts("PASS policies: 32 preallocation/conversion/growth/cutoff failures rejected without huge allocations");
+  puts("PASS policies: 38 preallocation/conversion/growth/cutoff failures rejected without huge allocations");
 #else
   puts("SKIP policies: fatal allocation-boundary checks require POSIX fork");
 #endif

@@ -4,7 +4,7 @@
 #include <gmp.h>
 #include "ptypes.h"
 
-/* While we work for small sizes, performance under 36-bits is suboptimal. */
+/* Lowest post-trial cofactor size accepted by the SIQS stage. */
 #define MPU_SIQS_MIN_BITS   1U
 /* Current policy/support limit. Wider arithmetic validation alone does not
  * supply tuned policies or establish supported factoring performance. */

@@ -44,6 +44,7 @@ siqs.h
 siqs_dep.h
 mont64.h
 siqs.c
+siqs_choose_inc.c
 siqs_sieve_kernel_inc.c
 psiqs_inc.c
 mpu-siqs.c

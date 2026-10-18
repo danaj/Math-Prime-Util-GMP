@@ -448,99 +448,14 @@ static void check_polynomial_roots(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
   mpz_clear(x); mpz_clear(value);
 }
 
-static void check_A_search_cache(void) {
-  static const uint32_t primes[] = {2, 3, 5, 7, 11, 13};
-  static const struct {
-    uint32_t q, target, stage, tolerance;
-  } windows[] = {
-    /* With eligible 3/5/7: q2 products span 15..35; q3 is exactly 105. */
-    {2, 8, 1, 8}, {2, 4, 2, 8}, {2, 2, 3, 8}, {2, 1, 0, 8},
-    {2, 70, 1, 8}, {2, 71, 2, 8}, {2, 140, 2, 8},
-    {2, 141, 3, 8}, {2, 280, 3, 8}, {2, 281, 0, 8},
-    {3, 53, 1, 8}, {3, 52, 2, 8}, {3, 27, 2, 8},
-    {3, 26, 3, 8}, {3, 14, 3, 8}, {3, 13, 0, 8},
-    {3, 210, 1, 8}, {3, 211, 2, 8}, {3, 420, 2, 8},
-    {3, 421, 3, 8}, {3, 840, 3, 8}, {3, 841, 0, 8},
-    {1, 0, 1, 8}, {4, 0, 1, 8}, {2, 2, 0, 4}, {3, 14, 0, 4}
-  };
-  siqs_ctx_t ctx;
-  siqs_poly_t poly;
-  siqs_fb_t fb[6];
-  uint8_t in_a[6] = {0};
-  uint32_t eligible, occupied, center, i;
-  size_t fixture;
-  case_name = "A-search-cache";
-  memset(&ctx, 0, sizeof(ctx)); memset(fb, 0, sizeof(fb));
-  ctx.fb = fb; ctx.fb_in_a = in_a; ctx.params.fb_size = 6U;
-  case_ctx = &ctx;
-  for (i = 0; i < 6U; i++) fb[i].p = primes[i];
-  for (eligible = 1U; eligible < 32U; eligible++) {
-    for (occupied = 0U; occupied < 32U; occupied++) {
-      if ((eligible & ~occupied) == 0U) continue;
-      for (i = 1U; i < 6U; i++) {
-        fb[i].sqrt_kn = (eligible >> (i - 1U)) & 1U;
-        in_a[i] = (occupied >> (i - 1U)) & 1U;
-      }
-      for (center = 1U; center < 6U; center++) {
-        uint32_t step, expected = SIQS_NO_INDEX;
-        /* Independent old scan: upward wins every equal-distance tie. */
-        for (step = 0U; step < 6U; step++) {
-          uint32_t up = center + step, down = center >= step ? center - step : 0U;
-          if (up < 6U && fb[up].sqrt_kn && !in_a[up]) {
-            expected = up; break;
-          }
-          if (step && down && fb[down].sqrt_kn && !in_a[down]) {
-            expected = down; break;
-          }
-        }
-        CHECK(expected != SIQS_NO_INDEX);
-        CHECK(siqs_nearest_available_fb_from_index(&ctx, center) == expected);
-        CHECK(siqs_nearest_available_fb(&ctx, fb[center].p) == expected);
-      }
-    }
-  }
-  ctx.params.fb_size = 4U;
-  ctx.params.half_interval = ctx.params.poly_d = 1U;
-  mpz_init_set_ui(ctx.kn, 100U);
-  for (fixture = 0; fixture < sizeof(windows) / sizeof(*windows); fixture++) {
-    uint32_t repeat;
-    for (i = 1U; i < 4U; i++) { fb[i].sqrt_kn = 1U; in_a[i] = 0U; }
-    ctx.params.q_count = windows[fixture].q;
-    ctx.params.a_final_tolerance = windows[fixture].tolerance;
-    siqs_poly_init(&ctx, &poly);
-    CHECK(!poly.a_search_ready && !poly.a_search_stage &&
-          !poly.a_search_center && !poly.a_search_variance);
-    /* Target and policy are finalized before the first lazy preparation. */
-    mpz_set_ui(poly.target_A, windows[fixture].target);
-    if (windows[fixture].stage != 0U)
-      siqs_prepare_A_search(&ctx, &poly);
-    else {
-      poly.a_index[0] = 1U;
-      for (repeat = 0U; repeat < 2U; repeat++) {
-        in_a[1] = 1U;
-        CHECK(!siqs_choose_A(&ctx, &poly));
-        CHECK(!in_a[1] && poly.a_search_ready && !poly.a_search_stage &&
-              !poly.a_search_center && !poly.a_search_variance);
-      }
-    }
-    CHECK(poly.a_search_ready && poly.a_search_stage == windows[fixture].stage);
-    if (poly.a_search_stage != 0U)
-      CHECK(poly.a_search_center > 0U && poly.a_search_center < 4U &&
-            poly.a_search_variance >= 8U);
-    siqs_poly_clear(&ctx, &poly);
-  }
-  mpz_clear(ctx.kn);
-  case_ctx = NULL;
-  puts("PASS sieve: upward-first FB search, exact A windows, lazy cache and reset");
-}
-
 static void check_real_case(const mpz_t n, unsigned long forced_k,
                             uint32_t forced_d, uint32_t half) {
   siqs_ctx_t ctx;
   siqs_poly_t poly;
   siqs_factor_array_t result;
   uint32_t family, polynomial, total = 0;
-  uint32_t cached_stage = 0U, cached_center = 0U, cached_variance = 0U;
+  siqs_A_search_t *cached_search = NULL;
+  void *cached_pairs = NULL;
   case_name = "real-polynomials";
   check_trial_survivor(n);
   siqs_factor_array_init(&result, n);
@@ -558,21 +473,19 @@ static void check_real_case(const mpz_t n, unsigned long forced_k,
   if (half != 0) ctx.params.half_interval = half;
   CHECK(siqs_ctx_allocate(&ctx));
   siqs_poly_init(&ctx, &poly);
-  CHECK(!poly.a_search_ready && !poly.a_search_stage &&
-        !poly.a_search_center && !poly.a_search_variance);
+  CHECK(poly.A_search == NULL && poly.q2_search == NULL && !poly.q1_ready);
   d_seen |= 1U << ctx.params.poly_d;
   for (family = 0; family < 2; family++) {
     uint32_t i, marked = 0U;
     int found = siqs_new_family(&ctx, &poly);
-    CHECK(poly.a_search_ready);
+    if (poly.q_count == 1) CHECK(poly.q1_ready);
+    else if (poly.q_count == 2) CHECK(poly.q2_search != NULL);
+    else CHECK(poly.A_search != NULL);
     if (family == 0U) {
-      cached_stage = poly.a_search_stage;
-      cached_center = poly.a_search_center;
-      cached_variance = poly.a_search_variance;
+      cached_search = poly.A_search;
+      cached_pairs = poly.q2_search;
     }
-    CHECK(poly.a_search_stage == cached_stage &&
-          poly.a_search_center == cached_center &&
-          poly.a_search_variance == cached_variance);
+    CHECK(poly.A_search == cached_search && poly.q2_search == cached_pairs);
     for (i = 1U; i < ctx.params.fb_size; i++) marked += ctx.fb_in_a[i] != 0;
     CHECK(marked == (found ? poly.q_count : 0U));
     if (!found) break;
@@ -641,7 +554,6 @@ static void suite_sieve(void) {
   check_two_hit_local();
   check_one_hit_and_maps();
   check_oracle_overflow();
-  check_A_search_cache();
   check_real_polynomials();
   printf("PASS sieve: %u comparisons, maximum observed physical score %u/255\n",
          comparisons, maximum_score);
@@ -725,8 +637,8 @@ static void check_policy_bounds(void) {
 
 static void check_policy_profiles(void) {
   static const struct { uint32_t last; double k; } original[] = {
-    {95, 1.0}, {103, 2.0}, {144, 4.0}, {166, 8.0}, {177, 16.0},
-    {192, 20.0}, {218, 32.0}, {236, 48.0}, {245, 72.0}
+    {95, 1.0}, {103, 2.0}, {144, 4.0}, {192, 20.0},
+    {218, 32.0}, {236, 48.0}, {245, 72.0}
   };
   siqs_policy_t policy;
   siqs_ctx_t ctx;
@@ -779,12 +691,19 @@ static void check_policy_profiles(void) {
     }
     CHECK(policy.residual_multiplier == 0.0);
     while (bits > original[index].last) index++;
-    CHECK(policy.max_large_primes == 1 && policy.lp_multiplier == original[index].k);
-    ctx.params.lp_multiplier = policy.lp_multiplier;
-    ctx.params.residual_multiplier = policy.residual_multiplier;
-    ctx.params.max_large_primes = policy.max_large_primes;
-    siqs_set_large_prime_bounds(&ctx);
-    CHECK(ctx.params.large_prime_bound == (uint64_t)original[index].k * 1009U);
+    /* The merged q8 band ramps K_L from 8 to 20 instead of stepping it. */
+    {
+      double expected_k = bits >= 145 && bits <= 184
+          ? 8.0 + 12.0 * ((double)(bits - 145U) / 39.0)
+          : original[index].k;
+      CHECK(policy.max_large_primes == 1);
+      CHECK(fabs(policy.lp_multiplier - expected_k) < 1e-12);
+      ctx.params.lp_multiplier = policy.lp_multiplier;
+      ctx.params.residual_multiplier = policy.residual_multiplier;
+      ctx.params.max_large_primes = policy.max_large_primes;
+      siqs_set_large_prime_bounds(&ctx);
+      CHECK(ctx.params.large_prime_bound == (uint64_t)(expected_k * 1009.0));
+    }
     CHECK(ctx.params.smooth_bound == ctx.params.large_prime_bound);
   }
   for (i = 0; i < SIQS_RECOVERY_POLICY_COUNT; i++) {
@@ -792,10 +711,23 @@ static void check_policy_profiles(void) {
     for (bits = band->first_bits; bits <= band->last_bits; bits++) {
       siqs_resolve_policy(&policy, bits, band);
       CHECK(policy.max_large_primes == 1 && policy.residual_multiplier == 0.0);
-      CHECK(policy.lp_multiplier == (i < 3 ? 1.0 : 60.0));
+      CHECK(policy.lp_multiplier == (i < 2 ? 1.0 : 60.0));
     }
   }
-  puts("PASS policies: every primary bit and recovery profile, unchanged smooth/1LP K values");
+  /* Check eligibility and attempt order, including the overlap at50. */
+  CHECK(SIQS_RECOVERY_POLICY_COUNT == 5);
+  for (bits = MPU_SIQS_MIN_BITS; bits <= MPU_SIQS_MAX_BITS; bits++) {
+    uint32_t expected[3], count = 0, next = 0;
+    if (bits <= 41) { expected[count++] = 0; expected[count++] = 1; }
+    if (bits <= 50) expected[count++] = 2;
+    if (bits >= 50 && bits <= 64) {
+      expected[count++] = 3; expected[count++] = 4;
+    }
+    for (i = 0; i < count; i++)
+      CHECK(siqs_next_policy(bits, &next) == &siqs_recovery_policies[expected[i]]);
+    CHECK(siqs_next_policy(bits, &next) == NULL);
+  }
+  puts("PASS policies: every primary bit and recovery profile, routing, smooth/1LP K values and q8 ramp");
 }
 
 static void check_frozen_upper_band(void) {

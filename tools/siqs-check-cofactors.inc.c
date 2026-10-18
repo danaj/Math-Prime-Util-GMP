@@ -110,21 +110,24 @@ static void cofactor_lp_ceiling(void) {
 static void cofactor_a_search_stages(void) {
   static const struct {
     const char *n;
-    uint32_t q, stage;
+    uint32_t q, target_divisor;
   } cases[] = {
-    { "137438959313", 2, 0 }, /* No tolerance window can contain an A. */
+    { "137438959313", 2, 0 }, /* Previously exceeded the legacy factor-eight guard. */
     { "68719477097", 2, 0 },
-    { "104339829049", 2, 1 },
-    { "350190603377", 2, 2 },
-    { "39586268787172817", 3, 2 },
-    { "597107386758137", 3, 3 }, /* Exactly one triple in the final window. */
-    { "610235247872417", 3, 0 }, /* Smallest triple exceeds every window. */
-    { "68719477433", 2, 3 },
-    { "137438955233", 2, 3 },
-    { "37853468033", 1, 1 },
+    { "104339829049", 2, 0 },
+    { "350190603377", 2, 0 },
+    { "39586268787172817", 3, 0 },
+    { "597107386758137", 2, 0 }, /* 50-bit q2 uses its factor-eight guard. */
+    { "610235247872417", 2, 0 },
+    { "68719477433", 2, 0 },
+    { "137438955233", 2, 0 },
+    { "37853468033", 2, 0 },
+    { "567486719", 1, 0 },
+    /* SAR: normal search, one family, and targets outside its guard. */
+    { "1479434068249753096553621", 4, 0 },
     { "1479434068249753096553621", 4, 1 },
-    { "1479434068249753096553621", 4, 2 },
-    { "1479434068249753096553621", 4, 0 }
+    { "1479434068249753096553621", 4, 3 },
+    { "1479434068249753096553621", 4, 6 }
   };
   siqs_ctx_t ctx;
   siqs_poly_t poly;
@@ -133,8 +136,8 @@ static void cofactor_a_search_stages(void) {
   mpz_t n, scaled;
   mpz_t *factors;
   uint32_t i, j, count, draws, limit, tolerance;
-  int success;
-  case_name = "A-search-stage-skipping-and-cleanup";
+  int success, available;
+  case_name = "A-search-guards-limits-and-cleanup";
   mpz_init(n); mpz_init(scaled);
   for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
     mpz_set_str(n, cases[i].n, 10);
@@ -143,38 +146,66 @@ static void cofactor_a_search_stages(void) {
     CHECK(siqs_ctx_allocate(&ctx));
     siqs_poly_init(&ctx, &poly);
     CHECK(poly.q_count == cases[i].q);
-    /* q=1 must ignore its tolerance window.  Give the other q=4 fixtures
-     * exactly four eligible primes: their sole A fits tolerance 4 but not
-     * 2 for stage 2, or only the forbidden final tolerance for exhaustion. */
+    /* q=1 ignores its tolerance window. A positive divisor gives q=4
+     * exactly four eligible primes and target = their product / divisor.
+     * Divisors 3 and 6 exceed SAR's factor-two guard. Divisor 1 has
+     * one exact family. */
     if (poly.q_count == 1)
       mpz_set_ui(poly.target_A, 1);
-    if (poly.q_count == 4 && cases[i].stage != 1) {
+    if (poly.q_count == 4 && cases[i].target_divisor != 0) {
       mpz_set_ui(scaled, 1);
       for (j = 1; j < ctx.params.fb_size; j++) {
         ctx.fb[j].sqrt_kn = j <= 4 ? 1U : 0U;
         if (j <= 4) mpz_mul_ui(scaled, scaled, ctx.fb[j].p);
       }
-      mpz_fdiv_q_ui(poly.target_A, scaled, cases[i].stage == 2 ? 3U : 6U);
-      CHECK(ctx.params.a_final_tolerance >= 8);
+      mpz_fdiv_q_ui(poly.target_A, scaled, cases[i].target_divisor);
+    }
+    tolerance = poly.q_count == 2 ? (ctx.params.bits <= 49 ? 32U : 8U)
+              : poly.q_count == 3 ? 16U : 2U;
+    available = poly.q_count == 1 ||
+                (poly.q_count == 4 && cases[i].target_divisor <= 1U);
+    if (poly.q_count == 2 || poly.q_count == 3) {
+      /* Independent finite catalog: the guard may admit a product even
+       * when the legacy chooser's smaller final window was empty. */
+      mpz_t a, bound;
+      uint32_t u, v, w;
+      mpz_inits(a, bound, NULL);
+      for (u = 1; u < ctx.params.fb_size; u++) {
+        if (!ctx.fb[u].sqrt_kn) continue;
+        for (v = u+1; v < ctx.params.fb_size; v++) {
+          if (!ctx.fb[v].sqrt_kn) continue;
+          for (w = poly.q_count == 2 ? 0 : v+1;
+               w < (poly.q_count == 2 ? 1 : ctx.params.fb_size); w++) {
+            if (w && !ctx.fb[w].sqrt_kn) continue;
+            mpz_set_ui(a, ctx.fb[u].p);
+            mpz_mul_ui(a, a, ctx.fb[v].p);
+            if (w) mpz_mul_ui(a, a, ctx.fb[w].p);
+            mpz_mul_ui(bound, a, tolerance);
+            if (mpz_cmp(bound, poly.target_A) < 0) continue;
+            mpz_mul_ui(bound, poly.target_A, tolerance);
+            if (mpz_cmp(a, bound) <= 0) available = 1;
+          }
+        }
+      }
+      mpz_clears(a, bound, NULL);
     }
     rng = ctx.poly_rng;
     success = siqs_choose_A(&ctx, &poly);
-    CHECK(success == (cases[i].stage != 0));
-    /* Each sampled prefix prime consumes exactly one RNG draw.  Small-q
-     * fixtures skip impossible stages.  q=4 spends 5K attempts locally
-     * before stage 2, and stops after its total 10K budget if that fails. */
-    limit = success || poly.q_count == 4 ? 10000U * (poly.q_count - 1U) : 0;
+    CHECK(success == available);
+    /* q1/q2 are deterministic; SAR has bounded proposal attempts. */
+    limit = (1U + SIQS_A_ERROR_LEVELS) * SIQS_A_RANDOM_RETRIES
+          * (poly.q_count - 1U) * (poly.q_count == 3U ? 4U : 1U);
     for (draws = 0; rng.state != ctx.poly_rng.state && draws < limit; draws++)
       (void)siqs_rand64(&rng);
     CHECK(rng.state == ctx.poly_rng.state);
+    if (poly.q_count <= 2) CHECK(draws == 0);
     if (poly.q_count == 4) {
       uint32_t prefix_draws = poly.q_count - 1U;
-      if (cases[i].stage == 1)
-        CHECK(draws > 0 && draws <= 5000U * prefix_draws);
-      else if (cases[i].stage == 2)
-        CHECK(draws > 5000U * prefix_draws);
-      else
-        CHECK(draws == 10000U * prefix_draws);
+      CHECK(poly.A_search != NULL);
+      CHECK(draws > 0 && draws <= (1U + SIQS_A_ERROR_LEVELS) *
+                                  SIQS_A_RANDOM_RETRIES * prefix_draws);
+      if (!available)
+        CHECK(draws == SIQS_A_RANDOM_RETRIES * prefix_draws);
     }
     if (success) {
       CHECK(ctx.a_hashes.count == 1);
@@ -184,25 +215,52 @@ static void cofactor_a_search_stages(void) {
         if (j) CHECK(poly.a_index[j - 1] < poly.a_index[j]);
       }
       if (poly.q_count != 1) {
-        tolerance = cases[i].stage == 1 ? 2U : cases[i].stage == 2 ? 4U
-                                      : ctx.params.a_final_tolerance;
         mpz_mul_ui(scaled, poly.target_A, tolerance);
         CHECK(mpz_cmp(poly.A, scaled) <= 0);
         mpz_mul_ui(scaled, poly.A, tolerance);
         CHECK(mpz_cmp(scaled, poly.target_A) >= 0);
+        if (poly.q_count <= 3) {
+          /* These real scarcity cases reach widened guards. Check every
+           * polynomial against the wide oracle, not just the A product. */
+          siqs_first_B_and_roots(&ctx, &poly);
+          siqs_set_family_sieve_initial(&ctx);
+          CHECK(ctx.active_sieve_initial <= ctx.params.sieve_initial);
+          do {
+            check_polynomial_roots(&ctx, &poly);
+            compare_sieve(&ctx);
+          } while (siqs_next_B(&ctx, &poly));
+        }
       } else {
+        uint32_t first = poly.a_index[0];
         rng = ctx.poly_rng;
+        CHECK(siqs_choose_A(&ctx, &poly) && poly.a_index[0] != first);
+        CHECK(ctx.a_hashes.count == 2 && ctx.poly_rng.state == rng.state);
         CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
+      }
+      if (poly.q_count == 4 &&
+          cases[i].target_divisor == 1U) {
+        /* The sole family is already in history. Exhaust the bounded
+         * duplicate search and clear every mark left by the successful call. */
+        rng = ctx.poly_rng;
+        CHECK(!siqs_choose_A(&ctx, &poly) && ctx.a_hashes.count == 1);
+        for (draws = 0;
+             draws < SIQS_A_RANDOM_RETRIES * (poly.q_count - 1U); draws++)
+          (void)siqs_rand64(&rng);
+        CHECK(rng.state == ctx.poly_rng.state);
+        for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
       }
     } else {
       CHECK(ctx.a_hashes.count == 0);
       for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
     }
-    if (i == 0) {
+    if (i == 0 || (poly.q_count == 4 &&
+                   cases[i].target_divisor == 0)) {
       /* Fewer than q eligible odd primes must fail without entering the
        * nearest-available search, regardless of the size of the target. */
+      siqs_poly_clear(&ctx, &poly);
       for (j = 1; j < ctx.params.fb_size; j++) ctx.fb[j].sqrt_kn = 0;
       ctx.fb[1].sqrt_kn = 1;
+      siqs_poly_init(&ctx, &poly);
       mpz_set_ui(poly.target_A, 1000000);
       rng = ctx.poly_rng;
       CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
@@ -210,11 +268,14 @@ static void cofactor_a_search_stages(void) {
     if (i == 1) {
       /* The largest eligible product is below even the final window.
        * Reject without consuming random draws, just like a too-small target. */
+      uint32_t previous_count = ctx.a_hashes.count;
+      siqs_poly_clear(&ctx, &poly);
+      siqs_poly_init(&ctx, &poly);
       mpz_set_ui(poly.target_A, 1);
       mpz_mul_2exp(poly.target_A, poly.target_A, 64);
       rng = ctx.poly_rng;
       CHECK(!siqs_choose_A(&ctx, &poly) && ctx.poly_rng.state == rng.state);
-      CHECK(ctx.a_hashes.count == 0);
+      CHECK(ctx.a_hashes.count == previous_count);
       for (j = 0; j < ctx.params.fb_size; j++) CHECK(!ctx.fb_in_a[j]);
     }
     siqs_poly_clear(&ctx, &poly);
@@ -241,14 +302,14 @@ static void cofactor_a_search_stages(void) {
   }
   CHECK(mpz_cmp(scaled, n) == 0); gmp_siqs_free(factors, count);
   mpz_clear(n); mpz_clear(scaled);
-  puts("PASS cofactors: A-search stages skip impossible low-q windows, widen q4 within 10K attempts, preserve q1, and clear flags");
+  puts("PASS cofactors: deterministic q1/q2, SAR q3/q4 guards and limits, cleanup");
 }
 
-static void cofactor_low_smooth_recovery(void) {
+static void cofactor_low_recovery(void) {
   static const char *names[] = {
     "smooth_k1_q1_low_recovery_8k",
     "smooth_k1_q1_low_recovery_16k",
-    "smooth_k1_q1_low_recovery_legacy"
+    "one_lp_k60_q1_low_recovery_96k"
   };
   static const char *values[][3] = {
     { "84098302697", "203653", "412949" },
@@ -257,7 +318,10 @@ static void cofactor_low_smooth_recovery(void) {
     { "99430906937", "239689", "414833" },
     { "178537103153", "509", "350760517" },
     { "137438959313", "46099", "2981387" },
-    { "68719477097", "24793", "2771729" }
+    { "68719477097", "24793", "2771729" },
+    { "934189", "937", "997" },
+    { "307973812251397", "15106783", "20386459" },
+    { "597107386758137", "19084649", "31287313" }
   };
   const siqs_policy_band_t *profiles[3] = { NULL, NULL, NULL };
   siqs_factor_array_t partition;
@@ -265,7 +329,7 @@ static void cofactor_low_smooth_recovery(void) {
   mpz_t n, divisor, root, p, q;
   mpz_t *factors;
   uint32_t i, j, bits, count;
-  case_name = "37-41-q1-smooth-recovery";
+  case_name = "low-q1-recovery-policies";
   for (i = 0; i < SIQS_RECOVERY_POLICY_COUNT; i++)
     for (j = 0; j < 3; j++)
       if (strcmp(siqs_recovery_policies[i].name, names[j]) == 0)
@@ -274,20 +338,20 @@ static void cofactor_low_smooth_recovery(void) {
   for (j = 0; j < 3; j++) {
     CHECK(profiles[j] != NULL &&
           profiles[j]->first_bits == MPU_SIQS_MIN_BITS &&
-          profiles[j]->last_bits == 41);
+          profiles[j]->last_bits == (j < 2 ? 41U : 50U));
     for (bits = 37; bits <= 41; bits++) {
       mpz_set_ui(n, 1); mpz_mul_2exp(n, n, bits - 1U); mpz_add_ui(n, n, 1);
       siqs_select_parameters(&primary, n, NULL);
       siqs_select_parameters(&recovery, n, profiles[j]);
       CHECK(primary.q_count == 2 && recovery.q_count == 1 &&
-            recovery.max_large_primes == 1 && recovery.lp_multiplier == 1.0 &&
+            recovery.max_large_primes == 1 &&
+            recovery.lp_multiplier == (j < 2 ? 1.0 : 60.0) &&
             recovery.residual_multiplier == 0.0);
-      CHECK(primary.fb_size == recovery.fb_size &&
-            primary.stage1_bias == recovery.stage1_bias &&
-            primary.relation_extra == recovery.relation_extra &&
-            primary.sieve_free_units == recovery.sieve_free_units &&
-            primary.a_final_tolerance == recovery.a_final_tolerance);
-      if (j < 2) CHECK(recovery.half_interval == (8192U << j));
+      /* Recoveries retain their geometry while primary bands are tuned. */
+      CHECK(recovery.fb_size == 40 && recovery.stage1_bias == 0 &&
+            recovery.relation_extra == (j < 2 ? 2U : 4U) && recovery.sieve_free_units == 8 &&
+            recovery.multiplier_refine_divisor == 0);
+      CHECK(recovery.half_interval == (j < 2 ? (8192U << j) : 96U * 1024U));
     }
   }
   for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
@@ -295,9 +359,9 @@ static void cofactor_low_smooth_recovery(void) {
     mpz_set_str(p, values[i][1], 10); mpz_set_str(q, values[i][2], 10);
     CHECK(mpz_probab_prime_p(p, 25) && mpz_probab_prime_p(q, 25));
     mpz_mul(divisor, p, q); CHECK(mpz_cmp(n, divisor) == 0);
-    /* Force each profile on the original fixture, even if future primary
-     * tuning fixes it; also force the first recovery on the fresh misses. */
-    for (j = 0; j < (i == 0 ? 3U : 1U); j++) {
+    /* Exercise recoveries directly even when the primary now succeeds. */
+    for (j = 0; j < 3; j++) {
+      if (mpz_sizeinbase(n, 2) > profiles[j]->last_bits) continue;
       siqs_factor_array_init(&partition, n);
       CHECK(siqs_try_policy(n, n, &partition, profiles[j], divisor, root, 0, 1));
       factors = siqs_factor_array_release(&partition, &count);
@@ -313,7 +377,7 @@ static void cofactor_low_smooth_recovery(void) {
     gmp_siqs_free(factors, count);
   }
   mpz_clear(n); mpz_clear(divisor); mpz_clear(root); mpz_clear(p); mpz_clear(q);
-  puts("PASS cofactors: smooth q1 recovery covers 37-41 bits and splits the A-exhaustion fixtures");
+  puts("PASS cofactors: smooth q1 and 1LP safety recoveries split historical and 20/49/50-bit fixtures");
 }
 
 /* Exercise the recovery itself even if future primary tuning also fixes the
@@ -321,7 +385,7 @@ static void cofactor_low_smooth_recovery(void) {
 static void cofactor_q3_recovery(void) {
   const siqs_policy_band_t *profile = NULL;
   siqs_factor_array_t partition;
-  siqs_parameters_t primary, recovery;
+  siqs_parameters_t recovery;
   mpz_t n, divisor, root, p, q;
   mpz_t *factors;
   uint32_t i, count;
@@ -333,16 +397,12 @@ static void cofactor_q3_recovery(void) {
   mpz_init(n); mpz_init(divisor); mpz_init(root); mpz_init(p); mpz_init(q);
   for (i = 50; i <= 64; i++) {
     mpz_set_ui(n, 1); mpz_mul_2exp(n, n, i - 1U); mpz_add_ui(n, n, 1);
-    siqs_select_parameters(&primary, n, NULL);
     siqs_select_parameters(&recovery, n, profile);
     CHECK(recovery.q_count == 3 && recovery.max_large_primes == 1 &&
           recovery.lp_multiplier == 60.0 && recovery.residual_multiplier == 0.0);
-    CHECK(primary.fb_size == recovery.fb_size &&
-          primary.half_interval == recovery.half_interval &&
-          primary.stage1_bias == recovery.stage1_bias &&
-          primary.relation_extra == recovery.relation_extra &&
-          primary.sieve_free_units == recovery.sieve_free_units &&
-          primary.a_final_tolerance == recovery.a_final_tolerance);
+    CHECK(recovery.fb_size >= 40 && recovery.half_interval >= 4096 &&
+          recovery.stage1_bias == 0 && recovery.relation_extra == 4 &&
+          recovery.sieve_free_units == 8 && recovery.multiplier_refine_divisor == 0);
   }
   mpz_set_str(n, "39586268787172817", 10);
   mpz_set_str(p, "4728917", 10); mpz_set_str(q, "8371106701", 10);
@@ -360,7 +420,7 @@ static void cofactor_q3_recovery(void) {
          (mpz_cmp(factors[0], q) == 0 && mpz_cmp(factors[1], p) == 0)));
   gmp_siqs_free(factors, count);
   mpz_clear(n); mpz_clear(divisor); mpz_clear(root); mpz_clear(p); mpz_clear(q);
-  puts("PASS cofactors: 50-64-bit q3 recovery preserves primary geometry and splits the exhaustion fixture");
+  puts("PASS cofactors: 50-64-bit q3 recovery retains its geometry and splits the exhaustion fixture");
 }
 
 static void cofactor_q2_geometry_recovery(void) {
@@ -373,7 +433,7 @@ static void cofactor_q2_geometry_recovery(void) {
   };
   const siqs_policy_band_t *profile = NULL;
   siqs_factor_array_t partition;
-  siqs_parameters_t primary, recovery;
+  siqs_parameters_t recovery;
   mpz_t n, divisor, root, p, q;
   mpz_t *factors;
   uint32_t i, count;
@@ -386,18 +446,13 @@ static void cofactor_q2_geometry_recovery(void) {
   mpz_init(n); mpz_init(divisor); mpz_init(root); mpz_init(p); mpz_init(q);
   for (i = 50; i <= 64; i++) {
     mpz_set_ui(n, 1); mpz_mul_2exp(n, n, i - 1U); mpz_add_ui(n, n, 1);
-    siqs_select_parameters(&primary, n, NULL);
     siqs_select_parameters(&recovery, n, profile);
-    CHECK(primary.q_count == 3 && recovery.q_count == 2 &&
+    CHECK(recovery.q_count == 2 &&
           recovery.max_large_primes == 1 && recovery.lp_multiplier == 60.0 &&
           recovery.residual_multiplier == 0.0);
-    CHECK(primary.fb_size == recovery.fb_size &&
-          primary.half_interval == recovery.half_interval &&
-          primary.stage1_bias == recovery.stage1_bias &&
-          primary.relation_extra == recovery.relation_extra &&
-          primary.sieve_free_units == recovery.sieve_free_units &&
-          primary.a_final_tolerance == recovery.a_final_tolerance &&
-          primary.multiplier_refine_divisor == recovery.multiplier_refine_divisor);
+    CHECK(recovery.fb_size >= 40 && recovery.half_interval >= 4096 &&
+          recovery.stage1_bias == 0 && recovery.relation_extra == 4 &&
+          recovery.sieve_free_units == 8 && recovery.multiplier_refine_divisor == 0);
   }
   for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
     mpz_set_str(n, cases[i].n, 10);
@@ -827,7 +882,7 @@ static void suite_cofactors(void) {
   cofactor_timing();
 #endif
   cofactor_a_search_stages();
-  cofactor_low_smooth_recovery();
+  cofactor_low_recovery();
   cofactor_q3_recovery();
   cofactor_q2_geometry_recovery();
   cofactor_classification();

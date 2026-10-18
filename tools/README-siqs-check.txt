@@ -41,14 +41,18 @@ Suites and options
 One executable runs the named suites ("policies", "sieve", "scores", "setup", "relations", "matrix", "bids", "workers",
 "cofactors"). The default
 "all" selection runs every registered suite. --list describes available
-suites; --suite selects one. The scores suite checks exact certificates against
-independent subset enumeration, raw-score scan thresholds, saturating kernels
+suites; --suite selects one. The scores suite checks q2..16 norm bounds against
+an independent rational calculation and exact score certificates against
+subset enumeration, including the widened q2/q3 A guards. Small inputs use
+the same proofs; q1 is checked against its actual family. It also checks
+raw-score scan thresholds, saturating kernels
 against a wide oracle, fine-filter retention through exact relation evaluation,
 and worker inheritance. --score-bits 5 (or 6/7) makes a temporary reduced-score
 source copy for this suite; production sources and policies are never rewritten.
 --extended adds more fixtures, policy endpoints, and polynomials. For scores,
 it also constructs artificial 400/432/512-bit kN envelopes with multipliers
-1/2047, q12/q13, and a 600k factor base, without full sieving or solving.
+1/2047, q12..16, and a 600k factor base, without full sieving or solving.
+Every B-sign combination of these families is checked against the norm.
 These are structural checks, not new supported factoring policies.
 The other suites cover full-width LP labels through UINT64_MAX, retained
 lookups after table growth, matrix columns beyond 65535 and row 2^21-1,
@@ -190,6 +194,12 @@ Small fixtures are required to survive the normal public trial-division bound;
 setup must not shortcut on a factor found in the base. The extended grid goes
 through 370 bits, plus an intentionally long interval on a smaller input.
 No solver, pthread pool, or full-factorization run is used by this suite.
+
+Chooser checks cover reuse of each active chooser's prepared state across
+families. The cofactor suite checks
+deterministic q1/q2 selection, q1's backup, q3's staged SAR guards against
+independently enumerated products, and q4's factor-two guard, bounded retries
+and duplicate exhaustion.
 
 The maximum reported score describes the sampled polynomials, not a proof
 for every input in the supported range. A failed check reports its suite,

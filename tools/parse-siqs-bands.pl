@@ -35,7 +35,7 @@ die "invalid SIQS_SIEVE_ALIGN\n" unless $align > 0 && int($align) == $align;
 my ($interval_offset, $interval_exponent) = $source =~
   /interval\s*=\s*($number)\s*\+\s*exp\(\s*($number)\s*\*\s*ln_term\s*\)/;
 my ($interval_floor) = $source =~
-  /if\s*\(p->half_interval\s*<\s*(\d+)\)\s*p->half_interval\s*=\s*\1\s*;/;
+  /if\s*\(floor\s*==\s*0\)\s*floor\s*=\s*(\d+)\s*;/;
 die "unrecognized SIQS size formulas in $source_path\n"
   unless defined($interval_offset) && defined($interval_floor) &&
          $source =~ /ln_n\s*=\s*p->bits\s*\*\s*M_LN2\s*;/ &&
@@ -256,9 +256,11 @@ sub sizes_at {
       : 1;
     my $scale = curve_at($band->{interval_base_scale}, $bits) * $ratio;
     my $interval = ($interval_offset + exp($interval_exponent * $ln_term)) * $scale;
-    die "negative interval in $band->{name} at $bits bits\n" if $interval < 0;
+    die "negative interval in $band->{name} at $bits bits\n"
+      if $interval < 0 && !$band->{half_interval_floor};
+    my $floor = $band->{half_interval_floor} || $interval_floor;
+    $interval = $floor if $interval < $floor;
     $m = int((int($interval) + $align - 1) / $align) * $align;
-    $m = $interval_floor if $m < $interval_floor;
   }
   return [$m, int($fb)];
 }

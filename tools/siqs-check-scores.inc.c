@@ -1,26 +1,39 @@
 /* Exact byte-score safety checks; included by siqs-check.c, not a unit. */
 static void score_reference_upper(mpz_t upper, const siqs_ctx_t *ctx) {
-  mpz_t target, a, da, b, y, value, t;
+  mpz_t target, a, da, value;
+  mpq_t y, b, k, v;
+  uint32_t q = ctx->params.q_count, d = ctx->params.poly_d;
+  uint32_t factor = q == 2 ? (ctx->params.bits <= 49 ? 32 : 8)
+                  : q == 3 ? 16 : 2;
   uint32_t endpoint;
-  mpz_inits(target, a, da, b, y, value, t, NULL);
+  mpz_inits(target, a, da, value, NULL);
+  mpq_inits(y, b, k, v, NULL);
   mpz_mul_ui(target, ctx->kn, 2); mpz_sqrt(target, target);
   mpz_fdiv_q_ui(target, target, ctx->params.half_interval);
-  mpz_fdiv_q_ui(target, target, ctx->params.poly_d);
+  mpz_fdiv_q_ui(target, target, d);
+  CHECK(mpz_sgn(target) > 0);
+  CHECK(siqs_A_maximum_factor(ctx, q) == factor);
+  mpq_set_z(k, ctx->kn);
   mpz_set_ui(upper, 0);
   for (endpoint = 0; endpoint < 2; endpoint++) {
-    if (endpoint) mpz_mul_ui(a, target, 4);
-    else mpz_cdiv_q_ui(a, target, 4);
-    mpz_mul_ui(da, a, ctx->params.poly_d);
-    mpz_mul_ui(b, a, ctx->params.q_count + 2U); mpz_fdiv_q_2exp(b, b, 1);
-    mpz_mul_ui(y, da, ctx->params.half_interval); mpz_add(y, y, b);
-    mpz_mul(value, y, y); mpz_sub(value, value, ctx->kn);
-    mpz_abs(value, value); mpz_cdiv_q(value, value, da);
+    if (endpoint) mpz_mul_ui(a, target, factor);
+    else mpz_cdiv_q_ui(a, target, factor);
+    mpz_mul_ui(da, a, d);
+    /* Independent rational evaluation retains a half-integral B bound. */
+    mpz_mul_ui(mpq_numref(b), a, q + 2U * (d - 1U));
+    mpz_set_ui(mpq_denref(b), 2); mpq_canonicalize(b);
+    mpz_mul_ui(value, da, ctx->params.half_interval);
+    mpq_set_z(y, value); mpq_add(y, y, b);
+    mpq_mul(v, y, y); mpq_sub(v, v, k);
+    mpq_set_z(y, da); mpq_div(v, v, y);
+    mpz_cdiv_q(value, mpq_numref(v), mpq_denref(v));
     if (mpz_cmp(value, upper) > 0) mpz_set(upper, value);
-    mpz_cdiv_q(t, ctx->kn, da);
-    if (mpz_cmp(t, upper) > 0) mpz_set(upper, t);
+    mpz_fdiv_q(value, ctx->kn, da);
+    if (mpz_cmp(value, upper) > 0) mpz_set(upper, value);
   }
-  if (ctx->params.poly_d == 2) mpz_fdiv_q_2exp(upper, upper, 2);
-  mpz_clears(target, a, da, b, y, value, t, NULL);
+  if (d == 2) mpz_fdiv_q_2exp(upper, upper, 2);
+  mpq_clears(y, b, k, v, NULL);
+  mpz_clears(target, a, da, value, NULL);
 }
 
 /* Independent Gray-code enumeration, not another dynamic program. */
@@ -36,10 +49,12 @@ static void check_score_certificates(void) {
   ctx.params.q_count = 4; ctx.params.half_interval = 4096;
   fb[0].p = 2;
   mpz_init(ctx.kn); mpz_inits(product, upper, prime, NULL);
-  for (round = 0; round < 18; round++) {
+  for (round = 0; round < 36; round++) {
     uint32_t previous = 0;
     int certified;
-    ctx.params.bits = 129; ctx.params.sieve_start = 1;
+    ctx.params.q_count = round < 6 ? 4U : 2U + (round - 6U) % 15U;
+    ctx.params.bits = ctx.params.q_count == 2 && round < 21 ? 49U : 129U;
+    ctx.params.sieve_start = 1;
     ctx.params.sieve_score_bound = 0;
     ctx.params.poly_d = round & 1U ? 2 : 1;
     mpz_set_ui(ctx.kn, 1); mpz_mul_2exp(ctx.kn, ctx.kn, 40 + 2 * round);
@@ -64,6 +79,8 @@ static void check_score_certificates(void) {
       CHECK(ctx.params.sieve_score_bound != 0);
     }
     score_reference_upper(upper, &ctx);
+    CHECK(siqs_sieve_score_norm(product, &ctx));
+    CHECK(mpz_cmp(product, upper) == 0);
     maximum = score = 0; mpz_set_ui(product, 1);
     for (m = 1; m < (1U << count); m++) {
       uint32_t gray = m ^ (m >> 1), changed = gray ^ previous;
@@ -89,7 +106,7 @@ static void check_score_certificates(void) {
         CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
       }
     }
-    ctx.params.bits = 129; ctx.params.sieve_initial = 0; ctx.params.stage1_bias = 0;
+    ctx.params.sieve_initial = 0; ctx.params.stage1_bias = 0;
     siqs_select_sieve_score_mode(&ctx);
     CHECK(ctx.params.sieve_saturating == !certified);
     CHECK(ctx.params.sieve_raw_scores == !certified);
@@ -102,7 +119,7 @@ static void check_score_certificates(void) {
       CHECK(ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
     }
   }
-  ctx.params.q_count = 3; CHECK(!siqs_certify_sieve_scores(&ctx, &bound));
+  ctx.params.q_count = 1; CHECK(!siqs_certify_sieve_scores(&ctx, &bound));
   CHECK(siqs_sieve_score_envelope_bits(&ctx) == 0);
   ctx.params.q_count = 4; mpz_set_ui(ctx.kn, 49);
   CHECK(!siqs_certify_sieve_scores(&ctx, &bound));
@@ -116,9 +133,9 @@ static void check_score_certificates(void) {
   mpz_set_ui(ctx.kn, 0); ctx.params.bits = 128;
   ctx.params.sieve_raw_scores = ctx.params.sieve_saturating = 1;
   siqs_select_sieve_score_mode(&ctx);
-  CHECK(!ctx.params.sieve_raw_scores && !ctx.params.sieve_saturating);
+  CHECK(ctx.params.sieve_raw_scores && ctx.params.sieve_saturating);
   mpz_clears(ctx.kn, product, upper, prime, NULL);
-  puts("PASS scores: subset certificates, cheap headroom proof, exact byte boundaries, uncertified cases, small-input bypass");
+  puts("PASS scores: q2..16 norm/score proofs, widened guards, exact byte boundaries and fail-closed small inputs");
 }
 
 /* Evaluate every Q by the square identity and obtain scores by divisibility,
@@ -158,6 +175,19 @@ static void check_q1_score_family(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
 
 static void check_q1_score_regressions(void) {
   const char *inputs[] = {"934189", "4395473", "49293573089"};
+  /* Retain the geometry that exposed the weight-scaling bug, independently
+   * of primary-band tuning or factors now found during FB construction. */
+  static const siqs_policy_band_t historical = {
+    .name = "q1_score_regression_4k", .first_bits = 1, .last_bits = 36,
+    .production_large_primes = 1, .q_count = 1,
+    .k_l = {1.0, 0.0, 1, UINT16_MAX},
+    .k_r = {0.0, 0.0, UINT16_MAX, UINT16_MAX},
+    .sieve_free_units = 8, .fb_floor = 40, .relation_extra = 2,
+    .fixed_half_interval = 4096,
+    .fb_coefficient = {0.315, 0.0, 65, UINT16_MAX},
+    .interval_base_scale = {0.0, 0.0, 1, UINT16_MAX},
+    .sieve_hit_exponent = {0.15, 0.0, 65, UINT16_MAX}
+  };
   mpz_t n, saved_b;
   uint32_t c, modes = 0;
   prime_iterator_global_startup();
@@ -172,7 +202,7 @@ static void check_q1_score_regressions(void) {
     case_name = inputs[c];
     mpz_set_str(n, inputs[c], 10);
     siqs_factor_array_init(&result, n);
-    siqs_ctx_init(&ctx, n, n, &result, NULL, 0); case_ctx = &ctx;
+    siqs_ctx_init(&ctx, n, n, &result, &historical, 0); case_ctx = &ctx;
     CHECK(siqs_ctx_allocate(&ctx) && ctx.params.q_count == 1);
     /* Until A and B are known, no nominal-size proof applies to q=1. */
     CHECK(ctx.params.sieve_raw_scores && ctx.params.sieve_saturating);
@@ -351,6 +381,54 @@ static void check_saturated_fine_filter(void) {
   puts("PASS scores: saturation bypass preserves omitted hits and a verified smooth relation");
 }
 
+/* Enumerate every sign combination in the family's B construction without
+ * updating FB-sized root tables. A convex quadratic reaches its largest
+ * absolute value at an endpoint or at an integer adjacent to its vertex. */
+static void check_score_family_norm(const siqs_ctx_t *ctx,
+                                    const siqs_poly_t *poly) {
+  mpz_t b, twice_b, limit, y, value, vertex, upper;
+  uint32_t mask, i, d = ctx->params.poly_d;
+  long half = ctx->params.half_interval;
+  mpz_inits(b, twice_b, limit, y, value, vertex, upper, NULL);
+  CHECK(siqs_sieve_score_norm(upper, ctx));
+  mpz_mul_ui(limit, poly->A, poly->q_count + 2U * (d - 1U));
+  for (mask = 0; mask < (1U << (poly->q_count - 1U)); mask++) {
+    long points[4];
+    mpz_set(b, poly->B);
+    for (i = 0; i + 1U < poly->q_count; i++)
+      if (mask & (1U << i)) {
+        mpz_sub(b, b, poly->H[i]); mpz_sub(b, b, poly->H[i]);
+      }
+    mpz_mul_2exp(twice_b, b, 1); mpz_abs(value, twice_b);
+    CHECK(mpz_cmp(value, limit) <= 0);
+    mpz_mul(value, b, b); mpz_sub(value, value, ctx->kn);
+    CHECK(mpz_divisible_p(value, poly->DA));
+    if (d == 2) {
+      CHECK(mpz_odd_p(b));
+      mpz_divexact(value, value, poly->DA);
+      CHECK(mpz_divisible_2exp_p(value, 2));
+    }
+    mpz_neg(vertex, b); mpz_fdiv_q(vertex, vertex, poly->DA);
+    CHECK(mpz_fits_slong_p(vertex));
+    points[0] = -half; points[1] = half - 1;
+    points[2] = mpz_get_si(vertex); points[3] = points[2] + 1;
+    for (i = 0; i < 4; i++) {
+      if (points[i] < -half || points[i] >= half) continue;
+      mpz_mul_si(y, poly->DA, points[i]); mpz_add(y, y, b);
+      mpz_mul(value, y, y); mpz_sub(value, value, ctx->kn);
+      CHECK(mpz_divisible_p(value, poly->DA));
+      mpz_divexact(value, value, poly->DA); mpz_abs(value, value);
+      CHECK(mpz_sgn(value) != 0);
+      if (d == 2) {
+        CHECK(mpz_divisible_2exp_p(value, 2));
+        mpz_fdiv_q_2exp(value, value, 2);
+      }
+      CHECK(mpz_cmp(value, upper) <= 0);
+    }
+  }
+  mpz_clears(b, twice_b, limit, y, value, vertex, upper, NULL);
+}
+
 /* Extended structural checks, not factoring benchmarks or new supported
  * policies. Preserve the worst-case kN exactly; suppress only the FB builder's
  * early-divisor shortcut for the artificial input 2^bits-1. No sieve-length
@@ -364,7 +442,11 @@ static void check_score_upper_envelope(void) {
     {512,    1, 12, 60000, 16777216},
     {512, 2047, 12, 60000, 16777216},
     {512, 2047, 13, 60000, 16777216},
-    {512, 2047, 13, 600000, 16777216}
+    {512, 2047, 13, 600000, 16777216},
+    {512,    1, 14, 60000, 16777216},
+    {512, 2047, 15, 60000, 16777216},
+    {512,    1, 16, 60000, 16777216},
+    {512, 2047, 16, 60000, 16777216}
   };
   mpz_t n, y, value, magnitude, upper, t;
   uint32_t c;
@@ -410,12 +492,14 @@ static void check_score_upper_envelope(void) {
     for (i = 0; i < ctx.params.fb_size; i++) ctx.prime[i] = ctx.fb[i].p;
     siqs_hashset_init(&ctx.a_hashes, 1024); siqs_poly_init(&ctx, &poly);
     CHECK(siqs_new_family(&ctx, &poly)); score_reference_upper(upper, &ctx);
+    check_score_family_norm(&ctx, &poly);
     for (polynomial = 0; polynomial < 3; polynomial++) {
       uint32_t sample;
-      mpz_mul_ui(t, poly.A, 4); CHECK(mpz_cmp(t, poly.target_A) >= 0);
-      mpz_mul_ui(t, poly.target_A, 4); CHECK(mpz_cmp(poly.A, t) <= 0);
-      mpz_mul_ui(t, poly.A, poly.q_count + 2U); mpz_fdiv_q_2exp(t, t, 1);
-      mpz_abs(magnitude, poly.B); CHECK(mpz_cmp(magnitude, t) <= 0);
+      mpz_mul_ui(t, poly.A, 2); CHECK(mpz_cmp(t, poly.target_A) >= 0);
+      mpz_mul_ui(t, poly.target_A, 2); CHECK(mpz_cmp(poly.A, t) <= 0);
+      mpz_mul_ui(t, poly.A, poly.q_count + 2U * (ctx.params.poly_d - 1U));
+      mpz_mul_2exp(magnitude, poly.B, 1); mpz_abs(magnitude, magnitude);
+      CHECK(mpz_cmp(magnitude, t) <= 0);
       for (sample = 0; sample < 5; sample++) {
         uint32_t pos = sample * (cases[c].half / 2U), score = 0;
         mpz_set_si(y, (int32_t)pos - (int32_t)cases[c].half);
@@ -452,7 +536,7 @@ static void check_score_upper_envelope(void) {
   }
   mpz_clears(n, y, value, magnitude, upper, t, NULL);
   prime_iterator_global_shutdown();
-  puts("PASS scores: 400/432/512-bit setup and polynomial envelope, k=1/2047, q=12/13");
+  puts("PASS scores: 400/432/512-bit envelopes and complete B-sign spans, k=1/2047, q=12..16");
 }
 
 #ifdef PSIQS
@@ -475,7 +559,7 @@ static void check_score_worker_inheritance(void) {
   }
   worker_fixture_close(&fixture); case_ctx = NULL;
   prime_iterator_global_shutdown();
-  puts("PASS scores: worker inheritance of legacy/raw/saturating modes and immutable weights");
+  puts("PASS scores: worker inheritance of ordinary/raw/saturating modes and immutable weights");
 }
 #endif
 
