@@ -2636,17 +2636,21 @@ C<factor(1)> return C<0> and an empty list, respectively.
 In scalar context, returns the number of prime factors with multiplicity.
 The sign of a negative input is not counted.
 
+If all factoring methods are exhausted without splitting a composite,
+this function croaks rather than returning it as a prime factor.
+The individual C<..._factor> routines may return partial factorizations.
+
 Like most advanced factoring programs, a mix of methods is used.  This
 includes trial division for small factors, perfect power detection,
 Pollard's Rho, Pollard's P-1 with various smoothness and stage settings,
 Hart's OLF (a Fermat variant), ECM (elliptic curve method), and
-QS (quadratic sieve).
+SIQS (self-initializing quadratic sieve).
 
 On contemporary desktop hardware, balanced semiprimes from 26 to 36 digits
 are typically factored in single milliseconds; numbers of the same size
 having smaller factors are generally easier.
-Benchmarks performed in 2026 found performance broadly comparable to
-PARI/GP 2.18’s C<factorint>.
+Benchmarks performed in 2026 found SIQS performance over the tested range
+to be as good as or better than programs such as YAFU.
 
 =head2 divisors
 

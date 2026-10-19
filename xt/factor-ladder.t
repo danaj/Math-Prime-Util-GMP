@@ -10,4 +10,4 @@ open my $run, '-|', $^X, $checker or die "Cannot start factor checker: $!";
 my $output = do { local $/; <$run> };
 my $ok = close $run;
 diag($output) if defined $output && length $output;
-ok($ok, 'scripted factor ladder, SIQS helper and cofactor bookkeeping');
+ok($ok, 'scripted factor ladder, SIQS helper, cofactor bookkeeping and failure cleanup');

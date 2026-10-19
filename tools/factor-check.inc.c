@@ -3,20 +3,94 @@
  * GMP primality, factor bookkeeping and the prime iterator remain real. */
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 enum { CHECK_ECM, CHECK_PM1, CHECK_PBRENT, CHECK_HOLF, CHECK_CHEB,
        CHECK_SIQS, CHECK_NATIVE, CHECK_SQUFOF };
 typedef struct { int kind; UV a, b; } check_event_t;
 static check_event_t check_events[256];
 static size_t check_nevents;
-static unsigned check_siqs_calls, check_releases, check_assertions;
+static unsigned check_siqs_calls, check_releases, check_assertions, check_fail_after;
 static mpz_t check_input, check_parts[8];
 static unsigned check_nparts;
 static int check_split, check_verbose;
+static jmp_buf check_failure_jump;
+static int check_expecting_failure;
+static char check_failure_message[128];
+static size_t check_allocations;
+static mpz_t *check_failure_factors;
+static int *check_failure_exponents;
 
 #define CHECK(c) do { check_assertions++; if (!(c)) { \
   fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #c); exit(1); \
 } } while (0)
+
+static void check_croak(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  vsnprintf(check_failure_message, sizeof(check_failure_message), format, args);
+  va_end(args);
+  if (check_expecting_failure) longjmp(check_failure_jump, 1);
+  fprintf(stderr, "Unexpected croak: %s\n", check_failure_message);
+  exit(1);
+}
+
+static int check_printf(const char *format, ...) {
+  va_list args;
+  int result;
+  if (check_expecting_failure && check_verbose < 2) return 0;
+  va_start(args, format);
+  result = gmp_vprintf(format, args);
+  va_end(args);
+  return result;
+}
+
+/* Count GMP limbs, including on systems whose address sanitizer does not
+ * provide leak detection. */
+static void *check_malloc(size_t count, size_t size) {
+  void *mem = mpu_malloc(count, size);
+  if (mem != NULL) check_allocations++;
+  return mem;
+}
+static void *check_realloc(void *mem, size_t count, size_t size) {
+  int had_mem = mem != NULL;
+  void *result = mpu_realloc(mem, count, size);
+  if (!had_mem && result != NULL) check_allocations++;
+  if (had_mem && result == NULL) check_allocations--;
+  return result;
+}
+static void check_free(void *mem) {
+  if (mem != NULL) {
+    CHECK(check_allocations > 0);
+    check_allocations--;
+  }
+  free(mem);
+}
+static void *check_gmp_malloc(size_t size) { return check_malloc(size, 1); }
+static void *check_gmp_realloc(void *mem, size_t old_size, size_t new_size) {
+  (void)old_size;
+  return check_realloc(mem, new_size, 1);
+}
+static void check_gmp_free(void *mem, size_t size) {
+  (void)size;
+  check_free(mem);
+}
+
+static void check_terminal_failure(void) {
+  size_t allocations = check_allocations;
+  check_failure_factors = NULL;
+  check_failure_exponents = NULL;
+  check_failure_message[0] = '\0';
+  check_expecting_failure = 1;
+  if (setjmp(check_failure_jump) == 0) {
+    (void)factor(check_input, &check_failure_factors, &check_failure_exponents);
+    CHECK(0); /* Exhaustion must throw, never return an unsplit composite. */
+  }
+  check_expecting_failure = 0;
+  CHECK(strcmp(check_failure_message, "factor() unable to factor") == 0);
+  CHECK(check_failure_factors == NULL && check_failure_exponents == NULL);
+  CHECK(check_allocations == allocations);
+}
 
 static void check_record(int kind, UV a, UV b) {
   CHECK(check_nevents < sizeof(check_events) / sizeof(check_events[0]));
@@ -59,14 +133,16 @@ int _GMP_cheb_factor(const mpz_t n, mpz_t f, UV bound, UV x) {
 mpz_t *gmp_siqs(const mpz_t n, uint32_t *count, uint32_t trial_start, int verbose) {
   mpz_t *parts;
   unsigned i;
+  int split;
   CHECK(trial_start == 64007);
   CHECK(verbose == check_verbose - 2);
   check_siqs_calls++;
   check_record(CHECK_SIQS, (UV)mpz_sizeinbase(n, 2), 0);
-  *count = check_split ? check_nparts : 1;
+  split = check_split && (!check_fail_after || check_siqs_calls <= check_fail_after);
+  *count = split ? check_nparts : 1;
   if (*count == 0) return NULL;
   New(0, parts, *count, mpz_t);
-  if (!check_split) {
+  if (!split) {
     mpz_init_set(parts[0], n);
   } else if (mpz_cmp(n, check_input) == 0) {
     for (i = 0; i < *count; i++) mpz_init_set(parts[i], check_parts[i]);
@@ -93,6 +169,7 @@ void gmp_siqs_free(mpz_t *parts, uint32_t count) {
 static void check_reset(void) {
   check_nevents = 0;
   check_siqs_calls = check_releases = 0;
+  check_fail_after = 0;
   check_split = 0;
   check_nparts = 2;
 }
@@ -184,16 +261,11 @@ static void check_schedule(void) {
     287,288,319,320,321,359,360,361,399,400,401,511,512,513,600};
   size_t i, j;
   for (i = 0; i < sizeof(sizes)/sizeof(sizes[0]); i++) {
-    mpz_t *factors;
-    int *exponents, nfactors;
     unsigned bits = sizes[i];
     UV base = bits < 512 ? 160000 : 320000;
     check_reset();
     check_semiprime(bits);
-    nfactors = factor(check_input, &factors, &exponents);
-    CHECK(nfactors == 1 && exponents[0] == 1);
-    CHECK(mpz_cmp(factors[0], check_input) == 0); /* Scripted terminal miss. */
-    clear_factors(nfactors, &factors, &exponents);
+    check_terminal_failure();
     CHECK(check_siqs_calls == (bits >= MPU_SIQS_MIN_BITS && bits <= MPU_SIQS_MAX_BITS));
     CHECK(check_releases == check_siqs_calls);
     check_old_recipe(bits);
@@ -337,8 +409,30 @@ static void check_real_loop(void) {
   mpz_clear(product);
 }
 
+static void check_failure_cleanup(void) {
+  mpz_t original;
+  check_reset();
+  check_semiprime(100);
+  mpz_mul(check_parts[2], check_parts[0], check_parts[1]);
+  mpz_mul(check_parts[1], check_parts[1], check_parts[1]);
+  mpz_set_ui(check_parts[0], 1000003);
+  mpz_mul(check_input, check_parts[0], check_parts[1]);
+  mpz_mul(check_input, check_input, check_parts[2]);
+  mpz_init_set(original, check_input);
+  check_split = 1;
+  check_nparts = 3;
+  check_fail_after = 1;
+  /* Accept one prime and queue a composite, then exhaust the retained
+   * composite.  The croak must release partial results and pending work. */
+  check_terminal_failure();
+  CHECK(check_siqs_calls == 2 && check_releases == 2);
+  CHECK(mpz_cmp(check_input, original) == 0);
+  mpz_clear(original);
+}
+
 int main(void) {
   unsigned i;
+  mp_set_memory_functions(check_gmp_malloc, check_gmp_realloc, check_gmp_free);
   mpz_init(check_input);
   for (i = 0; i < 8; i++) mpz_init(check_parts[i]);
   _init_factor();
@@ -350,10 +444,12 @@ int main(void) {
   check_schedule();
   check_verbose = 0;
   check_helper();
+  check_failure_cleanup();
   check_real_loop();
   _destroy_factor();
   for (i = 0; i < 8; i++) mpz_clear(check_parts[i]);
   mpz_clear(check_input);
-  printf("PASS factor ladder/helper: %u checks; scripted boundaries through 600 bits\n", check_assertions);
+  CHECK(check_allocations == 0);
+  printf("PASS factor ladder/helper: %u checks; boundaries through 600 bits, failure cleanup\n", check_assertions);
   return 0;
 }

@@ -28,6 +28,20 @@ $source =~ s/\nstatic void _omega\b.*\z/\n/s
 my $generated = File::Spec->catfile($temporary, 'factor-check.c');
 my $checks = File::Spec->catfile($Bin, 'factor-check.inc.c');
 open my $output, '>', $generated or die "$generated: $!\n";
+# Test-only exception/allocation hooks; production factor.c stays unchanged.
+print {$output} <<'CHECK_HOOKS';
+#include <stdarg.h>
+#include <stdio.h>
+#include <gmp.h>
+#include "ptypes.h"
+#include <setjmp.h>
+static void check_croak(const char *format, ...);
+static int check_printf(const char *format, ...);
+#undef croak
+#define croak(...) check_croak(__VA_ARGS__)
+#undef gmp_printf
+#define gmp_printf check_printf
+CHECK_HOOKS
 print {$output} $source, "\n#include \"", escaped($checks), "\"\n";
 close $output or die "$generated: $!\n";
 my $binary = File::Spec->catfile($temporary, 'factor-check');

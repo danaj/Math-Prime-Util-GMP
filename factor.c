@@ -334,6 +334,15 @@ static factor_siqs_result_t factor_try_siqs(
     } \
   }
 
+#define FACTOR_CROAK(s) \
+  do { \
+    mpz_clear(f); mpz_clear(n); \
+    while (ntofac > 0) \
+      mpz_clear(tofac_stack[--ntofac]); \
+    clear_factors(nfactors, &factors, &exponents); \
+    croak(s); \
+  } while (0)
+
 int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
   mpz_t tofac_stack[MAX_FACTORS];
@@ -515,7 +524,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
               }
               break;
             default:
-              croak("Unknown factoring method");
+              FACTOR_CROAK("Unknown factoring method");
           }
 
           if (success && o)
@@ -528,18 +537,13 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
       if (success) {
         if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
           gmp_printf("n = %Zd  f = %Zd\n", n, f);
-          croak("Incorrect factoring");
+          FACTOR_CROAK("Incorrect factoring");
         }
       }
 
       if (!success) {
-        /* TODO: What to do with composites we can't factor?
-         *       Push them as "C#####" ?
-         *       For now, just push them as if we factored.
-         */
-        if (get_verbose_level()) gmp_printf("gave up on %Zd\n", n);
-        ADD_FACTOR(n);
-        mpz_set_ui(n, 1);
+        gmp_printf("Failed to factor: %Zd\n", n);
+        FACTOR_CROAK("factor() unable to factor");
       } else {
         int ndiv = mpz_remove(n, n, f);
         if (_GMP_is_prob_prime(f)) { /* prime factor */
@@ -557,7 +561,8 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
               ADD_FACTOR(pow_factors[i]);
           clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
         } else {                     /* One non-trivial composite factor */
-          if (ntofac >= MAX_FACTORS-1) croak("Too many factors\n");
+          if (ntofac >= MAX_FACTORS-1)
+            FACTOR_CROAK("Too many factors");
           /* If f < n and both are composites, put n on stack and work on f */
           if (mpz_cmp(f, n) < 0 && !_GMP_is_prob_prime(n)) {
             mpz_init_set(tofac_stack[ntofac++], n);
