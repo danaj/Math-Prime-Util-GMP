@@ -1,0 +1,61 @@
+#!/usr/bin/env perl
+use 5.010;
+use strict;
+use warnings;
+use Config;
+use File::Spec;
+use File::Temp qw(tempdir);
+use FindBin qw($Bin);
+use Getopt::Long qw(GetOptions);
+use Text::ParseWords qw(shellwords);
+
+# Compile the factor-loop prefix, unchanged, with scripted splitters.  This
+# exercises high-bit scheduling without doing expensive factorizations or
+# adding test seams to production code.  Everything generated is disposable.
+my $cc = $ENV{CC} // $Config{cc};
+my ($cflags, $ldflags, $sanitize) = ('-O2 -g', '-lgmp -lm', 0);
+GetOptions('cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags,
+           'sanitize' => \$sanitize) && !@ARGV
+  or die "usage: factor-check.pl [--sanitize] [--cc CC] [--cflags FLAGS] [--ldflags FLAGS]\n";
+my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..'));
+my $temporary = tempdir('factor-check-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $source_path = File::Spec->catfile($root, 'factor.c');
+open my $input, '<', $source_path or die "$source_path: $!\n";
+my $source = do { local $/; <$input> };
+close $input;
+$source =~ s/\nstatic void _omega\b.*\z/\n/s
+  or die "Cannot locate the end of the factor-loop prefix\n";
+my $generated = File::Spec->catfile($temporary, 'factor-check.c');
+my $checks = File::Spec->catfile($Bin, 'factor-check.inc.c');
+open my $output, '>', $generated or die "$generated: $!\n";
+print {$output} $source, "\n#include \"", escaped($checks), "\"\n";
+close $output or die "$generated: $!\n";
+my $binary = File::Spec->catfile($temporary, 'factor-check');
+my @sanitizers = $sanitize ? ('-fsanitize=address,undefined', '-fno-omit-frame-pointer') : ();
+my @command = (shellwords($cc), shellwords($cflags), @sanitizers,
+               '-DSTANDALONE', '-I'.$root, '-o', $binary, $generated,
+               File::Spec->catfile($root, 'prime_iterator.c'), shellwords($ldflags));
+my $log = File::Spec->catfile($temporary, 'build.log');
+my $status;
+{
+  local *STDOUT;
+  local *STDERR;
+  open STDOUT, '>', $log or die "$log: $!\n";
+  open STDERR, '>&', \*STDOUT or die "redirect compiler output: $!\n";
+  $status = system(@command);
+}
+if ($status != 0) {
+  open my $errors, '<', $log or die "$log: $!\n";
+  my $lines = 0;
+  while (my $line = <$errors>) { print STDERR $line; last if ++$lines == 35; }
+  die "factor-check compilation failed\n";
+}
+$status = system { $binary } $binary;
+die "factor-check failed (status $status)\n" if $status != 0;
+
+sub escaped {
+  my ($path) = @_;
+  $path =~ s/\\/\\\\/g;
+  $path =~ s/"/\\"/g;
+  return $path;
+}

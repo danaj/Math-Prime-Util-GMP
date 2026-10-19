@@ -92,32 +92,79 @@ static int _mpz_cmp_asc(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
 
 enum {
-  FACTOR_PRETEST_ECM,
-  FACTOR_PRETEST_PM1
+  FACTOR_METHOD_EARLY_PM1,
+  FACTOR_METHOD_PM1,
+  FACTOR_METHOD_ECM,
+  FACTOR_METHOD_ECM_SCALED,
+  FACTOR_METHOD_LARGE_ECM,
+  FACTOR_METHOD_SIQS,
+  FACTOR_METHOD_PBRENT,
+  FACTOR_METHOD_HOLF,
+  FACTOR_METHOD_CHEB
 };
 
 typedef struct {
-  unsigned int min_bits;
+  unsigned int bits;
   int method;
-  UV B1;
-  UV B2_or_curves;
+  UV arg1;
+  UV arg2;
   const char *description;
-} factor_pretest_t;
+} factor_step_t;
 
-/* These early tests are cumulative.  Within the SIQS range their thresholds
- * keep total failed pretest work to roughly 10-20% of the sieve time (and
- * often less, where another test did not earn its cost).  Above that range
- * the complete sequence provides a gradual lead-in to larger ECM. */
-static const factor_pretest_t factor_pretests[] = {
-  { 160, FACTOR_PRETEST_ECM,      200,       4, "tiny ecm (200)"      },
-  { 200, FACTOR_PRETEST_ECM,      600,      20, "tiny ecm (600)"      },
-  { 200, FACTOR_PRETEST_ECM,     2000,      10, "tiny ecm (2000)"     },
-  { 208, FACTOR_PRETEST_PM1,   200000, 3000000, "p-1 (200k)"          },
-  { 208, FACTOR_PRETEST_ECM,    20000,       2, "small ecm (20k,2)"   },
-  { 240, FACTOR_PRETEST_ECM,    30000,      20, "small ecm (30k,20)"  },
-  { 256, FACTOR_PRETEST_ECM,    40000,      40, "small ecm (40k,40)"  },
-  { 270, FACTOR_PRETEST_ECM,    80000,      40, "small ecm (80k,40)"  },
-  { 288, FACTOR_PRETEST_ECM,   160000,      80, "small ecm (160k,80)" }
+/* Pretests: BITS is a minimum; zero means unrestricted.  These are
+ * cumulative, deliberately modest budgets before the first SIQS checkpoint. */
+static const factor_step_t factor_pretests[] = {
+  /* bits  method                      B1       B2/curves */
+  {   0, FACTOR_METHOD_EARLY_PM1,       0,       0, NULL                    },
+  { 160, FACTOR_METHOD_ECM,           200,       4, "ecm (200)"        },
+  { 200, FACTOR_METHOD_ECM,           600,      20, "ecm (600)"        },
+  { 200, FACTOR_METHOD_ECM,          2000,      10, "ecm (2000)"       },
+  { 208, FACTOR_METHOD_PM1,        200000, 3000000, "p-1 (200k)"            },
+  { 208, FACTOR_METHOD_ECM,         20000,       2, "ecm (20k,2)"     },
+  { 240, FACTOR_METHOD_ECM,         30000,      20, "ecm (30k,20)"    },
+  { 256, FACTOR_METHOD_ECM,         40000,      40, "ecm (40k,40)"    },
+  { 270, FACTOR_METHOD_ECM,         80000,      40, "ecm (80k,40)"    },
+  { 288, FACTOR_METHOD_ECM,        160000,      80, "ecm (160k,80)"   }
+};
+
+/* Main ladder: BITS is a maximum; zero means unrestricted.  Method support
+ * limits still apply.  ECM_SCALED/LARGE_ECM use (base-B1 multiplier, curves),
+ * PM1 uses (B1, B2), PBRENT uses (a, rounds), HOLF uses (rounds, 0), and CHEB
+ * uses (bound, initial x).  SIQS needs no additional arguments.
+ *
+ * Exactly how much ECM should be done before SIQS is a heuristic.
+ * If more information is known about the input shape, directly calling
+ * ecm_factor and qs_factor can be faster (e.g. if the input is known to be
+ * a large balanced semiprime, then ECM wastes time, while if we know there
+ * are smaller factors then deeper ECM is useful).
+ *
+ * SIQS runs at most once for each cofactor; misses stay on the ladder. */
+static const factor_step_t factor_ladder[] = {
+  /* bits  method                     arg1      arg2 */
+  { 320, FACTOR_METHOD_SIQS,              0,         0, "SIQS"             },
+  {   0, FACTOR_METHOD_ECM_SCALED,        2,        20, NULL               },
+  { 360, FACTOR_METHOD_SIQS,              0,         0, "SIQS"             },
+  {   0, FACTOR_METHOD_PBRENT,            1,   1048576, "pbrent (1,1M)"    },
+  {   0, FACTOR_METHOD_ECM_SCALED,        4,        20, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,        8,        20, NULL               },
+  { 400, FACTOR_METHOD_SIQS,              0,         0, "SIQS"             },
+  {   0, FACTOR_METHOD_HOLF,        1048576,         0, "holf"             },
+  {   0, FACTOR_METHOD_CHEB,          50000,         0, "cheb (50k)"       },
+  {   0, FACTOR_METHOD_PM1,         5000000, 100000000, "p-1 (5M)"         },
+  /* Above 400 bits SIQS is not end-to-end validated and can use substantial
+   * memory/time.  Give ECM more opportunity before trying the supported range. */
+  {   0, FACTOR_METHOD_ECM_SCALED,       32,        40, NULL               },
+  {   0, FACTOR_METHOD_LARGE_ECM,         8,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,       16,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,       32,       100, NULL               },
+  {   0, FACTOR_METHOD_SIQS,              0,         0, "SIQS"             },
+  {   0, FACTOR_METHOD_ECM_SCALED,       64,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,      128,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,      256,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,      512,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,     1024,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,     2048,       100, NULL               },
+  {   0, FACTOR_METHOD_ECM_SCALED,     4096,       100, NULL               }
 };
 
 static UV factor_early_pm1_bound(UV nbits)
@@ -129,28 +176,20 @@ static UV factor_early_pm1_bound(UV nbits)
                      : 20000;
 }
 
-static int run_factor_pretests(const mpz_t n, mpz_t f, UV nbits, int *verbose)
+/* arg1/arg2 are resolved call parameters, not the table's ECM multipliers.
+ * Return a table label or format a dynamic label in the caller's buffer. */
+static const char *factor_step_name(const factor_step_t *step, UV arg1, UV arg2,
+                                    char *buffer, size_t size)
 {
-  size_t i;
-  int success = 0;
-
-  for (i = 0; i < sizeof(factor_pretests) / sizeof(factor_pretests[0]); i++) {
-    const factor_pretest_t *test = &factor_pretests[i];
-    if (nbits < test->min_bits)
-      continue;
-    if (test->method == FACTOR_PRETEST_PM1)
-      success = _GMP_pminus1_factor(n, f, test->B1, test->B2_or_curves);
-    else
-      success = _GMP_ECM_FACTOR(n, f, test->B1, test->B2_or_curves);
-    if (success) {
-      if (*verbose) {
-        gmp_printf("%s found factor %Zd\n", test->description, f);
-        *verbose = 0;
-      }
-      break;
-    }
-  }
-  return success;
+  if (step->method == FACTOR_METHOD_EARLY_PM1)
+    gmp_snprintf(buffer, size, "p-1 (%luk)", (unsigned long)(arg1/1000));
+  else if (step->method == FACTOR_METHOD_ECM_SCALED ||
+           step->method == FACTOR_METHOD_LARGE_ECM)
+    gmp_snprintf(buffer, size, "ecm (%luk,%lu)",
+                 (unsigned long)(arg1/1000), (unsigned long)arg2);
+  else
+    return step->description;
+  return buffer;
 }
 
 static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexponents)
@@ -197,6 +236,78 @@ static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexp
   mpz_set((*pfactors)[i], f);
   (*pexponents)[i] = e;
   return nfactors+1;
+}
+
+typedef enum {
+  FACTOR_SIQS_NO_SPLIT,
+  FACTOR_SIQS_FACTOR,
+  FACTOR_SIQS_WORK_UPDATED
+} factor_siqs_result_t;
+
+/* A pair behaves like any ordinary splitter: return a divisor in f without
+ * changing n or the factor/work lists.  Larger partitions are consumed here;
+ * the caller must restart on WORK_UPDATED, not enter its single-factor path. */
+static factor_siqs_result_t factor_try_siqs(
+    mpz_t n, mpz_t f, mpz_t *tofac_stack, int *ntofac,
+    int *nfactors, mpz_t **factors, int **exponents, int verbose)
+{
+  mpz_t *farray;
+  uint32_t i, j, k, copies, ncomp, qs_nfactors;
+  int progress = 0;
+
+  /* SIQS clamps negative verbosity; preserve the module's quiet low levels. */
+  farray = gmp_siqs(n, &qs_nfactors, 64007, verbose - 2);
+  if (qs_nfactors < 2) {
+    gmp_siqs_free(farray, qs_nfactors);
+    return FACTOR_SIQS_NO_SPLIT;
+  }
+  if (qs_nfactors == 2) {
+    mpz_set(f, farray[0]);
+    gmp_siqs_free(farray, qs_nfactors);
+    return FACTOR_SIQS_FACTOR;
+  }
+
+  qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);
+
+  /* Add prime groups and compact distinct composite groups into work items. */
+  for (i = 0, ncomp = 0; i < qs_nfactors; i = j) {
+    for (j = i+1; j < qs_nfactors && mpz_cmp(farray[i], farray[j]) == 0; j++)
+      ;
+    copies = j - i;
+    if (_GMP_is_prob_prime(farray[i])) {
+      *nfactors = add_factor(*nfactors, farray[i], (int)copies, factors, exponents);
+      for (k = 0; k < copies; k++)
+        mpz_divexact(n, n, farray[i]);
+      progress = 1;
+      if (verbose) {
+        gmp_printf("SIQS found prime factor %Zd", farray[i]);
+        if (copies > 1) gmp_printf("^%u", (unsigned int)copies);
+        gmp_printf("\n");
+      }
+    } else {
+      if (copies == 1)
+        mpz_set(farray[ncomp], farray[i]);
+      else {
+        mpz_pow_ui(f, farray[i], copies);
+        mpz_set(farray[ncomp], f);
+      }
+      ncomp++;
+    }
+  }
+
+  /* Keep the smallest composite in n.  If the stack fills, unpushed work
+   * remains represented by its product in n, as in the existing factor loop. */
+  if (ncomp > 1)
+    qsort(farray, ncomp, sizeof(mpz_t), _mpz_cmp_asc);
+  for (i = ncomp; i > 1 && *ntofac < MAX_FACTORS-1; ) {
+    i--;
+    if (verbose) gmp_printf("SIQS found composite factor %Zd\n", farray[i]);
+    mpz_init_set(tofac_stack[(*ntofac)++], farray[i]);
+    mpz_divexact(n, n, farray[i]);
+    progress = 1;
+  }
+  gmp_siqs_free(farray, qs_nfactors);
+  return progress ? FACTOR_SIQS_WORK_UPDATED : FACTOR_SIQS_NO_SPLIT;
 }
 
 #define ADD_FACTOR_UI(f, t) \
@@ -282,8 +393,12 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
     while ( mpz_cmp_ui(n, tlim*tlim) >= 0 && !_GMP_is_prob_prime(n) ) {
       int success = 0;
       int o = get_verbose_level();
-      UV B1, nbits = mpz_sizeinbase(n, 2);
-      int try_siqs = 0;
+      UV B1 = 0, nbits = mpz_sizeinbase(n, 2);
+      size_t stage, step_index;
+      int siqs_attempted = 0, qs_work_updated = 0;
+
+      if (o > 1)
+        {gmp_printf("Factoring %Zd...\n",n); fflush(stdout);}
 
       /* First handle inputs small enough for the native-word methods. */
 
@@ -317,136 +432,98 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
       }
 
-      if (nbits >= MPU_SIQS_MIN_BITS) {
-        UV early_B1 = factor_early_pm1_bound(nbits);
+      /* Execute the minimum-bit pretests, then the maximum-bit main ladder.
+       * n is unchanged throughout this walk unless SIQS consumes a partition;
+       * that outcome restarts the cofactor loop with fresh bits/attempt state. */
+      for (stage = 0; stage < 2 && !success && !qs_work_updated; stage++) {
+        const factor_step_t *steps = stage == 0 ? factor_pretests : factor_ladder;
+        size_t nsteps = stage == 0
+            ? sizeof(factor_pretests) / sizeof(factor_pretests[0])
+            : sizeof(factor_ladder) / sizeof(factor_ladder[0]);
 
-        if (!success && early_B1 != 0) {
-          success = _GMP_pminus1_factor(n, f, early_B1, 10*early_B1);
-          if (success&&o) {
-            gmp_printf("p-1 (%luk) found factor %Zd\n",early_B1/1000,f);
-            o=0;
+        for (step_index = 0;
+             step_index < nsteps && !success && !qs_work_updated; step_index++) {
+          const factor_step_t *step = &steps[step_index];
+          UV arg1 = step->arg1, arg2 = step->arg2;
+          char method_buffer[64];
+          const char *method_name = NULL;
+
+          if (stage == 0 && nbits < step->bits)
+            continue;
+          if (stage != 0 && step->bits != 0 && nbits > step->bits)
+            continue;
+
+          /* Resolve bounds and skip ineligible calls before announcing work. */
+          if (step->method == FACTOR_METHOD_EARLY_PM1) {
+            arg1 = factor_early_pm1_bound(nbits);
+            if (arg1 == 0)
+              continue;
+            arg2 = 10*arg1;
+          } else if (step->method == FACTOR_METHOD_ECM_SCALED ||
+                     step->method == FACTOR_METHOD_LARGE_ECM) {
+            if (B1 == 0)
+              B1 = nbits < 65  ?   5000
+                 : nbits < 160 ?  20000
+                 : nbits < 192 ?  30000
+                 : nbits < 224 ?  40000
+                 : nbits < 256 ?  80000
+                 : nbits < 512 ? 160000
+                               : 320000;
+            arg1 *= B1;
+          } else if (step->method == FACTOR_METHOD_SIQS &&
+                     (siqs_attempted || nbits < MPU_SIQS_MIN_BITS ||
+                      nbits > MPU_SIQS_MAX_BITS)) {
+            continue;
           }
-        }
 
-        if (!success)  success = run_factor_pretests(n, f, nbits, &o);
-        if (nbits <= MPU_SIQS_MAX_BITS && nbits <= 400)
-          try_siqs = 1;
-      }
+          if (o)
+            method_name = factor_step_name(step, arg1, arg2,
+                                           method_buffer, sizeof(method_buffer));
+          if (o > 1)
+            {gmp_printf("  Factor trying %s\n", method_name); fflush(stdout);}
 
-      /* This generic recipe sends supported-size inputs to SIQS.  It is
-       * excellent for balanced composites, but can use more memory than ECM. */
-      if (!success && try_siqs) {
-        mpz_t *farray;
-        uint32_t i, j, k, copies, ncomp, qs_nfactors;
-        int qs_progress = 0;
-        int qs_verbose = get_verbose_level() - 2;
-
-        /* Keep the module's existing quiet low levels; SIQS owns its 0-3 scale. */
-        farray = gmp_siqs(n, &qs_nfactors, 64007, qs_verbose);
-
-        if (qs_nfactors > 1) {
-          qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);
-
-          /* Add prime groups immediately and compact each distinct composite
-           * group into one work item. */
-          for (i = 0, ncomp = 0; i < qs_nfactors; i = j) {
-            for (j = i+1;
-                 j < qs_nfactors && mpz_cmp(farray[i], farray[j]) == 0;
-                 j++)
-              ;
-            copies = j - i;
-            if (_GMP_is_prob_prime(farray[i])) {
-              ADD_FACTORS(farray[i], (int)copies);
-              for (k = 0; k < copies; k++)
-                mpz_divexact(n, n, farray[i]);
-              qs_progress = 1;
-              if (o) {
-                gmp_printf("SIQS found prime factor %Zd", farray[i]);
-                if (copies > 1) gmp_printf("^%u", (unsigned int)copies);
-                gmp_printf("\n");
+          switch (step->method) {
+            case FACTOR_METHOD_EARLY_PM1:
+            case FACTOR_METHOD_PM1:
+              success = _GMP_pminus1_factor(n, f, arg1, arg2);
+              break;
+            case FACTOR_METHOD_ECM:
+              success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
+              break;
+            case FACTOR_METHOD_LARGE_ECM:
+              if (o) gmp_printf("starting large ECM on %Zd\n", n);
+              /* FALLTHROUGH */
+            case FACTOR_METHOD_ECM_SCALED:
+              success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
+              break;
+            case FACTOR_METHOD_PBRENT:
+              success = _GMP_pbrent_factor(n, f, arg1, arg2);
+              break;
+            case FACTOR_METHOD_HOLF:
+              success = _GMP_holf_factor(n, f, arg1);
+              break;
+            case FACTOR_METHOD_CHEB:
+              success = _GMP_cheb_factor(n, f, arg1, arg2);
+              break;
+            case FACTOR_METHOD_SIQS:
+              siqs_attempted = 1;  /* A miss must not retry this same cofactor. */
+              {
+                factor_siqs_result_t result = factor_try_siqs(
+                    n, f, tofac_stack, &ntofac, &nfactors, &factors, &exponents, o);
+                success = result == FACTOR_SIQS_FACTOR;
+                qs_work_updated = result == FACTOR_SIQS_WORK_UPDATED;
               }
-            } else {
-              if (copies == 1)
-                mpz_set(farray[ncomp], farray[i]);
-              else {
-                mpz_pow_ui(f, farray[i], copies);
-                mpz_set(farray[ncomp], f);
-              }
-              ncomp++;
-            }
+              break;
+            default:
+              croak("Unknown factoring method");
           }
 
-          /* Work on the smallest composite next.  If the stack fills, the
-           * unpushed composites remain represented by their product in n. */
-          if (ncomp > 1)
-            qsort(farray, ncomp, sizeof(mpz_t), _mpz_cmp_asc);
-          for (i = ncomp; i > 1 && ntofac < MAX_FACTORS-1; ) {
-            i--;
-            if (o) gmp_printf("SIQS found composite factor %Zd\n", farray[i]);
-            mpz_init_set(tofac_stack[ntofac++], farray[i]);
-            mpz_divexact(n, n, farray[i]);
-            qs_progress = 1;
-          }
-
+          if (success && o)
+            {gmp_printf("%s found %Zd\n", method_name, f); o = 0;}
         }
-        gmp_siqs_free(farray, qs_nfactors);
-        if (qs_progress)
-          continue;
       }
-
-      /* Scale the shared fallback ECM ladder only when it is reached. */
-      B1 = nbits < 65  ?   5000
-         : nbits < 160 ?  20000
-         : nbits < 192 ?  30000
-         : nbits < 224 ?  40000
-         : nbits < 256 ?  80000
-         : nbits < 512 ? 160000
-                       : 320000;
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 2*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) found factor %Zd\n",2*B1/1000,f);o=0;}
-
-      if (!success)  success = _GMP_pbrent_factor(n, f, 1, 1*1024*1024);
-      if (success&&o) {gmp_printf("pbrent (1,1M) found factor %Zd\n", f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 4*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 4*B1/1000,f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 8*B1, 20);
-      if (success&&o) {gmp_printf("ecm (%luk,20) ecm found factor %Zd\n", 8*B1/1000,f);o=0;}
-
-      /* HOLF in case it's a near-ratio-of-perfect-square */
-      if (!success)  success = _GMP_holf_factor(n, f, 1*1024*1024);
-      if (success&&o) {gmp_printf("holf found factor %Zd\n", f);o=0;}
-
-      /* Chebyshev poly in case p+1 is smooth */
-      if (!success) success = _GMP_cheb_factor(n, f, 50000, 0);
-      if (success&&o) {gmp_printf("cheb (%dk) found factor %Zd\n",50,f);o=0;}
-
-      /* Large p-1 with stage 2: B2 = 20*B1 */
-      if (!success)  success = _GMP_pminus1_factor(n,f,5000000,5000000*20);
-      if (success&&o) {gmp_printf("p-1 (5M) found factor %Zd\n", f);o=0;}
-
-      if (!success)  success = _GMP_ECM_FACTOR(n, f, 32*B1, 40);
-      if (success&&o) {gmp_printf("ecm (%luk,40) ecm found factor %Zd\n", 32*B1/1000,f);o=0;}
-
-      /*
-      if (!success)  success = _GMP_pbrent_factor(n, f, 2, 512*1024*1024);
-      if (success&&o) {gmp_printf("pbrent (2,512M) found factor %Zd\n", f);o=0;}
-      */
-
-      /* Our method of last resort: ECM with high bmax and many curves*/
-      if (!success) {
-        int i;
-        if (get_verbose_level()) gmp_printf("starting large ECM on %Zd\n",n);
-        B1 *= 8;
-        for (i = 0; i < 10; i++) {
-          success = _GMP_ECM_FACTOR(n, f, B1, 100);
-          if (success) break;
-          B1 *= 2;
-        }
-        if (success&&o) {gmp_printf("ecm (%luk,100) ecm found factor %Zd\n", B1,f);o=0;}
-      }
+      if (qs_work_updated)
+        continue;
 
       if (success) {
         if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {

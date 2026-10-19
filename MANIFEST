@@ -127,6 +127,9 @@ t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
 tools/build-siqs.pl
+tools/factor-check.pl
+tools/factor-check.inc.c
+xt/factor-ladder.t
 tools/pthread-probe.c
 tools/siqs-check.c
 tools/siqs-check-scores.inc.c
