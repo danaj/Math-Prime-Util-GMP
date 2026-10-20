@@ -25,6 +25,12 @@ my $source = do { local $/; <$input> };
 close $input;
 $source =~ s/\nstatic void _omega\b.*\z/\n/s
   or die "Cannot locate the end of the factor-loop prefix\n";
+my $ecm_path = File::Spec->catfile($root, 'ecm.c');
+open my $ecm_input, '<', $ecm_path or die "$ecm_path: $!\n";
+my $ecm_source = do { local $/; <$ecm_input> };
+close $ecm_input;
+my ($bounds) = $ecm_source =~ /(^static UV ecm_resolve_b2\b.*?^\})/ms;
+defined $bounds or die "Cannot locate the ECM bound resolver\n";
 my $generated = File::Spec->catfile($temporary, 'factor-check.c');
 my $checks = File::Spec->catfile($Bin, 'factor-check.inc.c');
 open my $output, '>', $generated or die "$generated: $!\n";
@@ -42,7 +48,16 @@ static int check_printf(const char *format, ...);
 #undef gmp_printf
 #define gmp_printf check_printf
 CHECK_HOOKS
-print {$output} $source, "\n#include \"", escaped($checks), "\"\n";
+print {$output} $source, "\n#include <stdint.h>\n";
+# Exercise the actual resolver with both UV widths, even on a 64-bit host.
+for my $bits (32, 64) {
+  my $typed_bounds = $bounds;
+  $typed_bounds =~ s/\becm_resolve_b2\b/ecm_resolve_b2_$bits/g;
+  $typed_bounds =~ s/\bUV_MAX\b/UINT${bits}_MAX/g;
+  $typed_bounds =~ s/\bUV\b/uint${bits}_t/g;
+  print {$output} "\n", $typed_bounds, "\n";
+}
+print {$output} "\n#include \"", escaped($checks), "\"\n";
 close $output or die "$generated: $!\n";
 my $binary = File::Spec->catfile($temporary, 'factor-check');
 my @sanitizers = $sanitize ? ('-fsanitize=address,undefined', '-fno-omit-frame-pointer') : ();

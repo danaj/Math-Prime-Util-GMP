@@ -137,6 +137,7 @@ static const factor_step_t factor_pretests[] = {
  * ecm_factor and qs_factor can be faster (e.g. if the input is known to be
  * a large balanced semiprime, then ECM wastes time, while if we know there
  * are smaller factors then deeper ECM is useful).
+ * ECM_SCALED/LARGE_ECM multiply arg1 by factor_ecm_base_bound(bits).
  *
  * SIQS runs at most once for each cofactor; misses stay on the ladder. */
 static const factor_step_t factor_ladder[] = {
@@ -160,11 +161,7 @@ static const factor_step_t factor_ladder[] = {
   {   0, FACTOR_METHOD_SIQS,              0,         0, "SIQS"             },
   {   0, FACTOR_METHOD_ECM_SCALED,       64,       100, NULL               },
   {   0, FACTOR_METHOD_ECM_SCALED,      128,       100, NULL               },
-  {   0, FACTOR_METHOD_ECM_SCALED,      256,       100, NULL               },
-  {   0, FACTOR_METHOD_ECM_SCALED,      512,       100, NULL               },
-  {   0, FACTOR_METHOD_ECM_SCALED,     1024,       100, NULL               },
-  {   0, FACTOR_METHOD_ECM_SCALED,     2048,       100, NULL               },
-  {   0, FACTOR_METHOD_ECM_SCALED,     4096,       100, NULL               }
+  /* More ECM work could be done but at this point we are the wrong tool. */
 };
 
 static UV factor_early_pm1_bound(UV nbits)
@@ -174,6 +171,17 @@ static UV factor_early_pm1_bound(UV nbits)
        : nbits < 112 ?  1000
        : nbits < 144 ?  2000
                      : 20000;
+}
+
+static UV factor_ecm_base_bound(UV nbits)
+{
+  return nbits <  65 ?   5000
+       : nbits < 160 ?  20000
+       : nbits < 192 ?  30000
+       : nbits < 224 ?  40000
+       : nbits < 256 ?  80000
+       : nbits < 512 ? 160000
+                     : 320000;
 }
 
 /* arg1/arg2 are resolved call parameters, not the table's ECM multipliers.
@@ -471,13 +479,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
           } else if (step->method == FACTOR_METHOD_ECM_SCALED ||
                      step->method == FACTOR_METHOD_LARGE_ECM) {
             if (B1 == 0)
-              B1 = nbits < 65  ?   5000
-                 : nbits < 160 ?  20000
-                 : nbits < 192 ?  30000
-                 : nbits < 224 ?  40000
-                 : nbits < 256 ?  80000
-                 : nbits < 512 ? 160000
-                               : 320000;
+              B1 = factor_ecm_base_bound(nbits);
             arg1 *= B1;
           } else if (step->method == FACTOR_METHOD_SIQS &&
                      (siqs_attempted || nbits < MPU_SIQS_MIN_BITS ||
@@ -1713,7 +1715,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_init(savea);
   mpz_init(t);
 
-  if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%"UVuf" B2=%"UVuf")\n", n, (unsigned long)B1, (unsigned long)B2);
+  if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%"UVuf" B2=%"UVuf")\n", n, B1, B2);
 
   /* STAGE 1
    * See Montgomery 1987 p249-250 or Brent 1990 p5.  We can take E to be the

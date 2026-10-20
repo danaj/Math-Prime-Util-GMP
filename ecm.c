@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 #include <gmp.h>
 
 #include "ptypes.h"
@@ -20,6 +21,17 @@
     if (mpz_divisible_ui_p(n, 7)) { mpz_set_ui(f, 7); return 1; } \
     if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
   }
+
+/* D is below 2^(UV bits/2).  Reserve three such widths so the stage-2
+ * endpoints B2+D, m+D and the final m+=2*D cannot wrap.  Saturate both
+ * explicit B2 values and the default without overflowing its multiplication. */
+static UV ecm_resolve_b2(UV B1, UV B2)
+{
+  const UV max_B2 = UV_MAX - 3 * ((UV)1 << (sizeof(UV)*CHAR_BIT/2));
+  if (B2 < B1)
+    B2 = B1 > max_B2 / 100 ? max_B2 : 100 * B1;
+  return B2 > max_B2 ? max_B2 : B2;
+}
 
 /* P3 = P1 + P2 */
 static void _ec_add_AB(const mpz_t n,
@@ -575,7 +587,7 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
 
   TEST_FOR_2357(n, f);
 
-  if (B2 < B1)  B2 = 100*B1;  /* time(S1) == time(S2) ~ 125 */
+  B2 = ecm_resolve_b2(B1, B2);  /* Default B2/B1 ratio: 100. */
 
   mpz_init_set(ecn, n);
   mpz_init(x);   mpz_init(z);   mpz_init(a);   mpz_init(b);
@@ -585,7 +597,7 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
   mpz_init(x3);  mpz_init(z3);  mpz_init(x4);  mpz_init(z4);
 #endif
 
-  if (_verbose>2) gmp_printf("# ecm trying %Zd (B1=%lu B2=%lu ncurves=%lu)\n", n, (unsigned long)B1, (unsigned long)B2, (unsigned long)ncurves);
+  if (_verbose>2) gmp_printf("# ecm trying %Zd (B1=%"UVuf" B2=%"UVuf" ncurves=%"UVuf")\n", n, B1, B2, ncurves);
 
   for (curve = 0; curve < ncurves; curve++) {
     PRIME_ITERATOR(iter);
@@ -636,8 +648,10 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
     mpz_set_ui(sigma, 1);
 
     /* Stage 1 */
-    for (q = 2; q < B1; q *= 2)
+    for (q = 2; q < B1; q *= 2) {
       ec_double(x, z, x, z);
+      if (q > (B1-1)/2) break; /* The next power reaches B1 or would wrap. */
+    }
     mpz_mulmod(sigma, sigma, x, ecn, w);
     i = 15;
     for (q = prime_iterator_next(&iter); q < B1; q = prime_iterator_next(&iter)) {

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <math.h>
 
 enum { CHECK_ECM, CHECK_PM1, CHECK_PBRENT, CHECK_HOLF, CHECK_CHEB,
        CHECK_SIQS, CHECK_NATIVE, CHECK_SQUFOF };
@@ -190,8 +191,8 @@ static void check_semiprime(unsigned bits) {
   mpz_clear(q);
 }
 
-/* Compare all non-SIQS calls with the old recipe, independently of the new
- * tables.  A SIQS miss must leave the complete fallback sequence intact. */
+/* Check the intended non-SIQS sequence independently of the policy tables.
+ * A SIQS miss must leave the complete five-stage fallback intact. */
 static void check_expected(size_t *index, int kind, UV a, UV b) {
   while (*index < check_nevents && check_events[*index].kind == CHECK_SIQS) (*index)++;
   CHECK(*index < check_nevents);
@@ -200,7 +201,7 @@ static void check_expected(size_t *index, int kind, UV a, UV b) {
   CHECK(check_events[*index].b == b);
   (*index)++;
 }
-static void check_old_recipe(unsigned bits) {
+static void check_fallback_recipe(unsigned bits) {
   size_t index = 0;
   UV base, early, m;
   if (bits <= 63) check_expected(&index, CHECK_NATIVE, 400000, 0);
@@ -223,6 +224,7 @@ static void check_old_recipe(unsigned bits) {
   if (bits >= 288) check_expected(&index, CHECK_ECM, 160000, 80);
   base = bits < 65 ? 5000 : bits < 160 ? 20000 : bits < 192 ? 30000
        : bits < 224 ? 40000 : bits < 256 ? 80000 : bits < 512 ? 160000 : 320000;
+  CHECK(factor_ecm_base_bound(bits) == base);
   check_expected(&index, CHECK_ECM, 2*base, 20);
   check_expected(&index, CHECK_PBRENT, 1, 1048576);
   check_expected(&index, CHECK_ECM, 4*base, 20);
@@ -231,9 +233,42 @@ static void check_old_recipe(unsigned bits) {
   check_expected(&index, CHECK_CHEB, 50000, 0);
   check_expected(&index, CHECK_PM1, 5000000, 100000000);
   check_expected(&index, CHECK_ECM, 32*base, 40);
-  for (m = 8; m <= 4096; m *= 2) check_expected(&index, CHECK_ECM, m*base, 100);
+  for (m = 8; m <= 128; m *= 2) check_expected(&index, CHECK_ECM, m*base, 100);
   while (index < check_nevents && check_events[index].kind == CHECK_SIQS) index++;
   CHECK(index == check_nevents);
+}
+
+static uint64_t check_ecm_b2_32(uint64_t b1, uint64_t b2) {
+  return ecm_resolve_b2_32((uint32_t)b1, (uint32_t)b2);
+}
+
+static void check_ecm_bounds(uint64_t (*resolve)(uint64_t, uint64_t),
+                             uint64_t maximum, uint64_t limit) {
+  uint64_t b1, want, d, last;
+  unsigned i;
+  CHECK(resolve(0, 0) == 0);
+  CHECK(resolve(7, 6) == 700);
+  CHECK(resolve(7, 7) == 7); /* Explicit stage-1-only request. */
+  CHECK(resolve(1000, 100000) == 100000);
+  CHECK(resolve(40960000, 0) == UINT64_C(4096000000));
+  CHECK(resolve(maximum, 0) == limit);
+  CHECK(resolve(maximum, maximum) == limit);
+  CHECK(resolve(1, maximum) == limit);
+  CHECK(resolve(1, limit - 1) == limit - 1);
+  CHECK(resolve(1, limit) == limit);
+  CHECK(resolve(1, limit + 1) == limit);
+  for (i = 0; i <= 1000; i++) {
+    b1 = limit/100 - 500 + i;
+    want = b1 > limit/100 ? limit : 100*b1;
+    CHECK(resolve(b1, 0) == want);
+    CHECK(resolve(b1, b1 - 1) == want);
+  }
+  d = (uint64_t)sqrt((double)limit / 2.0);
+  d += d & 1;
+  CHECK(limit <= maximum - 3*d);
+  last = 1 + ((limit + d - 2) / (2*d)) * (2*d);
+  CHECK(last <= maximum - 2*d);
+  CHECK(last + 2*d >= limit + d); /* Final increment exits, without wrap. */
 }
 
 static void check_names(void) {
@@ -268,7 +303,7 @@ static void check_schedule(void) {
     check_terminal_failure();
     CHECK(check_siqs_calls == (bits >= MPU_SIQS_MIN_BITS && bits <= MPU_SIQS_MAX_BITS));
     CHECK(check_releases == check_siqs_calls);
-    check_old_recipe(bits);
+    check_fallback_recipe(bits);
     if (bits > 320 && bits <= MPU_SIQS_MAX_BITS) {
       for (j = 0; j < check_nevents && check_events[j].kind != CHECK_SIQS; j++) ;
       CHECK(j > 0 && j < check_nevents);
@@ -436,6 +471,9 @@ int main(void) {
   mpz_init(check_input);
   for (i = 0; i < 8; i++) mpz_init(check_parts[i]);
   _init_factor();
+  check_ecm_bounds(check_ecm_b2_32, UINT32_MAX, UINT64_C(4294770687));
+  check_ecm_bounds(ecm_resolve_b2_64, UINT64_MAX,
+                   UINT64_MAX - UINT64_C(12884901888));
   check_names();
 #ifdef FACTOR_CHECK_TRACE
   /* Optional verbose scheduling trace; no real high-bit factoring is done. */
@@ -450,6 +488,6 @@ int main(void) {
   for (i = 0; i < 8; i++) mpz_clear(check_parts[i]);
   mpz_clear(check_input);
   CHECK(check_allocations == 0);
-  printf("PASS factor ladder/helper: %u checks; boundaries through 600 bits, failure cleanup\n", check_assertions);
+  printf("PASS factor ladder/helper: %u checks; boundaries through 600 bits, 32/64-bit ECM bounds, failure cleanup\n", check_assertions);
   return 0;
 }
