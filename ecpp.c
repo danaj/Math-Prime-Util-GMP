@@ -473,18 +473,18 @@ int ecpp_check_point(const mpz_t x, const mpz_t y,
   int result = 1;
 
   mpz_init_set(P.x, x);  mpz_init_set(P.y, y);
+  P.infinity = 0;
   mpz_init(P1.x); mpz_init(P1.y);
   mpz_init(P2.x); mpz_init(P2.y);
 
   mpz_tdiv_q(t, m, q);
   if (!ec_affine_multiply(a, t, N, P, &P2, t2)) {
     mpz_tdiv_q(t, m, q);
-    /* P2 should not be (0,1) */
-    if (!(mpz_cmp_ui(P2.x, 0) == 0 && mpz_cmp_ui(P2.y, 1) == 0)) {
+    /* P2 must be finite; (0,1) itself can be a finite curve point. */
+    if (!P2.infinity) {
       mpz_set(t, q);
       if (!ec_affine_multiply(a, t, N, P2, &P1, t2)) {
-        /* P1 should be (0,1) */
-        if (mpz_cmp_ui(P1.x, 0) == 0 && mpz_cmp_ui(P1.y, 1) == 0) {
+        if (P1.infinity) {
           result = 2;
         }
       } else result = 0;

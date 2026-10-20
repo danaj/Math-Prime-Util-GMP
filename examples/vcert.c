@@ -177,137 +177,140 @@ static void quit_error(const char* msg1, const char* msg2) {
 /* EC: affine with point (x,y,1)                                             */
 /*****************************************************************************/
 
-struct ec_affine_point  { mpz_t x, y; };
-/* P3 = P1 + P2 */
-static void _ec_add_AB(mpz_t n,
-                    struct ec_affine_point P1,
-                    struct ec_affine_point P2,
-                    struct ec_affine_point *P3,
-                    mpz_t m,
-                    mpz_t t1,
-                    mpz_t t2)
+struct ec_affine_point  { mpz_t x, y; int infinity; };
+static void ec_affine_set(struct ec_affine_point *R,
+                          const struct ec_affine_point P)
 {
-  if (!mpz_cmp(P1.x, P2.x)) {
-    mpz_add(t2, P1.y, P2.y);
-    mpz_mod(t1, t2, n);
-    if (!mpz_cmp_ui(t1, 0) ) {
-      mpz_set_ui(P3->x, 0);
-      mpz_set_ui(P3->y, 1);
-      return;
-    }
-  }
-
-  mpz_sub(t1, P2.x, P1.x);
-  mpz_mod(t2, t1, n);
-
-  /* t1 = 1/deltay mod n */
-  if (!mpz_invert(t1, t2, n)) {
-    /* We've found a factor!  In multiply, gcd(mult,n) will be a factor. */
-    mpz_set_ui(P3->x, 0);
-    mpz_set_ui(P3->y, 1);
-    return;
-  }
-
-  mpz_sub(m, P2.y, P1.y);
-  mpz_mod(t2, m, n);        /* t2 = deltay   mod n */
-  mpz_mul(m, t1, t2);
-  mpz_mod(m, m, n);         /* m = deltay / deltax   mod n */
-
-  /* x3 = m^2 - x1 - x2 mod n */
-  mpz_mul(t1, m, m);
-  mpz_sub(t2, t1, P1.x);
-  mpz_sub(t1, t2, P2.x);
-  mpz_mod(P3->x, t1, n);
-  /* y3 = m(x1 - x3) - y1 mod n */
-  mpz_sub(t1, P1.x, P3->x);
-  mpz_mul(t2, m, t1);
-  mpz_sub(t1, t2, P1.y);
-  mpz_mod(P3->y, t1, n);
+  mpz_set(R->x, P.x);  mpz_set(R->y, P.y);
+  R->infinity = P.infinity;
 }
 
-/* P3 = 2*P1 */
-static void _ec_add_2A(mpz_t a,
-                    mpz_t n,
-                    struct ec_affine_point P1,
+static void ec_affine_set_infinity(struct ec_affine_point *R)
+{
+  mpz_set_ui(R->x, 0);  mpz_set_ui(R->y, 1);
+  R->infinity = 1;
+}
+
+/* P3 = 2*P1.  P3 must be distinct from P1. */
+static int _ec_add_2A(const mpz_t a,
+                    const mpz_t n,
+                    const struct ec_affine_point P1,
                     struct ec_affine_point *P3,
+                    mpz_t d,
                     mpz_t m,
                     mpz_t t1,
                     mpz_t t2)
 {
+  if (P1.infinity || mpz_sgn(P1.y) == 0) {
+    ec_affine_set_infinity(P3);
+    return 0;
+  }
   /* m = (3x1^2 + a) * (2y1)^-1 mod n */
   mpz_mul_ui(t1, P1.y, 2);
   if (!mpz_invert(m, t1, n)) {
-    mpz_set_ui(P3->x, 0);
-    mpz_set_ui(P3->y, 1);
-    return;
+    mpz_gcd(d, t1, n);
+    return 1;
   }
   mpz_mul_ui(t1, P1.x, 3);
   mpz_mul(t2, t1, P1.x);
   mpz_add(t1, t2, a);
   mpz_mul(t2, m, t1);
-  mpz_tdiv_r(m, t2, n);
+  mpz_mod(m, t2, n);
 
   /* x3 = m^2 - 2x1 mod n */
   mpz_mul(t1, m, m);
   mpz_mul_ui(t2, P1.x, 2);
   mpz_sub(t1, t1, t2);
-  mpz_tdiv_r(P3->x, t1, n);
+  mpz_mod(P3->x, t1, n);
 
   /* y3 = m(x1 - x3) - y1 mod n */
   mpz_sub(t1, P1.x, P3->x);
   mpz_mul(t2, t1, m);
   mpz_sub(t1, t2, P1.y);
-  mpz_tdiv_r(P3->y, t1, n);
+  mpz_mod(P3->y, t1, n);
+  P3->infinity = 0;
+  return 0;
 }
 
-static int ec_affine_multiply(mpz_t a, mpz_t k, mpz_t n, struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
+/* P3 = P1 + P2.  P3 must be distinct from both inputs. */
+static int _ec_add_AB(const mpz_t a, const mpz_t n,
+                     const struct ec_affine_point P1,
+                     const struct ec_affine_point P2,
+                     struct ec_affine_point *P3,
+                     mpz_t d, mpz_t m, mpz_t t1, mpz_t t2)
+{
+  if (P1.infinity) { ec_affine_set(P3, P2); return 0; }
+  if (P2.infinity) { ec_affine_set(P3, P1); return 0; }
+  if (mpz_cmp(P1.x, P2.x) == 0) {
+    if (mpz_cmp(P1.y, P2.y) == 0)
+      return _ec_add_2A(a, n, P1, P3, d, m, t1, t2);
+    mpz_add(t1, P1.y, P2.y);
+    mpz_mod(t1, t1, n);
+    if (mpz_sgn(t1) == 0) {
+      ec_affine_set_infinity(P3);
+      return 0;
+    }
+    /* Equal x but neither equal nor opposite y: the points agree in
+     * some CRT components and are opposites in the others. */
+    mpz_sub(t1, P1.y, P2.y);
+    mpz_gcd(d, t1, n);
+    return 1;
+  }
+  mpz_sub(t2, P2.x, P1.x);
+  if (!mpz_invert(t1, t2, n)) {
+    mpz_gcd(d, t2, n);
+    return 1;
+  }
+  mpz_sub(t2, P2.y, P1.y);
+  mpz_mul(m, t1, t2);
+  mpz_mod(m, m, n);
+
+  mpz_mul(t1, m, m);
+  mpz_sub(t1, t1, P1.x);
+  mpz_sub(t1, t1, P2.x);
+  mpz_mod(P3->x, t1, n);
+  mpz_sub(t1, P1.x, P3->x);
+  mpz_mul(t2, m, t1);
+  mpz_sub(t1, t2, P1.y);
+  mpz_mod(P3->y, t1, n);
+  P3->infinity = 0;
+  return 0;
+}
+
+/* k >= 0 is consumed to zero on success, or partially consumed if an
+ * inversion fails.  Copying P first permits R=P; other writable arguments
+ * must not alias another argument, and point x/y coordinates are distinct. */
+static int ec_affine_multiply(const mpz_t a, mpz_t k, const mpz_t n, const struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
 {
   int found = 0;
   struct ec_affine_point A, B, C;
-  mpz_t t, t2, t3, mult;
+  mpz_t t, t2, t3;
 
   mpz_init(A.x); mpz_init(A.y);
   mpz_init(B.x); mpz_init(B.y);
   mpz_init(C.x); mpz_init(C.y);
   mpz_init(t);   mpz_init(t2);   mpz_init(t3);
-  mpz_init_set_ui(mult, 1);  /* holds intermediates, gcd at end */
-
-  mpz_set(A.x, P.x);  mpz_set(A.y, P.y);
-  mpz_set_ui(B.x, 0); mpz_set_ui(B.y, 1);
+  mpz_set_ui(d, 1);
+  mpz_mod(A.x, P.x, n);  mpz_mod(A.y, P.y, n);
+  A.infinity = P.infinity;
+  ec_affine_set_infinity(&B);
 
   /* Binary ladder multiply. */
   while (mpz_cmp_ui(k, 0) > 0) {
     if (mpz_odd_p(k)) {
-      mpz_sub(t, B.x, A.x);
-      mpz_mul(t2, mult, t);
-      mpz_mod(mult, t2, n);
-      if ( !mpz_cmp_ui(A.x, 0) && !mpz_cmp_ui(A.y, 1) ) {
-        /* nothing */
-      } else if ( !mpz_cmp_ui(B.x, 0) && !mpz_cmp_ui(B.y, 1) ) {
-        mpz_set(B.x, A.x);  mpz_set(B.y, A.y);
-      } else {
-        _ec_add_AB(n, A, B, &C, t, t2, t3);
-        /* If the add failed to invert, then we have a factor. */
-        mpz_set(B.x, C.x);  mpz_set(B.y, C.y);
-      }
+      found = _ec_add_AB(a, n, A, B, &C, d, t, t2, t3);
+      if (found) break;
+      ec_affine_set(&B, C);
       mpz_sub_ui(k, k, 1);
     } else {
-      mpz_mul_ui(t, A.y, 2);
-      mpz_mul(t2, mult, t);
-      mpz_mod(mult, t2, n);
-
-      _ec_add_2A(a, n, A, &C, t, t2, t3);
-      mpz_set(A.x, C.x);  mpz_set(A.y, C.y);
+      found = _ec_add_2A(a, n, A, &C, d, t, t2, t3);
+      if (found) break;
+      ec_affine_set(&A, C);
       mpz_tdiv_q_2exp(k, k, 1);
     }
   }
-  mpz_gcd(d, mult, n);
-  found = (mpz_cmp_ui(d, 1) && mpz_cmp(d, n));
-
-  mpz_tdiv_r(R->x, B.x, n);
-  mpz_tdiv_r(R->y, B.y, n);
-
-  mpz_clear(mult);
+  /* A failed inversion is not a valid point at infinity. */
+  if (!found) ec_affine_set(R, B);
   mpz_clear(t);   mpz_clear(t2);   mpz_clear(t3);
   mpz_clear(A.x); mpz_clear(A.y);
   mpz_clear(B.x); mpz_clear(B.y);
@@ -880,19 +883,19 @@ void verify_ecpp(void) {
 #if USE_AFFINE_EC
     struct ec_affine_point P0, P1, P2;
     mpz_init_set(P0.x, X);  mpz_init_set(P0.y, Y);
+    P0.infinity = 0;
     mpz_init(P1.x); mpz_init(P1.y);
     mpz_init(P2.x); mpz_init(P2.y);
     mpz_divexact(T1, M, Q);
     if (ec_affine_multiply(A, T1, N, P0, &P2, T2))
       quit_invalid("ECPP", "Factor found for N");
-    /* Check that P2 is not (0,1) */
-    if (mpz_cmp_ui(P2.x, 0) == 0 && mpz_cmp_ui(P2.y, 1) == 0)
+    /* P2 must be finite; coordinates (0,1) alone are not the identity. */
+    if (P2.infinity)
       quit_invalid("ECPP", "(M/Q) * EC(A,B,N,X,Y) is not identity");
     mpz_set(T1, Q);
     if (ec_affine_multiply(A, T1, N, P2, &P1, T2))
       quit_invalid("ECPP", "Factor found for N");
-    /* Check that P1 is (0, 1) */
-    if (! (mpz_cmp_ui(P1.x, 0) == 0 && mpz_cmp_ui(P1.y, 1) == 0) )
+    if (!P1.infinity)
       quit_invalid("ECPP", "M * EC(A,B,N,X,Y) is identity");
     mpz_clear(P0.x); mpz_clear(P0.y);
     mpz_clear(P1.x); mpz_clear(P1.y);

@@ -11,7 +11,9 @@
 #include "utility.h"
 #include "prime_iterator.h"
 
-#define USE_PRAC
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t)-1)
+#endif
 
 #define TEST_FOR_2357(n, f) \
   { \
@@ -33,138 +35,138 @@ static UV ecm_resolve_b2(UV B1, UV B2)
   return B2 > max_B2 ? max_B2 : B2;
 }
 
-/* P3 = P1 + P2 */
-static void _ec_add_AB(const mpz_t n,
-                    const struct ec_affine_point P1,
-                    const struct ec_affine_point P2,
-                    struct ec_affine_point *P3,
-                    mpz_t m,
-                    mpz_t t1,
-                    mpz_t t2)
+static void ec_affine_set(struct ec_affine_point *R,
+                          const struct ec_affine_point P)
 {
-  if (!mpz_cmp(P1.x, P2.x)) {
-    mpz_add(t2, P1.y, P2.y);
-    mpz_mod(t1, t2, n);
-    if (!mpz_cmp_ui(t1, 0) ) {
-      mpz_set_ui(P3->x, 0);
-      mpz_set_ui(P3->y, 1);
-      return;
-    }
-  }
-
-  mpz_sub(t1, P2.x, P1.x);
-  mpz_mod(t2, t1, n);
-
-  /* t1 = 1/deltay mod n */
-  if (!mpz_invert(t1, t2, n)) {
-    /* We've found a factor!  In multiply, gcd(mult,n) will be a factor. */
-    mpz_set_ui(P3->x, 0);
-    mpz_set_ui(P3->y, 1);
-    return;
-  }
-
-  mpz_sub(m, P2.y, P1.y);
-  mpz_mod(t2, m, n);        /* t2 = deltay   mod n */
-  mpz_mul(m, t1, t2);
-  mpz_mod(m, m, n);         /* m = deltay / deltax   mod n */
-
-  /* x3 = m^2 - x1 - x2 mod n */
-  mpz_mul(t1, m, m);
-  mpz_sub(t2, t1, P1.x);
-  mpz_sub(t1, t2, P2.x);
-  mpz_mod(P3->x, t1, n);
-  /* y3 = m(x1 - x3) - y1 mod n */
-  mpz_sub(t1, P1.x, P3->x);
-  mpz_mul(t2, m, t1);
-  mpz_sub(t1, t2, P1.y);
-  mpz_mod(P3->y, t1, n);
+  mpz_set(R->x, P.x);  mpz_set(R->y, P.y);
+  R->infinity = P.infinity;
 }
 
-/* P3 = 2*P1 */
-static void _ec_add_2A(const mpz_t a,
+static void ec_affine_set_infinity(struct ec_affine_point *R)
+{
+  mpz_set_ui(R->x, 0);  mpz_set_ui(R->y, 1);
+  R->infinity = 1;
+}
+
+/* P3 = 2*P1.  P3 must be distinct from P1. */
+static int _ec_add_2A(const mpz_t a,
                     const mpz_t n,
                     const struct ec_affine_point P1,
                     struct ec_affine_point *P3,
+                    mpz_t d,
                     mpz_t m,
                     mpz_t t1,
                     mpz_t t2)
 {
+  if (P1.infinity || mpz_sgn(P1.y) == 0) {
+    ec_affine_set_infinity(P3);
+    return 0;
+  }
   /* m = (3x1^2 + a) * (2y1)^-1 mod n */
   mpz_mul_ui(t1, P1.y, 2);
   if (!mpz_invert(m, t1, n)) {
-    mpz_set_ui(P3->x, 0);
-    mpz_set_ui(P3->y, 1);
-    return;
+    mpz_gcd(d, t1, n);
+    return 1;
   }
   mpz_mul_ui(t1, P1.x, 3);
   mpz_mul(t2, t1, P1.x);
   mpz_add(t1, t2, a);
   mpz_mul(t2, m, t1);
-  mpz_tdiv_r(m, t2, n);
+  mpz_mod(m, t2, n);
 
   /* x3 = m^2 - 2x1 mod n */
   mpz_mul(t1, m, m);
   mpz_mul_ui(t2, P1.x, 2);
   mpz_sub(t1, t1, t2);
-  mpz_tdiv_r(P3->x, t1, n);
+  mpz_mod(P3->x, t1, n);
 
   /* y3 = m(x1 - x3) - y1 mod n */
   mpz_sub(t1, P1.x, P3->x);
   mpz_mul(t2, t1, m);
   mpz_sub(t1, t2, P1.y);
-  mpz_tdiv_r(P3->y, t1, n);
+  mpz_mod(P3->y, t1, n);
+  P3->infinity = 0;
+  return 0;
 }
 
-/* TODO: Change to k const.  See lucasuv. */
+/* P3 = P1 + P2.  P3 must be distinct from both inputs. */
+static int _ec_add_AB(const mpz_t a, const mpz_t n,
+                     const struct ec_affine_point P1,
+                     const struct ec_affine_point P2,
+                     struct ec_affine_point *P3,
+                     mpz_t d, mpz_t m, mpz_t t1, mpz_t t2)
+{
+  if (P1.infinity) { ec_affine_set(P3, P2); return 0; }
+  if (P2.infinity) { ec_affine_set(P3, P1); return 0; }
+  if (mpz_cmp(P1.x, P2.x) == 0) {
+    if (mpz_cmp(P1.y, P2.y) == 0)
+      return _ec_add_2A(a, n, P1, P3, d, m, t1, t2);
+    mpz_add(t1, P1.y, P2.y);
+    mpz_mod(t1, t1, n);
+    if (mpz_sgn(t1) == 0) {
+      ec_affine_set_infinity(P3);
+      return 0;
+    }
+    /* Equal x but neither equal nor opposite y: the points agree in
+     * some CRT components and are opposites in the others. */
+    mpz_sub(t1, P1.y, P2.y);
+    mpz_gcd(d, t1, n);
+    return 1;
+  }
+  mpz_sub(t2, P2.x, P1.x);
+  if (!mpz_invert(t1, t2, n)) {
+    mpz_gcd(d, t2, n);
+    return 1;
+  }
+  mpz_sub(t2, P2.y, P1.y);
+  mpz_mul(m, t1, t2);
+  mpz_mod(m, m, n);
+
+  mpz_mul(t1, m, m);
+  mpz_sub(t1, t1, P1.x);
+  mpz_sub(t1, t1, P2.x);
+  mpz_mod(P3->x, t1, n);
+  mpz_sub(t1, P1.x, P3->x);
+  mpz_mul(t2, m, t1);
+  mpz_sub(t1, t2, P1.y);
+  mpz_mod(P3->y, t1, n);
+  P3->infinity = 0;
+  return 0;
+}
+
+/* k >= 0 is consumed to zero on success, or partially consumed if an
+ * inversion fails.  Copying P first permits R=P; see ecm.h for aliasing. */
 int ec_affine_multiply(const mpz_t a, mpz_t k, const mpz_t n, const struct ec_affine_point P, struct ec_affine_point *R, mpz_t d)
 {
   int found = 0;
   struct ec_affine_point A, B, C;
-  mpz_t t, t2, t3, mult;
+  mpz_t t, t2, t3;
 
   mpz_init(A.x); mpz_init(A.y);
   mpz_init(B.x); mpz_init(B.y);
   mpz_init(C.x); mpz_init(C.y);
   mpz_init(t);   mpz_init(t2);   mpz_init(t3);
-  mpz_init_set_ui(mult, 1);  /* holds intermediates, gcd at end */
-
-  mpz_set(A.x, P.x);  mpz_set(A.y, P.y);
-  mpz_set_ui(B.x, 0); mpz_set_ui(B.y, 1);
+  mpz_set_ui(d, 1);
+  mpz_mod(A.x, P.x, n);  mpz_mod(A.y, P.y, n);
+  A.infinity = P.infinity;
+  ec_affine_set_infinity(&B);
 
   /* Binary ladder multiply. */
   while (mpz_cmp_ui(k, 0) > 0) {
     if (mpz_odd_p(k)) {
-      mpz_sub(t, B.x, A.x);
-      mpz_mul(t2, mult, t);
-      mpz_mod(mult, t2, n);
-
-      if ( !mpz_cmp_ui(A.x, 0) && !mpz_cmp_ui(A.y, 1) ) {
-        /* nothing */
-      } else if ( !mpz_cmp_ui(B.x, 0) && !mpz_cmp_ui(B.y, 1) ) {
-        mpz_set(B.x, A.x);  mpz_set(B.y, A.y);
-      } else {
-        _ec_add_AB(n, A, B, &C, t, t2, t3);
-        /* If the add failed to invert, then we have a factor. */
-        mpz_set(B.x, C.x);  mpz_set(B.y, C.y);
-      }
+      found = _ec_add_AB(a, n, A, B, &C, d, t, t2, t3);
+      if (found) break;
+      ec_affine_set(&B, C);
       mpz_sub_ui(k, k, 1);
     } else {
-      mpz_mul_ui(t, A.y, 2);
-      mpz_mul(t2, mult, t);
-      mpz_mod(mult, t2, n);
-
-      _ec_add_2A(a, n, A, &C, t, t2, t3);
-      mpz_set(A.x, C.x);  mpz_set(A.y, C.y);
+      found = _ec_add_2A(a, n, A, &C, d, t, t2, t3);
+      if (found) break;
+      ec_affine_set(&A, C);
       mpz_tdiv_q_2exp(k, k, 1);
     }
   }
-  mpz_gcd(d, mult, n);
-  found = (mpz_cmp_ui(d, 1) && mpz_cmp(d, n));
-
-  mpz_tdiv_r(R->x, B.x, n);
-  mpz_tdiv_r(R->y, B.y, n);
-
-  mpz_clear(mult);
+  /* A failed inversion is not a valid point at infinity. */
+  if (!found) ec_affine_set(R, B);
   mpz_clear(t);   mpz_clear(t2);   mpz_clear(t3);
   mpz_clear(A.x); mpz_clear(A.y);
   mpz_clear(B.x); mpz_clear(B.y);
@@ -191,6 +193,7 @@ int _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV B1, UV ncurves)
       PRIME_ITERATOR(iter);
       mpz_isaac_urandomm(a, n);
       mpz_set_ui(X.x, 0); mpz_set_ui(X.y, 1);
+      X.infinity = 0;
       for (q = 2; q < B; q = prime_iterator_next(&iter)) {
         UV k = q;
         UV kmin = B / q;
@@ -201,14 +204,14 @@ int _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV B1, UV ncurves)
         mpz_set_uv(mk, k);
         if (ec_affine_multiply(a, mk, n, X, &Y, f)) {
           prime_iterator_destroy(&iter);
-          mpz_clear(a);
+          mpz_clear(a);   mpz_clear(mk);
           mpz_clear(X.x); mpz_clear(X.y);
           mpz_clear(Y.x); mpz_clear(Y.y);
           return 1;
         }
-        mpz_set(X.x, Y.x);  mpz_set(X.y, Y.y);
+        ec_affine_set(&X, Y);
         /* Check that we're not starting over */
-        if ( !mpz_cmp_ui(X.x, 0) && !mpz_cmp_ui(X.y, 1) )
+        if (X.infinity)
           break;
       }
       prime_iterator_destroy(&iter);
@@ -232,6 +235,9 @@ int _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV B1, UV ncurves)
  * other articles.
  */
 
+/* Projective arithmetic shares these scratch variables, including their
+ * initialization/clear in the driver.  Serialize entire projective calls:
+ * this implementation is neither reentrant nor thread-safe. */
 static mpz_t b, ecn;          /* used throughout ec mult */
 static mpz_t u, v, w;         /* temporaries */
 static mpz_t x1, z1, x2, z2;  /* used by ec_mult and stage2 */
@@ -239,7 +245,7 @@ static mpz_t x1, z1, x2, z2;  /* used by ec_mult and stage2 */
 #define mpz_mulmod(r, a, b, n, t)  \
   do { mpz_mul(t, a, b); mpz_mod(r, t, n); } while (0)
 
-/* (x2:z2) = (x1:z1) + (x2:z2) */
+/* (x2:z2) = (x1:z1) + (x2:z2).  xinit must not alias an output coordinate. */
 static void ec_add(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
 {
   mpz_sub(u, x2, z2);
@@ -262,7 +268,8 @@ static void ec_add(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1, mpz_t xinit)
 }
 
 /* This version assumes no normalization, so uses an extra mulmod. */
-/* (xout:zout) = (x1:z1) + (x2:z2) */
+/* (xout:zout) = (x1:z1) + (x2:z2).  The output point may alias either
+ * addend or the difference (xin:zin); its x and z must be distinct. */
 static void ec_add3(mpz_t xout, mpz_t zout,
                     mpz_t x1, mpz_t z1,
                     mpz_t x2, mpz_t z2,
@@ -288,7 +295,7 @@ static void ec_add3(mpz_t xout, mpz_t zout,
   /* 6 mulmods, 6 adds */
 }
 
-/* (x2:z2) = 2(x1:z1) */
+/* (x2:z2) = 2(x1:z1), permitting an in-place point double. */
 static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
 {
   mpz_add(u, x1, z1);
@@ -310,40 +317,36 @@ static void ec_double(mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
  * and algorithms for various addition chains.
  */
 
-#ifndef USE_PRAC
-
-static void ec_mult(UV k, mpz_t x, mpz_t z)
+/* Full-width binary ladder, also used outside PRAC's arithmetic range.
+ * The input point remains the difference of the two working points.
+ * x and z are overwritten, must be distinct, and must not be scratch globals. */
+static void ec_mult_binary(UV k, mpz_t x, mpz_t z)
 {
-  int l, r;
-
-  r = --k; l = -1; while (r != 1) { r >>= 1; l++; }
-  if (k & ( UVCONST(1)<<l)) {
-    ec_double(x2, z2, x, z);
-    ec_add3(x1, z1, x2, z2, x, z, x, z);
-    ec_double(x2, z2, x2, z2);
-  } else {
-    ec_double(x1, z1, x, z);
-    ec_add3(x2, z2, x, z, x1, z1, x, z);
+  UV bit = 1;
+  if (k == 0) {
+    mpz_set_ui(x, 1); mpz_set_ui(z, 0);
+    return;
   }
-  l--;
-  while (l >= 1) {
-    if (k & ( UVCONST(1)<<l)) {
+  if (k == 1 || mpz_sgn(z) == 0) return;
+  /* (0:1) is a point of order two, not a valid differential input. */
+  if (mpz_sgn(x) == 0) {
+    if (!(k & 1)) { mpz_set_ui(x, 1); mpz_set_ui(z, 0); }
+    return;
+  }
+  while (bit <= k/2) bit *= 2;
+  mpz_set(x1, x); mpz_set(z1, z);
+  ec_double(x2, z2, x, z);
+  for (bit >>= 1; bit != 0; bit >>= 1) {
+    if (k & bit) {
       ec_add3(x1, z1, x1, z1, x2, z2, x, z);
       ec_double(x2, z2, x2, z2);
     } else {
       ec_add3(x2, z2, x2, z2, x1, z1, x, z);
       ec_double(x1, z1, x1, z1);
     }
-    l--;
   }
-  if (k & 1) {
-    ec_double(x, z, x2, z2);
-  } else {
-    ec_add3(x, z, x2, z2, x1, z1, x, z);
-  }
+  mpz_set(x, x1); mpz_set(z, z1);
 }
-
-#else
 
 /* PRAC
  *
@@ -363,20 +366,20 @@ static mpz_t x3, z3, x4, z4;  /* used by prac */
 #define ADD 6 /* number of multiplications in an addition */
 #define DUP 5 /* number of multiplications in a double */
 
-/* Returns the number of mulmods */
-static UV lucas_cost(UV n, double val)
+/* Return the mulmod cost, or UV_MAX for an invalid chain.  Only a terminal
+ * d=e=1 computes the full nP; some reductions absorb a common factor.
+ * Caller limits n to UV_MAX/6, keeping the small multiples below safe. */
+static UV lucas_cost(UV n, UV r)
 {
-  UV c, d, e, r;
+  UV c, d, e, t;
 
-  d = n;
-  r = (UV) ( ((double)d / val) + 0.5 );
-  if (r >=n )
-    return(ADD*n);
+  if (r <= n/2 || r >= n)
+    return UV_MAX;
   d = n - r;
   e = 2 * r - n;
   c = DUP + ADD;  /* initial double and final add */
   while (d != e) {
-    if (d < e) { r = d;  d = e;  e = r; }
+    if (d < e) { t = d;  d = e;  e = t; }
     if (4 * d <= 5 * e && ((d + e) % 3) == 0) {
  /*C1*/ d = (2 * d - e) / 3;  e = (e - d) / 2;  c += 3 * ADD; /* 3 adds */
     } else if (4 * d <= 5 * e && (d - e) % 6 == 0) {
@@ -397,33 +400,42 @@ static UV lucas_cost(UV n, double val)
  /*C9*/ e /= 2;  c += ADD + DUP; /* one add, one double */
     }
   }
-  return(c);
+  return d == 1 ? c : UV_MAX;
 }
 
 #define SWAP(a, b) \
   t = x##a; x##a = x##b; x##b = t;  t = z##a; z##a = z##b; z##b = t;
 
-/* PRAC: computes kP from P=(x:z) and puts the result in (x:z). Assumes k>2.*/
+/* PRAC for odd scalars in its safe arithmetic range, binary otherwise.
+ * x and z have the same destructive/nonaliasing contract as the binary ladder. */
 static void ec_mult(UV k, mpz_t x, mpz_t z)
 {
-   unsigned int  d, e, r, i;
+   UV d, e, r, cost, best_cost = UV_MAX, best_r = 0;
+   unsigned int i;
    __mpz_struct *xA, *zA, *xB, *zB, *xC, *zC, *xT, *zT, *xT2, *zT2, *t;
 
    static double const val[] =
      {1.61803398875, 1.72360679775, 1.618347119656, 1.617914406529,
       1.58017872826};
 
-   /* chooses the best value of val */
-   r = ADD * k;
-   i = 0;
-   for (d = 0; d < 5; d++) {
-     e = lucas_cost(k, val[d]);
-     if (e < r) { r = e;  i = d; }
+   /* Bound all 2*r, 4*d, 5*e and cost arithmetic before choosing a chain.
+    * Keep full UV scalars working without depending on floating rounding. */
+   if (k <= 2 || !(k & 1) || k > UV_MAX/6 ||
+       mpz_sgn(x) == 0 || mpz_sgn(z) == 0) {
+     ec_mult_binary(k, x, z);
+     return;
    }
-   r = (unsigned int)((double)k / val[i] + 0.5);
+   for (i = 0; i < sizeof(val)/sizeof(val[0]); i++) {
+     r = (UV)((double)k / val[i] + 0.5);
+     cost = lucas_cost(k, r);
+     if (cost < best_cost) { best_cost = cost; best_r = r; }
+   }
+   /* All five can be invalid (e.g. k=7^4).  For odd k this reserve r
+    * always satisfies gcd(k,r)=1, since 2*r-k=1. */
+   r = best_r != 0 ? best_r : k/2 + 1;
    /* A=(x:z) B=(x1:z1) C=(x2:z2) T=T1=(x3:z3) T2=(x4:z4) */
    xA=x; zA=z; xB=x1; zB=z1; xC=x2; zC=z2; xT=x3; zT=z3; xT2=x4; zT2=z4;
-   /* first iteration always begins by Condition 3, then a swap */
+   /* Initially kP = (k-r)*(2P) + (2*r-k)*P, with C=A-B=P. */
    d = k - r;
    e = 2 * r - k;
    mpz_set(xB,xA); mpz_set(zB,zA); /* B=A */
@@ -484,98 +496,101 @@ static void ec_mult(UV k, mpz_t x, mpz_t z)
          ec_double(xB,zB,xB,zB);             /* B = 2*B */
       }
    }
+   /* Costing guarantees d=e=1, so the final addition gives kP. */
    ec_add3(xA,zA,xA,zA,xB,zB,xC,zC);
    if (x!=xA) { mpz_set(x,xA); mpz_set(z,zA); }
 }
 
-#endif /* PRAC */
-
-#define NORMALIZE(f, u, v, x, z, n) \
-    mpz_gcdext(f, u, NULL, z, n); \
-    found = mpz_cmp_ui(f, 1); \
-    if (found) break; \
-    mpz_mulmod(x, x, u, n, v); \
-    mpz_set_ui(z, 1);
+/* Normalize in place.  Return 1 on success (f=1), or 0 with gcd(z,n)
+ * in f.  The latter can be n, meaning a lost curve rather than a factor.
+ * x, z and f must be distinct and must not alias scratch u, v or modulus ecn. */
+static int ec_normalize(mpz_t x, mpz_t z, mpz_t f)
+{
+  mpz_gcdext(f, u, NULL, z, ecn);
+  if (mpz_cmp_ui(f, 1) != 0) return 0;
+  mpz_mulmod(x, x, u, ecn, v);
+  mpz_set_ui(z, 1);
+  return 1;
+}
 
 static int ec_stage2(UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 {
-  UV D, i, m;
-  mpz_t* nqx = 0;
+  UV D, i, m, count, initialized = 0;
+  mpz_t* nqx;
   mpz_t g, one;
-  int found;
   PRIME_ITERATOR(iter);
 
-  do {
-    NORMALIZE(f, u, v, x, z, ecn);
+  if (B2 <= B1 || B2 < 2) return 0;
+  D = sqrt((double)B2 / 2.0);
+  if (D < 2) D = 2;
+  else if (D%2) D++;
+  count = 2*D+1;  /* sqrt(UV_MAX/2), rounded up even, keeps this in UV. */
+  /* Compare before Newz can narrow the count to size_t (or Perl MEM_SIZE).
+   * In particular, UV can be 64 bits while allocation sizes are 32 bits. */
+  if (count > SIZE_MAX / sizeof(mpz_t))
+    croak("ECM stage-2 allocation size overflow");
 
-    D = sqrt( (double)B2 / 2.0 );
-    if (D%2) D++;
+  if (!ec_normalize(x, z, f))
+    return mpz_cmp(f, ecn) != 0 ? 2 : 0;
 
-    /* We really only need half of these. Only even values used. */
-    Newz(0, nqx, 2*D+1, mpz_t);
-    mpz_init_set(nqx[1], x);
-    mpz_init_set_ui(g, 1);
-    mpz_init_set_ui(one, 1);
+  Newz(0, nqx, (size_t)count, mpz_t);
+  mpz_init_set(nqx[1], x);
+  initialized = 1;
+  mpz_init_set_ui(g, 1);
+  mpz_init_set_ui(one, 1);
 
-    for (i = 2; i <= 2*D; i++) {
-      if (i % 2) {
-        mpz_set(x2, nqx[(i+1)/2]);  mpz_set_ui(z2, 1);
-        ec_add(x2, z2, nqx[(i-1)/2], one, x);
-      } else {
-        ec_double(x2, z2, nqx[i/2], one);
-      }
-      mpz_init_set(nqx[i], x2);
-      NORMALIZE(f, u, v, nqx[i], z2, ecn);
+  for (i = 2; i <= 2*D; i++) {
+    if (i % 2) {
+      mpz_set(x2, nqx[(i+1)/2]);  mpz_set_ui(z2, 1);
+      ec_add(x2, z2, nqx[(i-1)/2], one, x);
+    } else {
+      ec_double(x2, z2, nqx[i/2], one);
     }
-    if (found) break;
+    mpz_init_set(nqx[i], x2);
+    initialized = i;
+    if (!ec_normalize(nqx[i], z2, f)) goto cleanup;
+  }
 
-    mpz_set(x1, x);
-    mpz_set(z1, z);
-    mpz_set(x, nqx[2*D-1]);
-    mpz_set_ui(z, 1);
+  mpz_set(x1, x);
+  mpz_set(z1, z);
+  mpz_set(x, nqx[2*D-1]);
+  mpz_set_ui(z, 1);
 
-    /* See Zimmermann, "20 Years of ECM" slides, 2006, page 11-12 */
-    for (m = 1; m < B2+D; m += 2*D) {
-      if (m != 1) {
-        mpz_set(x2, x1);
-        mpz_set(z2, z1);
-        ec_add(x1, z1, nqx[2*D], one, x);
-        NORMALIZE(f, u, v, x1, z1, ecn);
-        mpz_set(x, x2);  mpz_set(z, z2);
+  /* See Zimmermann, "20 Years of ECM" slides, 2006, page 11-12 */
+  for (m = 1; m < B2+D; m += 2*D) {
+    if (m != 1) {
+      mpz_set(x2, x1);
+      mpz_set(z2, z1);
+      ec_add(x1, z1, nqx[2*D], one, x);
+      if (!ec_normalize(x1, z1, f)) goto cleanup;
+      mpz_set(x, x2);  mpz_set(z, z2);
+    }
+    if (m+D > B1 && m >= D) {
+      prime_iterator_setprime(&iter, m-D-1);
+      for (i = prime_iterator_next(&iter); i < m; i = prime_iterator_next(&iter)) {
+        /* Giant step mQ, baby step (m-i)Q; 1 <= m-i <= D. */
+        mpz_sub(w, x1, nqx[m-i]);
+        mpz_mulmod(g, g, w, ecn, u);
       }
-      if (m+D > B1 && m >= D) {
-        prime_iterator_setprime(&iter, m-D-1);
-        for (i = prime_iterator_next(&iter); i < m; i = prime_iterator_next(&iter)) {
-          /* if (m+D-i<1 || m+D-i>2*D) croak("index %lu range\n",i-(m-D)); */
-          mpz_sub(w, x1, nqx[m+D-i]);
+      for ( ; i <= m+D; i = prime_iterator_next(&iter)) {
+        if (i > m && !prime_iterator_isprime(&iter, m-(i-m))) {
+          /* Right-half baby step (i-m)Q; 1 <= i-m <= D. */
+          mpz_sub(w, x1, nqx[i-m]);
           mpz_mulmod(g, g, w, ecn, u);
         }
-        for ( ; i <= m+D; i = prime_iterator_next(&iter)) {
-          if (i > m && !prime_iterator_isprime(&iter, m+m-i)) {
-            /* if (i-m<1 || i-m>2*D) croak("index %lu range\n",i-(m-D)); */
-            mpz_sub(w, x1, nqx[i-m]);
-            mpz_mulmod(g, g, w, ecn, u);
-          }
-        }
-        mpz_gcd(f, g, ecn);
-        found = mpz_cmp_ui(f, 1);
-        if (found) break;
       }
+      mpz_gcd(f, g, ecn);
+      if (mpz_cmp_ui(f, 1) != 0) goto cleanup;
     }
-  } while (0);
-  prime_iterator_destroy(&iter);
-
-  if (nqx != 0) {
-    for (i = 1; i <= 2*D; i++) {
-      if (nqx[i] != 0)
-        mpz_clear(nqx[i]);
-    }
-    Safefree(nqx);
-    mpz_clear(g);
-    mpz_clear(one);
   }
-  if (found && !mpz_cmp(f, ecn)) found = 0;
-  return (found) ? 2 : 0;
+
+cleanup:
+  prime_iterator_destroy(&iter);
+  for (i = 1; i <= initialized; i++) mpz_clear(nqx[i]);
+  Safefree(nqx);
+  mpz_clear(g);
+  mpz_clear(one);
+  return mpz_cmp_ui(f, 1) != 0 && mpz_cmp(f, ecn) != 0 ? 2 : 0;
 }
 
 int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
@@ -593,9 +608,7 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
   mpz_init(x);   mpz_init(z);   mpz_init(a);   mpz_init(b);
   mpz_init(u);   mpz_init(v);   mpz_init(w);   mpz_init(sigma);
   mpz_init(x1);  mpz_init(z1);  mpz_init(x2);  mpz_init(z2);
-#ifdef USE_PRAC
   mpz_init(x3);  mpz_init(z3);  mpz_init(x4);  mpz_init(z4);
-#endif
 
   if (_verbose>2) gmp_printf("# ecm trying %Zd (B1=%"UVuf" B2=%"UVuf" ncurves=%"UVuf")\n", n, B1, B2, ncurves);
 
@@ -631,7 +644,7 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
     mpz_mod(a, w, n);             /* a = ((v-u)^3 * (3*u + v)) % n */
 
     mpz_gcdext(f, u, NULL, b, n);
-    found = mpz_cmp_ui(f, 1);
+    found = mpz_cmp_ui(f, 1) != 0;
     if (found) { if (!mpz_cmp(f, n)) { found = 0; continue; } break; }
     mpz_mul(a, a, u);
 
@@ -670,10 +683,10 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
     prime_iterator_destroy(&iter);
 
     /* Find factor in S1 */
-    do { NORMALIZE(f, u, v, x, z, n); } while (0);
+    found = !ec_normalize(x, z, f);
     if (!found) {
       mpz_gcd(f, sigma, ecn);
-      found = mpz_cmp_ui(f, 1);
+      found = mpz_cmp_ui(f, 1) != 0;
     }
     if (found) { if (!mpz_cmp(f, n)) { found = 0; continue; } break; }
 
@@ -692,9 +705,7 @@ int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves)
   mpz_clear(x);   mpz_clear(z);   mpz_clear(a);   mpz_clear(b);
   mpz_clear(u);   mpz_clear(v);   mpz_clear(w);   mpz_clear(sigma);
   mpz_clear(x1);  mpz_clear(z1);  mpz_clear(x2);  mpz_clear(z2);
-#ifdef USE_PRAC
   mpz_clear(x3);  mpz_clear(z3);  mpz_clear(x4);  mpz_clear(z4);
-#endif
 
   return found;
 }
