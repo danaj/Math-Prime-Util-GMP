@@ -18,12 +18,20 @@ extern int ec_affine_multiply(
   const struct ec_affine_point P, struct ec_affine_point *R,
   mpz_t d);
 
-/* You should use projective instead.  n and f must be distinct. */
-extern int  _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV BMax, UV ncurves);
+/* You should use projective instead.  n and f must be distinct.
+ * seed supplies the private curve stream; all uint64_t values are valid. */
+extern int  _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV BMax, UV ncurves,
+                                 uint64_t seed);
 
-/* Main ECM factoring routine.  n and f must be distinct.  Projective scratch
- * is file-global: calls must be serialized (not reentrant or thread-safe).
- * B2<B1 requests the default stage-2 bound; an empty stage 2 is skipped. */
-extern int  _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves);
+/* Main ECM factoring routine.  n and f must be distinct.  Scratch and the
+ * SplitMix64 curve stream are private to the call; seed=0 is valid.  Supply
+ * a fresh seed for fresh curves; identical inputs/parameters/seeds reproduce
+ * a call.  This does not obtain host randomness or read global verbosity.
+ * verbose retains the existing levels (0 quiet, >2 diagnostic output).
+ * B2<B1 requests the default stage-2 bound; an empty stage 2 is skipped.
+ * Initialize the prime-iterator cache before concurrent calls and destroy it
+ * only after they finish.  GMP allocation hooks must also be thread-safe. */
+extern int  _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV B1, UV B2, UV ncurves,
+                                     uint64_t seed, int verbose);
 
 #endif

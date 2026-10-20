@@ -13,7 +13,7 @@ static const int ev = 0;
 #include "siqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
-   _GMP_ecm_factor_projective(n, f, b1, 0, ncurves)
+   _GMP_ecm_factor_projective(n, f, b1, 0, ncurves, irand_u64(), get_verbose_level())
 #include "utility.h"
 
 static const int maxuibits = (sizeof(unsigned long) > BITS_PER_WORD)

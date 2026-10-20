@@ -192,7 +192,7 @@ static int check_for_factor(mpz_t f, const mpz_t inputn, const mpz_t fmin, mpz_t
         success = _GMP_pplus1_factor(n, f, 0, ppB, ppB);
       }
       if ((!success && do_ecm))
-        success = _GMP_ecm_factor_projective(n, f, 400, 2000, 1);
+        success = _GMP_ecm_factor_projective(n, f, 400, 2000, 1, irand_u64(), get_verbose_level());
 #ifdef USE_LIBECM
       /* TODO: LIBECM in other stages */
       /* Note: this will be substantially slower than our code for small sizes
@@ -224,19 +224,19 @@ static int check_for_factor(mpz_t f, const mpz_t inputn, const mpz_t fmin, mpz_t
         if (!success) success = _GMP_pminus1_factor(n, f, 6*B1, 60*B1);
         /* p+1 with different initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 1, B1/2, B1/2);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 2500, 8);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, 250, 2500, 8, irand_u64(), get_verbose_level());
       } else if (stage == 3) {
         if (!success) success = _GMP_pbrent_factor(n, f, nsize+1, 16384);
         if (!success) success = _GMP_pminus1_factor(n, f, 60*B1, 600*B1);
         /* p+1 with a third initial point and searching farther */
         if (!success) success = _GMP_pplus1_factor(n, f, 2, 1*B1, 1*B1);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/4, B1*4, 5);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/4, B1*4, 5, irand_u64(), get_verbose_level());
       } else if (stage == 4) {
         if (!success) success = _GMP_pminus1_factor(n, f, 300*B1, 300*20*B1);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/2, B1*8, 4);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B1/2, B1*8, 4, irand_u64(), get_verbose_level());
       } else if (stage >= 5) {
         UV B = B1 * (stage-4) * (stage-4) * (stage-4);
-        if (!success) success = _GMP_ecm_factor_projective(n, f, B, 10*B, 8+stage);
+        if (!success) success = _GMP_ecm_factor_projective(n, f, B, 10*B, 8+stage, irand_u64(), get_verbose_level());
       }
     }
     if (success) {

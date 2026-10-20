@@ -14,6 +14,8 @@ extern void clear_randstate(void);
 extern void mpz_isaac_urandomb(mpz_t rop, int nbits);
 extern void mpz_isaac_urandomm(mpz_t rop, const mpz_t n);
 extern UV irand64(int nbits);
+/* Full-width draw from shared ISAAC (not thread-safe), even with 32-bit UV. */
+extern uint64_t irand_u64(void);
 extern NV drand64(void);
 
 extern int  mpz_fits_uv_p(const mpz_t n);

@@ -10,10 +10,10 @@ use Getopt::Long qw(GetOptions);
 use Text::ParseWords qw(shellwords);
 
 my $cc = $ENV{CC} // $Config{cc};
-my ($cflags, $ldflags, $sanitize) = ('-O2 -g', '-lgmp -lm', 0);
+my ($cflags, $ldflags, $sanitize, $threads) = ('-O2 -g', '-lgmp -lm', 0, 0);
 GetOptions('cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags,
-           'sanitize' => \$sanitize) && !@ARGV
-  or die "usage: ecm-check.pl [--sanitize] [--cc CC] [--cflags FLAGS] [--ldflags FLAGS]\n";
+           'sanitize' => \$sanitize, 'threads' => \$threads) && !@ARGV
+  or die "usage: ecm-check.pl [--sanitize] [--threads] [--cc CC] [--cflags FLAGS] [--ldflags FLAGS]\n";
 my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..', '..'));
 my $temporary = tempdir('ecm-check-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $checks = File::Spec->catfile($Bin, 'ecm-check.c');
@@ -32,6 +32,7 @@ sub build_run {
 }
 
 build_run('ecm-check');
+build_run('ecm-check-threaded', '-DECM_CHECK_THREADS', '-pthread') if $threads;
 
 # Exercise 32-bit UV arithmetic on a 64-bit host, without claiming to model
 # a native 32-bit ABI or allocator.  Both translation units use the same UV.
@@ -80,4 +81,4 @@ open my $output, '>', $affine_path or die "$affine_path: $!\n";
 print {$output} $affine;
 close $output or die "$affine_path: $!\n";
 build_run('verifier-affine-check', '-DECM_CHECK_AFFINE_ONLY', "-I$temporary");
-print "All 4 ECM arithmetic checks passed.\n";
+printf "All %d ECM arithmetic checks passed.\n", 4 + ($threads ? 1 : 0);

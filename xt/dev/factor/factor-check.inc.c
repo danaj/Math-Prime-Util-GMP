@@ -101,6 +101,7 @@ static void check_record(int kind, UV a, UV b) {
 }
 
 int get_verbose_level(void) { return check_verbose; }
+uint64_t irand_u64(void) { return UINT64_C(0x123456789abcdef0); }
 int _GMP_is_prob_prime(const mpz_t n) { return mpz_probab_prime_p(n, 20) != 0; }
 unsigned long power_factor(const mpz_t n, mpz_t f) { (void)n; (void)f; return 0; }
 void mpz_set_uv(mpz_t n, UV v) { mpz_import(n, 1, 1, sizeof(v), 0, 0, &v); }
@@ -118,8 +119,11 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds) {
 int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV b1, UV b2) {
   (void)n; (void)f; check_record(CHECK_PM1, b1, b2); return 0;
 }
-int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV b1, UV b2, UV curves) {
-  (void)n; (void)f; CHECK(b2 == 0); check_record(CHECK_ECM, b1, curves); return 0;
+int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV b1, UV b2, UV curves,
+                              uint64_t seed, int verbose) {
+  (void)n; (void)f; CHECK(b2 == 0);
+  CHECK(seed == UINT64_C(0x123456789abcdef0) && verbose == check_verbose);
+  check_record(CHECK_ECM, b1, curves); return 0;
 }
 int _GMP_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds) {
   (void)n; (void)f; check_record(CHECK_PBRENT, a, rounds); return 0;

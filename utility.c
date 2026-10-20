@@ -122,6 +122,12 @@ void mpz_fromdigits(mpz_t n, mpz_t *d, size_t len, const mpz_t base)
   }
 }
 
+uint64_t irand_u64(void)
+{
+  uint64_t high = isaac_rand32();
+  return (high << 32) | isaac_rand32();
+}
+
 UV irand64(int nbits)
 {
   if (nbits ==  0) return 0;
