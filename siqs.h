@@ -6,8 +6,8 @@
 
 /* Lowest post-trial cofactor size accepted by the SIQS stage. */
 #define MPU_SIQS_MIN_BITS   1U
-/* Current policy/support limit. Wider arithmetic validation alone does not
- * supply tuned policies or establish supported factoring performance. */
+/* Arithmetic and policy-coverage limit, not a performance guarantee.
+ * We have currently verified good performance through 400 bits. */
 #define MPU_SIQS_MAX_BITS 512U
 
 /* Parallel collection is optional; small/inline-solving policies stay serial. */
@@ -42,8 +42,9 @@
  * owns all returned mpz_t values and the array: release both with
  * gmp_siqs_free, without separately clearing/freeing its elements first.
  * There is no complete-factorization flag; callers must check the partition.
- * verbose is independent of host/module settings: 0 is quiet, 1 prints
- * setup/final summaries, 2 adds periodic progress, and 3 adds diagnostics.
+ * verbose is independent of host/module settings; negative values become 0.
+ * 0 is quiet, 1 prints setup/final summaries, 2 adds periodic progress,
+ * and 3 adds diagnostics.
  * Standalone fatal allocation/invariant errors exit rather than return NULL. */
 extern mpz_t *gmp_siqs(const mpz_t n, uint32_t *nfactors,
                       uint32_t trial_start, int verbose);

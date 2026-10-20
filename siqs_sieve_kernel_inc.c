@@ -1,6 +1,9 @@
 /* Internal SIQS sieve template; not a separately compiled unit.
  * Included twice by siqs.c: ordinary byte addition, then saturation.
- * Keep the progression/root/padding logic identical in both variants. */
+ * Keep the progression/root/padding logic identical in both variants.
+ * Primes are ascending; roots satisfy 0 <= root1 <= root2 < p, with equal
+ * roots representing one progression. The caller supplies checked padding;
+ * only [0,length) contributes scores. Debug builds skip padding stores. */
 
 #ifdef SIQS_SATURATING_KERNEL
 #define siqs_sieve_add siqs_sieve_add_sat
@@ -16,7 +19,8 @@
 static INLINE void siqs_sieve_add(uint8_t *cell, uint8_t logp) {
 #ifdef SIQS_SATURATING_KERNEL
   uint32_t value = (uint32_t)*cell + logp;
-  /* Logical cells are <=255 and weights <=127: the carry is zero or one.
+  /* Cells are <=SIQS_SIEVE_SCORE_MAX and weights <SIQS_SIEVE_SCORE_TOP,
+   * so the carry is zero or one.
    * Expand it to an all-one mask, then clamp without a data-dependent branch. */
   *cell = (uint8_t)((value | (0U - (value >> SIQS_SIEVE_SCORE_BITS))) & SIQS_SIEVE_SCORE_MAX);
 #elif defined(SIQS_DEBUG)
@@ -77,7 +81,7 @@ static INLINE void siqs_sieve_two_roots(uint8_t *sieve, uint32_t length,
 
 /* Fixed-hit large-prime tiers and their padded stores are inspired by JML's
  * sieving.  If p > length/count, a root has at most count locations in the
- * logical sieve.  The allocation below makes the final stores safe even when
+ * logical sieve. The caller's padded allocation makes final stores safe when
  * they fall beyond that sieve, eliminating a position-range test per store.
  * Six locations over our combined +/- interval correspond to JML's three
  * locations in each separately processed half. */
@@ -201,8 +205,8 @@ static void siqs_run_sieve_kernel(
   SIQS_SIEVE_LARGE_RANGE(length / 3U, 4U);
   SIQS_SIEVE_LARGE_RANGE(length / 2U, 3U);
   /* Local padding is worthwhile only when ordinary dummy stores scatter
-   * widely.  M1 Pro screens favored leaving intervals through 64 KiB alone;
-   * this also keeps the default balanced dense blocks on their old path. */
+   * widely. M1 Pro screens favored the simpler fixed-hit loop through
+   * 64 KiB, which also covers the default dense blocks. */
   if (length <= SIQS_TWO_HIT_LOCAL_LENGTH_THRESHOLD) {
     SIQS_SIEVE_LARGE_RANGE(length, 2U);
   } else {
@@ -215,8 +219,9 @@ static void siqs_run_sieve_kernel(
     /* Once the one-hit tier is large, keep its out-of-range stores in a
      * cache-local padding stripe.  Cycling through 4k avoids a
      * single-address read-modify-write dependency chain.
-     * The minimum sieve allocation is twice an 8K logical interval,
-     * so every sink position is inside the existing padding. */
+     * This branch has at least 5200 distinct primes above length, so pmax
+     * exceeds length by more than the 4096-byte stripe. The allocation
+     * through pmax therefore covers every sink, even for short intervals. */
     uint32_t sink = length;
     for (; i < end; i++) {
       siqs_sieve_one_hit_local(sieve, logp[i], root1[i], length, sink);

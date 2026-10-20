@@ -3,8 +3,9 @@
   Self-initializing quadratic sieve
 
   This is an independent implementation for Math::Prime::Util::GMP.  Its
-  polynomial, sieve, relation graph, and matrix interfaces are deliberately
-  local to siqs.c and siqs_choose_inc.c. Linear algebra is supplied by lanczos.c.
+  polynomial, sieve, relation graph, and matrix interfaces are private.
+  A-family selection lives in siqs_choose_inc.c and sieve kernels in
+  siqs_sieve_kernel_inc.c. Linear algebra is supplied by lanczos.c.
 
   For a polynomial family we choose square-free a, d in {1,2}, D = d*a,
   and B so that the following normalized polynomial is integral:
@@ -140,7 +141,8 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #define SIQS_SIEVE_ALIGN          256U
 #define SIQS_HALF_INTERVAL_MAX   (UINT32_C(1) << 30)
 
-/* This most strongly correlates to L1 data size.  Compromise. */
+/* Architecture-based defaults for L1-sized sieve blocks; autotuning can
+ * override this size without changing the collection policy. */
 #ifndef SIQS_SIEVE_BLOCK_SIZE
 #  if !defined(_M_ARM64EC) && (defined(__i386__) || defined(__x86_64__) || \
                                defined(_M_IX86) || defined(_M_X64))
@@ -386,8 +388,7 @@ typedef struct {
  * Derived R equals the final capped LP in 1LP, or LP * P in 2LP.
  * Explicit K_R instead gives floor(K_R * P) or floor(K_R * P^2).
  * The LP policy cap and residual-product width cap apply afterward.
- * K_L = 1 admits only
- * smooth relations, despite using the 1LP collection path.
+ * K_L = 1 admits only smooth relations, despite using the 1LP collection path.
  *
  * Geometry and scoring
  * --------------------
@@ -406,8 +407,8 @@ typedef struct {
  * ------------
  * - FB and interval choices balance collection and matrix costs.
  * - Prefer coherent bands over small, noisy per-bit timing wins.
- * - The 2LP K curves are provisional tuning seeds; their inherited geometry
- *   has not been retuned for the new bounds.
+ * - The lower 2LP bands have been tuned jointly with their K curves.
+ *   High-bit extrapolations remain provisional; see the per-band notes.
  *
  * Attribution
  * -----------
@@ -424,7 +425,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.0, 0.0, 1),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0, 65), 0.0, 0 },
-  /* Small inputs with q=1 (nearest eligible prime, 1 backup, then recovery. */
+  /* Small q=1 inputs: nearest eligible prime, one backup, then recovery. */
   { "smooth_k1_q1_geometry_ramp", 21, 30, 1, 1, 8, 0, 0,
     SIQS_POLICY_LINEAR(1.0, 0.0, 21), SIQS_R_DERIVED_FROM_LP,
     8, 0, 12, 2, 4, 0,
@@ -503,7 +504,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_LINEAR(0.9, 0.075, 188),
     SIQS_POLICY_RATIO(0.0, 0, 0, 0),
     SIQS_POLICY_LINEAR(0.15, 0.0003, 150), 0.45, 0 },
-  /* K=32 supports one smooth upper q=9 geometry rather than shorter bands. */
+  /* K_L=32 supports one continuous upper q=9 geometry curve. */
   { "one_lp_k32_q9_geometry_ramp", 193, 218, 1, 9, 18, 0, 0,
     SIQS_POLICY_LINEAR(32.0, 0.0, 193), SIQS_R_DERIVED_FROM_LP,
     8, 401, 160, 96,
@@ -607,8 +608,8 @@ static const siqs_policy_band_t siqs_recovery_policies[] = {
       "smooth_k1_q1_low_recovery_8k", 8U * 1024U),
   SIQS_LOW_SMOOTH_RECOVERY_POLICY(
       "smooth_k1_q1_low_recovery_16k", 16U * 1024U),
-  /* Recent tests with BIDS and the new bands do not reach this policy.
-   * Retain it as a 1LP safety fallback; its allocation and sieve work
+  /* Low-bit BIDS audits did not need this 1LP safety fallback.
+   * Retain it defensively; its allocation and sieve work
    * occur only after earlier attempts fail. */
   { "one_lp_k60_q1_low_recovery_96k", 1, 50, 1, 1, 0, 0, 0,
     SIQS_POLICY_LINEAR(60.0, 0.0, 1), SIQS_R_DERIVED_FROM_LP,
@@ -759,7 +760,7 @@ typedef struct {
   uint32_t fixed_half_interval;
   uint8_t sieve_initial;
   uint8_t stage1_bias;
-  uint8_t sieve_raw_scores;     /* zero offset; otherwise retain legacy J */
+  uint8_t sieve_raw_scores;     /* 1: raw weights, J=0; 0: biased scores */
   uint8_t sieve_saturating;     /* score certificate requires saturation */
   uint16_t sieve_score_bound;  /* cheap raw-score upper bound; 0 if unknown */
   uint64_t large_prime_bound;
@@ -818,8 +819,8 @@ typedef struct {
 typedef struct siqs_A_search siqs_A_search_t;
 
 typedef struct {
-  /* A is the square-free factor-base product; DA = d*A is both the linear
-   * coefficient and the divisor of the normalized polynomial. */
+  /* A is the square-free factor-base product. DA = d*A is the quadratic
+   * coefficient of q(x) and the divisor in q(x) = ((DA*x+B)^2-kN)/DA. */
   mpz_t A;
   mpz_t DA;
   mpz_t B;
@@ -1110,7 +1111,7 @@ static void siqs_raw_arena_clear(siqs_raw_arena_t *arena) {
 }
 
 /* Exact floor cube root, adapted from misc_ui.h's icbrt.  Fixed-width
- * arithmetic avoids both UV-width differences and a C99 libm dependency. */
+ * arithmetic avoids both UV-width differences and a dependency on cbrt(). */
 static uint64_t siqs_icbrt_u64(uint64_t n) {
   uint64_t b, root = 0;
   int shift = 63;
@@ -1682,9 +1683,9 @@ static double siqs_multiplier_base_score(unsigned long nmod8, uint32_t k) {
   return score;
 }
 
-/* The odd-prime score below credits each admissible factor-base prime as a
- * two-root prime.  The q primes later selected into polynomial A have only
- * one root in the normalized polynomial, so this slightly overcredits them.
+/* For odd primes not dividing k, the score credits each admissible
+ * factor-base prime as a two-root prime. The q primes selected into A have
+ * only one root in the normalized polynomial, so this slightly overcredits them.
  * Their identities depend on the candidate factor base and the family A;
  * estimates based only on target_A were not reliable enough, especially at
  * low q, so leave this small correction out until it can be predicted well. */
@@ -2587,7 +2588,15 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
   siqs_reset_touched_factors(ctx);
 }
 
-/* Add one graph edge.  A cycle is materialized immediately. */
+/* Add the newest ctx->raw entry as an LP graph edge. DSU parents describe
+ * connectivity, while tree_parent/parent_edge describe the actual spanning
+ * forest; path compression must not change that forest.
+ *
+ * Joining components retains the raw relation as a tree edge for later
+ * cycles. A closing edge plus the unique forest path is materialized into
+ * a full relation with its own factors and square root, if usable. The tree
+ * edges stay live; the closing relation is discarded even for an unusable
+ * cycle, before another raw append can prevent its LIFO reclamation. */
 static void siqs_graph_add_relation(siqs_ctx_t *ctx, uint32_t edge) {
   siqs_raw_relation_t *rel = ctx->raw[edge];
   siqs_graph_t *g = &ctx->graph;
@@ -3012,9 +3021,10 @@ static void siqs_first_B_and_roots(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 }
 
 /* Set the expected score contribution of factor-base primes omitted from
- * the byte sieve.  Use the actual roots of this family: ordinary primes
- * have two, while 2, primes dividing kN, and primes in A have one.  Recompute
- * the sum so rounding cannot accumulate across A's. */
+ * the byte sieve. Ordinary odd primes have two roots; odd primes dividing
+ * kN or A have one. Prime 2 has one root for d=1 and two for d=2, with the
+ * extra guaranteed factor 2 accounted for below. Recompute the sum so
+ * rounding cannot accumulate across families. */
 static void siqs_set_family_sieve_initial(siqs_ctx_t *ctx) {
   uint32_t i;
   uint32_t initial;
@@ -3210,10 +3220,9 @@ static void siqs_set_log_weights_min(siqs_ctx_t *ctx, double minimum_log_q) {
     if (index > ctx->params.sieve_start)
       ctx->params.sieve_start = index;
   }
-  /* At 300 bits cbrt(FB) still lands among very dense progressions.  A full
-   * run improved by 6.8% when the exact postfilter handled primes below 384.
-   * Treat this as a floor, not a replacement for cbrt(FB), so naturally
-   * larger cutoffs at the upper end of the supported range never move back. */
+  /* A per-band prime-value floor can omit more dense progressions than the
+   * index estimate alone. It only raises the cutoff; larger natural index
+   * cutoffs remain in effect. */
   if (ctx->params.sieve_start_prime_floor != 0) {
     while (ctx->params.sieve_start < ctx->params.fb_size &&
            ctx->fb[ctx->params.sieve_start].p <
@@ -3436,7 +3445,8 @@ static int siqs_sieve_score_norm(mpz_ptr upper, const siqs_ctx_t *ctx) {
 
 /* Bound the raw sum of integer prime weights over every accepted family.
  * For nonzero Q, each distinct hit prime divides |Q|.  DP[s] is the least
- * product reaching score s, capped at 256.  All comparisons are exact.
+ * product reaching score s, capped at SIQS_SIEVE_SCORE_MAX+1.
+ * All product comparisons are exact.
  * The norm covers all q>=2 chooser guards, including their widened tails.
  * Equal roots add once, including primes in A.  With d=2, Q is divisible
  * by four and prime 2 is omitted, so bound only its odd hit-prime product.
@@ -3512,11 +3522,24 @@ done:
   return maximum < limit;
 }
 
-/* Keep jobs with proven byte headroom on their existing path.  The cheap
- * bound is recorded with the log weights; only inconclusive contexts need
- * the exact certificate.  Neither proof runs in workers or prime-hit loops.
- * The setup initializer bounds family J:
- * choosing a prime for A can only reduce its omitted-root expectation. */
+/* Let S be the raw hit-weight sum, J the family initializer (omitted-prime
+ * estimate plus free units), and b the stage-1 bias. TOP/MAX are the score
+ * high bit and largest representable value:
+ *
+ *   raw  saturating   stored byte       stage-1 candidate test
+ *    0       0        S + J + b         high bit set
+ *    1       0        S                 S >= TOP - J - b
+ *    1       1        min(S, MAX)       same adjusted threshold
+ *
+ * Candidate insertion removes b only in biased mode. The fine filter then
+ * removes J and accounts for omitted primes by exact division. Raw scores
+ * need neither subtraction. A clamped MAX score bypasses fine rejection
+ * and goes to exact resieving/evaluation: it is only a lower bound on S.
+ *
+ * The cheap bound is recorded with the log weights; only inconclusive
+ * contexts need the exact certificate. Both are outside prime-hit loops.
+ * The setup initializer bounds family J because selecting primes into A
+ * can only reduce their omitted-root contribution. */
 static void siqs_select_sieve_score_mode(siqs_ctx_t *ctx) {
   uint32_t bound, initial;
   int certified;
@@ -3545,11 +3568,8 @@ static uint8_t siqs_physical_sieve_initial(const siqs_ctx_t *ctx) {
   return (uint8_t)initial;
 }
 
-/* Add prime contributions to already initialized logical sieve bytes.
- * Initialization stays with the caller: the sparse suffix must augment,
- * not erase, the completed dense blocks.  Expose invariant arrays directly
- * to the hot per-prime loops. */
-
+/* Raw-score mode starts at zero; biased mode includes the family estimate
+ * and the stage-1 candidate bias in every logical sieve byte. */
 static uint8_t siqs_sieve_byte_initial(const siqs_ctx_t *ctx) {
   return ctx->params.sieve_raw_scores ? 0 : siqs_physical_sieve_initial(ctx);
 }
@@ -4094,10 +4114,11 @@ static int siqs_mpz_to_u64(const mpz_t n, uint64_t *value) {
 }
 
 static uint32_t siqs_isqrt64(uint64_t n) {
-  /* The small addition means we only need to check for fixing downwards. */
-  int64_t r = (int64_t)(sqrt((double)n) + 1e-6f);
-  int64_t diff = n - (uint64_t)r*r;
-  return (uint32_t)(r - (diff < 0));
+  /* Bias upward, then correct an overestimate by one. Near UINT64_MAX the
+   * estimate can be 2^32, whose unsigned square wraps; detect it explicitly
+   * rather than relying on an out-of-range unsigned-to-signed conversion. */
+  uint64_t r = (uint64_t)(sqrt((double)n) + 1e-6f);
+  return (uint32_t)(r - ((r > UINT32_MAX) | (r*r > n)));
 }
 
 static int siqs_is_perfect_square(uint64_t n) {
@@ -4340,9 +4361,9 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
     mpz_clear(factor);
   }
   /* Scratch/RNGs are private, the initialized prime cache is read-only, and
-   * verbosity zero is per-call rather than host-global.  A low-bit SQUFOF
-   * miss reaches SIQS too.  We used to have a rho fallback, but it was
-   * removed for simplicity. */
+   * verbosity zero is per-call rather than host-global. A low-bit SQUFOF
+   * miss reaches SIQS too. A terminal miss drops only this candidate,
+   * not the outer factorization. */
   if (!success && can_siqs) {
     success = siqs_split_to_u64(rest, ctx->largest_fb_prime, &a, &b);
     if (success)
@@ -4402,11 +4423,18 @@ static siqs_factor_t *siqs_eval_reserve_factors(siqs_ctx_t *ctx,
   return workspace->factors;
 }
 
-/* Resieving visits factor-base entries in increasing order and prepends each
- * hit, so a candidate's hit list is strictly descending.  The evaluator
- * stores that list backwards to make an ascending run, then merges the
- * sign/d/A run into it.  Keeping the hit run after its maximum-sized prefix
- * makes this in-place merge safe even when an extra factor sorts first. */
+/* Resieving prepends hits in increasing FB order, leaving a descending list.
+ * Evaluation fills its buffer backwards to obtain ascending hit rows:
+ *
+ *   factors: [ H spare entries ][ ascending hit factors ]
+ *   extra:   [ sign, optional d=2, ascending A factors ]
+ *
+ * Here H=hit_offset=q_count+2, and extra_count <= H. Both runs are strictly
+ * ordered, but share rows when q(x) also contains a prime from d*A. Add
+ * those exponents rather than deduplicating. Output starts at factors[0].
+ * At most H extras can advance it ahead of consumed hits, so it cannot
+ * overwrite an unread hit. Copying next before storing also permits input
+ * and output to coincide at that hit; this overlap is intentional. */
 static uint32_t siqs_merge_candidate_factors(
     siqs_factor_t *factors, uint32_t hit_offset, uint32_t hit_count,
     const siqs_factor_t *extra, uint32_t extra_count) {
@@ -4465,8 +4493,7 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
   mpz_mul_si(q, q, x);
   mpz_add(q, q, poly->C);
 #ifdef SIQS_DEBUG
-  /* Keep the independent defining identity as a shadow check while the
-   * evaluator rewrite is exercised by debug builds. */
+  /* Check Horner evaluation against the independent defining identity. */
   mpz_mul(rest, y, y);
   mpz_sub(rest, rest, ctx->kn);
   if (!mpz_divisible_p(rest, poly->DA))
@@ -4976,9 +5003,11 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
  * any part of the partition remains composite, but instead collect more
  * relations until the partition is complete or a collection limit is reached.
  *
- * We retain a terminal failure guard (defined as FB+513) similar to the
- * standard solvers, and a similar relaxed stop to allow pending worker
- * buffers to still be processed.
+ * The relation budget is FB+1+SIQS_BIDS_EXTRA_RELS. Pending candidates from
+ * the current polynomial can still contribute relations after a budget
+ * stop, unless the factor partition is already complete. BIDS itself runs
+ * only in the coordinator, but collection may use parallel workers whose
+ * pending relation buffers are drained after a stop request.
  *
  * FB under 64 can fit in a single word width, making it extremely fast and
  * compact for 64-bit inputs.  For larger sizes we pack prefixes which can
@@ -5730,6 +5759,19 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
 }
 
 
+/* One policy attempt has three collection/solve paths:
+ *   BIDS: process dependencies as full relations arrive, without a final
+ *         batch solve. Collection can be serial or threaded.
+ *   Inline: tiny non-BIDS matrices are solved while consuming candidates.
+ *   Batch: collect to readiness/target, solve, and on a miss request more
+ *          columns before trying again. matrix_last_count prevents a blind
+ *          retry; the final flush runs only if untested columns remain.
+ *
+ * Source exhaustion, work/relation budgets and an uncertified BIDS state
+ * can end an attempt without completing the partition. Any useful splits
+ * remain in ctx->result. BIDS records partial progress separately while
+ * continuing collection, then restores factor_found before returning.
+ * Thus a true return means progress, not necessarily a fully prime result. */
 static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_t poly;
   uint32_t family_count = 0, poly_count = 0;
@@ -5913,9 +5955,9 @@ static int siqs_try_policy(const mpz_t original, const mpz_t n,
 
   siqs_ctx_init(&ctx, original, n, result, profile, verbose);
   ctx.nthreads = nthreads;
-  /* If the selected square-free multiplier completes a square, the zero of
-   * the corresponding polynomial gives a factor directly and would receive
-   * an unbounded number of byte-sieve hits. */
+  /* If the selected square-free multiplier completes a square, extract its
+   * factor directly. A zero polynomial value lies outside the nonzero-norm
+   * assumptions used to certify byte scores. */
   if (mpz_perfect_square_p(ctx.kn)) {
     mpz_sqrt(root, ctx.kn);
     mpz_gcd(divisor, root, n);

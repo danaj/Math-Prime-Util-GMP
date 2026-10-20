@@ -354,7 +354,7 @@ static int siqs_choose_A_deterministic(siqs_ctx_t *ctx, siqs_poly_t *poly) {
  * prefixes to the same fitting and acceptance machinery.
  *
  * Keep the best unused family while relaxing the accepted multiplicative
- * error through the table below. S=1: start with one valid proposal, then
+ * error through the table below. Start with one valid proposal, then
  * try one more per failed error level. A later failed search leaves the
  * retained best intact. Very tight distances gave attractive statistics
  * without paying for themselves in full factoring, so we retain this
@@ -365,9 +365,10 @@ static int siqs_choose_A_deterministic(siqs_ctx_t *ctx, siqs_poly_t *poly) {
  * new candidate search starts from the prepared radius. q=3 alone has the
  * tested outer guard stages 2,4,8,16; higher q keeps its factor-two guard.
  *
- * When native uint128_t is available, setup checks that target_A and even
- * the largest possible FB-prime product fit in 64 bits. SAR64 then uses
- * uint64_t products and uint128_t cross-products for exact comparisons.
+ * With 64-bit unsigned long and native uint128_t, setup checks that target_A
+ * and even the largest possible FB-prime product fit in 64 bits. Native
+ * fitting uses uint64_t products and uint128_t cross-products for exact
+ * comparisons.
  * Otherwise the same selection and rounding rules use GMP. This proof is
  * independent of the input's bit size and is done once during preparation. */
 #ifndef USE_CUBIC_CHOOSER
@@ -461,6 +462,9 @@ static void siqs_A_native_guard(siqs_A_search_t *g) {
   }
 }
 
+/* Minimize max(A/T,T/A), not absolute distance. When candidates straddle T,
+ * their product compared with T^2 selects the closer multiplicative ratio.
+ * Strict comparisons preserve the first candidate on an exact tie. */
 static int siqs_A_closer64(const siqs_A_search_t *g, uint64_t a, uint64_t b) {
   uint64_t t = g->native_target;
   if (a <= t && b <= t) return a > b;
@@ -603,6 +607,17 @@ static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
   g->radius = window; /* Twice the nominal Cubic radius, ready for RANDOM. */
 }
 
+/* For either odd prime p=field, state -> (p+1)*state+1 has a full period
+ * modulo p^4. Its four base-p digits therefore visit every coefficient tuple
+ * once; the seed changes only the starting point. State persists across
+ * families, and even rejected proposals consume a draw. Report exhaustion
+ * instead of wrapping and repeating the prefix stream.
+ *
+ * Coordinates x<p evaluate that cubic; x=p, when present, is its leading
+ * coefficient (the projective point at infinity). Two distinct cubics agree
+ * at at most three coordinates, including infinity. Disjoint coordinate
+ * pools turn that into at most three shared prefix primes. This bound does
+ * not cover the fitted final prime or the caller's RANDOM fallback. */
 static int siqs_A_cubic_prefix(siqs_A_search_t *g, uint32_t q,
                                 uint32_t *prefix) {
   siqs_A_cubic_t *c = g->cubic;
@@ -684,8 +699,8 @@ static siqs_A_search_t *siqs_choose_A_prepare(const siqs_ctx_t *ctx,
     g->radius = 8U;
 
 #if HAVE_UINT128 && ULONG_MAX > UINT32_MAX
-  /* Decide if we can use faster SAR64 instead of the standard SAR. */
-  /* Prove that every possible family product fits before taking this path. */
+  /* Prove that every possible family product fits before using native
+   * fitting, shared by SAR and Cubic. */
   unsigned long largest = siqs_A_prime(g, g->size-1U), product = 1;
   g->native = mpz_fits_ulong_p(g->target);
   for (i = 0; g->native && i < poly->q_count; i++) {
@@ -695,7 +710,7 @@ static siqs_A_search_t *siqs_choose_A_prepare(const siqs_ctx_t *ctx,
   g->native_target = mpz_get_ui(g->target);
   g->native_squared = (uint128_t)g->native_target * g->native_target;
   if (g->native) {
-    /* Only SAR64 needs this cache; large-FB GMP searches skip it. */
+    /* Only native fitting needs this cache; GMP searches skip it. */
     g->native_primes = siqs_malloc(siqs_array_size(g->size, sizeof(*g->native_primes)));
     for (i = 0; i < g->size; i++) g->native_primes[i] = siqs_A_prime(g, i);
     siqs_A_native_guard(g);
@@ -851,7 +866,7 @@ static int siqs_adaptive_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   g = poly->A_search;
   if (g->size < q || !siqs_adaptive_A_candidate(ctx, poly, &have_best))
     return 0;
-  /* Check the retained best against each precomputed error band. S=1: if
+  /* Check the retained best against each precomputed error band. If
    * outside, try one new valid proposal before advancing to the next band.
    * After the last band (or a failed search), return the best we have. */
   for (i = 0; i < SIQS_A_ERROR_LEVELS; i++) {
@@ -936,7 +951,7 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
    * 50- to 80-bit tests.  That didn't translate into a performance or
    * recovery advantage over SAR, and it is slower to run. */
   if (poly->q_count == 3U)
-     return siqs_choose_A_sar(ctx, poly);
+    return siqs_choose_A_sar(ctx, poly);
 
   if (poly->q_count == 4U)
     return siqs_choose_A_sar(ctx, poly);

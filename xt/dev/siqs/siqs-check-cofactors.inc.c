@@ -813,6 +813,44 @@ static void cofactor_mr2(void) {
   puts("PASS cofactors: native MR2 matches GMP base-2 reference, edges and pseudoprimes");
 }
 
+static void cofactor_isqrt_check(uint64_t n, mpz_t z, mpz_t root) {
+  siqs_mpz_set_u64(z, n);
+  mpz_sqrt(root, z);
+  CHECK(siqs_isqrt64(n) == mpz_get_ui(root));
+  CHECK(siqs_is_perfect_square(n) == mpz_perfect_square_p(z));
+}
+
+static void cofactor_isqrt(void) {
+  mpz_t z, root;
+  siqs_rng_t rng;
+  uint64_t n, r;
+  uint32_t i;
+  case_name = "native-64-bit-square-root-boundaries";
+  mpz_inits(z, root, NULL);
+  for (n = 0; n < 65536; n++)
+    cofactor_isqrt_check(n, z, root);
+  rng.state = UINT64_C(0xb50ed5c71a0f9283);
+  for (i = 0; i < 2048; i++) {
+    n = siqs_rand64(&rng);
+    cofactor_isqrt_check(n, z, root);
+    r = (uint32_t)n;
+    n = r*r;
+    cofactor_isqrt_check(n, z, root);
+    if (n != 0) cofactor_isqrt_check(n - 1, z, root);
+    cofactor_isqrt_check(n + 1, z, root);
+  }
+  for (i = 0; i < 1024; i++) {
+    cofactor_isqrt_check(UINT64_MAX - i, z, root);
+    r = (uint64_t)UINT32_MAX - i;
+    n = r*r;
+    cofactor_isqrt_check(n - 1, z, root);
+    cofactor_isqrt_check(n, z, root);
+    cofactor_isqrt_check(n + 1, z, root);
+  }
+  mpz_clears(z, root, NULL);
+  puts("PASS cofactors: unsigned square-root correction, small exhaustive range, random squares and uint64 boundaries");
+}
+
 static void cofactor_bpsw_check(uint64_t n, mpz_t z) {
   mpz_import(z, 1, -1, sizeof(n), 0, 0, &n);
   CHECK(siqs_bpsw_u64(n) == (mpz_probab_prime_p(z, 25) != 0));
@@ -877,6 +915,7 @@ static void suite_cofactors(void) {
   prime_iterator_global_startup();
   cofactor_mont64();
   cofactor_mr2();
+  cofactor_isqrt();
   cofactor_bpsw();
 #ifdef SIQS_TIMING
   cofactor_timing();
