@@ -12,7 +12,7 @@ use Text::ParseWords qw(shellwords);
 # Build a standalone checker in a disposable directory.  No blib, XS build,
 # MPU modules, or production source rewriting. Reduced-score tests use a
 # temporary source copy; the C executable owns suite selection.
-my ($extended, $verbose, $sanitize, $debug, $keep, $list, $help, $block, $threaded);
+my ($extended, $verbose, $sanitize, $debug, $keep, $list, $help, $block, $threaded, $serial);
 my $score_bits = 8;
 my $suite = 'all';
 my $cc = $ENV{CC} // $Config{cc};
@@ -22,12 +22,14 @@ Getopt::Long::Configure(qw(no_auto_abbrev no_ignore_case));
 GetOptions('suite=s' => \$suite, 'extended' => \$extended, 'verbose' => \$verbose,
   'sanitize' => \$sanitize, 'debug' => \$debug, 'keep' => \$keep,
   'list' => \$list, 'help' => \$help, 'block-size=i' => \$block,
-  'threaded' => \$threaded,
+  'threaded' => \$threaded, 'serial' => \$serial,
   'score-bits=i' => \$score_bits,
   'cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags)
   or usage(2);
 usage(0) if $help;
 usage(2) if @ARGV;
+die "--serial and --threaded are mutually exclusive\n" if $serial && $threaded;
+$threaded = 0 if $serial;
 die "score bits must be 5, 6, 7, or 8\n" if $score_bits < 5 || $score_bits > 8;
 die "reduced score width requires --suite scores\n"
   if $score_bits != 8 && $suite ne 'scores';
@@ -39,7 +41,20 @@ my $binary = File::Spec->catfile($temporary, 'siqs-check');
 my @command = (shellwords($cc), shellwords($cflags));
 push @command, '-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all'
   if $sanitize;
-push @command, '-DSTANDALONE', "-I$root";
+push @command, '-DSTANDALONE', '-UPSIQS', "-I$root";
+# Match build-siqs.pl: probe by compiling/linking, never by running it.
+unless (defined $threaded) {
+  my $probe = File::Spec->catfile($temporary, 'pthread-probe');
+  my $log = File::Spec->catfile($temporary, 'pthread-probe.log');
+  {
+    local *STDOUT;
+    local *STDERR;
+    open STDOUT, '>', $log or die "cannot open $log: $!\n";
+    open STDERR, '>&', \*STDOUT or die "cannot redirect probe errors: $!\n";
+    $threaded = system(@command, '-pthread', '-o', $probe,
+                      File::Spec->catfile($root, 'tools', 'pthread-probe.c')) == 0;
+  }
+}
 if ($score_bits != 8) {
   open my $input, '<', File::Spec->catfile($root, 'siqs.c') or die $!;
   my $source = do { local $/; <$input> };
@@ -63,7 +78,8 @@ push @command, "-DSIQS_SIEVE_BLOCK_SIZE=$block" if defined $block;
 push @command, '-o', $binary, map {File::Spec->catfile($root, $_)}
   qw(xt/dev/siqs/siqs-check.c prime_iterator.c squfof126.c);
 push @command, shellwords($ldflags);
-print "Building standalone SIQS checker", ($sanitize ? ' (ASan/UBSan)' : ''), "\n";
+print "Building standalone SIQS checker ", ($threaded ? 'with pthreads' : 'serial-only'),
+      ($sanitize ? ' (ASan/UBSan)' : ''), "\n";
 $| = 1;
 system(@command) == 0 or die "SIQS checker build failed\n";
 my @options = ('--suite', $suite);
@@ -85,7 +101,8 @@ usage: perl xt/dev/siqs/siqs-check.pl [options]
   --score-bits N        Scratch 5/6/7-bit score model (--suite scores only).
   --extended           Broader fixtures and more polynomials, not full factors.
   --verbose            Report individual polynomial and matrix fixtures.
-  --threaded           Also check pthread Lanczos and worker pools.
+  --serial             Disable pthreads (default: detect compile/link support).
+  --threaded           Require pthread Lanczos and worker pool checks.
   --block-size N       Build with another block maximum (0 disables blocking).
   --sanitize           Enable ASan/UBSan; compiler/runtime support required.
   --debug              Also enable production SIQS_DEBUG assertions.

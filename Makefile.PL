@@ -141,7 +141,7 @@ SIQS_CHECK_ARGS =
 EXTRA_FLAGS =
 SIQS_TUNE_ARGS =
 
-.PHONY: siqs siqs-serial check-siqs check-psiqs check-siqs-autotune test-siqs \
+.PHONY: siqs siqs-serial check-siqs check-siqs-autotune test-siqs \
 	siqs-tuned siqs-tuned-8
 
 siqs: msiqs
@@ -160,11 +160,9 @@ siqs-tuned-8:
 	$(MAKE) siqs-tuned SIQS_TUNE_ARGS='--threads 8'
 
 # Repository-only health checks; not dependencies of Perl's test target.
+# Auto-detect pthreads; force serial: make check-siqs SIQS_CHECK_ARGS=--serial
 check-siqs:
 	$(PERLRUN) xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" $(SIQS_CHECK_ARGS)
-
-check-psiqs:
-	$(PERLRUN) xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --threaded $(SIQS_CHECK_ARGS)
 
 test-siqs: check-siqs
 

@@ -618,7 +618,7 @@ static void suite_matrix(void) {
 #ifdef PSIQS
   puts("PASS matrix: serial/pthread kernels and fixed-seed solver results agree (2/3/4 threads)");
 #else
-  puts("PASS matrix: serial kernels/solvers (use --threaded to check pthread kernels)");
+  puts("PASS matrix: serial kernels/solvers (checker built without pthread support)");
 #endif
   puts("PASS matrix: parity mapping, singleton/trim mapping, dense/packed boundaries, original-matrix dependencies");
   fflush(stdout);

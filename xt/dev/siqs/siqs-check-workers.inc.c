@@ -785,6 +785,6 @@ static void suite_workers(void) {
 }
 #else
 static void suite_workers(void) {
-  puts("SKIP workers: use make check-psiqs or --threaded");
+  puts("SKIP workers: checker built without pthread support");
 }
 #endif

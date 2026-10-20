@@ -83,9 +83,9 @@ When built with pthreads, the same executable supports a runtime worker count:
 
 From a repository checkout, optional health checks can be run with
 "make check-siqs" (also "make test-siqs"). These do not build the Perl
-module and are not part of the regular test suite. "make check-psiqs"
-adds the pthread Lanczos and worker pool checks. These developer harnesses
-are not included in the Perl distribution.
+module and are not part of the regular test suite. Pthread Lanczos and worker
+pool checks are enabled automatically when pthread support is detected.
+These developer harnesses are not included in the Perl distribution.
 See xt/dev/siqs/README-siqs-check.txt for extended checks,
 sanitizers, and a direct C build that does not require Perl.
 

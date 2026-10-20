@@ -283,7 +283,7 @@ representation conversions are included in the reported primality time.
 Validation and scope
 --------------------
 
-  make check-psiqs SIQS_CHECK_ARGS='--suite workers --extended'
+  make check-siqs SIQS_CHECK_ARGS='--suite workers --extended'
 
 The persistent worker suite exercises one cache startup, repeated public
 1/2/4-thread calls, two simultaneous callers with independent pools, result

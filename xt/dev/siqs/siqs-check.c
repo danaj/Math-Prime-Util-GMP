@@ -868,5 +868,6 @@ int main(int argc, char **argv) {
       ran++;
     }
   if (ran == 0) { fprintf(stderr, "unknown suite: %s\n", selected); return 2; }
+  puts("SIQS checks: all enabled checks passed.");
   return 0;
 }

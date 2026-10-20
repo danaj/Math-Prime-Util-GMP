@@ -11,15 +11,16 @@ After "perl Makefile.PL":
 
   make check-siqs
   make test-siqs                          # alias
-  make check-psiqs                        # adds --threaded
+  make check-siqs SIQS_CHECK_ARGS=--serial # force a serial-only checker
   make check-siqs SIQS_CHECK_ARGS='--extended --verbose'
   make check-siqs SIQS_CHECK_ARGS='--sanitize'
-  make check-psiqs SIQS_CHECK_ARGS='--extended'
 
 The Make target uses only a core-Perl (5.10+) build wrapper, the C compiler,
 and GMP.
-check-psiqs runs the same suites with the optional pthread Lanczos/worker checks
-enabled by default. Both targets share SIQS_CHECK_ARGS for additional options.
+Like "make siqs", it detects pthread support with a compile/link probe and
+includes all pthread Lanczos/worker checks when available. The probe is never
+executed. Use --serial to disable pthreads, or --threaded to require them.
+A checker build or test failure never causes a retry in serial mode.
 The wrapper compiles one checker into a temporary directory and removes it
 afterward. It does not require Math::Prime::Util or Math::Prime::Util::GMP to
 be installed or built. Use --keep to retain the binary.
@@ -73,12 +74,12 @@ be registered without creating separate executables or a large framework.
 
   perl xt/dev/siqs/siqs-check.pl --list
   perl xt/dev/siqs/siqs-check.pl --suite sieve --extended
-  perl xt/dev/siqs/siqs-check.pl --suite scores --sanitize --debug --threaded
+  perl xt/dev/siqs/siqs-check.pl --suite scores --sanitize --debug
   perl xt/dev/siqs/siqs-check.pl --suite scores --score-bits 5 --sanitize --debug
   perl xt/dev/siqs/siqs-check.pl --suite relations
-  perl xt/dev/siqs/siqs-check.pl --suite matrix --threaded --extended
-  perl xt/dev/siqs/siqs-check.pl --suite bids --sanitize --debug --threaded
-  make check-psiqs SIQS_CHECK_ARGS='--suite workers'
+  perl xt/dev/siqs/siqs-check.pl --suite matrix --extended
+  perl xt/dev/siqs/siqs-check.pl --suite bids --sanitize --debug
+  make check-siqs SIQS_CHECK_ARGS='--suite workers'
   perl xt/dev/siqs/siqs-check.pl --block-size 32768
   perl xt/dev/siqs/siqs-check.pl --block-size 0
   perl xt/dev/siqs/siqs-check.pl --sanitize
@@ -106,9 +107,10 @@ independently of pivot order, using valid congruences with known rank.
 Additional fixtures cover partial splits with the basis retained, prime and
 composite perfect powers, the FB+513 soft budget, useful pending relations
 after the stop request, and uncertified dependencies after exponent overflow.
-With --threaded, two/four-worker collectors drain their buffers after a small
-test budget, and a failed worker pool uses the BIDS serial collector. Neither
-path performs matrix-readiness scans. No production test hooks are required.
+With pthread support enabled, two/four-worker collectors drain their buffers
+after a small test budget, and a failed worker pool uses the BIDS serial
+collector. Neither path performs matrix-readiness scans. No production test
+hooks are required.
 
 Policy suite
 ------------
@@ -275,7 +277,8 @@ No production code changes are required for these relation/matrix tests.
 Workers suite
 -------------
 
-Enabled by check-psiqs or --threaded; otherwise it explicitly reports SKIP.
+Enabled automatically when pthread support is detected; a serial-only checker
+explicitly reports SKIP.
 Small genuine polynomial jobs check 1/2/4-worker reuse, independent scratch,
 distinct A families, exactly-once merges, and reuse after a forced wide
 candidate-map allocation. Buffered GMP records must be cleared before their
@@ -326,7 +329,7 @@ ordinary production source is not rewritten or exported for testing.
 
 ASan/UBSan can be used as above. Where ThreadSanitizer is supported:
 
-  make check-psiqs SIQS_CFLAGS='-O1 -g -fsanitize=thread' \
+  make check-siqs SIQS_CFLAGS='-O1 -g -fsanitize=thread' \
     SIQS_CHECK_ARGS='--suite workers'
 
 Do not combine ThreadSanitizer with --sanitize (ASan). Normal worker jobs do
