@@ -5,7 +5,7 @@ use Test::More tests => 1;
 use FindBin qw($Bin);
 use File::Spec;
 
-my $checker = File::Spec->catfile($Bin, '..', 'tools', 'factor-check.pl');
+my $checker = File::Spec->catfile($Bin, 'factor-check.pl');
 open my $run, '-|', $^X, $checker or die "Cannot start factor checker: $!";
 my $output = do { local $/; <$run> };
 my $ok = close $run;

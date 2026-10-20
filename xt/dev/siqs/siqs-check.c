@@ -1,7 +1,7 @@
 /* Standalone SIQS sanity/regression checker, not part of Perl's test suite.
  *
  * Direct build from the repository root (GMP required, Perl not required):
- *   cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
+ *   cc -O3 -DSTANDALONE -o /tmp/siqs-check xt/dev/siqs/siqs-check.c \
  *     prime_iterator.c squfof126.c -lgmp -lm
  *   /tmp/siqs-check --suite sieve
  *
@@ -18,7 +18,7 @@
 # include <sys/wait.h>
 #endif
 #define main siqs_check_unused_driver_main
-#include "../mpu-siqs.c"
+#include "../../../mpu-siqs.c"
 #undef main
 #include "siqs-check-thread-seams.h"
 #include "siqs-check-cofactor-seams.h"
@@ -30,11 +30,11 @@ static UV check_fb_prime_next(prime_iterator *iter) {
 }
 #define prime_iterator_next check_fb_prime_next
 #ifndef SIQS_CHECK_SOURCE
-# define SIQS_CHECK_SOURCE "../siqs.c"
+# define SIQS_CHECK_SOURCE "../../../siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
 #undef prime_iterator_next
-#include "../mont64.h"
+#include "../../../mont64.h"
 #undef squfof126
 #undef siqs_is_prob_prime
 #undef malloc

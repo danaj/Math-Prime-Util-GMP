@@ -34,7 +34,7 @@ die "reduced score width requires --suite scores\n"
 die "block size must be zero or 4096..1048576 bytes\n"
   if defined($block) && $block != 0 && ($block < 4096 || $block > 1048576);
 my $temporary = tempdir('siqs-check-XXXXXX', TMPDIR => 1, CLEANUP => !$keep);
-my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..'));
+my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..', '..', '..'));
 my $binary = File::Spec->catfile($temporary, 'siqs-check');
 my @command = (shellwords($cc), shellwords($cflags));
 push @command, '-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all'
@@ -61,7 +61,7 @@ push @command, '-DSIQS_DEBUG' if $debug;
 push @command, '-DPSIQS', '-pthread' if $threaded;
 push @command, "-DSIQS_SIEVE_BLOCK_SIZE=$block" if defined $block;
 push @command, '-o', $binary, map {File::Spec->catfile($root, $_)}
-  qw(tools/siqs-check.c prime_iterator.c squfof126.c);
+  qw(xt/dev/siqs/siqs-check.c prime_iterator.c squfof126.c);
 push @command, shellwords($ldflags);
 print "Building standalone SIQS checker", ($sanitize ? ' (ASan/UBSan)' : ''), "\n";
 $| = 1;
@@ -80,7 +80,7 @@ exit($status >> 8);
 sub usage {
   my ($status) = @_;
   print <<'USAGE';
-usage: perl tools/siqs-check.pl [options]
+usage: perl xt/dev/siqs/siqs-check.pl [options]
   --suite NAME          Run policies, sieve, scores, setup, relations, matrix, bids, workers, cofactors, or all.
   --score-bits N        Scratch 5/6/7-bit score model (--suite scores only).
   --extended           Broader fixtures and more polynomials, not full factors.

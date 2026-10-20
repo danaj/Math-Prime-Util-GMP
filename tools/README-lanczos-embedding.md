@@ -367,8 +367,8 @@ The matrix health checks cover reduction, original-column mapping,
 dense and Lanczos nullspaces, packed input rows, and serial/threaded agreement:
 
 ```sh
-perl tools/siqs-check.pl --suite matrix --threaded
-perl tools/siqs-check.pl --suite matrix --threaded --extended
+perl xt/dev/siqs/siqs-check.pl --suite matrix --threaded
+perl xt/dev/siqs/siqs-check.pl --suite matrix --threaded --extended
 ```
 
 Those repository checks include SIQS fixtures and need GMP, unlike the

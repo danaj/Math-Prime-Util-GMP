@@ -17,7 +17,7 @@ my ($cflags, $ldflags, $sanitize) = ('-O2 -g', '-lgmp -lm', 0);
 GetOptions('cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags,
            'sanitize' => \$sanitize) && !@ARGV
   or die "usage: factor-check.pl [--sanitize] [--cc CC] [--cflags FLAGS] [--ldflags FLAGS]\n";
-my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..'));
+my $root = File::Spec->rel2abs(File::Spec->catdir($Bin, '..', '..', '..'));
 my $temporary = tempdir('factor-check-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $source_path = File::Spec->catfile($root, 'factor.c');
 open my $input, '<', $source_path or die "$source_path: $!\n";

@@ -1,0 +1,5 @@
+#!include_default
+
+# Research artifacts and repository-only developer tests are not distributed.
+^misc/
+^xt/dev/

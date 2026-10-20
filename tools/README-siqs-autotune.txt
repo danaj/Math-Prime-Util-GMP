@@ -145,7 +145,7 @@ are installed. Source/build settings and TODO files are never edited by the tool
 VALIDATION
 ----------
 
-Optional aggregate/alias/pool/protocol tests: make check-siqs-autotune.
-Wrapper-only tests without compilation: perl xt/siqs-autotune.t.
+Repository-only aggregate/alias/pool/protocol tests: make check-siqs-autotune.
+Wrapper-only tests without compilation: perl xt/dev/siqs/siqs-autotune.t.
 Requires the existing GMP/POSIX-pthreads helper, independent of the Perl module's
 normal build/test workflow.

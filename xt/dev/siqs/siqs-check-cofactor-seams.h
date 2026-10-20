@@ -1,7 +1,7 @@
 /* Test-only bounded-splitter misses. Include after the host adapters and
  * before siqs.c; undefine the interposition immediately afterward. Flags
  * stay immutable while any concurrent cofactor checks are running. */
-#include "../squfof126.h"
+#include "../../../squfof126.h"
 static int cofactor_miss_squfof;
 static int cofactor_miss_siqs, cofactor_trace;
 static unsigned int cofactor_squfof_calls, cofactor_prime_calls;

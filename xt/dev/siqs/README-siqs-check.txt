@@ -1,7 +1,8 @@
 SIQS standalone health checks
 =============================
 
-These optional developer checks exercise the current SIQS implementation.
+These repository-only developer checks exercise the current SIQS implementation.
+They are not included in the Perl distribution.
 They do not build/load the Perl XS module, run performance benchmarks, or
 attempt complete large factorizations. They are not part of ordinary
 "make test". Production sources and benchmark builds are not modified.
@@ -25,7 +26,7 @@ be installed or built. Use --keep to retain the binary.
 
 Direct build without Perl or a generated Makefile, from the repository root:
 
-  cc -O3 -DSTANDALONE -o /tmp/siqs-check tools/siqs-check.c \
+  cc -O3 -DSTANDALONE -o /tmp/siqs-check xt/dev/siqs/siqs-check.c \
     prime_iterator.c squfof126.c -lgmp -lm
   /tmp/siqs-check --suite sieve
   /tmp/siqs-check --extended --verbose
@@ -70,18 +71,18 @@ the residual only when verbosity is enabled. No rho fallback is required.
 --verbose reports individual polynomial/matrix fixtures. New suites can
 be registered without creating separate executables or a large framework.
 
-  perl tools/siqs-check.pl --list
-  perl tools/siqs-check.pl --suite sieve --extended
-  perl tools/siqs-check.pl --suite scores --sanitize --debug --threaded
-  perl tools/siqs-check.pl --suite scores --score-bits 5 --sanitize --debug
-  perl tools/siqs-check.pl --suite relations
-  perl tools/siqs-check.pl --suite matrix --threaded --extended
-  perl tools/siqs-check.pl --suite bids --sanitize --debug --threaded
+  perl xt/dev/siqs/siqs-check.pl --list
+  perl xt/dev/siqs/siqs-check.pl --suite sieve --extended
+  perl xt/dev/siqs/siqs-check.pl --suite scores --sanitize --debug --threaded
+  perl xt/dev/siqs/siqs-check.pl --suite scores --score-bits 5 --sanitize --debug
+  perl xt/dev/siqs/siqs-check.pl --suite relations
+  perl xt/dev/siqs/siqs-check.pl --suite matrix --threaded --extended
+  perl xt/dev/siqs/siqs-check.pl --suite bids --sanitize --debug --threaded
   make check-psiqs SIQS_CHECK_ARGS='--suite workers'
-  perl tools/siqs-check.pl --block-size 32768
-  perl tools/siqs-check.pl --block-size 0
-  perl tools/siqs-check.pl --sanitize
-  perl tools/siqs-check.pl --sanitize --debug
+  perl xt/dev/siqs/siqs-check.pl --block-size 32768
+  perl xt/dev/siqs/siqs-check.pl --block-size 0
+  perl xt/dev/siqs/siqs-check.pl --sanitize
+  perl xt/dev/siqs/siqs-check.pl --sanitize --debug
 
 Block size is a production compile-time setting, so testing another maximum
 requires another build. A single build exercises both blocked and unblocked
@@ -140,7 +141,7 @@ making huge allocations. These are boundary tests, not 512-bit factoring.
 Setup suite (opt-in)
 -------------------
 
-  perl tools/siqs-check.pl --suite setup --extended --verbose
+  perl xt/dev/siqs/siqs-check.pl --suite setup --extended --verbose
 
 Use the actual production policies at 400/401, 430/431, 463, 496 and 512 bits.
 Deterministic composites have known large factors, so factor-base construction

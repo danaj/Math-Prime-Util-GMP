@@ -159,12 +159,12 @@ siqs-tuned: siqs-sieve-bench tools/siqs-autotune.pl
 siqs-tuned-8:
 	$(MAKE) siqs-tuned SIQS_TUNE_ARGS='--threads 8'
 
-# Optional standalone health checks; not dependencies of Perl's test target.
+# Repository-only health checks; not dependencies of Perl's test target.
 check-siqs:
-	$(PERLRUN) tools/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" $(SIQS_CHECK_ARGS)
+	$(PERLRUN) xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" $(SIQS_CHECK_ARGS)
 
 check-psiqs:
-	$(PERLRUN) tools/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --threaded $(SIQS_CHECK_ARGS)
+	$(PERLRUN) xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" --threaded $(SIQS_CHECK_ARGS)
 
 test-siqs: check-siqs
 
@@ -183,12 +183,12 @@ siqs-la-bench: tools/siqs-la-bench.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALON
 siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
 	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
-siqs-autotune-check: tools/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
+siqs-autotune-check: xt/dev/siqs/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
+	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ xt/dev/siqs/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
 
 check-siqs-autotune: siqs-autotune-check
 	./siqs-autotune-check
-	$(PERLRUN) xt/siqs-autotune.t
+	$(PERLRUN) xt/dev/siqs/siqs-autotune.t
 
 MAKE_FRAG
 }

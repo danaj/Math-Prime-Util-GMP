@@ -2,7 +2,7 @@
  * Including Lanczos exposes packing/kernels without production test hooks.
  * References operate on immutable original columns, not packed storage. */
 #ifndef SIQS_CHECK_LANCZOS_SOURCE
-# define SIQS_CHECK_LANCZOS_SOURCE "../lanczos.c"
+# define SIQS_CHECK_LANCZOS_SOURCE "../../../lanczos.c"
 #endif
 #include "siqs-check-thread-seams.h"
 #include SIQS_CHECK_LANCZOS_SOURCE
