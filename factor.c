@@ -112,12 +112,14 @@ typedef struct {
 } factor_step_t;
 
 /* Pretests: BITS is a minimum; zero means unrestricted.  These are
- * cumulative, deliberately modest budgets before the first SIQS checkpoint. */
+ * cumulative, deliberately modest budgets before the first SIQS checkpoint.
+ * B1=600 uses four curves from 180 bits, plus sixteen more from 200 bits. */
 static const factor_step_t factor_pretests[] = {
   /* bits  method                      B1       B2/curves */
   {   0, FACTOR_METHOD_EARLY_PM1,       0,       0, NULL                    },
   { 160, FACTOR_METHOD_ECM,           200,       4, "ecm (200)"        },
-  { 200, FACTOR_METHOD_ECM,           600,      20, "ecm (600)"        },
+  { 180, FACTOR_METHOD_ECM,           600,       4, "ecm (600)"        },
+  { 200, FACTOR_METHOD_ECM,           600,      12, "ecm (600)"        },
   { 200, FACTOR_METHOD_ECM,          2000,      10, "ecm (2000)"       },
   { 208, FACTOR_METHOD_PM1,        200000, 3000000, "p-1 (200k)"            },
   { 208, FACTOR_METHOD_ECM,         20000,       2, "ecm (20k,2)"     },

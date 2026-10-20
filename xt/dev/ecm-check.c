@@ -56,11 +56,30 @@ static void *check_calloc(UV count, size_t size)
   return mpu_calloc((size_t)count, size);
 }
 
+static void *check_realloc(void *memory, UV count, size_t size)
+{
+#ifdef ECM_CHECK_THREADS
+  pthread_mutex_lock(&allocation_mutex);
+#endif
+  allocation_calls++;
+#ifdef ECM_CHECK_THREADS
+  pthread_mutex_unlock(&allocation_mutex);
+#endif
+  if (allocation_probe) {
+    probed_count = count;
+    longjmp(allocation_trap, 2);
+  }
+  return mpu_realloc(memory, (size_t)count, size);
+}
+
 #undef croak
 #define croak check_croak
 #undef Newz
 #define Newz(id, mem, count, type) \
   ((mem) = (type*)check_calloc((count), sizeof(type)))
+#undef Renew
+#define Renew(mem, count, type) \
+  ((mem) = (type*)check_realloc((mem), (count), sizeof(type)))
 #include "../../ecm.c"
 
 #endif
@@ -295,6 +314,55 @@ static void check_projective(ecm_ctx *ctx)
   for (k = 0; k < 6; k++) check_scalar(ctx, torsion, p, k, 1);
 }
 
+static void check_batch_normalization(ecm_ctx *ctx)
+{
+  const unsigned moduli[] = {35,101,1009,1000003};
+  mpz_t x[16], z[16], prefix[16], expected[16], f, temporary, inverse;
+  unsigned i, k, m;
+  mpz_inits(f,temporary,inverse,NULL);
+  for (i = 0; i < 16; i++) mpz_inits(x[i],z[i],prefix[i],expected[i],NULL);
+  for (m = 0; m < sizeof(moduli)/sizeof(moduli[0]); m++) {
+    mpz_set_ui(ctx->n, moduli[m]);
+    for (k = 1; k <= 16; k++) {
+      for (i = 0; i < k; i++) {
+        mpz_set_ui(x[i], 12345+17*i);
+        mpz_set_ui(z[i], 2+3*i);
+        while (!mpz_invert(inverse,z[i],ctx->n)) mpz_add_ui(z[i],z[i],1);
+        mpz_mul(temporary,x[i],inverse);
+        mpz_mod(expected[i],temporary,ctx->n);
+      }
+      CHECK(ec_normalize_batch(ctx,x,z,prefix,k,f));
+      CHECK(mpz_cmp_ui(f,1) == 0);
+      for (i = 0; i < k; i++) {
+        CHECK(mpz_cmp(x[i],expected[i]) == 0);
+        CHECK(mpz_cmp_ui(z[i],1) == 0);
+      }
+    }
+  }
+  mpz_set_ui(ctx->n,35);
+  /* The product loses both factors, but an individual denominator reveals one. */
+  mpz_set_ui(z[0],5); mpz_set_ui(z[1],7);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,2,f));
+  CHECK(mpz_cmp_ui(f,5) == 0);
+  /* Do not let a wholly lost point hide a later proper factor. */
+  mpz_set_ui(z[0],0); mpz_set_ui(z[1],5);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,2,f));
+  CHECK(mpz_cmp_ui(f,5) == 0);
+  mpz_set_ui(z[0],0); mpz_set_ui(z[1],0);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,2,f));
+  CHECK(mpz_cmp(f,ctx->n) == 0);
+  mpz_set_ui(z[0],5); mpz_set_ui(z[1],2);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,2,f));
+  CHECK(mpz_cmp_ui(f,5) == 0);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,1,f));
+  CHECK(mpz_cmp_ui(f,5) == 0);
+  mpz_set_ui(z[0],0);
+  CHECK(!ec_normalize_batch(ctx,x,z,prefix,1,f));
+  CHECK(mpz_cmp(f,ctx->n) == 0);
+  for (i = 0; i < 16; i++) mpz_clears(x[i],z[i],prefix[i],expected[i],NULL);
+  mpz_clears(f,temporary,inverse,NULL);
+}
+
 static void check_stage2(ecm_ctx *ctx)
 {
   const UV limits[] = {13,19,31,59,127};
@@ -332,6 +400,45 @@ static void check_stage2(ecm_ctx *ctx)
   CHECK(ec_stage2(ctx, 7, 19, x, z, f) == 0);
   CHECK(mpz_cmp_ui(f, 35) == 0);
   CHECK(allocation_calls == i);
+  mpz_clears(x,z,f,NULL);
+}
+
+static void check_stage2_workspace(ecm_ctx *ctx)
+{
+  const unsigned long p = 1000003;
+  const UV bounds[] = {2, 19, 127, 20000, 19, 20000};
+  reference_point P = {2, 0, 0};
+  mpz_t x,z,f;
+  unsigned j;
+  for (;;) {
+    int64_t rhs = mod(P.x*P.x*P.x + 6*P.x*P.x + P.x, p);
+    P.y = power(rhs, (p+1)/4, p);
+    if (P.y != 0 && P.y*P.y % p == rhs) break;
+    P.x++;
+  }
+  mpz_inits(x,z,f,NULL);
+  mpz_set_ui(ctx->n, p); mpz_set_ui(ctx->b, 2);
+  for (j = 0; j < sizeof(bounds)/sizeof(bounds[0]); j++) {
+    UV d = (UV)sqrt((double)bounds[j]/2.0), i, half, old_alloc, needed;
+    unsigned old_calls = allocation_calls;
+    if (d < 2) d = 2;
+    else if (d%2) d++;
+    half = d/2;
+    needed = half+2+2*(half/2 < ECM_STAGE2_BATCH_POINTS ? half/2 : ECM_STAGE2_BATCH_POINTS);
+    old_alloc = ctx->stage2_alloc;
+    mpz_set_ui(x, (unsigned long)P.x); mpz_set_ui(z, 1);
+    CHECK(ec_stage2(ctx, 1, bounds[j], x, z, f) == 0);
+    CHECK(ctx->stage2_alloc == (old_alloc > needed ? old_alloc : needed));
+    CHECK(allocation_calls == old_calls + (needed > old_alloc));
+    /* Independent affine arithmetic checks the packed even table and the
+     * stride.  Repeated and smaller bounds also check stale-workspace reuse. */
+    for (i = 1; i <= half+1; i++) {
+      UV multiple = i <= half ? 2*i : 2*d;
+      reference_point expected = multiply(P, multiple, 6, 1, p);
+      CHECK(!expected.infinity);
+      CHECK(mpz_cmp_ui(ctx->stage2_x[i], (unsigned long)expected.x) == 0);
+    }
+  }
   mpz_clears(x,z,f,NULL);
 }
 
@@ -438,13 +545,12 @@ static void probe_stage2_allocation(ecm_ctx *ctx, UV bound, int expected, UV cou
 
 static void check_allocation_limit(ecm_ctx *ctx)
 {
-  UV d = ((UV)(SIZE_MAX / sizeof(mpz_t)) - 1)/2;
-  d -= d%2;
+  UV d = 2*((UV)(SIZE_MAX / sizeof(mpz_t)) - 2 - 2*ECM_STAGE2_BATCH_POINTS);
   /* Last feasible even width, then the next even width. */
-  probe_stage2_allocation(ctx, 2*d*d, 2, 2*d+1);
+  probe_stage2_allocation(ctx, 2*d*d, 2, d/2+2+2*ECM_STAGE2_BATCH_POINTS);
   d += 2;
   probe_stage2_allocation(ctx, 2*d*d, 1, 0);
-  /* Old 64-to-32 count truncation case: D=2^31, count=2^32+1. */
+  /* D=2^31 still exceeds the modeled allocation ceiling with packing. */
   probe_stage2_allocation(ctx, UVCONST(9223372036854775808), 1, 0);
 }
 #endif
@@ -461,7 +567,9 @@ int main(void)
   prime_iterator_global_startup();
   check_random();
   check_projective(ctx);
+  check_batch_normalization(ctx);
   check_stage2(ctx);
+  check_stage2_workspace(ctx);
 #if defined(ECM_CHECK_ALLOC32) && UV_MAX > UINT32_MAX
   check_allocation_limit(ctx);
 #endif

@@ -275,6 +275,8 @@ int _GMP_ecm_factor_affine(const mpz_t n, mpz_t f, UV B1, UV ncurves,
 typedef struct {
   mpz_t n, b, u, v, w;
   mpz_t x1, z1, x2, z2, x3, z3, x4, z4;
+  mpz_t *stage2_x;
+  UV stage2_alloc;
   uint64_t rng_state;
 } ecm_ctx;
 
@@ -284,11 +286,16 @@ static void ec_ctx_init(ecm_ctx *ctx, const mpz_t n, uint64_t seed)
   mpz_init(ctx->u); mpz_init(ctx->v); mpz_init(ctx->w);
   mpz_init(ctx->x1); mpz_init(ctx->z1); mpz_init(ctx->x2); mpz_init(ctx->z2);
   mpz_init(ctx->x3); mpz_init(ctx->z3); mpz_init(ctx->x4); mpz_init(ctx->z4);
+  ctx->stage2_x = NULL;
+  ctx->stage2_alloc = 0;
   ctx->rng_state = seed;
 }
 
 static void ec_ctx_clear(ecm_ctx *ctx)
 {
+  UV i;
+  for (i = 0; i < ctx->stage2_alloc; i++) mpz_clear(ctx->stage2_x[i]);
+  Safefree(ctx->stage2_x);
   mpz_clear(ctx->n); mpz_clear(ctx->b);
   mpz_clear(ctx->u); mpz_clear(ctx->v); mpz_clear(ctx->w);
   mpz_clear(ctx->x1); mpz_clear(ctx->z1); mpz_clear(ctx->x2); mpz_clear(ctx->z2);
@@ -576,13 +583,49 @@ static int ec_normalize(ecm_ctx *ctx, mpz_t x, mpz_t z, mpz_t f)
   return 1;
 }
 
+enum { ECM_STAGE2_BATCH_POINTS = 16 };
+
+/* Normalize count>0 independent points with one inversion.  Arrays are disjoint
+ * from one another, f and ctx->u/v/w/n.  A zero divisor in the product can hide
+ * separate factors: inspect its denominators before declaring a lost curve. */
+static int ec_normalize_batch(ecm_ctx *ctx, mpz_t *x, mpz_t *z,
+                               mpz_t *prefix, UV count, mpz_t f)
+{
+  mpz_ptr u = ctx->u, v = ctx->v, w = ctx->w;
+  mpz_srcptr n = ctx->n;
+  UV i;
+  if (count == 1) return ec_normalize(ctx, x[0], z[0], f);
+  mpz_set(prefix[0], z[0]);
+  for (i = 1; i < count; i++)
+    mpz_mulmod(prefix[i], prefix[i-1], z[i], n, w);
+  mpz_gcdext(f, u, NULL, prefix[count-1], n);
+  if (mpz_cmp_ui(f, 1) != 0) {
+    if (mpz_cmp(f, n) != 0) return 0;
+    for (i = 0; i < count; i++) {
+      mpz_gcd(f, z[i], n);
+      if (mpz_cmp_ui(f, 1) > 0 && mpz_cmp(f, n) < 0) return 0;
+    }
+    mpz_set(f, n);
+    return 0;
+  }
+  for (i = count-1; i > 0; i--) {
+    mpz_mulmod(v, u, prefix[i-1], n, w);
+    mpz_mulmod(u, u, z[i], n, w);
+    mpz_mulmod(x[i], x[i], v, n, w);
+    mpz_set_ui(z[i], 1);
+  }
+  mpz_mulmod(x[0], x[0], u, n, w);
+  mpz_set_ui(z[0], 1);
+  return 1;
+}
+
 static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 {
   mpz_ptr u = ctx->u, w = ctx->w;
   mpz_ptr x1 = ctx->x1, z1 = ctx->z1, x2 = ctx->x2, z2 = ctx->z2;
   mpz_srcptr ecn = ctx->n;
-  UV D, i, m, count, initialized = 0;
-  mpz_t* nqx;
+  UV D, i, j, m, half, count, batch;
+  mpz_t *nqx, *batch_z, *prefix;
   mpz_t g, one;
   PRIME_ITERATOR(iter);
 
@@ -590,8 +633,11 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   D = sqrt((double)B2 / 2.0);
   if (D < 2) D = 2;
   else if (D%2) D++;
-  count = 2*D+1;  /* sqrt(UV_MAX/2), rounded up even, keeps this in UV. */
-  /* Compare before Newz can narrow the count to size_t (or Perl MEM_SIZE).
+  half = D/2;
+  batch = half/2 < ECM_STAGE2_BATCH_POINTS ? half/2 : ECM_STAGE2_BATCH_POINTS;
+  /* 2Q..DQ, the 2DQ stride, then bounded inversion scratch. */
+  count = half+2+2*batch;
+  /* Check before allocation macros can narrow count to size_t (or MEM_SIZE).
    * In particular, UV can be 64 bits while allocation sizes are 32 bits. */
   if (count > SIZE_MAX / sizeof(mpz_t))
     croak("ECM stage-2 allocation size overflow");
@@ -599,49 +645,82 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   if (!ec_normalize(ctx, x, z, f))
     return mpz_cmp(f, ecn) != 0 ? 2 : 0;
 
-  Newz(0, nqx, (size_t)count, mpz_t);
-  mpz_init_set(nqx[1], x);
-  initialized = 1;
+  /* Keep the initialized table and its limb storage for subsequent curves.
+   * The public driver has a fixed B2; growth also permits internal reuse. */
+  if (count > ctx->stage2_alloc) {
+    if (ctx->stage2_alloc == 0)
+      Newz(0, ctx->stage2_x, (size_t)count, mpz_t);
+    else
+      Renew(ctx->stage2_x, (size_t)count, mpz_t);
+    for (i = ctx->stage2_alloc; i < count; i++) mpz_init(ctx->stage2_x[i]);
+    ctx->stage2_alloc = count;
+  }
+  nqx = ctx->stage2_x;
+  batch_z = nqx + half+2;
+  prefix = batch_z + batch;
   mpz_init_set_ui(g, 1);
   mpz_init_set_ui(one, 1);
 
-  for (i = 2; i <= 2*D; i++) {
-    if (i % 2) {
-      mpz_set(x2, nqx[(i+1)/2]);  mpz_set_ui(z2, 1);
-      ec_add(ctx, x2, z2, nqx[(i-1)/2], one, x);
-    } else {
-      ec_double(ctx, x2, z2, nqx[i/2], one);
+  /* m is odd and every prime in its intervals is odd, so only even
+   * differences occur.  Build multiples of 2Q, not every multiple of Q. */
+  ec_double(ctx, x2, z2, x, z);
+  mpz_set(nqx[1], x2);
+  if (!ec_normalize(ctx, nqx[1], z2, f)) goto cleanup;
+  for (i = 2; i <= half; ) {
+    UV last = 2*(i-1);
+    if (last > half) last = half;
+    if (last-i+1 > batch) last = i+batch-1;
+    /* Each input index is <= i-1, hence already normalized. */
+    for (j = i; j <= last; j++) {
+      if (j % 2) {
+        mpz_set(x2, nqx[(j+1)/2]);  mpz_set_ui(z2, 1);
+        ec_add(ctx, x2, z2, nqx[(j-1)/2], one, nqx[1]);
+      } else {
+        ec_double(ctx, x2, z2, nqx[j/2], one);
+      }
+      mpz_set(nqx[j], x2);
+      mpz_set(batch_z[j-i], z2);
     }
-    mpz_init_set(nqx[i], x2);
-    initialized = i;
-    if (!ec_normalize(ctx, nqx[i], z2, f)) goto cleanup;
+    if (!ec_normalize_batch(ctx, nqx+i, batch_z, prefix, last-i+1, f))
+      goto cleanup;
+    i = last+1;
   }
 
+  ec_double(ctx, x2, z2, nqx[half], one);
+  mpz_set(nqx[half+1], x2);       /* Giant-step stride 2DQ. */
+  if (!ec_normalize(ctx, nqx[half+1], z2, f)) goto cleanup;
+
+  /* The preceding giant step is (1-2D)Q, with the same x as (2D-1)Q.
+   * Compute it directly instead of constructing the unused odd table. */
+  mpz_set(g, x);
+  ec_mult(ctx, 2*D-1, g, one);
+  if (!ec_normalize(ctx, g, one, f)) goto cleanup;
   mpz_set(x1, x);
   mpz_set(z1, z);
-  mpz_set(x, nqx[2*D-1]);
+  mpz_set(x, g);
   mpz_set_ui(z, 1);
+  mpz_set_ui(g, 1);
 
   /* See Zimmermann, "20 Years of ECM" slides, 2006, page 11-12 */
   for (m = 1; m < B2+D; m += 2*D) {
     if (m != 1) {
       mpz_set(x2, x1);
       mpz_set(z2, z1);
-      ec_add(ctx, x1, z1, nqx[2*D], one, x);
+      ec_add(ctx, x1, z1, nqx[half+1], one, x);
       if (!ec_normalize(ctx, x1, z1, f)) goto cleanup;
       mpz_set(x, x2);  mpz_set(z, z2);
     }
     if (m+D > B1 && m >= D) {
       prime_iterator_setprime(&iter, m-D-1);
       for (i = prime_iterator_next(&iter); i < m; i = prime_iterator_next(&iter)) {
-        /* Giant step mQ, baby step (m-i)Q; 1 <= m-i <= D. */
-        mpz_sub(w, x1, nqx[m-i]);
+        /* Giant step mQ, baby step (m-i)Q; 2 <= m-i <= D, even. */
+        mpz_sub(w, x1, nqx[(m-i)/2]);
         mpz_mulmod(g, g, w, ecn, u);
       }
       for ( ; i <= m+D; i = prime_iterator_next(&iter)) {
         if (i > m && !prime_iterator_isprime(&iter, m-(i-m))) {
-          /* Right-half baby step (i-m)Q; 1 <= i-m <= D. */
-          mpz_sub(w, x1, nqx[i-m]);
+          /* Right-half baby step (i-m)Q; 2 <= i-m <= D, even. */
+          mpz_sub(w, x1, nqx[(i-m)/2]);
           mpz_mulmod(g, g, w, ecn, u);
         }
       }
@@ -652,8 +731,6 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 
 cleanup:
   prime_iterator_destroy(&iter);
-  for (i = 1; i <= initialized; i++) mpz_clear(nqx[i]);
-  Safefree(nqx);
   mpz_clear(g);
   mpz_clear(one);
   return mpz_cmp_ui(f, 1) != 0 && mpz_cmp(f, ecn) != 0 ? 2 : 0;

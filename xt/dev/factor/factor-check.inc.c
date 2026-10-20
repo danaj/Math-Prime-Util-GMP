@@ -214,8 +214,9 @@ static void check_fallback_recipe(unsigned bits) {
   early = bits < 96 ? 0 : bits < 112 ? 1000 : bits < 144 ? 2000 : 20000;
   if (early) check_expected(&index, CHECK_PM1, early, 10*early);
   if (bits >= 160) check_expected(&index, CHECK_ECM, 200, 4);
+  if (bits >= 180) check_expected(&index, CHECK_ECM, 600, 4);
   if (bits >= 200) {
-    check_expected(&index, CHECK_ECM, 600, 20);
+    check_expected(&index, CHECK_ECM, 600, 16);
     check_expected(&index, CHECK_ECM, 2000, 10);
   }
   if (bits >= 208) {
@@ -296,7 +297,7 @@ static void check_names(void) {
 
 static void check_schedule(void) {
   static const unsigned sizes[] = {36,52,53,55,56,59,63,64,65,95,96,111,112,
-    143,144,159,160,191,192,199,200,207,208,223,224,239,240,255,256,269,270,
+    143,144,159,160,179,180,181,191,192,199,200,201,207,208,223,224,239,240,255,256,269,270,
     287,288,319,320,321,359,360,361,399,400,401,511,512,513,600};
   size_t i, j;
   for (i = 0; i < sizeof(sizes)/sizeof(sizes[0]); i++) {
