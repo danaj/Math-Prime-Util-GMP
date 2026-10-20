@@ -28,6 +28,9 @@ extern void prime_iterator_destroy(prime_iterator *iter);
 /* Croaks when no larger prime fits in UV; exhaustion never wraps. */
 extern UV prime_iterator_next(prime_iterator *iter);
 extern void prime_iterator_setprime(prime_iterator *iter, UV n);
+
+/* This is *fast* when checking values inside the primary or segment sieve.
+ * Outside that range it falls back to slow mod-30 trial division. */
 extern int prime_iterator_isprime(prime_iterator *iter, UV n);
 
 /* Both return allocated prime lists; count may be NULL. */

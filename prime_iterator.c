@@ -8,6 +8,10 @@
 #include "misc_ui.h"
 #include "prime_iterator.h"
 
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t)-1)
+#endif
+
 
 /* Add this to a number and you'll ensure you're on a wheel location */
 static const unsigned char distancewheel30[30] =
@@ -19,11 +23,6 @@ static const unsigned char masktab30[30] = {
 static const unsigned char nextwheel30[30] = {
     1,  7,  7,  7,  7,  7,  7, 11, 11, 11, 11, 13, 13, 17, 17,
    17, 17, 19, 19, 23, 23, 23, 23, 29, 29, 29, 29, 29, 29,  1 };
-#if 0
-static const unsigned char prevwheel30[30] = {
-   29, 29,  1,  1,  1,  1,  1,  1,  7,  7,  7,  7, 11, 11, 13,
-   13, 13, 13, 17, 17, 19, 19, 19, 19, 23, 23, 23, 23, 23, 23 };
-#endif
 
 static INLINE UV next_prime_in_segment( const unsigned char* sieve, UV segment_start, UV segment_bytes, UV p)
 {
@@ -176,7 +175,7 @@ static const UV max_sieve_prime = (BITS_PER_WORD==64) ? 4294967291U : 65521U;
 
 /* The first crossing is in range.  Guard every tail advance before forming
  * its pointer; the hoisted bulk bound also keeps the next origin in range. */
-#define CROSS_INDEX(v, b0,b1,b2,b3,b4,b5,b6,b7,  i0,i1,i2,i3,i4,i5,i6,i7, it) \
+#define CROSS_INDEX(v, b0,b1,b2,b3,b4,b5,b6,b7,  i0,i1,i2,i3,i4,i5,i6,i7) \
   while (1) { \
     case (v+0): set_bit(s,b0); if ((UV)(send-s) <= r*6+i0) break; s += r*6+i0; \
     case (v+1): set_bit(s,b1); if ((UV)(send-s) <= r*4+i1) break; s += r*4+i1; \
@@ -224,14 +223,14 @@ static void mark_primes(unsigned char* s, const unsigned char* send, UV startp, 
   index = qinit30[q % 30]  +  8*masknum30[prime % 30];
 
   switch (index) {
-    CROSS_INDEX( 0, 0,1,2,3,4,5,6,7, 0,0,0,0,0,0,0,1,  1); break;
-    CROSS_INDEX( 8, 1,5,4,0,7,3,2,6, 1,1,1,0,1,1,1,1,  7); break;
-    CROSS_INDEX(16, 2,4,0,6,1,7,3,5, 2,2,0,2,0,2,2,1, 11); break;
-    CROSS_INDEX(24, 3,0,6,5,2,1,7,4, 3,1,1,2,1,1,3,1, 13); break;
-    CROSS_INDEX(32, 4,7,1,2,5,6,0,3, 3,3,1,2,1,3,3,1, 17); break;
-    CROSS_INDEX(40, 5,3,7,1,6,0,4,2, 4,2,2,2,2,2,4,1, 19); break;
-    CROSS_INDEX(48, 6,2,3,7,0,4,5,1, 5,3,1,4,1,3,5,1, 23); break;
-    CROSS_INDEX(56, 7,6,5,4,3,2,1,0, 6,4,2,4,2,4,6,1, 29); break;
+    CROSS_INDEX( 0, 0,1,2,3,4,5,6,7, 0,0,0,0,0,0,0,1); break; /*  1 */
+    CROSS_INDEX( 8, 1,5,4,0,7,3,2,6, 1,1,1,0,1,1,1,1); break; /*  7 */
+    CROSS_INDEX(16, 2,4,0,6,1,7,3,5, 2,2,0,2,0,2,2,1); break; /* 11 */
+    CROSS_INDEX(24, 3,0,6,5,2,1,7,4, 3,1,1,2,1,1,3,1); break; /* 13 */
+    CROSS_INDEX(32, 4,7,1,2,5,6,0,3, 3,3,1,2,1,3,3,1); break; /* 17 */
+    CROSS_INDEX(40, 5,3,7,1,6,0,4,2, 4,2,2,2,2,2,4,1); break; /* 19 */
+    CROSS_INDEX(48, 6,2,3,7,0,4,5,1, 5,3,1,4,1,3,5,1); break; /* 23 */
+    CROSS_INDEX(56, 7,6,5,4,3,2,1,0, 6,4,2,4,2,4,6,1); break; /* 29 */
   }
 }
 
@@ -244,7 +243,10 @@ static unsigned char* sieve_erat30(UV end)
   max_buf = (end/30) + ((end%30) != 0);
   /* Round up to a word */
   max_buf = ((max_buf + sizeof(UV) - 1) / sizeof(UV)) * sizeof(UV);
-  New(0, mem, max_buf, unsigned char);
+  /* New may narrow its count on 32-bit Perl with 64-bit UV. */
+  if (max_buf > SIZE_MAX)
+    croak("prime iterator: sieve allocation size overflow");
+  New(0, mem, (size_t)max_buf, unsigned char);
 
   /* Fill buffer with marked 7, 11, and 13 */
   sieve_prefill(mem, 0, max_buf-1);
@@ -315,7 +317,7 @@ static int sieve_segment(unsigned char* mem, UV startd, UV endd,
 #ifndef LARGE_SEGMENT_SIZE
 #define LARGE_SEGMENT_SIZE (384 * 1024U)
 #endif
-#define NSMALL_PRIMES (83970-180)
+#define SMALL_PRIMES_LIMIT (83970-180)
 
 static const unsigned char* primary_sieve = 0;
 static const UV primary_limit = (30 * PRIMARY_SIZE)-1;
@@ -325,11 +327,11 @@ static UV num_small_primes = 0;
 void prime_iterator_global_startup(void)
 {
   primary_sieve = sieve_erat30(primary_limit);
-#ifdef NSMALL_PRIMES
+#ifdef SMALL_PRIMES_LIMIT
   {
     UV p;
     uint32_t *primes32;
-    UV *primes64 = sieve_to_n(NSMALL_PRIMES + 180, &num_small_primes);
+    UV *primes64 = sieve_to_n(SMALL_PRIMES_LIMIT + 180, &num_small_primes);
     New(0, primes32, num_small_primes, uint32_t);
     for (p = 0; p < num_small_primes; p++)  primes32[p] = primes64[p];
     Safefree(primes64);
@@ -354,14 +356,6 @@ void prime_iterator_init(prime_iterator *iter)
   iter->segment_mem = 0;
 }
 
-#if 0
-prime_iterator prime_iterator_default(void)
-{
-  prime_iterator iter = {2, 0, 0, 0};
-  return iter;
-}
-#endif
-
 void prime_iterator_destroy(prime_iterator *iter)
 {
   if (iter->segment_mem != 0)  Safefree(iter->segment_mem);
@@ -371,7 +365,7 @@ void prime_iterator_destroy(prime_iterator *iter)
   iter->p = 0;
 }
 
-#ifdef NSMALL_PRIMES
+#ifdef SMALL_PRIMES_LIMIT
 static UV pcount(UV n)
 {
   UV lo = 0 + (n >> 4);
@@ -406,10 +400,13 @@ void prime_iterator_setprime(prime_iterator *iter, UV n) {
     return;
   }
   prime_iterator_destroy(iter);
-#ifdef NSMALL_PRIMES
+#ifdef SMALL_PRIMES_LIMIT
   /* In small area? */
-  if (n < NSMALL_PRIMES) {
+  if (n < SMALL_PRIMES_LIMIT) {
     UV pc = pcount(n);
+    /* Here segment_start is a small_primes index. For n=0 or 1, pc-1
+     * intentionally wraps to UV_MAX; next() preincrements it back to 0
+     * and returns small_primes[0], which is 2. */
     iter->segment_start = pc-1;
     iter->p = (pc == 0)  ?  2  :  small_primes[pc-1];
   } else
@@ -436,8 +433,8 @@ UV prime_iterator_next(prime_iterator *iter)
   const unsigned char* sieve;
   UV n = iter->p;
 
-#ifdef NSMALL_PRIMES
-  if (n < NSMALL_PRIMES) {
+#ifdef SMALL_PRIMES_LIMIT
+  if (n < SMALL_PRIMES_LIMIT) {
     iter->p = small_primes[++iter->segment_start];
     return iter->p;
   }
@@ -563,8 +560,8 @@ UV* sieve_to_n(UV n, UV* count)
   const unsigned char* sieve;
   UV* primes;
 
-#ifdef NSMALL_PRIMES
-  if (small_primes != 0 && n < NSMALL_PRIMES) {
+#ifdef SMALL_PRIMES_LIMIT
+  if (small_primes != 0 && n < SMALL_PRIMES_LIMIT) {
     pi = pcount(n);
     New(0, primes, pi, UV);
     for (i = 0; i < pi; i++)  primes[i] = small_primes[i];
@@ -573,10 +570,17 @@ UV* sieve_to_n(UV n, UV* count)
   }
 #endif
 
+  /* Last branch: Dusart's 1998 thesis, Theorem 1.10(7), p. 36.
+   * https://www.unilim.fr/pages_perso/pierre.dusart/Documents/T1998_01.pdf
+   * The smaller-n branches use conservative bounds. */
   pi_max = (n < 67)     ? 18
-           : (n < 355991) ? 15+(n/(log(n)-1.09))
-           : (n/log(n)) * (1.0+1.0/log(n)+2.51/(log(n)*log(n)));
-  New(0, primes, pi_max + 10, UV);
+         : (n < 355991) ? 15+(n/(log(n)-1.09))
+         : (n/log(n)) * (1.0+1.0/log(n)+2.51/(log(n)*log(n)));
+  /* Check before narrowing or forming the padded allocation count. */
+  if (pi_max > SIZE_MAX / sizeof(UV) - 10U)
+    croak("prime iterator: prime-list allocation size overflow");
+  /* Add enough room for the wheel sieve to emit extra primes */
+  New(0, primes, (size_t)pi_max + 10U, UV);
 
   pi = 0;
   primes[pi++] =  2; primes[pi++] =  3; primes[pi++] =  5; primes[pi++] =  7;
@@ -605,18 +609,26 @@ UV* sieve_to_n(UV n, UV* count)
   return primes;
 }
 
+#ifdef STANDALONE
+unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count) {
+  return sieve_to_n(n, count);  /* UV is explicitly unsigned long. */
+}
+#else
 unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count)
 {
   UV nprimesuv, *parruv;
   unsigned long i, *parr;
 
-  if (sizeof(unsigned long int) == sizeof(UV))
+#if defined(__GNUC__) || defined(__clang__)
+  if (__builtin_types_compatible_p(UV, unsigned long))
     return (unsigned long*) sieve_to_n(n, (UV*)count);
+#endif
 
   /* If UV is smaller than n then we have a problem. */
   if (n > (unsigned long) UV_MAX)
     croak("UV is smaller than unsigned long, too many primes");
 
+  /* Unknown or incompatible types require a typed copy. */
   parruv = sieve_to_n(n, &nprimesuv);
   if (count != 0) *count = nprimesuv;
   New(0, parr, nprimesuv, unsigned long);
@@ -625,3 +637,4 @@ unsigned long* sieve_to_n_ui(unsigned long n, unsigned long* count)
   Safefree(parruv);
   return parr;
 }
+#endif
