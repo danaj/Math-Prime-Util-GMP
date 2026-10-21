@@ -354,8 +354,7 @@ static void worker_early_shutdown(void) {
   case_name = "partial-family-stop-and-fresh-family-retry";
   worker_fault_reset(); worker_fixture_open(&f, 2, 0);
   CHECK(f.dispatch.b_limit >= 128U);
-  max_polys = f.ctx.params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-  if (max_polys < 1000000U) max_polys = 1000000U;
+  max_polys = siqs_polynomial_limit(&f.ctx.params);
   polys = max_polys - 196U; /* Reserve 128 + 68 before either worker stops. */
   memset(s, 0, sizeof(*s));
   CHECK(pthread_mutex_init(&s->mutex, NULL) == 0);
@@ -551,8 +550,7 @@ static void worker_budget_and_fallback(void) {
     uint32_t max_polys, families = 0, polys, next = UINT32_MAX;
     case_name = "shortened-budget-and-serial-fallback";
     worker_fault_reset(); worker_fixture_open(&f, 4, 0);
-    max_polys = f.ctx.params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-    if (max_polys < 1000000U) max_polys = 1000000U;
+    max_polys = siqs_polynomial_limit(&f.ctx.params);
     polys = max_polys - 5U;
     if (test == 0) f.dispatch.b_limit = 3; /* Reserve 3, then the last 2. */
     else { seam_thread_after = 0; seam_quiet = 1; }
@@ -571,16 +569,20 @@ static void worker_budget_and_fallback(void) {
  * small workspaces with synthetic executed counts, never a million sieves. */
 static void worker_budget_entry_guards(void) {
   worker_fixture_t f;
-  uint32_t test, max_polys;
+  uint32_t test, max_polys, original_bits;
   case_name = "spent-budget-collector-reentry";
   worker_fault_reset(); worker_fixture_open(&f, 4, 0);
-  max_polys = f.ctx.params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
-  if (max_polys < 1000000U) max_polys = 1000000U;
-  for (test = 0; test < 4; test++) {
-    uint32_t families = 0, polys = max_polys + (test & 1U);
-    uint32_t before = polys, next = UINT32_MAX;
+  original_bits = f.ctx.params.bits;
+  /* Only budget selection sees these synthetic sizes: exhausted collectors
+   * must return before touching polynomial geometry or starting workers. */
+  for (test = 0; test < 8; test++) {
+    uint32_t families = 0, polys, before, next = UINT32_MAX;
     int collected;
-    if (test < 2)
+    f.ctx.params.bits = test < 4 ? 400U : 401U;
+    max_polys = siqs_polynomial_limit(&f.ctx.params);
+    polys = max_polys + (test & 1U);
+    before = polys;
+    if ((test & 3U) < 2U)
       collected = siqs_collect_relations(&f.ctx, &f.dispatch, UINT32_MAX,
                                           &next, &families, &polys);
     else
@@ -592,6 +594,8 @@ static void worker_budget_entry_guards(void) {
     CHECK(mpz_cmp_ui(f.dispatch.A, 0) == 0 && !f.ctx.factor_found);
     worker_resources_clear();
   }
+  f.ctx.params.bits = original_bits;
+  max_polys = siqs_polynomial_limit(&f.ctx.params);
   /* Existing completion wins over the budget guard.  This valid relation
    * supplies a reached target; factor discovery exercises the other exit. */
   (void)relation_full_power(&f.ctx, 1, 2);

@@ -387,15 +387,11 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
                                    uint32_t *poly_count) {
   psiqs_pool_t *pool;
   uint32_t i, check_interval = ctx->params.fb_size / 128;
-  uint32_t max_polynomials =
-      ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
-        ? UINT32_MAX : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_step, next_report;
   uint32_t last_report_count = UINT32_MAX, last_report_polys = UINT32_MAX;
   uint32_t remaining, active = 0;
   int verbose = ctx->verbose, complete = 0, exhausted = 0, ready = 0;
-  if (max_polynomials < 1000000U)
-    max_polynomials = 1000000U;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
     check_interval = SIQS_MATRIX_CHECK_MIN;
   if (check_interval > SIQS_MATRIX_CHECK_MAX)

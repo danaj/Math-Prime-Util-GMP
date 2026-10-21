@@ -2,7 +2,10 @@
  * descriptors only: fatal fixtures must reject them before allocation. */
 static void check_arithmetic_bounds(void) {
   const size_t maximum = (size_t)-1;
+  const uint64_t maximum_polynomials = (uint64_t)SIQS_PACKED_FACTOR_ROW_MASK
+                                    * SIQS_MAX_POLYNOMIALS_PER_FB * 2U;
   uint32_t capacity, i;
+  siqs_parameters_t parameters;
   siqs_hashset_t set;
   siqs_graph_t graph;
   case_name = "checked-arithmetic-and-hash-thresholds";
@@ -23,15 +26,33 @@ static void check_arithmetic_bounds(void) {
   CHECK((uint64_t)SIQS_PACKED_FACTOR_ROW_MASK + 1U + UINT16_MAX < UINT32_MAX);
   CHECK((uint64_t)SIQS_PACKED_FACTOR_ROW_MASK * SIQS_MAX_POLYNOMIALS_PER_FB
         < (UINT64_C(1) << 30));
+  CHECK(maximum_polynomials < (UINT64_C(1) << 31));
   /* Even the loose upper bound of one solve retry per newly added relation
    * leaves room for a stopped, zero-polynomial family per worker per retry. */
-  CHECK((uint64_t)SIQS_PACKED_FACTOR_ROW_MASK * SIQS_MAX_POLYNOMIALS_PER_FB
+  CHECK(maximum_polynomials
         + (SIQS_PACKED_FACTOR_ROW_MASK + 1U + SIQS_MAX_EXTRA_RELS)
-        < (UINT64_C(1) << 31));
-  CHECK((uint64_t)SIQS_PACKED_FACTOR_ROW_MASK * SIQS_MAX_POLYNOMIALS_PER_FB
+        < (UINT64_C(1) << 32));
+  CHECK(maximum_polynomials
         + (uint64_t)(SIQS_PACKED_FACTOR_ROW_MASK + 1U + SIQS_MAX_EXTRA_RELS)
-          * PSIQS_MAX_THREADS < (UINT64_C(1) << 31));
+          * PSIQS_MAX_THREADS < (UINT64_C(1) << 32));
   CHECK((uint64_t)SIQS_HALF_INTERVAL_MAX * 2U == (UINT64_C(1) << 31));
+  CHECK(maximum_polynomials * ((uint64_t)SIQS_HALF_INTERVAL_MAX * 2U)
+        < (UINT64_C(1) << 62));
+  memset(&parameters, 0, sizeof(parameters));
+  parameters.fb_size = SIQS_PACKED_FACTOR_ROW_MASK;
+  parameters.bits = 400;
+  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials / 2U);
+  parameters.bits = 401;
+  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials);
+  parameters.bits = 512;
+  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials);
+  parameters.fb_size = 1000;
+  parameters.bits = 400;
+  CHECK(siqs_polynomial_limit(&parameters) == 1000000U);
+  parameters.bits = 401;
+  CHECK(siqs_polynomial_limit(&parameters) == 1024000U);
+  parameters.fb_size = 1;
+  CHECK(siqs_polynomial_limit(&parameters) == 1000000U);
   CHECK(siqs_array_size(SIQS_MAX_A_PRIMES - 1U,
         siqs_array_size(SIQS_PACKED_FACTOR_ROW_MASK, sizeof(uint32_t)))
         == (size_t)(SIQS_MAX_A_PRIMES - 1U) * SIQS_PACKED_FACTOR_ROW_MASK * 4U);
@@ -162,6 +183,23 @@ static void check_upper_policy_sweep(void) {
       if (bits >= siqs_policy_bands[i].first_bits &&
           bits <= siqs_policy_bands[i].last_bits) owners++;
     CHECK(owners == 1);
+    if (bits == 401U || bits == 431U) {
+      const siqs_policy_band_t *previous = siqs_policy_band(bits - 1U);
+      case_name = "upper-K-ramp-seam";
+      CHECK(siqs_policy_curve_value(&previous->k_l, bits - 1U)
+            == siqs_policy_curve_value(&band->k_l, bits));
+      CHECK(siqs_policy_curve_value(&previous->k_r, bits - 1U)
+            == siqs_policy_curve_value(&band->k_r, bits));
+    }
+    if (bits == 431U) {
+      const siqs_policy_curve_t *previous =
+          &siqs_policy_band(430)->fb_coefficient;
+      double continued = 2.0 * siqs_policy_curve_value(previous, 430)
+                       - siqs_policy_curve_value(previous, 429);
+      case_name = "430-431-FB-curve-continuation";
+      CHECK(fabs(siqs_policy_curve_value(&band->fb_coefficient, 431)
+                 - continued) < 1e-12);
+    }
     for (edge = 0; edge < 2; edge++) {
       for (residue = 1; residue < 8; residue += 2) {
         siqs_parameters_t selected;
@@ -184,7 +222,9 @@ static void check_upper_policy_sweep(void) {
         CHECK(selected.half_interval >= 4096 && selected.half_interval <= SIQS_HALF_INTERVAL_MAX);
         CHECK((selected.half_interval & (SIQS_SIEVE_ALIGN - 1U)) == 0);
         CHECK(selected.target_relations == selected.fb_size + 1U + selected.relation_extra);
-        CHECK((uint64_t)selected.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB < (UINT64_C(1) << 30));
+        CHECK((uint64_t)siqs_polynomial_limit(&selected) < (UINT64_C(1) << 31));
+        CHECK(siqs_polynomial_limit(&selected) == selected.fb_size
+              * SIQS_MAX_POLYNOMIALS_PER_FB * (bits > 400U ? 2U : 1U));
         CHECK(selected.sieve_hit_bound_nominal > 0.0 && selected.sieve_hit_bound_nominal <= DBL_MAX);
         CHECK(selected.sieve_free_units < SIQS_SIEVE_SCORE_TOP);
         if (selected.fb_size > maximum_fb) maximum_fb = selected.fb_size;

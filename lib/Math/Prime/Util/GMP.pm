@@ -2631,7 +2631,7 @@ Given integer C<n>, return bitwise C<NOT n>.
 Returns a list of prime factors of an integer, in numerical order.  For a
 negative input, C<-1> is prepended to the factors of its absolute value.
 Thus C<factor(-1)> returns C<-1>.  The special cases C<factor(0)> and
-C<factor(1)> return C<0> and an empty list, respectively.
+C<factor(1)> in list context return C<0> and an empty list, respectively.
 
 In scalar context, returns the number of prime factors with multiplicity.
 The sign of a negative input is not counted.
@@ -2909,7 +2909,8 @@ larger inputs are generally better with ECM or SIQS.
 
 Given a positive number input, tries to discover a factor using ECM.
 An optional maximum smoothness may be given as the second
-parameter, which relates to the size of factor to search for.
+parameter, which relates to the size of factor to search for
+(100 curves are used if B1 is set but not curves).
 An optional third parameter indicates the number of random curves to
 use at each smoothness value being searched.
 
@@ -2952,7 +2953,7 @@ self-initializing polynomial families, one- and two-large-prime relation
 combination, dynamic relation sufficiency checks,
 dense elimination for small matrices,
 and block Lanczos for larger matrices/fallback.
-It handles inputs from 1 to 120 decimal digits.
+It handles inputs from 1 to 512 bits (over 150 digits).
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
 SIQS takes about one hour to factor a 100-digit balanced semiprime,

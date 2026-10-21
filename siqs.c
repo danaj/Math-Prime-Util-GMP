@@ -105,7 +105,8 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 /* Batch collection stops at graph readiness. This is only a generous
  * terminal failure guard for unusually slow relation streams, not an expected
- * work target.  Both collectors allow max(1000000, 512 * FB) polynomials. */
+ * work target.  Both collectors allow max(1000000, 512 * FB) polynomials;
+ * double the FB multiplier above 400 bits while those bands remain untuned. */
 #define SIQS_MAX_POLYNOMIALS_PER_FB 512U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
@@ -573,20 +574,20 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
   /* Untested.  Continue q12 with shallower FB and interval growth. */
   { "two_lp_q12_high_level", 401, 430,
     2, 12, 12, 0, 0,
-    SIQS_POLICY_RAMP(384.0, 384.0, 401, 430),                /* K_L     */
-    SIQS_POLICY_RAMP(768.0, 768.0, 401, 430),                /* K_R     */
+    SIQS_POLICY_RAMP(384.0, 416.0, 401, 430),                /* K_L     */
+    SIQS_POLICY_RAMP(768.0, 1024.0, 401, 430),               /* K_R     */
     16, 384, 160, 96, 0, 0,
-    SIQS_POLICY_LINEAR(0.328, -0.00033, 401),                /* FB */
+    SIQS_POLICY_LINEAR(0.328, -0.00025, 401),                /* FB */
     SIQS_POLICY_LINEAR(0.818, -0.002, 401),                  /* M */
     SIQS_POLICY_RATIO(0.15231778066, -51, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0, 0 },         /* sieve-e */
-  /* Untested.  No claims to being good choices. */
+  /* Untested.  FB continues the q12 curve; no tuning claims. */
   { "two_lp_q13_vhigh", 431, 512,
     2, 13, 12, 0, 0,
-    SIQS_POLICY_RAMP(384.0, 384.0, 431, 512),                /* K_L     */
-    SIQS_POLICY_RAMP(768.0, 768.0, 431, 512),                /* K_R     */
+    SIQS_POLICY_RAMP(416.0, 512.0, 431, 512),                /* K_L     */
+    SIQS_POLICY_RAMP(1024.0, 1536.0, 431, 512),              /* K_R     */
     16, 384, 160, 96, 0, 0,
-    SIQS_POLICY_LINEAR(0.3181, -0.00025, 431),               /* FB */
+    SIQS_POLICY_LINEAR(0.3205, -0.00025, 431),               /* FB */
     SIQS_POLICY_LINEAR(0.758, -0.002, 431),                  /* M */
     SIQS_POLICY_RATIO(0.15231778066, -81, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0, 0 }          /* sieve-e */
@@ -5408,11 +5409,21 @@ static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
   fflush(stdout);
 }
 
-/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials.  Retries
- * and stopped workers leave both polynomial/family counts below 2^31;
- * 2M <= 2^31 then bounds candidate visits below 2^62.  Accepted/split stats
- * count subsets of those visits, so their u64 increments need no hot checks.
- * Full-count scheduling additions also fit u32 under the vector bounds. */
+static uint32_t siqs_polynomial_limit(const siqs_parameters_t *p) {
+  uint32_t per_fb = SIQS_MAX_POLYNOMIALS_PER_FB
+                  * (p->bits > 400U ? 2U : 1U);
+  uint32_t limit = p->fb_size > UINT32_MAX / per_fb
+                 ? UINT32_MAX : p->fb_size * per_fb;
+  return limit < 1000000U ? 1000000U : limit;
+}
+
+/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials, or below
+ * 2^31 when doubled above 400 bits.  Even allowing one stopped family per
+ * worker per solve retry leaves family counts below 2^32; polynomial counts
+ * stay below 2^31.  Together with 2M <= 2^31, this bounds candidate visits
+ * below 2^62.  Accepted/split stats count subsets of those visits, so their
+ * u64 increments need no hot checks.  Full-count scheduling additions also
+ * fit u32 under the vector bounds. */
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
                                   uint32_t *next_matrix_check,
@@ -5421,16 +5432,11 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
   int verbose = ctx->verbose;
   int family_ok, have_next;
   uint32_t check_interval = ctx->params.fb_size / 128;
-  uint32_t max_polynomials =
-      ctx->params.fb_size > UINT32_MAX / SIQS_MAX_POLYNOMIALS_PER_FB
-          ? UINT32_MAX
-          : ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_poly_step = siqs_progress_poly_step(ctx, 1U);
   uint64_t next_work_report = (uint64_t)*poly_count + report_poly_step;
   uint32_t last_report_count = UINT32_MAX;
   uint32_t last_report_polys = UINT32_MAX;
-  if (max_polynomials < 1000000U)
-    max_polynomials = 1000000U;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
     check_interval = SIQS_MATRIX_CHECK_MIN;
   if (check_interval > SIQS_MATRIX_CHECK_MAX)
@@ -5539,10 +5545,9 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
  * matrix-readiness scan or periodic batch-solver request. */
 static void siqs_collect_bids(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                uint32_t *families, uint32_t *polynomials) {
-  uint32_t max_polynomials = ctx->params.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
+  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_step = siqs_progress_poly_step(ctx, 1U);
   uint64_t next_report = (uint64_t)*polynomials + report_step;
-  if (max_polynomials < 1000000U) max_polynomials = 1000000U;
   while (!ctx->factor_found && !ctx->bids_stop) {
     if (*polynomials >= max_polynomials || !siqs_new_family(ctx, poly)) break;
     (*families)++;

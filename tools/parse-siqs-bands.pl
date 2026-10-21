@@ -9,9 +9,12 @@ use Getopt::Long qw(GetOptions);
 
 # Read the primary policy, not a saved copy of its values.  The size formulas
 # below mirror siqs_select_parameters; no factoring or module build is needed.
-my ($details, $describe, $help, $header_path);
+my ($details, $describe, $exact, $help, $header_path);
 Getopt::Long::Configure(qw(no_auto_abbrev no_ignore_case));
-GetOptions('details' => \$details, 'describe|verbose|v' => \$describe, 'help' => \$help,
+GetOptions('detail|details' => \$details,
+           'describe|verbose|v' => \$describe,
+           'exact' => \$exact,
+           'help' => \$help,
            'header=s' => \$header_path) or usage(2);
 usage(0) if $help;
 usage(2) if @ARGV > 1;
@@ -92,7 +95,7 @@ for my $row (split_top_level($array)) {
 die "no production bands found\n" unless @bands;
 
 my @headings = ('bits', 'type', 'q', 'LP', 'M', 'FB', 'res');
-push @headings, ('bias', 'headroom', 'pmin floor', 'rel +') if $details;
+push @headings, ('bias', 'free', 'pmin', 'rel +') if $details;
 my @rows;
 for my $band (@bands) {
   my ($first, $last) = @{$band}{qw(first_bits last_bits)};
@@ -111,8 +114,8 @@ for my $band (@bands) {
     $residual = coefficient_range($type eq '2LP' ? 'P^2' : 'P', @r);
   }
   my @row = (sprintf('%3d-%-3d', $first, $last), $type, $band->{q_count},
-             $lp, range_text(map { $_->[0] } @sizes),
-             range_text(map { $_->[1] } @sizes), $residual);
+             $lp, range_text($sizes[0][0], $sizes[1][0], !$exact),
+             range_text($sizes[0][1], $sizes[1][1], !$exact), $residual);
   if ($details) {
     my @bias = map {
       $band->{stage1_bias_base} + ($band->{stage1_bias_step_bits}
@@ -142,8 +145,8 @@ if ($describe) {
   say 'res:    Maximum cofactor after factor-base division (a product in 2LP).';
   if ($details) {
     say 'bias:           Additional coarse candidate-filter headroom (sieve-byte units).';
-    say 'headroom:       Sieve-byte initialization headroom (sieve_free_units).';
-    say 'pmin floor:     Lower bound for the first sieved prime, not its actual value.';
+    say 'free:           Sieve-byte rounding reserve (sieve_free_units).';
+    say 'pmin:           Lower bound for the first sieved prime, not its actual value.';
     say 'rel +:          Initial relation surplus above FB + 1; readiness may stop earlier.';
   }
   say '';
@@ -151,6 +154,9 @@ if ($describe) {
 printf $format, @headings;
 say join('-+-', map { '-' x $_ } @width);
 printf $format, @$_ for @rows;
+#say "\nM/FB: 3 significant digits; k=1000, M=1e6, G=1e9. Use --exact for integers."
+say "\nUse --exact for integers, --details for more columns, --describe for info."
+  unless $exact;
 if ($details) {
   say "\nM and FB show first -> last endpoint values, not sorted extrema; sieve length is 2M.";
   say 'P is the largest factor-base prime; smooth rows allow no primes above P.';
@@ -160,16 +166,18 @@ if ($details) {
   say 'Primary production bands only; low-end recovery profiles are not shown.';
   say 'At the unused 1-bit SIQS endpoint, the FB floor is shown (pretests return first).'
   if $bands[0]{first_bits} == 1;
-    say 'pmin floor is a lower bound, not the actual first sieved prime; rel + is the initial surplus.'
+    say 'pmin is a floor, not the actual first sieved prime; rel + is the initial surplus.'
 }
 
 sub usage {
   my ($status) = @_;
   my $out = $status ? *STDERR : *STDOUT;
-  print {$out} "Usage: perl $0 [--describe] [--details] [--header siqs.h] [siqs.c]\n",
+  print {$out} "Usage: perl $0 [--describe] [--details] [--exact] [--header siqs.h] [siqs.c]\n",
     "  Default source: siqs.c beside the repository's misc directory.\n",
     "  --describe prints column descriptions above the table (aliases: --verbose, -v).\n",
-    "  --details adds byte-sieve bias/headroom, prime floor, and relation surplus.\n",
+    "  M/FB are compact by default (three significant digits, decimal k/M/G).\n",
+    "  --exact displays M/FB as comma-separated integers instead.\n",
+    "  --details adds byte-sieve bias/free units, prime floor, and relation surplus.\n",
     "  --header supplies the header defining the bit limits (default: beside siqs.c).\n";
   exit $status;
 }
@@ -280,6 +288,27 @@ sub integer_text {
 }
 
 sub range_text {
-  my ($first, $last) = map { integer_text($_) } @_;
-  return $first eq $last ? $first : "$first${srange}$last";
+  my ($first, $last, $compact) = @_;
+  my @text = map { $compact ? compact_integer_text($_) : integer_text($_) }
+             ($first, $last);
+  return $text[0] eq $text[1] ? $text[0] : "$text[0]${srange}$text[1]";
+}
+
+sub compact_integer_text {
+  my ($value) = @_;
+  return integer_text($value) if $value < 1000;
+  my @suffix = ('', 'k', 'M', 'G');
+  my $unit = 0;
+  while ($value >= 1000 && $unit < $#suffix) {
+    $value /= 1000;
+    $unit++;
+  }
+  # Round before choosing decimals, including carries across a unit boundary.
+  $value = 0 + sprintf('%.3g', $value);
+  if ($value >= 1000 && $unit < $#suffix) {
+    $value /= 1000;
+    $unit++;
+  }
+  my $decimals = $value < 10 ? 2 : $value < 100 ? 1 : 0;
+  return sprintf('%.*f%s', $decimals, $value, $suffix[$unit]);
 }
