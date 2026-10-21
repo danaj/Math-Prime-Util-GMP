@@ -321,9 +321,11 @@ void la_reduce_matrix(unsigned long *nrows, unsigned long *ncols,
   }
   *ncols = i;
 
-  if (verbose > 0)
+  if (verbose > 0) {
     printf("Lanczos reduced to %lu active rows x %lu columns\n",
            live_rows, *ncols);
+    fflush(stdout);
+  }
 
   free(p.alive);
   free(p.queue);
@@ -791,6 +793,7 @@ static void nla_matrix_init(nla_matrix_t *matrix,
            matrix->iteration_rows, ncols, matrix->post_rows,
            matrix->packed_dense_rows, matrix->sparse_rows,
            (unsigned long)offset, mb);
+    fflush(stdout);
   }
 
   free(row_cursor);
@@ -1518,10 +1521,12 @@ static uint64_t *nla_block_lanczos_once(const nla_matrix_t *matrix,
     }
   }
 
-  if (verbose > 0)
+  if (verbose > 0) {
     printf("Lanczos %s after %lu iterations (dimension %lu)%s\n",
            failed ? "failed" : "completed",
            iteration, dimensions_solved, failed ? ", retrying" : "");
+    fflush(stdout);
+  }
 
   free(initial);
   free(row_scratch);
@@ -1603,8 +1608,10 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
   nla_matrix_init(&matrix, nrows, dense_rows, ncols, cols, post_rows, verbose);
 #ifdef PSIQS
   matrix.pool = nla_pool_create(&matrix, nthreads);
-  if (matrix.pool != NULL && verbose > 0)
+  if (matrix.pool != NULL && verbose > 0) {
     printf("Lanczos using %u threads\n", matrix.pool->nthreads);
+    fflush(stdout);
+  }
 #else
   (void)nthreads;
 #endif
@@ -1614,8 +1621,13 @@ static uint64_t *nla_block_lanczos(unsigned long nrows,
       break;
     free(result);
     result = NULL;
-    if (verbose > 0)
-      printf("linear algebra retry %u\n", attempt + 1U);
+    if (verbose > 0) {
+      if (attempt + 1U < NLA_MAX_ATTEMPTS)
+        printf("linear algebra retry %u\n", attempt + 1U);
+      else
+        printf("linear algebra exhausted %u attempts\n", NLA_MAX_ATTEMPTS);
+      fflush(stdout);
+    }
   }
 #ifdef PSIQS
   nla_pool_destroy(matrix.pool);

@@ -105,8 +105,10 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 /* Batch collection stops at graph readiness. This is only a generous
  * terminal failure guard for unusually slow relation streams, not an expected
- * work target.  Both collectors allow max(1000000, 512 * FB) polynomials;
- * double the FB multiplier above 400 bits while those bands remain untuned. */
+ * work target. Both collectors allow max(1000000, 512 * FB) polynomials.
+ * Above 400 bits, effectively disable this tuning cutoff: retain only the
+ * 2^31-1 counter-safety cap.  These band aren't tuned yet, and they generally
+ * take more work.  Let them run without cutting them off. */
 #define SIQS_MAX_POLYNOMIALS_PER_FB 512U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
@@ -4585,8 +4587,10 @@ static int siqs_try_inline_matrix(siqs_ctx_t *ctx) {
       ctx->full_count <= ctx->matrix_last_count)
     return ctx->factor_found;
   ctx->matrix_last_count = ctx->full_count;
-  if (ctx->verbose > 0)
+  if (ctx->verbose > 0) {
     printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+    fflush(stdout);
+  }
   if (siqs_solve(ctx))
     return 1;
   if (ctx->full_count >
@@ -5321,8 +5325,10 @@ static int siqs_solve(siqs_ctx_t *ctx) {
          block_attempt < 2 && !ctx->factor_found;
          block_attempt++) {
       seed = siqs_rand64(&ctx->la_rng);
-      if (block_attempt != 0 && ctx->verbose > 0)
+      if (block_attempt != 0 && ctx->verbose > 0) {
         printf("Lanczos did not refine factors; retrying with all rows.\n");
+        fflush(stdout);
+      }
 #ifdef SIQS_TIMING
       timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
 #endif
@@ -5356,6 +5362,34 @@ static int siqs_solve(siqs_ctx_t *ctx) {
     free(columns[i].data);
   free(columns);
   return ctx->factor_found;
+}
+
+/* Exhaustion may leave new columns in either collector. Small dense solves
+ * can still salvage them, but do not launch repeated Lanczos attempts on a
+ * sparse matrix whose reduced core is not ready. BIDS already tested its
+ * dependencies, and an unchanged batch must never be solved again. */
+static void siqs_solve_final_batch(siqs_ctx_t *ctx) {
+  uint32_t rows, columns;
+  if (ctx->use_bids || ctx->factor_found ||
+      ctx->full_count <= ctx->matrix_last_count ||
+      ctx->full_count < SIQS_MATRIX_EXTRA_RELS(ctx))
+    return;
+  if (!siqs_use_dense_solver(ctx->full_count) &&
+      !siqs_matrix_ready(ctx, &rows, &columns) &&
+      (columns == 0 || !siqs_use_dense_solver(columns))) {
+    if (ctx->verbose > 0) {
+      printf("# siqs skipping final solve: matrix not ready (%u rows, %u columns)\n",
+             rows, columns);
+      fflush(stdout);
+    }
+    return;
+  }
+  ctx->matrix_last_count = ctx->full_count;
+  if (ctx->verbose > 0) {
+    printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+    fflush(stdout);
+  }
+  (void)siqs_solve(ctx);
 }
 
 /*----------------------------------------------------------------------------
@@ -5410,20 +5444,22 @@ static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
 }
 
 static uint32_t siqs_polynomial_limit(const siqs_parameters_t *p) {
-  uint32_t per_fb = SIQS_MAX_POLYNOMIALS_PER_FB
-                  * (p->bits > 400U ? 2U : 1U);
-  uint32_t limit = p->fb_size > UINT32_MAX / per_fb
-                 ? UINT32_MAX : p->fb_size * per_fb;
+  uint32_t per_fb = SIQS_MAX_POLYNOMIALS_PER_FB;
+  uint32_t limit;
+  if (p->bits > 400U)
+    return UINT32_MAX / 2U;
+  limit = p->fb_size > UINT32_MAX / per_fb
+        ? UINT32_MAX : p->fb_size * per_fb;
   return limit < 1000000U ? 1000000U : limit;
 }
 
-/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials, or below
- * 2^31 when doubled above 400 bits.  Even allowing one stopped family per
- * worker per solve retry leaves family counts below 2^32; polynomial counts
- * stay below 2^31.  Together with 2M <= 2^31, this bounds candidate visits
- * below 2^62.  Accepted/split stats count subsets of those visits, so their
- * u64 increments need no hot checks.  Full-count scheduling additions also
- * fit u32 under the vector bounds. */
+/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials. Above
+ * 400 bits the counter-safety cap still keeps it below 2^31. Even allowing
+ * one stopped family per worker per solve retry leaves family counts below
+ * 2^32; polynomial counts stay below 2^31. Together with 2M <= 2^31,
+ * this bounds candidate visits below 2^62. Accepted/split stats count subsets
+ * of those visits, so their u64 increments need no hot checks. Full-count
+ * scheduling additions also fit u32 under the vector bounds. */
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
                                   uint32_t *next_matrix_check,
@@ -5770,7 +5806,8 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
  *   Inline: tiny non-BIDS matrices are solved while consuming candidates.
  *   Batch: collect to readiness/target, solve, and on a miss request more
  *          columns before trying again. matrix_last_count prevents a blind
- *          retry; the final flush runs only if untested columns remain.
+ *          retry; the final solve needs untested columns and, for a sparse
+ *          matrix, a ready reduced core.
  *
  * Source exhaustion, work/relation budgets and an uncertified BIDS state
  * can end an attempt without completing the partition. Any useful splits
@@ -5839,6 +5876,8 @@ static int siqs_run(siqs_ctx_t *ctx) {
     if (ctx->block_prime_count != 0)
       printf("# siqs block sieve %u bytes (max %u)\n",
              ctx->block_length, (unsigned)SIQS_SIEVE_BLOCK_SIZE);
+    if (ctx->params.bits > 400U)
+      printf("# siqs over 400 bits: default guard of %uxFB polynomials is not used.\n", SIQS_MAX_POLYNOMIALS_PER_FB);
     fflush(stdout);
   }
 
@@ -5870,8 +5909,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
         break;
       if (ctx->factor_found)
         break;
-      if (verbose > 0)
+      if (verbose > 0) {
         printf("# siqs linear algebra with %u relations\n", ctx->full_count);
+        fflush(stdout);
+      }
       ctx->matrix_last_count = ctx->full_count;
       if (siqs_solve(ctx))
         break;
@@ -5908,17 +5949,14 @@ static int siqs_run(siqs_ctx_t *ctx) {
   }
   if (ctx->bids != NULL && ctx->bids->progress)
     ctx->factor_found = 1;
-  /* Exhaustion can leave an untested partial batch in either collector.
-   * Try its new relations once before discarding the context or recovering
-   * under a wider policy; never retry a matrix with no additional columns. */
-  if (!ctx->use_bids && !ctx->factor_found &&
-      ctx->full_count > ctx->matrix_last_count &&
-      ctx->full_count >= SIQS_MATRIX_EXTRA_RELS(ctx)) {
-    ctx->matrix_last_count = ctx->full_count;
-    if (verbose > 0)
-      printf("# siqs linear algebra with %u relations\n", ctx->full_count);
-    (void)siqs_solve(ctx);
+  if (!ctx->factor_found && verbose > 0 &&
+      poly_count >= siqs_polynomial_limit(&ctx->params)) {
+    printf("# siqs polynomial guard reached: %u/%u polynomials (%.1fxFB); stopping collection\n",
+           poly_count, siqs_polynomial_limit(&ctx->params),
+           (double)poly_count / ctx->params.fb_size);
+    fflush(stdout);
   }
+  siqs_solve_final_batch(ctx);
   if (verbose > 0)
     printf("# siqs used %u families, %u polynomials, %llu candidates, "
            "%u full relations\n",

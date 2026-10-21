@@ -590,11 +590,71 @@ static void matrix_index_limits(void) {
   puts("PASS matrix: column IDs 65535/65536/65537 and highest 21-bit factor-base row");
 }
 
+static void matrix_final_batch(void) {
+  siqs_ctx_t ctx;
+  siqs_factor_array_t result;
+  uint32_t i, j, rows, columns;
+  const uint32_t count = 2048U;
+  case_name = "exhausted-unready-sparse-batch";
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.params.fb_size = count + count / 2U - 1U;
+  ctx.params.max_large_primes = 2;
+  ctx.full_count = count;
+  ctx.full = (siqs_full_relation_t **)check_allocate(count, sizeof(*ctx.full));
+  /* I+S+S^2 is nonsingular at size 2048 (not divisible by 3). Extra pair
+   * rows leave a full-rank, underfull core with no singletons and no kernel.
+   * Only parity is modeled: this fixture must never enter a solver. */
+  for (i = 0; i < count; i++) {
+    siqs_full_relation_t *r = (siqs_full_relation_t *)check_allocate(1, sizeof(*r));
+    r->nfactors = 4;
+    r->factors = (siqs_factor_t *)check_allocate(4, sizeof(*r->factors));
+    r->factors[0].row = i;
+    r->factors[1].row = (i + 1U) % count;
+    r->factors[2].row = (i + 2U) % count;
+    r->factors[3].row = count + i / 2U;
+    for (j = 0; j < 4; j++) r->factors[j].exponent = 1;
+    ctx.full[i] = r;
+  }
+  CHECK(!siqs_matrix_ready(&ctx, &rows, &columns));
+  CHECK(rows == count + count / 2U && columns == count);
+  siqs_solve_final_batch(&ctx);
+  CHECK(ctx.matrix_last_count == 0 && ctx.la_rng.state == 0);
+  /* If everything peels away, skip even construction of an empty matrix. */
+  for (i = 0; i < count; i++) ctx.full[i]->nfactors = 1;
+  siqs_solve_final_batch(&ctx);
+  CHECK(ctx.matrix_last_count == 0 && ctx.la_rng.state == 0);
+  for (i = 0; i < count; i++) {
+    free(ctx.full[i]->factors);
+    free(ctx.full[i]);
+  }
+  free(ctx.full);
+  free(ctx.matrix_ready_incidence);
+
+  case_name = "exhausted-dense-batch-still-salvaged";
+  relation_context(&ctx, &result, 1);
+  for (i = 0; i < 31; i++) (void)relation_full_power(&ctx, 1, 2);
+  mpz_set_ui(relation_full_power(&ctx, 2, 2)->y, 18);
+  ctx.use_bids = 1;
+  siqs_solve_final_batch(&ctx);
+  CHECK(ctx.matrix_last_count == 0 && result.count == 1);
+  ctx.use_bids = 0;
+  ctx.matrix_last_count = ctx.full_count;
+  siqs_solve_final_batch(&ctx);
+  CHECK(!ctx.factor_found && result.count == 1);
+  ctx.matrix_last_count = 0;
+  siqs_solve_final_batch(&ctx);
+  CHECK(ctx.matrix_last_count == ctx.full_count && ctx.factor_found);
+  CHECK(siqs_all_factors_prime(&result));
+  relation_finish(&ctx, &result);
+  puts("PASS matrix: exhausted sparse batch requires readiness; dense salvage, BIDS and unchanged-batch guards");
+}
+
 static void suite_matrix(void) {
   matrix_rng();
   matrix_index_limits();
   matrix_from_relations();
   matrix_complete_basis_retry();
+  matrix_final_batch();
   matrix_reduction();
   matrix_degenerate();
   CHECK(siqs_use_dense_solver(1536) && !siqs_use_dense_solver(1537));

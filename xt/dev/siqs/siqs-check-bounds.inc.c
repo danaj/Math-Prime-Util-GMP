@@ -2,8 +2,7 @@
  * descriptors only: fatal fixtures must reject them before allocation. */
 static void check_arithmetic_bounds(void) {
   const size_t maximum = (size_t)-1;
-  const uint64_t maximum_polynomials = (uint64_t)SIQS_PACKED_FACTOR_ROW_MASK
-                                    * SIQS_MAX_POLYNOMIALS_PER_FB * 2U;
+  const uint64_t maximum_polynomials = UINT32_MAX / 2U;
   uint32_t capacity, i;
   siqs_parameters_t parameters;
   siqs_hashset_t set;
@@ -41,7 +40,8 @@ static void check_arithmetic_bounds(void) {
   memset(&parameters, 0, sizeof(parameters));
   parameters.fb_size = SIQS_PACKED_FACTOR_ROW_MASK;
   parameters.bits = 400;
-  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials / 2U);
+  CHECK(siqs_polynomial_limit(&parameters) ==
+        SIQS_PACKED_FACTOR_ROW_MASK * SIQS_MAX_POLYNOMIALS_PER_FB);
   parameters.bits = 401;
   CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials);
   parameters.bits = 512;
@@ -50,8 +50,10 @@ static void check_arithmetic_bounds(void) {
   parameters.bits = 400;
   CHECK(siqs_polynomial_limit(&parameters) == 1000000U);
   parameters.bits = 401;
-  CHECK(siqs_polynomial_limit(&parameters) == 1024000U);
+  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials);
   parameters.fb_size = 1;
+  CHECK(siqs_polynomial_limit(&parameters) == maximum_polynomials);
+  parameters.bits = 400;
   CHECK(siqs_polynomial_limit(&parameters) == 1000000U);
   CHECK(siqs_array_size(SIQS_MAX_A_PRIMES - 1U,
         siqs_array_size(SIQS_PACKED_FACTOR_ROW_MASK, sizeof(uint32_t)))
@@ -223,8 +225,9 @@ static void check_upper_policy_sweep(void) {
         CHECK((selected.half_interval & (SIQS_SIEVE_ALIGN - 1U)) == 0);
         CHECK(selected.target_relations == selected.fb_size + 1U + selected.relation_extra);
         CHECK((uint64_t)siqs_polynomial_limit(&selected) < (UINT64_C(1) << 31));
-        CHECK(siqs_polynomial_limit(&selected) == selected.fb_size
-              * SIQS_MAX_POLYNOMIALS_PER_FB * (bits > 400U ? 2U : 1U));
+        CHECK(siqs_polynomial_limit(&selected) == (bits > 400U
+              ? UINT32_MAX / 2U
+              : selected.fb_size * SIQS_MAX_POLYNOMIALS_PER_FB));
         CHECK(selected.sieve_hit_bound_nominal > 0.0 && selected.sieve_hit_bound_nominal <= DBL_MAX);
         CHECK(selected.sieve_free_units < SIQS_SIEVE_SCORE_TOP);
         if (selected.fb_size > maximum_fb) maximum_fb = selected.fb_size;
