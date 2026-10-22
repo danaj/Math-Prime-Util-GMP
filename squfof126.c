@@ -1,20 +1,23 @@
 
 /* GMP version of Racing SQUFOF for up to 126-bit inputs.
- * Oct 2017 - Dana Jacobsen
+ * Oct 2017-2026, Dana Jacobsen
+ *
+ * Version 1.1.0, October 2026
  *
  * Based heavily on Ben Buhrow's racing SQUFOF implementation.
- * All factoring operations use 64-bit unsigned longs so it's quite fast.
+ * The SQUFOF recurrences use native unsigned 64-bit arithmetic.
  *
- * Realistically it has decent performance up to about 80 bits.
- * From 54 to 80 it is faster to first try p-1 to B1 = 1k-16k.
+ * Uses lazy multiplier initialization and interleaved racing, with four
+ * lanes by default, arranged to expose compiler vectorization opportunities.
  *
- * As of 2017, the fastest method for 64-bit is x86-64 Pollard-Rho.
- * After that, a tinyqs such as Jason P's cofactorize-siqs seems fastest.
+ * The 126-bit bound is a limit for this implementation, not a performance
+ * recommendation.  Crossovers with rho, ECM, and SIQS depend on input shape,
+ * work budget, their implementations, and platform.
  */
 
 #include <gmp.h>
+#include <limits.h>
 #include <math.h>
-#include "ptypes.h"
 #include "squfof126.h"
 
 #define TEST_FOR_2357(n, f) \
@@ -26,44 +29,46 @@
     if (mpz_cmp_ui(n, 121) < 0) { return 0; } \
   }
 
-/* Pick type for 64-bit core, plus methods to get/set from GMP */
-
-#if HAVE_STD_U64
-#define SQUFOF_TYPE uint64_t
-#elif BITS_PER_WORD == 64
-#define SQUFOF_TYPE UV
-#else
-#define SQUFOF_TYPE unsigned long long
+/* Low 64 magnitude bits, independent of unsigned long and GMP limb width.
+ * GMP_NUMB_BITS also accounts for any unused nail bits in a limb. */
+static inline uint64_t mpz_get64(const mpz_t n) {
+  uint64_t v = (uint64_t)mpz_getlimbn(n, 0);
+#if GMP_NUMB_BITS < 64
+  unsigned shift;
+  mp_size_t i;
+  for (i = 1, shift = GMP_NUMB_BITS; shift < 64; i++, shift += GMP_NUMB_BITS)
+    v |= (uint64_t)mpz_getlimbn(n, i) << shift;
 #endif
-
-static INLINE SQUFOF_TYPE mpz_get64(const mpz_t n) {
-  SQUFOF_TYPE v = mpz_getlimbn(n,0);
-  if (GMP_LIMB_BITS < 64 || sizeof(mp_limb_t) < sizeof(SQUFOF_TYPE))
-    v |= ((SQUFOF_TYPE)mpz_getlimbn(n,1)) << 32;
   return v;
 }
-static INLINE void mpz_set64(mpz_t n, SQUFOF_TYPE v) {
-  if (v <= 0xFFFFFFFFUL || sizeof(unsigned long int) >= sizeof(SQUFOF_TYPE)) {
-    mpz_set_ui(n, v);
+
+/* GMP's _ui arguments are unsigned long, which may have only 32 bits even
+ * when uint64_t and GMP limbs have 64. Keep this conversion local. */
+static inline void mpz_set64(mpz_t n, uint64_t v) {
+#if ULONG_MAX >= UINT64_MAX
+  mpz_set_ui(n, (unsigned long)v);
+#else
+  if (v <= ULONG_MAX) {
+    mpz_set_ui(n, (unsigned long)v);
   } else {
-    uint32_t upper = (v >> 32), lower = v & 0xFFFFFFFFUL;
-    mpz_set_ui(n, upper);
+    mpz_set_ui(n, (unsigned long)(v >> 32));
     mpz_mul_2exp(n, n, 32);
-    mpz_add_ui(n, n, lower);
+    mpz_add_ui(n, n, (unsigned long)(uint32_t)v);
   }
+#endif
 }
 
 typedef struct
 {
   int valid;
-  SQUFOF_TYPE P;
-  SQUFOF_TYPE bn;
-  SQUFOF_TYPE Qn;
-  SQUFOF_TYPE Q0;
-  SQUFOF_TYPE b0;
-  SQUFOF_TYPE it;
-  SQUFOF_TYPE imax;
-  SQUFOF_TYPE mult;
+  uint64_t P;
+  uint64_t bn;
+  uint64_t Qn;
+  uint64_t Q0;
+  uint64_t b0;
+  uint64_t it;
+  uint64_t imax;
+  uint64_t mult;
 } mult_t;
 
 /* Bounded groups for autovectorization, with scalar cleanup for short groups. */
@@ -74,7 +79,7 @@ typedef struct
 #error SQUFOF_RACE_LANES must be 2 or 4 or 8
 #endif
 
-static INLINE unsigned squfof_ctz64(SQUFOF_TYPE n)
+static inline unsigned squfof_ctz64(uint64_t n)
 {
 #if defined(__GNUC__) || defined(__clang__)
   return (unsigned)__builtin_ctzll((unsigned long long)n);
@@ -85,10 +90,10 @@ static INLINE unsigned squfof_ctz64(SQUFOF_TYPE n)
 #endif
 }
 
-static SQUFOF_TYPE squfof_gcd64(SQUFOF_TYPE a, SQUFOF_TYPE b)
+static uint64_t squfof_gcd64(uint64_t a, uint64_t b)
 {
   unsigned shift;
-  SQUFOF_TYPE tmp;
+  uint64_t tmp;
   if (a == 0) return b;
   if (b == 0) return a;
   /* Reduce disparate widths once before the division-free binary loop. */
@@ -107,13 +112,13 @@ static SQUFOF_TYPE squfof_gcd64(SQUFOF_TYPE a, SQUFOF_TYPE b)
 
 /* Scalar reverse search and extraction, shared by the lane race and cleanup.
  * imax is the absolute forward limit for this visit, as in the scalar code. */
-static SQUFOF_TYPE squfof_extract(const mpz_t n, SQUFOF_TYPE n64,
-                                 mult_t* mult_save, SQUFOF_TYPE P,
-                                 SQUFOF_TYPE Q0, SQUFOF_TYPE S,
-                                 SQUFOF_TYPE imax, mpz_t t)
+static uint64_t squfof_extract(const mpz_t n, uint64_t n64,
+                                 mult_t* mult_save, uint64_t P,
+                                 uint64_t Q0, uint64_t S,
+                                 uint64_t imax, mpz_t t)
 {
-  SQUFOF_TYPE j,bbn,Ro,So,t1,t2,k,g;
-  const SQUFOF_TYPE b0 = mult_save->b0;
+  uint64_t j,bbn,Ro,So,t1,t2,k,g;
+  const uint64_t b0 = mult_save->b0;
 
   /* Reduce to G0 */
   k = (b0 - P)/S;
@@ -173,10 +178,10 @@ static SQUFOF_TYPE squfof_extract(const mpz_t n, SQUFOF_TYPE n64,
 /* Return 0 or a factor with the multiplier already removed.
  * n is the original input; n64 is zero when n needs the GMP GCD path.
  * An odd starting iteration has already had its square test/extraction. */
-static SQUFOF_TYPE squfof_unit(const mpz_t n, SQUFOF_TYPE n64,
-                              mult_t* mult_save, SQUFOF_TYPE imax, mpz_t t)
+static uint64_t squfof_unit(const mpz_t n, uint64_t n64,
+                              mult_t* mult_save, uint64_t imax, mpz_t t)
 {
-  SQUFOF_TYPE i,Q0,Qn,bn,b0,P,t1,t2,f64;
+  uint64_t i,Q0,Qn,bn,b0,P,t1,t2,f64;
 
   P = mult_save->P;
   bn = mult_save->bn;
@@ -218,14 +223,10 @@ static SQUFOF_TYPE squfof_unit(const mpz_t n, SQUFOF_TYPE n64,
        * samples fail the mod-64 test only about 22% of the time; removing it
        * reduced splitter CPU time by about 5% on M1 Pro, despite extra roots.
        * Keep it commented out for comparison on other machines.
-#if BITS_PER_WORD == 64
-      if (!((UVCONST(1) << (Qn & 63)) & UVCONST(0xfdfdfdedfdfcfdec))) {
-#else
-      if (!((1U << (Qn & 31)) & 0xfdfcfdec)) {
-#endif
+      if (!((UINT64_C(1) << (Qn & 63)) & UINT64_C(0xfdfdfdedfdfcfdec))) {
       */
       /* The FP root may round to 2^32; keep it wide for the square test. */
-      t1 = (SQUFOF_TYPE) sqrt((double) Qn);
+      t1 = (uint64_t) sqrt((double) Qn);
       if (Qn == t1*t1)
         break;
       /* } */
@@ -244,15 +245,15 @@ static SQUFOF_TYPE squfof_unit(const mpz_t n, SQUFOF_TYPE n64,
  * scratch and fixed-length loops expose independent exact recurrences;
  * reverse searches and all GMP operations remain outside those loops.
  * Short groups and uneven tails use the same scalar recurrence as before. */
-static SQUFOF_TYPE squfof_race(const mpz_t n, SQUFOF_TYPE n64,
+static uint64_t squfof_race(const mpz_t n, uint64_t n64,
                               mult_t *states[SQUFOF_RACE_LANES],
                               unsigned count, mpz_t t)
 {
-  SQUFOF_TYPE P[SQUFOF_RACE_LANES], bn[SQUFOF_RACE_LANES];
-  SQUFOF_TYPE Qn[SQUFOF_RACE_LANES], Q0[SQUFOF_RACE_LANES];
-  SQUFOF_TYPE b0[SQUFOF_RACE_LANES], root[SQUFOF_RACE_LANES];
-  SQUFOF_TYPE start[SQUFOF_RACE_LANES], limit[SQUFOF_RACE_LANES];
-  SQUFOF_TYPE used = 0, common = states[0]->imax, f64;
+  uint64_t P[SQUFOF_RACE_LANES], bn[SQUFOF_RACE_LANES];
+  uint64_t Qn[SQUFOF_RACE_LANES], Q0[SQUFOF_RACE_LANES];
+  uint64_t b0[SQUFOF_RACE_LANES], root[SQUFOF_RACE_LANES];
+  uint64_t start[SQUFOF_RACE_LANES], limit[SQUFOF_RACE_LANES];
+  uint64_t used = 0, common = states[0]->imax, f64;
   unsigned lane, squares, retired;
 
   for (lane = 0; lane < count; lane++) {
@@ -271,7 +272,7 @@ static SQUFOF_TYPE squfof_race(const mpz_t n, SQUFOF_TYPE n64,
     }
 
 #define RACE_ITERATION \
-      SQUFOF_TYPE oldP = P[lane], oldQn = Qn[lane]; \
+      uint64_t oldP = P[lane], oldQn = Qn[lane]; \
       P[lane] = bn[lane]*Qn[lane] - P[lane]; \
       Qn[lane] = Q0[lane] + bn[lane]*(oldP-P[lane]); \
       Q0[lane] = oldQn; \
@@ -289,7 +290,7 @@ static SQUFOF_TYPE squfof_race(const mpz_t n, SQUFOF_TYPE n64,
 #pragma clang loop unroll(disable) vectorize(enable) vectorize_width(2) interleave_count(2)
 #endif
       for (lane = 0; lane < SQUFOF_RACE_LANES; lane++)
-        root[lane] = (SQUFOF_TYPE) sqrt((double) Qn[lane]);
+        root[lane] = (uint64_t) sqrt((double) Qn[lane]);
       used++;
       squares = 0;
       for (lane = 0; lane < SQUFOF_RACE_LANES; lane++)
@@ -339,7 +340,8 @@ static SQUFOF_TYPE squfof_race(const mpz_t n, SQUFOF_TYPE n64,
 /* Gower and Wagstaff 2008:
  *    http://www.ams.org/journals/mcom/2008-77-261/S0025-5718-07-02010-8/
  * Section 5.3.  I've added some with 13,17,19.  Sorted by F(). */
-static const SQUFOF_TYPE squfof_multipliers[] =
+/* These fit GMP's unsigned-long multiplier argument on 32-bit hosts too. */
+static const uint32_t squfof_multipliers[] =
   { 33*1680, 11*1680, 66*1680,  3*1680,  2*1680,  6*1680, 22*1680, 78*1680,
      1*1680, 26*1680, 39*1680, 13*1680,102*1680, 30*1680, 34*1680, 10*1680,
     15*1680, 51*1680,  5*1680, 57*1680, 17*1680, 19*1680,
@@ -352,21 +354,23 @@ static const SQUFOF_TYPE squfof_multipliers[] =
     11,       1 };
 #define NSQUFOF_MULT (sizeof(squfof_multipliers)/sizeof(squfof_multipliers[0]))
 
-int squfof126(const mpz_t n, mpz_t f, UV rounds)
+int squfof126(const mpz_t n, mpz_t f, uint64_t rounds)
 {
   mpz_t t, nn64;
   mult_t mult_save[NSQUFOF_MULT];
   mult_t *states[SQUFOF_RACE_LANES];
-  SQUFOF_TYPE i, mult, f64, sqrtnn64, n64, rounds_done = 0;
-  SQUFOF_TYPE reserved, available;
+  size_t i;
+  uint32_t mult;
+  uint64_t f64, sqrtnn64, n64, rounds_done = 0;
+  uint64_t reserved, available;
   unsigned count, lane;
   int mults_racing = NSQUFOF_MULT;
   int first_pass = 1;
-  const uint32_t max_bits = 2 * sizeof(SQUFOF_TYPE)*8 - 2;
+  const uint32_t max_bits = 126;
   const size_t nbits = mpz_sizeinbase(n, 2);
   const double batch_scale = nbits <= 60 ? 0.3 : 0.5;
 
-  if (sizeof(SQUFOF_TYPE) <  8 || nbits > max_bits) {
+  if (nbits > max_bits) {
     mpz_set(f, n);
     return 0;
   }
@@ -388,7 +392,7 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds)
         if (!first_pass && mult_save[i].valid == 0)  continue;
         if (first_pass) {
           mult = squfof_multipliers[i];
-          mpz_mul_ui(nn64, n, mult);
+          mpz_mul_ui(nn64, n, (unsigned long)mult);
           if (mpz_sizeinbase(nn64,2) > max_bits) {
             mult_save[i].valid = 0; /* This multiplier would overflow */
             mults_racing--;
@@ -413,8 +417,8 @@ int squfof126(const mpz_t n, mpz_t f, UV rounds)
           mult_save[i].mult  = mult;
           /* The fifth root only sizes a work batch; no algebra needs it exact.
            * Preserve the integer estimate before applying the scale. */
-          mult_save[i].imax  = (SQUFOF_TYPE)
-            (batch_scale * (SQUFOF_TYPE) pow(mpz_get_d(nn64), 0.2));
+          mult_save[i].imax  = (uint64_t)
+            (batch_scale * (uint64_t) pow(mpz_get_d(nn64), 0.2));
           if (mult_save[i].imax < 20)
             mult_save[i].imax = 20;
         }
