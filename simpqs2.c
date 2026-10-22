@@ -74,7 +74,7 @@
 #include "utility.h"
 #include "misc_ui.h"
 #include "rootmod.h"
-#include "lanczos.h"
+#include "siqs/lanczos.h"
 
 #ifndef UINT64_C
 # define UINT64_C(value) ((uint64_t)(value))

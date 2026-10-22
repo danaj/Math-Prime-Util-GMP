@@ -5,7 +5,7 @@
  *
  * cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
  *   -o siqs-sieve-bench tools/siqs-sieve-bench.c lanczos.c \
- *   prime_iterator.c squfof126.c -lgmp -lm
+ *   ../prime_iterator.c ../squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */
 #ifndef _POSIX_C_SOURCE
@@ -20,7 +20,7 @@
 #if !defined(STANDALONE) || !defined(PSIQS)
 #error "Build siqs-sieve-bench with -DSTANDALONE -DPSIQS -pthread"
 #endif
-#include "../ptypes.h"
+#include "../../ptypes.h"
 /* The production allocator is the sole source of balancing/activation math.
  * These are runtime inputs only in this tool. Its parser enforces the size
  * bounds normally enforced by siqs.c's compile-time check (identifiers in

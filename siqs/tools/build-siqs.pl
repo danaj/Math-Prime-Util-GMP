@@ -10,16 +10,20 @@ use Text::ParseWords qw(shellwords);
 
 # Called only when make needs a build. Probe by linking, never by executing,
 # so this also works with cross compilers. No build-mode stamp is retained.
-my ($cc, $cflags, $output, $serial) = ('cc', '-O3', 'msiqs', 0);
+my ($cc, $cppflags, $cflags, $ldflags, $ldlibs, $output, $serial) =
+   ('cc', '', '-O3', '', '-lgmp -lm', 'msiqs', 0);
 Getopt::Long::Configure(qw(no_auto_abbrev no_ignore_case));
-GetOptions('cc=s' => \$cc, 'cflags=s' => \$cflags,
+GetOptions('cc=s' => \$cc, 'cppflags=s' => \$cppflags, 'cflags=s' => \$cflags,
+           'ldflags=s' => \$ldflags, 'ldlibs=s' => \$ldlibs,
            'output=s' => \$output, 'serial' => \$serial)
   && @ARGV && length($output)
   or die "usage: build-siqs.pl [--cc COMMAND] [--cflags FLAGS] " .
+         "[--cppflags FLAGS] [--ldflags FLAGS] [--ldlibs LIBS] " .
          "[--output FILE] [--serial] SOURCE ...\n";
 my @compiler = shellwords($cc);
 die "empty compiler command\n" unless @compiler;
-my @flags = shellwords($cflags);
+my @flags = (shellwords($cppflags), shellwords($cflags));
+my @link_flags = shellwords($ldflags);
 my $threaded = 0;
 unless ($serial) {
   my $temporary = tempdir('siqs-pthread-XXXXXX', TMPDIR => 1, CLEANUP => 1);
@@ -30,7 +34,7 @@ unless ($serial) {
     local *STDERR;
     open STDOUT, '>', $log or die "cannot open $log: $!\n";
     open STDERR, '>&', \*STDOUT or die "cannot redirect probe errors: $!\n";
-    $threaded = system(@compiler, @flags, '-pthread', '-o', $probe,
+    $threaded = system(@compiler, @flags, @link_flags, '-pthread', '-o', $probe,
                       File::Spec->catfile($Bin, 'pthread-probe.c')) == 0;
   }
 }
@@ -39,7 +43,7 @@ print "Building $output ", ($threaded ? 'with pthreads' : 'serial-only'), "\n";
 $| = 1;
 my @command = (@compiler, @flags, '-DSTANDALONE', '-UPSIQS');
 push @command, '-DPSIQS', '-pthread' if $threaded;
-push @command, '-o', $output, @ARGV, '-lgmp', '-lm';
+push @command, @link_flags, '-o', $output, @ARGV, shellwords($ldlibs);
 print join(' ', map {shell_quote($_)} @command), "\n";
 system(@command);
 my $status = $?;

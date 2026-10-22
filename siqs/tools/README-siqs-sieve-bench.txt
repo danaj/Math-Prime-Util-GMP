@@ -1,6 +1,8 @@
 SIQS BYTE-SIEVE BLOCK-SIZE SCREEN
 ===============================
 
+Build and run commands below assume the repository's siqs/ directory.
+
 Build only (regenerate Makefile after pulling the new target if necessary;
 Perl module tests/build do not run this tool):
   make siqs-sieve-bench
@@ -8,7 +10,7 @@ Perl module tests/build do not run this tool):
 Or compile without Perl/MakeMaker:
   cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
     -o siqs-sieve-bench tools/siqs-sieve-bench.c lanczos.c \
-    prime_iterator.c squfof126.c -lgmp -lm
+    ../prime_iterator.c ../squfof126.c -lgmp -lm
 
 Run on an idle machine:
   ./siqs-sieve-bench

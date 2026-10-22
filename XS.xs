@@ -26,7 +26,7 @@
 #include "tinyqs.h"
 #include "simpqs.h"
 #include "simpqs2.h"
-#include "siqs.h"
+#include "siqs/siqs.h"
 #include "bls75.h"
 #include "ecpp.h"
 #include "aks.h"

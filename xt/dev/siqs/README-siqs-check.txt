@@ -9,15 +9,15 @@ attempt complete large factorizations. They are not part of ordinary
 
 After "perl Makefile.PL":
 
-  make check-siqs
-  make test-siqs                          # alias
-  make check-siqs SIQS_CHECK_ARGS=--serial # force a serial-only checker
-  make check-siqs SIQS_CHECK_ARGS='--extended --verbose'
-  make check-siqs SIQS_CHECK_ARGS='--sanitize'
+  make -C siqs check-siqs
+  make -C siqs test-siqs                          # alias
+  make -C siqs check-siqs SIQS_CHECK_ARGS=--serial # force a serial-only checker
+  make -C siqs check-siqs SIQS_CHECK_ARGS='--extended --verbose'
+  make -C siqs check-siqs SIQS_CHECK_ARGS='--sanitize'
 
 The Make target uses only a core-Perl (5.10+) build wrapper, the C compiler,
 and GMP.
-Like "make siqs", it detects pthread support with a compile/link probe and
+Like "make -C siqs", it detects pthread support with a compile/link probe and
 includes all pthread Lanczos/worker checks when available. The probe is never
 executed. Use --serial to disable pthreads, or --threaded to require them.
 A checker build or test failure never causes a retry in serial mode.
@@ -79,7 +79,7 @@ be registered without creating separate executables or a large framework.
   perl xt/dev/siqs/siqs-check.pl --suite relations
   perl xt/dev/siqs/siqs-check.pl --suite matrix --extended
   perl xt/dev/siqs/siqs-check.pl --suite bids --sanitize --debug
-  make check-siqs SIQS_CHECK_ARGS='--suite workers'
+  make -C siqs check-siqs SIQS_CHECK_ARGS='--suite workers'
   perl xt/dev/siqs/siqs-check.pl --block-size 32768
   perl xt/dev/siqs/siqs-check.pl --block-size 0
   perl xt/dev/siqs/siqs-check.pl --sanitize
@@ -329,12 +329,12 @@ ordinary production source is not rewritten or exported for testing.
 
 ASan/UBSan can be used as above. Where ThreadSanitizer is supported:
 
-  make check-siqs SIQS_CFLAGS='-O1 -g -fsanitize=thread' \
+  make -C siqs check-siqs CFLAGS='-O1 -g -fsanitize=thread' \
     SIQS_CHECK_ARGS='--suite workers'
 
 Do not combine ThreadSanitizer with --sanitize (ASan). Normal worker jobs do
 not acquire the allocation-injection lock, to avoid hiding races. These are
 regression fixtures, not an exhaustive proof of every possible schedule.
 The embedding/prime-cache lifetime contract is documented in siqs.h and
-tools/README-siqs-embedding.txt. The simultaneous-call checks use that contract:
+siqs/tools/README-siqs-embedding.txt. The simultaneous-call checks use that contract:
 one startup, stable cache during all callers, then one shutdown after joins.

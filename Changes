@@ -16,7 +16,7 @@ Revision history for Perl module Math::Prime::Util::GMP
       implementation's range while using less than one quarter the memory.
 
     - SIQS extends the practical quadratic-sieve limit from roughly 90 decimal
-      digits to 366 bits, covering every input of at most 110 digits.
+      digits to over 430 bits (130 digits).
 
     [OTHER]
 

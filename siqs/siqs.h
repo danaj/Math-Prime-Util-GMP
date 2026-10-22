@@ -2,7 +2,7 @@
 #define MPU_SIQS_H
 
 #include <gmp.h>
-#include "ptypes.h"
+#include "../ptypes.h"
 
 /* Lowest post-trial cofactor size accepted by the SIQS stage. */
 #define MPU_SIQS_MIN_BITS   1U

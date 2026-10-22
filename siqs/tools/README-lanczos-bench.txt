@@ -1,6 +1,8 @@
 BLOCK-LANCZOS SCALING BENCHMARK
 ==============================
 
+Build and run commands below assume the repository's siqs/ directory.
+
 Build only (does not run a large benchmark):
   make lanczos-bench
 

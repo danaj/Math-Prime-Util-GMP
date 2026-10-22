@@ -2,14 +2,13 @@
 
   Standalone driver and host dependencies for MPU-SIQS.
 
-  Direct build:
+  Direct build from the siqs/ directory:
 
-    cc -O3 -DSTANDALONE -o msiqs \
-      mpu-siqs.c siqs.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
+    cc -O3 -DSTANDALONE -o msiqs mpu-siqs.c siqs.c lanczos.c ../prime_iterator.c ../squfof126.c -lgmp -lm
 
   Add -march=native when building a binary for the local machine only.
-  Add -DPSIQS -pthread for the parallel build.  After perl Makefile.PL,
-  make siqs detects pthread support automatically; make siqs-serial forces
+  Add -DPSIQS -pthread for the parallel build.  The local Makefile needs no
+  module configuration: make detects pthreads, while make siqs-serial forces
   a serial-only build.  Both targets produce msiqs.
 
   This driver owns one prime-cache startup/shutdown around all its inputs.
@@ -26,8 +25,8 @@
 
 #include <gmp.h>
 
-#include "ptypes.h"
-#include "prime_iterator.h"
+#include "../ptypes.h"
+#include "../prime_iterator.h"
 #include "siqs.h"
 #include "siqs_dep.h"
 #define SIQS_PROGRAM_NAME "msiqs"

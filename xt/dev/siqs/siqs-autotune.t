@@ -11,7 +11,7 @@ use Test::More;
 # The fixture output is small, so sequential pipe reads cannot fill a pipe.
 my $dir = tempdir('siqs-autotune-test-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $fixture = File::Spec->catfile($dir, 'bench');
-my $tool = File::Spec->catfile($Bin, '..', '..', '..', 'tools', 'siqs-autotune.pl');
+my $tool = File::Spec->catfile($Bin, '..', '..', '..', 'siqs', 'tools', 'siqs-autotune.pl');
 my $flags = '-DSIQS_SIEVE_BLOCK_SIZE=65536U -DSIQS_PROGRESS_WORK_PER_SEC=600000000ULL';
 open my $f, '>', $fixture or die "$fixture: $!";
 print {$f} '#!', $^X, "\n", <<'FIXTURE';

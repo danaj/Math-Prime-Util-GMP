@@ -1,6 +1,11 @@
 Embedding SIQS/PSIQS in a C host
 ===============================
 
+Paths and build commands below are relative to the repository's siqs/
+directory. SIQS and Lanczos sources live there; shared ptypes.h, mont64.h,
+prime_iterator.[ch], misc_ui.h, and squfof126.[ch] remain one level above.
+Keep that layout when copying sources, or adjust their relative includes.
+
 This describes the current in-tree C interfaces, not a separately packaged
 library or a new initialization wrapper. Public declarations are in siqs.h;
 standalone host adapter is in siqs_dep.h. mpu-siqs.c is the reference driver
@@ -211,8 +216,7 @@ a complete factorization.
 
 Build from the repository root, supplying your adapter in my-siqs-host.c:
 
-  cc -O3 -DSTANDALONE -I. -o my-factor my-factor.c my-siqs-host.c \
-    siqs.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
+  cc -O3 -DSTANDALONE -I. -I.. -o my-factor my-factor.c my-siqs-host.c siqs.c lanczos.c ../prime_iterator.c ../squfof126.c -lgmp -lm
   ./my-factor 22095311209999409685885162322219
 
 For parallel support, add -DPSIQS -pthread to that command. Both public entry

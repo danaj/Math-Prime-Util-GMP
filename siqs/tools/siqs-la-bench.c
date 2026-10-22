@@ -1,7 +1,7 @@
 /* Real reduced SIQS matrices: dense versus serial block Lanczos.
  * See README-siqs-la-bench.txt. No production timing/capture hooks.
  * cc -O3 -march=native -DSTANDALONE -UPSIQS -o siqs-la-bench \
- *   tools/siqs-la-bench.c siqs.c prime_iterator.c squfof126.c -lgmp -lm
+ *   tools/siqs-la-bench.c siqs.c ../prime_iterator.c ../squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */
 #ifndef _POSIX_C_SOURCE
@@ -19,7 +19,7 @@
 #undef la_reduce_matrix
 #include "../siqs.h"
 #include "../siqs_dep.h"
-#include "../prime_iterator.h"
+#include "../../prime_iterator.h"
 
 int siqs_is_prob_prime(const mpz_t n) { return mpz_probab_prime_p(n, 25); }
 

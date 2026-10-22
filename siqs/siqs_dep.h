@@ -2,7 +2,7 @@
 #define MPU_SIQS_DEP_H
 
 #include <gmp.h>
-#include "ptypes.h"
+#include "../ptypes.h"
 
 /* Host adapters for SIQS.  A standalone C embedding supplies this definition
  * (mpu-siqs.c contains the reference implementations).
@@ -20,7 +20,7 @@ extern int siqs_is_prob_prime(const mpz_t n);
 
 #else  /* Below means we're in the Perl module or ECPP */
 
-#include "primality.h"
+#include "../primality.h"
 #define siqs_is_prob_prime(n)        _GMP_is_prob_prime(n)
 
 #endif

@@ -1,6 +1,8 @@
 OPTIONAL SIQS HARDWARE SCREEN
 ============================
 
+Build and run commands below assume the repository's siqs/ directory.
+
 Build the shared helper, then run the advisory tool:
 
   make siqs-sieve-bench
@@ -21,7 +23,7 @@ Compilation stays in the Makefile / existing standalone builder. siqs-tuned is
 a phony override: it always measures and rebuilds msiqs, even if the executable
 already exists. Failed measurements prevent compilation. Ordinary make siqs
 does not run tuning. The Perl module is not rebuilt by these targets.
-CC/SIQS_CFLAGS/SIQS_ARCH_FLAGS retain their normal meanings; EXTRA_FLAGS adds
+CC/CPPFLAGS/CFLAGS/LDFLAGS/LDLIBS retain their normal meanings; EXTRA_FLAGS adds
 manual options to standalone builds. No non-core Perl modules are used.
 Flags are not saved: a later ordinary rebuild uses the ordinary build options.
 

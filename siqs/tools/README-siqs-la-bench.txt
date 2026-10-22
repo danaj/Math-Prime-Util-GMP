@@ -1,11 +1,13 @@
 Dense / block-Lanczos crossover on real SIQS matrices
 ===================================================
 
+Build and run commands below assume the repository's siqs/ directory.
+
 Build from the repository root:
   make siqs-la-bench
 or, without the Perl build setup:
   cc -O3 -march=native -DSTANDALONE -UPSIQS -o siqs-la-bench \
-    tools/siqs-la-bench.c siqs.c prime_iterator.c squfof126.c -lgmp -lm
+    tools/siqs-la-bench.c siqs.c ../prime_iterator.c ../squfof126.c -lgmp -lm
 
 Run on a QUIET machine, with unrelated factoring/benchmark queues paused:
   ./siqs-la-bench --repeats 6 < inputs.txt > crossover.tsv

@@ -41,7 +41,7 @@ my $binary = File::Spec->catfile($temporary, 'siqs-check');
 my @command = (shellwords($cc), shellwords($cflags));
 push @command, '-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all'
   if $sanitize;
-push @command, '-DSTANDALONE', '-UPSIQS', "-I$root";
+push @command, '-DSTANDALONE', '-UPSIQS', "-I$root", "-I$root/siqs";
 # Match build-siqs.pl: probe by compiling/linking, never by running it.
 unless (defined $threaded) {
   my $probe = File::Spec->catfile($temporary, 'pthread-probe');
@@ -52,11 +52,11 @@ unless (defined $threaded) {
     open STDOUT, '>', $log or die "cannot open $log: $!\n";
     open STDERR, '>&', \*STDOUT or die "cannot redirect probe errors: $!\n";
     $threaded = system(@command, '-pthread', '-o', $probe,
-                      File::Spec->catfile($root, 'tools', 'pthread-probe.c')) == 0;
+                      File::Spec->catfile($root, 'siqs', 'tools', 'pthread-probe.c')) == 0;
   }
 }
 if ($score_bits != 8) {
-  open my $input, '<', File::Spec->catfile($root, 'siqs.c') or die $!;
+  open my $input, '<', File::Spec->catfile($root, 'siqs', 'siqs.c') or die $!;
   my $source = do { local $/; <$input> };
   close $input or die $!;
   $source =~ s/^#define SIQS_SIEVE_SCORE_BITS 8U$/#define SIQS_SIEVE_SCORE_BITS ${score_bits}U/m

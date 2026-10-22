@@ -45,13 +45,13 @@
 
 #include <gmp.h>
 
-#include "ptypes.h"
-#include "mont64.h"
+#include "../ptypes.h"
+#include "../mont64.h"
 #include "siqs.h"
 #include "siqs_dep.h"
 #include "lanczos.h"
-#include "prime_iterator.h"
-#include "squfof126.h"
+#include "../prime_iterator.h"
+#include "../squfof126.h"
 
 #ifndef UINT8_MAX
 # define UINT8_MAX 255U

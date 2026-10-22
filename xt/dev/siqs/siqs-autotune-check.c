@@ -2,7 +2,7 @@
  * Build with the same dependencies as siqs-sieve-bench.
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms. */
 #define SIQS_SIEVE_BENCH_MAIN siqs_autotune_unused_benchmark_main
-#include "../../../tools/siqs-sieve-bench.c"
+#include "../../../siqs/tools/siqs-sieve-bench.c"
 
 static void check(int condition, const char *message) {
   if (!condition) croak("autotune check: %s", message);

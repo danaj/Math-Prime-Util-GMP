@@ -128,65 +128,22 @@ sub WriteMakefile1 {   # Cribbed from eumm-upgrade by Alexandr Ciornii
 sub MY::postamble {
   return <<'MAKE_FRAG';
 
-SIQS_STANDALONE_SOURCES = mpu-siqs.c siqs.c lanczos.c prime_iterator.c \
-	squfof126.c
-SIQS_STANDALONE_HEADERS = ptypes.h siqs.h siqs_dep.h lanczos.h mont64.h \
-	prime_iterator.h squfof126.h misc_ui.h siqs_sieve_kernel_inc.c siqs_choose_inc.c
+# The module uses Perl's compiler/flags and root-level objects. Standalone
+# programs and development targets have their own Makefile under siqs/.
+siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/psiqs_inc.c ptypes.h mont64.h prime_iterator.h squfof126.h misc_ui.h
+	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/siqs.c
 
-siqs$(OBJ_EXT): siqs_sieve_kernel_inc.c siqs_choose_inc.c
+lanczos$(OBJ_EXT): siqs/lanczos.c siqs/lanczos.h siqs/planczos_inc.c ptypes.h
+	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/lanczos.c
 
-SIQS_ARCH_FLAGS = -march=native
-SIQS_CFLAGS = -O3 $(SIQS_ARCH_FLAGS)
-SIQS_CHECK_ARGS =
-EXTRA_FLAGS =
-SIQS_TUNE_ARGS =
+XS$(OBJ_EXT) factor$(OBJ_EXT) bls75$(OBJ_EXT): siqs/siqs.h
+simpqs2$(OBJ_EXT): siqs/lanczos.h
 
-.PHONY: siqs siqs-serial check-siqs check-siqs-autotune test-siqs \
-	siqs-tuned siqs-tuned-8
-
-siqs: msiqs
-
-# Explicit override: replace even an up-to-date pthreads executable.
-siqs-serial: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) tools/build-siqs.pl
-	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS)" --output msiqs --serial $(SIQS_STANDALONE_SOURCES)
-
-# Advisory measurement followed by an explicit rebuild; do not compile if the
-# measurement fails. No persistent tuned configuration or source edits.
-siqs-tuned: siqs-sieve-bench tools/siqs-autotune.pl
-	@siqs_tuned_flags=`$(PERLRUN) tools/siqs-autotune.pl --flags $(SIQS_TUNE_ARGS)` && \
-	$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS) $$siqs_tuned_flags" --output msiqs $(SIQS_STANDALONE_SOURCES)
-
-siqs-tuned-8:
-	$(MAKE) siqs-tuned SIQS_TUNE_ARGS='--threads 8'
-
-# Repository-only health checks; not dependencies of Perl's test target.
-# Auto-detect pthreads; force serial: make check-siqs SIQS_CHECK_ARGS=--serial
-check-siqs:
-	$(PERLRUN) xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS)" $(SIQS_CHECK_ARGS)
-
-test-siqs: check-siqs
-
-msiqs: $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c tools/build-siqs.pl tools/pthread-probe.c
-	@$(PERLRUN) tools/build-siqs.pl --cc "$(CC)" --cflags "$(SIQS_CFLAGS) $(EXTRA_FLAGS)" --output $@ $(SIQS_STANDALONE_SOURCES)
-
-# Build only: an optional synthetic matrix scaling tool, not a Perl test.
-lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep.h ptypes.h
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/lanczos-bench.c -lm
-
-# Build only: compare both solvers on identical real reduced SIQS matrices.
-siqs-la-bench: tools/siqs-la-bench.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS)
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -UPSIQS -o $@ tools/siqs-la-bench.c siqs.c prime_iterator.c squfof126.c -lgmp -lm
-
-# Build only: a fixed-work byte-sieve block-size/concurrency screen.
-siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ tools/siqs-sieve-bench.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
-
-siqs-autotune-check: xt/dev/siqs/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(SIQS_STANDALONE_SOURCES) $(SIQS_STANDALONE_HEADERS) psiqs_inc.c planczos_inc.c
-	$(CC) $(SIQS_CFLAGS) -DSTANDALONE -DPSIQS -pthread -o $@ xt/dev/siqs/siqs-autotune-check.c lanczos.c prime_iterator.c squfof126.c -lgmp -lm
-
-check-siqs-autotune: siqs-autotune-check
-	./siqs-autotune-check
-	$(PERLRUN) xt/dev/siqs/siqs-autotune.t
+# Convenience only: standalone flags and all other targets belong to siqs/.
+.PHONY: siqs
+siqs:
+	$(MAKE) -C siqs siqs
+	$(CP) siqs/msiqs msiqs
 
 MAKE_FRAG
 }

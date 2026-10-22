@@ -9,7 +9,7 @@
 #include "pbrent63.h"
 #include "squfof126.h"
 #include "ecm.h"
-#include "siqs.h"
+#include "siqs/siqs.h"
 #include "lucas_seq.h"
 
 static unsigned long _gcd_ui(unsigned long a, unsigned long b) {

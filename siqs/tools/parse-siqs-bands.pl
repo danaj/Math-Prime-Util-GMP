@@ -173,7 +173,7 @@ sub usage {
   my ($status) = @_;
   my $out = $status ? *STDERR : *STDOUT;
   print {$out} "Usage: perl $0 [--describe] [--details] [--exact] [--header siqs.h] [siqs.c]\n",
-    "  Default source: siqs.c beside the repository's misc directory.\n",
+    "  Default source: siqs.c in the SIQS project directory.\n",
     "  --describe prints column descriptions above the table (aliases: --verbose, -v).\n",
     "  M/FB are compact by default (three significant digits, decimal k/M/G).\n",
     "  --exact displays M/FB as comma-separated integers instead.\n",

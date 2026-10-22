@@ -3,3 +3,7 @@
 # Research artifacts and repository-only developer tests are not distributed.
 ^misc/
 ^xt/dev/
+
+# Publication images and generated standalone programs stay in the checkout.
+^siqs/graphs/
+^siqs/(?:msiqs|lanczos-bench|siqs-la-bench|siqs-sieve-bench|siqs-autotune-check)$

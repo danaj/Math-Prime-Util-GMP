@@ -10,7 +10,7 @@ static const int ev = 0;
 #include "pbrent63.h"
 #include "squfof126.h"
 #include "factor.h"
-#include "siqs.h"
+#include "siqs/siqs.h"
 #include "ecm.h"
 #define _GMP_ECM_FACTOR(n, f, b1, ncurves) \
    _GMP_ecm_factor_projective(n, f, b1, 0, ncurves, irand_u64(), get_verbose_level())

@@ -1,7 +1,7 @@
 #ifndef MPU_LANCZOS_H
 #define MPU_LANCZOS_H
 
-#include "ptypes.h"
+#include "../ptypes.h"
 
 /* The panel dense solver wins through this measured reduced-column
  * crossover.  Both solvers remain valid on either side of it. */

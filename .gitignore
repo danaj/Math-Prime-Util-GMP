@@ -1,6 +1,7 @@
 Math-Prime-Util-*.tar.gz
 ecpp-dj-*.tar.gz
 Makefile
+!siqs/Makefile
 Makefile.old
 MYMETA.*
 GMP.bs
@@ -17,3 +18,4 @@ blib*
 pm_to_blib
 standalone
 s2
+tools/factor-benchmark

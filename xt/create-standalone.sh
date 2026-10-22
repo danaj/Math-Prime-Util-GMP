@@ -9,7 +9,8 @@ cp -p ptypes.h standalone/
 cp -p ecpp.[ch] bls75.[ch] aks.[ch] ecm.[ch] prime_iterator.[ch] standalone/
 cp -p gmp_main.[ch] real.[ch] standalone/
 cp -p factor.[ch] squfof126.[ch] pbrent63.[ch] standalone/
-cp -p siqs.[ch] siqs_dep.h lanczos.[ch] standalone/
+mkdir -p standalone/siqs
+cp -p siqs/siqs.[ch] siqs/siqs_dep.h siqs/lanczos.[ch] siqs/*_inc.c standalone/siqs/
 cp -p utility.[ch] isaac.[ch] random_prime.[ch] standalone/
 cp -p primality.[ch] rootmod.[ch] znlog.[ch] misc_ui.[ch] lucas_seq.[ch] standalone/
 cp -p poly.[ch] standalone
@@ -35,10 +36,10 @@ CFLAGS = -O3 -g -Wall $(DEFINES)
 LIBS = -lgmp -lm
 
 OBJ = ecpp.o bls75.o aks.o primality.o ecm.o prime_iterator.o gmp_main.o \
-      factor.o squfof126.o pbrent63.o siqs.o lanczos.o \
+      factor.o squfof126.o pbrent63.o siqs/siqs.o siqs/lanczos.o \
       real.o isaac.o random_prime.o utility.o expr.o \
       rootmod.o znlog.o lucas_seq.o misc_ui.o poly.o
-HEADERS = ptypes.h class_poly_data.h siqs.h siqs_dep.h lanczos.h
+HEADERS = ptypes.h class_poly_data.h siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h
 
 .PHONY: default all clean
 
@@ -57,7 +58,7 @@ vcert: vcert.o
 	$(CC) $^ $(LIBS) -o $@
 
 clean:
-	-rm -f *.o
+	-rm -f *.o siqs/*.o
 
 realclean distclean: clean
 	-rm -f $(TARGET) vcert

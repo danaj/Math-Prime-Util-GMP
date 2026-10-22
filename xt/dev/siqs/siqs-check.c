@@ -18,7 +18,7 @@
 # include <sys/wait.h>
 #endif
 #define main siqs_check_unused_driver_main
-#include "../../../mpu-siqs.c"
+#include "../../../siqs/mpu-siqs.c"
 #undef main
 #include "siqs-check-thread-seams.h"
 #include "siqs-check-cofactor-seams.h"
@@ -30,7 +30,7 @@ static UV check_fb_prime_next(prime_iterator *iter) {
 }
 #define prime_iterator_next check_fb_prime_next
 #ifndef SIQS_CHECK_SOURCE
-# define SIQS_CHECK_SOURCE "../../../siqs.c"
+# define SIQS_CHECK_SOURCE "../../../siqs/siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
 #undef prime_iterator_next

@@ -5,8 +5,11 @@ columns whose XOR is zero. They work independently of SIQS and return
 dependencies, not integer factors. A factoring host supplies its own relation
 matrix and uses the dependencies in its square-root step.
 
-Copy `lanczos.c`, `lanczos.h`, and `ptypes.h` into your project. For parallel
-Lanczos, also copy `planczos_inc.c`. Compile with `STANDALONE`; no GMP, Perl,
+Keep `lanczos.c` and `lanczos.h` in a `siqs/` subdirectory, with the shared
+`ptypes.h` in its parent directory. For parallel Lanczos, also copy
+`planczos_inc.c` alongside `lanczos.c`. Preserve that layout, or adjust the
+relative includes when copying sources. Build examples below run inside `siqs/`.
+Compile with `STANDALONE`; no GMP, Perl,
 SIQS adapters, prime caches, startup, or shutdown calls are needed. Keep the
 copyright notices and consult the repository's `LICENSE` for redistribution
 terms.
