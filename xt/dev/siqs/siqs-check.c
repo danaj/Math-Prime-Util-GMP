@@ -2,7 +2,7 @@
  *
  * Direct build from the repository root (GMP required, Perl not required):
  *   cc -O3 -DSTANDALONE -o /tmp/siqs-check xt/dev/siqs/siqs-check.c \
- *     prime_iterator.c squfof126.c -lgmp -lm
+ *     siqs/pr32_iter.c squfof126.c -lgmp -lm
  *   /tmp/siqs-check --suite sieve
  *
  * Include the current implementation to test its private interfaces without
@@ -24,16 +24,18 @@
 #include "siqs-check-cofactor-seams.h"
 /* Only fatal-boundary child fixtures set this.  Normal/threaded runs leave
  * it zero, so real factor-base construction uses the unmodified iterator. */
-static UV forced_fb_prime;
-static UV check_fb_prime_next(prime_iterator *iter) {
-  return forced_fb_prime != 0 ? forced_fb_prime : prime_iterator_next(iter);
+static uint32_t forced_fb_prime;
+static int forced_prime_failure;
+static uint32_t check_fb_prime_next(pr32_iter_t *iter) {
+  if (forced_prime_failure) return 0;
+  return forced_fb_prime != 0 ? forced_fb_prime : pr32_iter_next(iter);
 }
-#define prime_iterator_next check_fb_prime_next
+#define pr32_iter_next check_fb_prime_next
 #ifndef SIQS_CHECK_SOURCE
 # define SIQS_CHECK_SOURCE "../../../siqs/siqs.c"
 #endif
 #include SIQS_CHECK_SOURCE
-#undef prime_iterator_next
+#undef pr32_iter_next
 #include "../../../mont64.h"
 #undef squfof126
 #undef siqs_is_prob_prime
@@ -411,15 +413,15 @@ static void make_semiprime(mpz_t n, gmp_randstate_t random, uint32_t bits) {
 }
 
 static void check_trial_survivor(const mpz_t n) {
-  PRIME_ITERATOR(iter);
+  PR32_ITER(iter);
   UV p;
   uint32_t bits = (uint32_t)mpz_sizeinbase(n, 2);
   uint32_t limit = bits <= 40 ? 200U : bits >= 1000 ? 5000U : 5U * bits;
-  prime_iterator_setprime(&iter, 1);
-  for (p = prime_iterator_next(&iter); p < limit;
-       p = prime_iterator_next(&iter))
+  pr32_iter_seek(&iter, 1);
+  for (p = pr32_iter_next(&iter); p < limit;
+       p = pr32_iter_next(&iter))
     CHECK(!mpz_divisible_ui_p(n, p));
-  prime_iterator_destroy(&iter);
+  pr32_iter_destroy(&iter);
 }
 
 static void check_polynomial_roots(siqs_ctx_t *ctx, const siqs_poly_t *poly) {
@@ -523,7 +525,7 @@ static void check_real_polynomials(void) {
   mpz_t n;
   uint32_t i;
   case_name = "real-polynomials";
-  prime_iterator_global_startup();
+
   gmp_randinit_default(random); gmp_randseed_ui(random, 20261003U);
   mpz_init_set_str(n, "100160063", 10);
   check_real_case(n, 0, 0, 0); /* Known q=1 actual-sieve fixture. */
@@ -544,7 +546,7 @@ static void check_real_polynomials(void) {
     make_semiprime(n, random, 240);
     check_real_case(n, 0, 0, 524544U); /* 1 MiB plus a partial last block. */
   }
-  mpz_clear(n); gmp_randclear(random); prime_iterator_global_shutdown();
+  mpz_clear(n); gmp_randclear(random);
   puts("PASS sieve: genuine q=1/q=2 and larger polynomials, d=1/d=2, special roots");
   fflush(stdout);
 }

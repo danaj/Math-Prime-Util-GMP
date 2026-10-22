@@ -43,6 +43,7 @@ WriteMakefile1(
                     'rootmod.o '        .
                     'legendre_phi.o '   .
                     'prime_iterator.o ' .
+                    'pr32_iter.o '      .
                     'poly.o '           .
                     'pbrent63.o '       .
                     'squfof126.o '      .
@@ -130,11 +131,14 @@ sub MY::postamble {
 
 # The module uses Perl's compiler/flags and root-level objects. Standalone
 # programs and development targets have their own Makefile under siqs/.
-siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/psiqs_inc.c ptypes.h mont64.h prime_iterator.h squfof126.h misc_ui.h
+siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/psiqs_inc.c siqs/pr32_iter.h ptypes.h mont64.h squfof126.h misc_ui.h
 	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/siqs.c
 
 lanczos$(OBJ_EXT): siqs/lanczos.c siqs/lanczos.h siqs/planczos_inc.c ptypes.h
 	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/lanczos.c
+
+pr32_iter$(OBJ_EXT): siqs/pr32_iter.c siqs/pr32_iter.h
+	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/pr32_iter.c
 
 XS$(OBJ_EXT) factor$(OBJ_EXT) bls75$(OBJ_EXT): siqs/siqs.h
 simpqs2$(OBJ_EXT): siqs/lanczos.h

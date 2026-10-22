@@ -237,9 +237,9 @@ static void suite_bids(void) {
   bids_perfect_powers();
   puts("PASS bids: scalar/packed boundaries, shuffled pivots, partial refinement, soft budget and uncertified stops");
 #ifdef PSIQS
-  prime_iterator_global_startup();
+
   bids_worker_late_relation();
   bids_workers();
-  prime_iterator_global_shutdown();
+
 #endif
 }

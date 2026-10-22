@@ -1,7 +1,7 @@
 /* Real reduced SIQS matrices: dense versus serial block Lanczos.
  * See README-siqs-la-bench.txt. No production timing/capture hooks.
  * cc -O3 -march=native -DSTANDALONE -UPSIQS -o siqs-la-bench \
- *   tools/siqs-la-bench.c siqs.c ../prime_iterator.c ../squfof126.c -lgmp -lm
+ *   tools/siqs-la-bench.c siqs.c pr32_iter.c ../squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */
 #ifndef _POSIX_C_SOURCE
@@ -19,7 +19,7 @@
 #undef la_reduce_matrix
 #include "../siqs.h"
 #include "../siqs_dep.h"
-#include "../../prime_iterator.h"
+#include "../pr32_iter.h"
 
 int siqs_is_prob_prime(const mpz_t n) { return mpz_probab_prime_p(n, 25); }
 
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
   fprintf(stderr, "Current dense cutoff: %lu reduced columns; %u repeats, paired seed/order rotation.\n",
           LA_DENSE_CROSSOVER_COLS, bench_repeats);
   puts("input\tbits\tmatrix\trows\tcols\tnnz\trepeats\tdense_cpu_ms\tlanczos_cpu_ms\tdense_wall_ms\tlanczos_wall_ms\tlanczos_over_dense\tdense_deps\tlanczos_min_deps\tlanczos_max_deps");
-  prime_iterator_global_startup();
+
   mpz_inits(n, product, NULL);
   while (getline(&line, &allocated, stdin) != -1) {
     char *start = line, *end;
@@ -234,6 +234,6 @@ int main(int argc, char **argv) {
   if (bench_total_matrices == 0 && status == 0) status = 1;
   free(line);
   mpz_clears(n, product, NULL);
-  prime_iterator_global_shutdown();
+
   return status;
 }

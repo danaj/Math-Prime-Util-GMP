@@ -11,6 +11,7 @@ lanczos-bench
 siqs-la-bench
 siqs-sieve-bench
 siqs-autotune-check
+pr32-iter-check
 *.o
 *.obj
 *.dSYM

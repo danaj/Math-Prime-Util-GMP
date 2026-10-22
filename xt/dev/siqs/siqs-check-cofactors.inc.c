@@ -912,7 +912,7 @@ static void suite_cofactors(void) {
   int saved_stdout;
 #endif
   case_name = "nested-siqs-ownership-reentrancy-and-quiet-output";
-  prime_iterator_global_startup();
+
   cofactor_mont64();
   cofactor_mr2();
   cofactor_isqrt();
@@ -956,6 +956,6 @@ static void suite_cofactors(void) {
   close(saved_stdout); fclose(capture);
 #endif
   verbose_level = saved_verbose;
-  prime_iterator_global_shutdown();
+
   puts("PASS cofactors: largest-two helper, 55-59/64-bit cases, wide input, overflow, and quiet/reentrant calls");
 }

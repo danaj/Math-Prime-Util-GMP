@@ -50,7 +50,7 @@
 #include "siqs.h"
 #include "siqs_dep.h"
 #include "lanczos.h"
-#include "../prime_iterator.h"
+#include "pr32_iter.h"
 #include "../squfof126.h"
 
 #ifndef UINT8_MAX
@@ -1698,7 +1698,7 @@ static void siqs_score_multiplier_list(
     double *score) {
   uint32_t accepted[SIQS_MULTIPLIER_CAPACITY];
   uint32_t unfinished = count, pos;
-  PRIME_ITERATOR(iter);
+  PR32_ITER(iter);
 
   memset(accepted, 0, count * sizeof(*accepted));
   for (pos = 0; pos < count; pos++) {
@@ -1706,12 +1706,18 @@ static void siqs_score_multiplier_list(
     score[index] = siqs_multiplier_base_score(nmod8, kval[index]);
   }
 
-  prime_iterator_setprime(&iter, 2);
+  pr32_iter_seek(&iter, 2);
   while (unfinished != 0) {
-    uint32_t p = (uint32_t)prime_iterator_next(&iter);
-    uint32_t nmod = (uint32_t)mpz_fdiv_ui(n, p);
-    int nsymbol = nmod == 0 ? 0 : siqs_jacobi_reduced_odd_u32(nmod, p);
-    double logp = log((double)p);
+    uint32_t p = pr32_iter_next(&iter), nmod;
+    int nsymbol;
+    double logp;
+    if (p == 0) {
+      pr32_iter_destroy(&iter);
+      croak("SIQS: prime iterator failed during multiplier scoring");
+    }
+    nmod = (uint32_t)mpz_fdiv_ui(n, p);
+    nsymbol = nmod == 0 ? 0 : siqs_jacobi_reduced_odd_u32(nmod, p);
+    logp = log((double)p);
     for (pos = 0; pos < count; pos++) {
       uint32_t index, k, km;
       if (accepted[pos] == wanted)
@@ -1731,7 +1737,7 @@ static void siqs_score_multiplier_list(
         unfinished--;
     }
   }
-  prime_iterator_destroy(&iter);
+  pr32_iter_destroy(&iter);
 }
 
 /* Rank WANTED candidates by score, preserving the original candidate order
@@ -1947,7 +1953,7 @@ static unsigned long siqs_choose_multiplier(const mpz_t n, uint32_t fb_size,
 /* Returns zero when a factor of N was encountered during base construction. */
 static int siqs_build_factor_base(siqs_ctx_t *ctx) {
   uint32_t count = 0;
-  PRIME_ITERATOR(iter);
+  PR32_ITER(iter);
   mpz_t divisor;
   mpz_init(divisor);
   ctx->fb = (siqs_fb_t *)siqs_calloc(ctx->params.fb_size,
@@ -1956,19 +1962,22 @@ static int siqs_build_factor_base(siqs_ctx_t *ctx) {
   ctx->fb[count].p = 2;
   ctx->fb[count].sqrt_kn = (uint32_t)mpz_fdiv_ui(ctx->kn, 2);
   count++;
-  prime_iterator_setprime(&iter, 2);
+  pr32_iter_seek(&iter, 2);
   while (count < ctx->params.fb_size) {
-    UV next_prime = prime_iterator_next(&iter);
-    uint32_t p, r;
+    uint32_t p = pr32_iter_next(&iter), r;
     int symbol;
-    /* Roots and their updates may add two residues.  Check the native
-     * iterator value before narrowing, guaranteeing those sums fit u32. */
-    if (next_prime >= (UV)UINT32_C(0x80000000)) {
-      prime_iterator_destroy(&iter);
+    if (p == 0) {
+      pr32_iter_destroy(&iter);
+      mpz_clear(divisor);
+      croak("SIQS: prime iterator exhausted or allocation failed");
+    }
+    /* Roots and their updates may add two residues. This envelope
+     * guarantees those sums fit u32, independently of iterator width. */
+    if (p >= UINT32_C(0x80000000)) {
+      pr32_iter_destroy(&iter);
       mpz_clear(divisor);
       croak("SIQS: factor-base prime exceeds the supported envelope");
     }
-    p = (uint32_t)next_prime;
     r = (uint32_t)mpz_fdiv_ui(ctx->kn, p);
     symbol = siqs_legendre_u32(r, p);
     if (symbol < 0)
@@ -1981,7 +1990,7 @@ static int siqs_build_factor_base(siqs_ctx_t *ctx) {
           gmp_printf("# siqs factor-base found divisor %u of %Zd before "
                      "sieving\n", p, ctx->original_n);
       }
-      prime_iterator_destroy(&iter);
+      pr32_iter_destroy(&iter);
       mpz_clear(divisor);
       return 0;
     }
@@ -1989,7 +1998,7 @@ static int siqs_build_factor_base(siqs_ctx_t *ctx) {
     ctx->fb[count].sqrt_kn = r == 0 ? 0 : siqs_sqrtmod_u32(r, p);
     count++;
   }
-  prime_iterator_destroy(&iter);
+  pr32_iter_destroy(&iter);
   mpz_clear(divisor);
   ctx->largest_fb_prime = ctx->fb[ctx->params.fb_size - 1].p;
   return 1;
@@ -6048,11 +6057,11 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
                                     :  5U * (uint32_t)input_bits;
 
   if (trial_start < trial_limit) {
-    UV p, first = trial_start < 2 ? 2 : trial_start;
-    PRIME_ITERATOR(iter);
-    prime_iterator_setprime(&iter, first - 1);
-    for (p = prime_iterator_next(&iter); p < trial_limit;
-         p = prime_iterator_next(&iter)) {
+    uint32_t p, first = trial_start < 2 ? 2 : trial_start;
+    PR32_ITER(iter);
+    pr32_iter_seek(&iter, first - 1);
+    for (p = pr32_iter_next(&iter); p < trial_limit;
+         p = pr32_iter_next(&iter)) {
       if (mpz_cmp_ui(work, p * p) < 0)
         break;
       if (mpz_divisible_ui_p(work, p)) {
@@ -6061,7 +6070,7 @@ static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
         mpz_remove(work, work, divisor);
       }
     }
-    prime_iterator_destroy(&iter);
+    pr32_iter_destroy(&iter);
     siqs_verify_partition(n, &result);
   }
 

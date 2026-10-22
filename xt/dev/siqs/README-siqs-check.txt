@@ -7,7 +7,7 @@ They do not build/load the Perl XS module, run performance benchmarks, or
 attempt complete large factorizations. They are not part of ordinary
 "make test". Production sources and benchmark builds are not modified.
 
-After "perl Makefile.PL":
+From the repository checkout (no module configuration needed):
 
   make -C siqs check-siqs
   make -C siqs test-siqs                          # alias
@@ -17,6 +17,10 @@ After "perl Makefile.PL":
 
 The Make target uses only a core-Perl (5.10+) build wrapper, the C compiler,
 and GMP.
+It first runs the independent pr32_iter checks. These can also be run with
+"make -C siqs check-pr32-iter" and require neither Perl nor GMP. They compare
+against a separate reference sieve and trial division, exercise UINT32_MAX,
+and inject allocation failures to check cleanup and retry.
 Like "make -C siqs", it detects pthread support with a compile/link probe and
 includes all pthread Lanczos/worker checks when available. The probe is never
 executed. Use --serial to disable pthreads, or --threaded to require them.
@@ -28,7 +32,7 @@ be installed or built. Use --keep to retain the binary.
 Direct build without Perl or a generated Makefile, from the repository root:
 
   cc -O3 -DSTANDALONE -o /tmp/siqs-check xt/dev/siqs/siqs-check.c \
-    prime_iterator.c squfof126.c -lgmp -lm
+    siqs/pr32_iter.c squfof126.c -lgmp -lm
   /tmp/siqs-check --suite sieve
   /tmp/siqs-check --extended --verbose
 
@@ -316,8 +320,8 @@ Retained Lanczos failure cases instead require serial fallback and fixed-seed
 output identical to serial. Resource counters must return to zero.
 
 Repeated public 1/2/4-thread calls and two simultaneous callers verify exact
-prime partitions after one host prime-cache startup. Startup/shutdown ownership
-is unchanged. On POSIX hosts, child processes verify invalid counts 0/257 and
+prime partitions without prime-cache startup/shutdown. On POSIX hosts, child
+processes verify invalid counts 0/257 and
 the existing fatal worker-scratch allocation policy: stderr diagnostics and
 exit status 3, with no stdout. Those cases explicitly skip on Windows.
 
@@ -335,6 +339,6 @@ ASan/UBSan can be used as above. Where ThreadSanitizer is supported:
 Do not combine ThreadSanitizer with --sanitize (ASan). Normal worker jobs do
 not acquire the allocation-injection lock, to avoid hiding races. These are
 regression fixtures, not an exhaustive proof of every possible schedule.
-The embedding/prime-cache lifetime contract is documented in siqs.h and
-siqs/tools/README-siqs-embedding.txt. The simultaneous-call checks use that contract:
-one startup, stable cache during all callers, then one shutdown after joins.
+The embedding contract is documented in siqs.h and
+siqs/tools/README-siqs-embedding.txt. Prime iteration uses immutable tables and
+per-iterator segment storage; concurrent callers need no global setup.

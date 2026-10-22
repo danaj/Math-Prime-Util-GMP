@@ -115,7 +115,7 @@ static void check_pool_inputs(uint32_t count) {
   pool.count = count;
   geometry.maximum = 64U*1024U;
   geometry.minimum = 5U*geometry.maximum/2U;
-  prime_iterator_global_startup();
+
   verbose_level = 0;
   for (p = 0; p < 2; p++) {
     mpz_init(n[p]);
@@ -149,7 +149,7 @@ static void check_pool_inputs(uint32_t count) {
     bench_clear_workers(workers[p], pool.count);
     mpz_clear(n[p]);
   }
-  prime_iterator_global_shutdown();
+
   printf("PASS pool (%u workers): table ownership, repeated serial/threaded "
          "switches, exact work and byte references\n", pool.count);
 }

@@ -44,6 +44,8 @@ siqs/lanczos.c
 siqs/planczos_inc.c
 siqs/siqs.h
 siqs/siqs_dep.h
+siqs/pr32_iter.h
+siqs/pr32_iter.c
 siqs/siqs.c
 siqs/siqs_choose_inc.c
 siqs/siqs_sieve_kernel_inc.c

@@ -10,9 +10,9 @@ EXTRA_FLAGS ?=
 SIQS_CHECK_ARGS ?=
 SIQS_TUNE_ARGS ?=
 
-SOURCES = mpu-siqs.c siqs.c lanczos.c ../prime_iterator.c ../squfof126.c
+SOURCES = mpu-siqs.c siqs.c lanczos.c pr32_iter.c ../squfof126.c
 HEADERS = siqs.h siqs_dep.h lanczos.h siqs_choose_inc.c siqs_sieve_kernel_inc.c \
-	psiqs_inc.c planczos_inc.c ../ptypes.h ../mont64.h ../prime_iterator.h \
+	psiqs_inc.c planczos_inc.c ../ptypes.h ../mont64.h pr32_iter.h \
 	../squfof126.h ../misc_ui.h
 BUILD = $(PERL) tools/build-siqs.pl --cc "$(CC)" \
 	--cppflags "$(CPPFLAGS)" --cflags "$(CFLAGS) $(EXTRA_FLAGS)" \
@@ -21,7 +21,7 @@ BUILD_DEPS = tools/build-siqs.pl tools/pthread-probe.c
 BENCH_DEPS = $(SOURCES) $(HEADERS)
 
 .PHONY: all siqs serial siqs-serial tuned siqs-tuned siqs-tuned-8 \
-	check check-siqs test-siqs check-siqs-autotune clean
+	check check-siqs test-siqs check-pr32-iter check-siqs-autotune clean
 
 all: msiqs
 siqs: msiqs
@@ -47,24 +47,30 @@ lanczos-bench: tools/lanczos-bench.c lanczos.c lanczos.h planczos_inc.c siqs_dep
 	@$(BUILD) --ldlibs "-lm" --output $@ tools/lanczos-bench.c
 
 siqs-la-bench: tools/siqs-la-bench.c $(BENCH_DEPS) $(BUILD_DEPS) Makefile
-	@$(BUILD) --serial --output $@ tools/siqs-la-bench.c siqs.c ../prime_iterator.c ../squfof126.c
+	@$(BUILD) --serial --output $@ tools/siqs-la-bench.c siqs.c pr32_iter.c ../squfof126.c
 
 siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(BENCH_DEPS) $(BUILD_DEPS) Makefile
-	@$(BUILD) --output $@ tools/siqs-sieve-bench.c lanczos.c ../prime_iterator.c ../squfof126.c
+	@$(BUILD) --output $@ tools/siqs-sieve-bench.c lanczos.c pr32_iter.c ../squfof126.c
 
 # Repository-only checks; not dependencies of the Perl module's test target.
 # To force serial checks: make check-siqs SIQS_CHECK_ARGS=--serial
 check: check-siqs
 test-siqs: check-siqs
-check-siqs:
+check-siqs: check-pr32-iter
 	$(PERL) ../xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(CPPFLAGS) $(CFLAGS) $(EXTRA_FLAGS)" --ldflags "$(LDFLAGS) $(LDLIBS)" $(SIQS_CHECK_ARGS)
 
+pr32-iter-check: ../xt/dev/siqs/pr32-iter-check.c pr32_iter.c pr32_iter.h Makefile
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(EXTRA_FLAGS) -o $@ ../xt/dev/siqs/pr32-iter-check.c $(LDFLAGS)
+
+check-pr32-iter: pr32-iter-check
+	./pr32-iter-check
+
 siqs-autotune-check: ../xt/dev/siqs/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(BENCH_DEPS) $(BUILD_DEPS) Makefile
-	@$(BUILD) --output $@ ../xt/dev/siqs/siqs-autotune-check.c lanczos.c ../prime_iterator.c ../squfof126.c
+	@$(BUILD) --output $@ ../xt/dev/siqs/siqs-autotune-check.c lanczos.c pr32_iter.c ../squfof126.c
 
 check-siqs-autotune: siqs-autotune-check
 	./siqs-autotune-check
 	$(PERL) ../xt/dev/siqs/siqs-autotune.t
 
 clean:
-	rm -f msiqs lanczos-bench siqs-la-bench siqs-sieve-bench siqs-autotune-check
+	rm -f msiqs lanczos-bench siqs-la-bench siqs-sieve-bench siqs-autotune-check pr32-iter-check

@@ -4,14 +4,14 @@
 
   Direct build from the siqs/ directory:
 
-    cc -O3 -DSTANDALONE -o msiqs mpu-siqs.c siqs.c lanczos.c ../prime_iterator.c ../squfof126.c -lgmp -lm
+    cc -O3 -DSTANDALONE -o msiqs mpu-siqs.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
 
   Add -march=native when building a binary for the local machine only.
   Add -DPSIQS -pthread for the parallel build.  The local Makefile needs no
   module configuration: make detects pthreads, while make siqs-serial forces
   a serial-only build.  Both targets produce msiqs.
 
-  This driver owns one prime-cache startup/shutdown around all its inputs.
+  Prime iteration needs no global startup/shutdown.
   Custom C hosts must own the same lifetime and supply the siqs_dep.h adapters;
   see tools/README-siqs-embedding.txt. Do not link this main into another driver.
 
@@ -26,7 +26,7 @@
 #include <gmp.h>
 
 #include "../ptypes.h"
-#include "../prime_iterator.h"
+#include "pr32_iter.h"
 #include "siqs.h"
 #include "siqs_dep.h"
 #define SIQS_PROGRAM_NAME "msiqs"
@@ -243,8 +243,7 @@ int main(int argc, char **argv) {
     argument++;
   }
 
-  /* One host-owned cache lifetime, shared by every input/worker in this run. */
-  prime_iterator_global_startup();
+
   mpz_init(n);
   if (argument < argc) {
     for (; argument < argc; argument++) {
@@ -268,6 +267,6 @@ int main(int argc, char **argv) {
     }
   }
   mpz_clear(n);
-  prime_iterator_global_shutdown();
+
   return status;
 }

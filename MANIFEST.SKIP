@@ -6,4 +6,4 @@
 
 # Publication images and generated standalone programs stay in the checkout.
 ^siqs/graphs/
-^siqs/(?:msiqs|lanczos-bench|siqs-la-bench|siqs-sieve-bench|siqs-autotune-check)$
+^siqs/(?:msiqs|lanczos-bench|siqs-la-bench|siqs-sieve-bench|siqs-autotune-check|pr32-iter-check)$

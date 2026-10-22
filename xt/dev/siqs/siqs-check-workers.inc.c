@@ -772,7 +772,7 @@ static void suite_workers(void) {
 #ifndef _WIN32
   CHECK(signal(SIGALRM, worker_timeout) != SIG_ERR); alarm(SIQS_CHECK_WORKER_TIMEOUT);
 #endif
-  prime_iterator_global_startup();
+
   worker_reuse(); worker_shutdown(); worker_early_shutdown();
   worker_merge_ownership(); worker_creation_failures();
   worker_budget_and_fallback(); worker_budget_entry_guards();
@@ -783,7 +783,7 @@ static void suite_workers(void) {
 #else
   puts("SKIP workers: child-process fatal/watchdog checks need POSIX fork/alarm");
 #endif
-  prime_iterator_global_shutdown();
+
   worker_fault_reset(); CHECK(pthread_key_delete(seam_key) == 0); seam_key_ready = 0;
   puts("PASS workers: polynomial pool lifecycle/fault coverage and Lanczos fallback"); fflush(stdout);
 }

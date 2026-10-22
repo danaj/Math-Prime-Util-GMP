@@ -120,12 +120,12 @@ static void check_parameter_envelope(void) {
   mpz_init_set_ui(ctx.n, 323);
   mpz_init_set_ui(ctx.kn, UINT32_C(0x7fffffff));
   mpz_mul_ui(ctx.kn, ctx.kn, 323);
-  prime_iterator_global_startup();
-  forced_fb_prime = (UV)UINT32_C(0x7fffffff);
+
+  forced_fb_prime = UINT32_C(0x7fffffff);
   CHECK(siqs_build_factor_base(&ctx));
   CHECK(ctx.largest_fb_prime == UINT32_C(0x7fffffff));
   forced_fb_prime = 0;
-  prime_iterator_global_shutdown();
+
   free(ctx.fb);
   mpz_clear(ctx.n); mpz_clear(ctx.kn);
   puts("PASS policies: valid fractional FB/M limits, zero-scale minimum, fixed M limit and P=2^31-1");
@@ -378,13 +378,13 @@ static void check_allocation_errors(void) {
           fb[0].p = 2; fb[1].p = 3; mpz_init_set(ctx.kn, n);
           siqs_set_log_weights(&ctx); break;
         case 25: case 26: case 27:
-          prime_iterator_global_startup();
+
           ctx.params.fb_size = 2;
           mpz_init_set_ui(ctx.n, 323); mpz_init_set_ui(ctx.kn, 323);
-          forced_fb_prime = fixture == 25 ? (UV)limit : UV_MAX;
-#if BITS_PER_WORD == 64
-          if (fixture == 27) forced_fb_prime = (UV)(UINT64_C(1) << 32) + 9U;
-#endif
+          forced_fb_prime = fixture == 25 ? limit : UINT32_MAX;
+          /* A u32 iterator cannot return an overwide value. Exercise its
+           * exhaustion/allocation-failure sentinel instead. */
+          forced_prime_failure = fixture == 27;
           (void)siqs_build_factor_base(&ctx); break;
         case 28: (void)siqs_size_add((size_t)-1 - 7U, 8); break;
         case 29:

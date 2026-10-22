@@ -5,7 +5,7 @@
  *
  * cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
  *   -o siqs-sieve-bench tools/siqs-sieve-bench.c lanczos.c \
- *   ../prime_iterator.c ../squfof126.c -lgmp -lm
+ *   pr32_iter.c ../squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */
 #ifndef _POSIX_C_SOURCE
@@ -479,11 +479,11 @@ int SIQS_SIEVE_BENCH_MAIN(int argc, char **argv) {
   }
 
   verbose_level = 0;
-  prime_iterator_global_startup();
+
   if (autotune) {
     autotune_run(numbers, (uint32_t)number_seen, threads, cases, count, tsv, work_seconds);
     if (tsv && fclose(tsv)) croak("siqs-sieve-bench: could not close results");
-    prime_iterator_global_shutdown();
+
     return 0;
   }
   if (number_seen) number = numbers[0];
@@ -580,7 +580,7 @@ if (short_runs)
   bench_clear_workers(pool.workers, pool.count);
   for (i = 0; i < count; i++) { free(cases[i].wall_per_poly); free(cases[i].cpu_per_poly); }
   if (tsv && fclose(tsv)) croak("siqs-sieve-bench: could not close results");
-  prime_iterator_global_shutdown();
+
   mpz_clear(n);
   return 0;
 }

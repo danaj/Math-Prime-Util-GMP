@@ -212,13 +212,13 @@ static void suite_setup(void) {
 #else
   puts("SKIP setup timeout: per-case wall limit requires POSIX alarm");
 #endif
-  prime_iterator_global_startup();
+
   for (i = 0; i < sizeof(sizes) / sizeof(*sizes); i++)
     for (j = 0; j < sizeof(classes) / sizeof(*classes); j++)
       setup_real_case(sizes[i], classes[j].k, classes[j].residue,
                       &d_modes, &score_modes);
   setup_real_case(512, 4095, 7, &d_modes, &score_modes);
-  prime_iterator_global_shutdown();
+
 #ifndef _WIN32
   CHECK(signal(SIGALRM, previous_handler) != SIG_ERR);
 #endif

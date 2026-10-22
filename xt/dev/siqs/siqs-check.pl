@@ -76,7 +76,7 @@ push @command, '-DSIQS_DEBUG' if $debug;
 push @command, '-DPSIQS', '-pthread' if $threaded;
 push @command, "-DSIQS_SIEVE_BLOCK_SIZE=$block" if defined $block;
 push @command, '-o', $binary, map {File::Spec->catfile($root, $_)}
-  qw(xt/dev/siqs/siqs-check.c prime_iterator.c squfof126.c);
+  qw(xt/dev/siqs/siqs-check.c siqs/pr32_iter.c squfof126.c);
 push @command, shellwords($ldflags);
 print "Building standalone SIQS checker ", ($threaded ? 'with pthreads' : 'serial-only'),
       ($sanitize ? ' (ASan/UBSan)' : ''), "\n";

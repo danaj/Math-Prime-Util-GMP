@@ -10,7 +10,7 @@ Perl module tests/build do not run this tool):
 Or compile without Perl/MakeMaker:
   cc -O3 -march=native -DSTANDALONE -DPSIQS -pthread \
     -o siqs-sieve-bench tools/siqs-sieve-bench.c lanczos.c \
-    ../prime_iterator.c ../squfof126.c -lgmp -lm
+    pr32_iter.c ../squfof126.c -lgmp -lm
 
 Run on an idle machine:
   ./siqs-sieve-bench

@@ -2,15 +2,15 @@ Embedding SIQS/PSIQS in a C host
 ===============================
 
 Paths and build commands below are relative to the repository's siqs/
-directory. SIQS and Lanczos sources live there; shared ptypes.h, mont64.h,
-prime_iterator.[ch], misc_ui.h, and squfof126.[ch] remain one level above.
+directory. SIQS, Lanczos, and pr32_iter sources live there; shared ptypes.h,
+mont64.h, misc_ui.h, and squfof126.[ch] remain one level above.
 Keep that layout when copying sources, or adjust their relative includes.
 
 This describes the current in-tree C interfaces, not a separately packaged
 library or a new initialization wrapper. Public declarations are in siqs.h;
 standalone host adapter is in siqs_dep.h. mpu-siqs.c is the reference driver
-and adapter implementation. Its normal command-line startup already handles
-the lifecycle below. The Perl/MPU-GMP host also has its own initialization.
+and adapter implementation. No prime-cache initialization is required.
+The Perl/MPU-GMP host retains its separate initialization for other services.
 
 The matrix solver is independent of the SIQS host adapter. Standalone users
 can compile lanczos.c with lanczos.h and ptypes.h; add PSIQS/pthreads and
@@ -20,41 +20,24 @@ verbosity are caller-owned; see README-lanczos-embedding.md for simple
 solver calls, matrix ownership and build examples, and README-lanczos-bench.txt
 for scaling measurements.
 
-Shared prime-cache lifetime
---------------------------
+Prime iteration and host lifetime
+--------------------------------
 
-The prime iterator uses process-global prime/sieve caches. SIQS does not own,
-initialize, reference-count, or shut down those caches for each factor call.
-
-A standalone embedding must include prime_iterator.h and have one host owner:
-
-  1. Call prime_iterator_global_startup() once before any SIQS/prime-iterator
-     use and before launching caller threads.
-  2. Keep that cache alive and unchanged across repeated or concurrent calls.
-  3. Finish all calls, join all caller threads, and destroy any other remaining
-     prime_iterator instances before prime_iterator_global_shutdown().
-  4. Shut down once when that owner's cache lifetime ends.
-
-Do not initialize/shut down around each concurrent call or from an individual
-worker, primality callback, or splitter callback. Repeating startup while live
-is not safe/idempotent; it replaces shared allocations rather than acquiring
-another reference. Shutdown invalidates the cache for every user in that
-process. Concurrent startup/shutdown and cache reads are not supported.
-
-If another MPU-GMP host already owns the cache, share its established lifetime
-instead of initializing it again. For example, _GMP_init/_GMP_destroy manage
-the cache along with other MPU-GMP state; do not independently start/stop it
-inside that lifetime. This does not make the entire MPU-GMP API thread-safe.
+SIQS uses the independent pr32_iter implementation: immutable base/presieve
+tables and iterator-owned segment storage. There is no shared mutable prime
+cache, startup/shutdown call, or dependency on the module's prime iterator.
+Embeddings do not need to include pr32_iter.h unless using its API directly.
 
 The standalone API has per-call writable sieve/graph/solver state. Separate
-gmp_siqs or gmp_psiqs calls may run concurrently under the stable cache lifetime
-with a reentrant adapter. Each caller must supply its own count output and own
+gmp_siqs or gmp_psiqs calls may run concurrently with a reentrant adapter.
+Each caller must supply its own count output and own
 its returned array. Inputs may be shared read-only, but must not be mutated
 or cleared while calls use them. Returned mpz_t values are independent copies,
 not borrowed inputs or prime-cache storage.
 
 A gmp_psiqs call joins its own workers before returning. The outer host still
-has to wait for its own caller threads before shutdown. Each call's nthreads
+has to wait for its own caller threads before releasing their resources.
+Each call's nthreads
 is a pool size, not a global scheduler/core limit: simultaneous calls can
 oversubscribe the machine and consume the sum of their private scratch.
 
@@ -165,7 +148,6 @@ a complete factorization.
   #include <stdio.h>
   #include <gmp.h>
   #include "siqs.h"
-  #include "prime_iterator.h"
 
   int main(int argc, char **argv) {
     mpz_t n, product;
@@ -184,7 +166,7 @@ a complete factorization.
       return 2;
     }
 
-    prime_iterator_global_startup();
+
   #ifdef PSIQS
     factors = gmp_psiqs(n, &count, 0, 0, 4);
   #else
@@ -210,13 +192,13 @@ a complete factorization.
     gmp_siqs_free(factors, count);
     mpz_clear(product);
     mpz_clear(n);
-    prime_iterator_global_shutdown();
+
     return status;
   }
 
 Build from the repository root, supplying your adapter in my-siqs-host.c:
 
-  cc -O3 -DSTANDALONE -I. -I.. -o my-factor my-factor.c my-siqs-host.c siqs.c lanczos.c ../prime_iterator.c ../squfof126.c -lgmp -lm
+  cc -O3 -DSTANDALONE -I. -I.. -o my-factor my-factor.c my-siqs-host.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
   ./my-factor 22095311209999409685885162322219
 
 For parallel support, add -DPSIQS -pthread to that command. Both public entry
@@ -238,10 +220,10 @@ These paths require no host callbacks or extra libraries. This protects
 byte headroom independently of tuning sieve_hit_exponent; it does not extend
 the public input limit or supply larger-input policies.
 
-The example is one synchronous call. For repeated inputs, keep startup before
-the whole loop and shutdown after it. For concurrent inputs, put startup before
-launching caller threads; each thread uses its own input/count/result storage
-(or shares only read-only input), and the host joins them all before shutdown.
+The example is one synchronous call. Repeated calls need no additional
+initialization. For concurrent inputs, each thread uses its own count/result
+storage and its own input (or shares only read-only input). Join caller threads
+before releasing their resources.
 
 Optional timing
 ---------------
@@ -289,9 +271,9 @@ Validation and scope
 
   make check-siqs SIQS_CHECK_ARGS='--suite workers --extended'
 
-The persistent worker suite exercises one cache startup, repeated public
-1/2/4-thread calls, two simultaneous callers with independent pools, result
-ownership, and one shutdown after joins. It also checks reduced/failed pool
+The persistent worker suite exercises repeated public 1/2/4-thread calls,
+two simultaneous callers with independent pools, and result ownership, without
+prime-cache initialization. It also checks reduced/failed pool
 creation and cleanup. It is a regression check, not exhaustive proof of every
 schedule or a claim that all other MPU-GMP routines are reentrant.
 

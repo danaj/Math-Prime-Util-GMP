@@ -190,7 +190,7 @@ static void check_q1_score_regressions(void) {
   };
   mpz_t n, saved_b;
   uint32_t c, modes = 0;
-  prime_iterator_global_startup();
+
   mpz_inits(n, saved_b, NULL);
   for (c = 0; c < sizeof(inputs) / sizeof(*inputs); c++) {
     siqs_ctx_t ctx;
@@ -235,7 +235,7 @@ static void check_q1_score_regressions(void) {
     gmp_siqs_free(values, count);
   }
   CHECK(modes == ((1U << 1) | (1U << 2)));
-  mpz_clears(n, saved_b, NULL); prime_iterator_global_shutdown();
+  mpz_clears(n, saved_b, NULL);
   puts("PASS scores: q=1 actual norms, corrected weights, full-interval bytes, raw boundary and stale-proof reset");
 }
 
@@ -451,7 +451,7 @@ static void check_score_upper_envelope(void) {
   mpz_t n, y, value, magnitude, upper, t;
   uint32_t c;
   case_name = "upper-score-envelope";
-  prime_iterator_global_startup();
+
   mpz_inits(n, y, value, magnitude, upper, t, NULL);
   for (c = 0; c < sizeof(cases) / sizeof(*cases); c++) {
     siqs_ctx_t ctx;
@@ -535,7 +535,7 @@ static void check_score_upper_envelope(void) {
     free(result.values); free(result.primality);
   }
   mpz_clears(n, y, value, magnitude, upper, t, NULL);
-  prime_iterator_global_shutdown();
+
   puts("PASS scores: 400/432/512-bit envelopes and complete B-sign spans, k=1/2047, q=12..16");
 }
 
@@ -544,7 +544,7 @@ static void check_score_worker_inheritance(void) {
   worker_fixture_t fixture;
   uint32_t mode;
   case_name = "worker-score-mode-inheritance";
-  prime_iterator_global_startup();
+
   worker_fault_reset(); worker_fixture_open(&fixture, 1, 0);
   for (mode = SIQS_SIEVE_SCORE_BITS == 8U ? 0U : 2U; mode < 3; mode++) {
     psiqs_worker_t worker;
@@ -558,7 +558,7 @@ static void check_score_worker_inheritance(void) {
     compare_sieve(&worker.ctx); psiqs_worker_clear(&worker);
   }
   worker_fixture_close(&fixture); case_ctx = NULL;
-  prime_iterator_global_shutdown();
+
   puts("PASS scores: worker inheritance of ordinary/raw/saturating modes and immutable weights");
 }
 #endif

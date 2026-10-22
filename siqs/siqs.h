@@ -17,13 +17,8 @@
 #endif
 
 /* Host lifetime for both entry points:
- *   - The shared prime-iterator cache must already be initialized. Standalone
- *     C hosts include prime_iterator.h and call prime_iterator_global_startup
- *     once before any calls, then prime_iterator_global_shutdown only after
- *     all calls/iterators finish and all caller threads have joined.
- *   - Startup/shutdown are not reference-counted or safe to race with calls.
- *     Do not repeat startup while the cache is live. These SIQS functions do
- *     not manage it. Existing MPU-GMP hosts/drivers already own this lifetime.
+ *   - No prime-cache startup/shutdown is required. The independent pr32_iter
+ *     uses immutable base tables and iterator-owned segment buffers.
  *   - Standalone calls have independent writable state and may run concurrently
  *     with reentrant siqs_dep.h host adapters and separate output storage.
  *     Inputs may be shared read-only, but must not be mutated/cleared during

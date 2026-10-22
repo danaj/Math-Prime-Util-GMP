@@ -6,7 +6,7 @@
 
 /* Host adapters for SIQS.  A standalone C embedding supplies this definition
  * (mpu-siqs.c contains the reference implementations).
- * They must not manage the prime cache themselves.
+ * Prime iteration is internal and requires no host-managed cache lifetime.
  * For PSIQS/concurrent C calls, use reentrant adapters, caller-local
  * temporaries, and immutable or synchronized configuration; don't enter
  * unaudited Perl error/API machinery.
