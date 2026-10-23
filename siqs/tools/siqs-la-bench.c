@@ -1,6 +1,6 @@
 /* Real reduced SIQS matrices: dense versus serial block Lanczos.
  * See README-siqs-la-bench.txt. No production timing/capture hooks.
- * cc -O3 -march=native -DSTANDALONE -UPSIQS -o siqs-la-bench \
+ * cc -O3 -march=native -falign-loops=32 -DSTANDALONE -UPSIQS -o siqs-la-bench \
  *   tools/siqs-la-bench.c siqs.c pr32_iter.c ../squfof126.c -lgmp -lm
  * Copyright (c) 2026 Dana Jacobsen. See LICENSE for redistribution terms.
  */

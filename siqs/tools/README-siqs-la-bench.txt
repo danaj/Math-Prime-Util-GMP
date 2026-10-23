@@ -3,10 +3,10 @@ Dense / block-Lanczos crossover on real SIQS matrices
 
 Build and run commands below assume the repository's siqs/ directory.
 
-Build from the repository root:
+Build from the siqs/ directory:
   make siqs-la-bench
 or, without the Perl build setup:
-  cc -O3 -march=native -DSTANDALONE -UPSIQS -o siqs-la-bench \
+  cc -O3 -march=native -falign-loops=32 -DSTANDALONE -UPSIQS -o siqs-la-bench \
     tools/siqs-la-bench.c siqs.c pr32_iter.c ../squfof126.c -lgmp -lm
 
 Run on a QUIET machine, with unrelated factoring/benchmark queues paused:

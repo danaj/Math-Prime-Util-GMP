@@ -67,7 +67,11 @@ Perl build helper detects pthread support by compiling/linking a probe.
 The executable has no Perl runtime dependency. To build directly without
 Perl (serial mode):
 
-   cc -O3 -march=native -DSTANDALONE -o msiqs siqs/mpu-siqs.c siqs/siqs.c siqs/lanczos.c siqs/pr32_iter.c squfof126.c -lgmp -lm
+   cc -O3 -march=native -falign-loops=32 -DSTANDALONE -o msiqs siqs/mpu-siqs.c siqs/siqs.c siqs/lanczos.c siqs/pr32_iter.c squfof126.c -lgmp -lm
+
+The default flags include 32-byte loop alignment to avoid placement-sensitive
+sieve slowdowns seen on x86. Retain -falign-loops=32 when overriding CFLAGS
+with a compiler that supports it.
 
 The default worker count is one. With no integer arguments, msiqs reads
 whitespace-separated decimal integers from stdin. An unsplit composite is

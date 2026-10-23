@@ -196,9 +196,9 @@ a complete factorization.
     return status;
   }
 
-Build from the repository root, supplying your adapter in my-siqs-host.c:
+Build from the siqs/ directory, supplying your adapter in my-siqs-host.c:
 
-  cc -O3 -DSTANDALONE -I. -I.. -o my-factor my-factor.c my-siqs-host.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
+  cc -O3 -falign-loops=32 -DSTANDALONE -I. -I.. -o my-factor my-factor.c my-siqs-host.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
   ./my-factor 22095311209999409685885162322219
 
 For parallel support, add -DPSIQS -pthread to that command. Both public entry
@@ -208,6 +208,8 @@ serial path. Keep siqs_choose_inc.c and siqs_sieve_kernel_inc.c alongside
 siqs.c. Do not compile them, psiqs_inc.c or planczos_inc.c separately; they
 are implementation includes used by siqs.c/lanczos.c. Use -march=native only
 for a local-machine binary, not one intended for arbitrary other CPUs.
+The 32-byte loop alignment avoids placement-sensitive sieve slowdowns seen
+on x86. Retain -falign-loops=32 when supported by your compiler.
 
 Byte-score safety is checked at every input size. For q>=2, setup first uses
 a cheap bound for the chooser's complete A range and runs the exact certifier

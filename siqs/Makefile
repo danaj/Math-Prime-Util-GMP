@@ -2,7 +2,8 @@
 # Run here, or use: make -C siqs
 CC ?= cc
 CPPFLAGS ?=
-CFLAGS ?= -O3 -march=native
+# 32-byte loop alignment avoids placement-sensitive GCC/x86 sieve slowdowns.
+CFLAGS ?= -O3 -march=native -falign-loops=32
 LDFLAGS ?=
 LDLIBS ?= -lgmp -lm
 PERL ?= perl

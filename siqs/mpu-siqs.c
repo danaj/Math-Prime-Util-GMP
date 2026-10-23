@@ -4,9 +4,10 @@
 
   Direct build from the siqs/ directory:
 
-    cc -O3 -DSTANDALONE -o msiqs mpu-siqs.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
+    cc -O3 -falign-loops=32 -DSTANDALONE -o msiqs mpu-siqs.c siqs.c lanczos.c pr32_iter.c ../squfof126.c -lgmp -lm
 
   Add -march=native when building a binary for the local machine only.
+  Loop alignment avoids placement-sensitive sieve slowdowns on x86.
   Add -DPSIQS -pthread for the parallel build.  The local Makefile needs no
   module configuration: make detects pthreads, while make siqs-serial forces
   a serial-only build.  Both targets produce msiqs.
