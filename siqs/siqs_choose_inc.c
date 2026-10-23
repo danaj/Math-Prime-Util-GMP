@@ -419,6 +419,17 @@ struct siqs_A_search {
 #endif
 };
 
+/* Both transitions are permanent for this prepared search; report only once. */
+static void siqs_A_switch_to_sar(siqs_A_search_t *g, const char *reason) {
+  if (g->random_mode) return;
+  g->random_mode = 1;
+  if (g->ctx->verbose > 0) {
+    printf("# siqs A chooser Cubic -> SAR: %s (%u/%u prefix proposals used)\n",
+           reason, g->cubic->draws, g->cubic->period);
+    fflush(stdout);
+  }
+}
+
 static void siqs_A_search_clear(siqs_poly_t *poly) {
   siqs_A_search_t *g = poly->A_search;
   uint32_t i;
@@ -782,7 +793,7 @@ static int siqs_adaptive_A_candidate(siqs_ctx_t *ctx, siqs_poly_t *poly,
   for (attempt = 0; attempt < retry_limit; attempt++) {
 #if USE_CUBIC_CHOOSER
     if (!g->random_mode && !siqs_A_cubic_prefix(g, q, prefix)) {
-      g->random_mode = 1;
+      siqs_A_switch_to_sar(g, "prefix period exhausted");
       retry_limit = SIQS_A_RANDOM_RETRIES;
       attempt = 0;
     }
@@ -846,7 +857,7 @@ static int siqs_adaptive_A_candidate(siqs_ctx_t *ctx, siqs_poly_t *poly,
   /* An initial bounded Cubic miss gets one bounded RANDOM rescue. Later
    * misses preserve the best candidate already retained by the caller. */
   if (!g->random_mode && !*have_best) {
-    g->random_mode = 1;
+    siqs_A_switch_to_sar(g, "bounded search found no usable A");
     return siqs_adaptive_A_candidate(ctx, poly, have_best);
   }
   return 0;

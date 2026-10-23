@@ -192,6 +192,67 @@ static void setup_real_case(uint32_t bits, uint32_t k, uint32_t residue,
 #endif
 }
 
+static void setup_check_cubic_diagnostics(void) {
+#if USE_CUBIC_CHOOSER && !defined(_WIN32)
+  siqs_ctx_t ctx;
+  siqs_poly_t poly;
+  siqs_factor_array_t result;
+  mpz_t n;
+  unsigned reason, verbosity;
+  case_name = "cubic-to-sar-diagnostics";
+  mpz_init(n); setup_input(n, 145, 1);
+  siqs_factor_array_init(&result, n);
+  siqs_ctx_init(&ctx, n, n, &result, NULL, 0); case_ctx = &ctx;
+  ctx.multiplier = 1; ctx.params.poly_d = 2;
+  CHECK(siqs_build_factor_base(&ctx) && !ctx.factor_found);
+  siqs_poly_init(&ctx, &poly);
+  for (reason = 0; reason < 2; reason++) {
+    for (verbosity = 0; verbosity < 2; verbosity++) {
+      siqs_A_search_t *g;
+      FILE *capture = tmpfile();
+      char message[256];
+      int saved_stdout, have_best = 0;
+      CHECK(capture != NULL);
+      poly.A_search = g = siqs_choose_A_prepare(&ctx, &poly, 1);
+      CHECK(g->cubic != NULL && !g->random_mode);
+      /* Reject every candidate without depending on a particular prime set. */
+      mpz_set_ui(g->hard_lower, 1); mpz_set_ui(g->hard_upper, 0);
+#if HAVE_UINT128 && ULONG_MAX > UINT32_MAX
+      siqs_A_native_guard(g);
+#endif
+      if (reason == 0) g->cubic->draws = g->cubic->period;
+      ctx.verbose = (int)verbosity;
+      fflush(stdout); saved_stdout = dup(STDOUT_FILENO);
+      CHECK(saved_stdout >= 0 && dup2(fileno(capture), STDOUT_FILENO) >= 0);
+      CHECK(!siqs_adaptive_A_candidate(&ctx, &poly, &have_best));
+      CHECK(g->random_mode && !have_best);
+      CHECK(g->cubic->draws == (reason == 0 ? g->cubic->period
+                                          : SIQS_A_CUBIC_RETRIES));
+      /* Repeated SAR searches must not repeat the transition message. */
+      CHECK(!siqs_adaptive_A_candidate(&ctx, &poly, &have_best));
+      fflush(stdout); CHECK(dup2(saved_stdout, STDOUT_FILENO) >= 0);
+      close(saved_stdout); rewind(capture);
+      if (verbosity) {
+        CHECK(fgets(message, sizeof(message), capture) != NULL);
+        CHECK(strstr(message, "Cubic -> SAR:") != NULL);
+        CHECK(strstr(message, reason == 0 ? "prefix period exhausted"
+                        : "bounded search found no usable A") != NULL);
+        CHECK(strstr(message, "prefix proposals used") != NULL);
+      }
+      CHECK(fgets(message, sizeof(message), capture) == NULL);
+      fclose(capture); siqs_A_search_clear(&poly);
+    }
+  }
+  ctx.verbose = 0;
+  siqs_poly_clear(&ctx, &poly); siqs_ctx_clear(&ctx);
+  gmp_siqs_free(result.values, result.count); free(result.primality);
+  mpz_clear(n); case_ctx = NULL;
+  puts("PASS setup: both Cubic-to-SAR reasons, proposal counts, one-time reporting and quiet mode");
+#else
+  puts("SKIP setup: Cubic diagnostic capture requires Cubic and POSIX descriptors");
+#endif
+}
+
 static void suite_setup(void) {
   static const uint32_t sizes[] = {400, 401, 430, 431, 463, 496, 512};
   static const struct { uint32_t k, residue; } classes[] = {
@@ -201,6 +262,7 @@ static void suite_setup(void) {
 #ifndef _WIN32
   void (*previous_handler)(int);
 #endif
+  setup_check_cubic_diagnostics();
   if (!extended) {
     puts("SKIP setup: real upper-policy FB/A fixtures require --extended");
     return;

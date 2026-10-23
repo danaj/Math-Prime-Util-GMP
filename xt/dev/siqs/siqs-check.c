@@ -737,14 +737,15 @@ static void check_frozen_upper_band(void) {
   case_name = "upper-band-independent-of-supported-limit";
   for (i = 0; i < SIQS_POLICY_BAND_COUNT; i++) {
     const siqs_policy_band_t *band = &siqs_policy_bands[i];
-    if (band->first_bits != 331U) continue;
+    if (band->first_bits != 331U && band->first_bits != 361U) continue;
     found++;
-    CHECK(band->last_bits == 400U);
+    CHECK(band->last_bits == (band->first_bits == 331U ? 360U : 400U));
+    /* Splitting M tuning must not restart either original K ramp. */
     CHECK(band->k_l.first_bits == 331U && band->k_l.last_bits == 400U);
     CHECK(band->k_r.first_bits == 331U && band->k_r.last_bits == 400U);
   }
-  CHECK(found == 1U);
-  puts("PASS policies: 331-400 band and K endpoints are independent of the supported-size limit");
+  CHECK(found == 2U);
+  puts("PASS policies: split 331-400 bands retain K endpoints independent of the supported-size limit");
 }
 
 static void check_policy_errors(void) {
