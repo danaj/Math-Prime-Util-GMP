@@ -105,10 +105,10 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 /* Batch collection stops at graph readiness. This is only a generous
  * terminal failure guard for unusually slow relation streams, not an expected
- * work target. Both collectors allow max(1000000, 512 * FB) polynomials.
- * Above 400 bits, effectively disable this tuning cutoff: retain only the
- * 2^31-1 counter-safety cap.  These band aren't tuned yet, and they generally
- * take more work.  Let them run without cutting them off. */
+ * work target. Through 400 bits, allow max(1000000, 512 * FB) polynomials.
+ * Above 400 bits, omit that tuning cutoff: retain only a 64-bit statistics
+ * safety cap derived from the sieve span. These bands aren't tuned yet,
+ * and can need much more work. */
 #define SIQS_MAX_POLYNOMIALS_PER_FB 512U
 /* Exact and randomized solving both had ample dependency yield with a
  * 32-column reduced-core surplus throughout the tuned 1LP range.  Keep the
@@ -991,8 +991,8 @@ static int siqs_solve(siqs_ctx_t *ctx);
 static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
                                    uint32_t target,
                                    uint32_t *next_matrix_check,
-                                   uint32_t *family_count,
-                                   uint32_t *poly_count);
+                                   uint64_t *family_count,
+                                   uint64_t *poly_count);
 #endif
 
 static int siqs_use_one_lp_relation_path(const siqs_ctx_t *ctx) {
@@ -5437,9 +5437,9 @@ static uint64_t siqs_progress_poly_step(const siqs_ctx_t *ctx,
 /* Check only on the normal reporting schedule and at collection completion.
  * Once per attempt, including solve/collect retries; this informational work
  * milestone is independent of the terminal failure guard. */
-static void siqs_print_polynomial_notice(siqs_ctx_t *ctx, uint32_t poly_count) {
+static void siqs_print_polynomial_notice(siqs_ctx_t *ctx, uint64_t poly_count) {
   if (!ctx->polynomial_notice_printed &&
-      (uint64_t)poly_count >
+      poly_count >
         (uint64_t)SIQS_POLYNOMIAL_NOTICE_PER_FB * ctx->params.fb_size) {
     ctx->polynomial_notice_printed = 1;
     printf("# siqs collection has exceeded %uxFB polynomials\n",
@@ -5449,7 +5449,7 @@ static void siqs_print_polynomial_notice(siqs_ctx_t *ctx, uint32_t poly_count) {
 }
 
 static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
-                                       uint32_t poly_count) {
+                                       uint64_t poly_count) {
   char raw[24], polys[24];
   siqs_format_progress_count(raw, ctx->accepted_smooth
                                 + ctx->accepted_one_lp
@@ -5461,36 +5461,38 @@ static void siqs_print_relation_report(const siqs_ctx_t *ctx, uint32_t target,
   fflush(stdout);
 }
 
-static uint32_t siqs_polynomial_limit(const siqs_parameters_t *p) {
-  uint32_t per_fb = SIQS_MAX_POLYNOMIALS_PER_FB;
-  uint32_t limit;
-  if (p->bits > 400U)
-    return UINT32_MAX / 2U;
-  limit = p->fb_size > UINT32_MAX / per_fb
-        ? UINT32_MAX : p->fb_size * per_fb;
+static uint64_t siqs_polynomial_limit(const siqs_parameters_t *p) {
+  uint64_t limit;
+  if (p->bits > 400U) {
+    if (p->half_interval < SIQS_SIEVE_ALIGN ||
+        p->half_interval > SIQS_HALF_INTERVAL_MAX)
+      croak("SIQS: invalid interval for polynomial budget");
+    return UINT64_MAX / (2U * (uint64_t)p->half_interval);
+  }
+  limit = (uint64_t)p->fb_size * SIQS_MAX_POLYNOMIALS_PER_FB;
   return limit < 1000000U ? 1000000U : limit;
 }
 
-/* With FB <= 2^21-1, the 512*FB guard is below 2^30 polynomials. Above
- * 400 bits the counter-safety cap still keeps it below 2^31. Even allowing
- * one stopped family per worker per solve retry leaves family counts below
- * 2^32; polynomial counts stay below 2^31. Together with 2M <= 2^31,
- * this bounds candidate visits below 2^62. Accepted/split stats count subsets
- * of those visits, so their u64 increments need no hot checks. Full-count
- * scheduling additions also fit u32 under the vector bounds. */
+/* Through 400 bits, the 512*FB guard is below 2^30 polynomials. Above it,
+ * limit * (2M) <= UINT64_MAX bounds all candidate visits. Accepted/split
+ * statistics count subsets of those visits, so their increments need no
+ * hot checks. M >= 256 also leaves ample u64 headroom for reporting steps
+ * and stopped, zero-polynomial families on solve/collect retries. The master
+ * owns the u64 totals/budgets; worker counts and Gray indices stay u32.
+ * Relation-count scheduling additions still fit u32 under the vector bounds. */
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
                                   uint32_t *next_matrix_check,
-                                  uint32_t *family_count,
-                                  uint32_t *poly_count) {
+                                  uint64_t *family_count,
+                                  uint64_t *poly_count) {
   int verbose = ctx->verbose;
   int family_ok, have_next;
   uint32_t check_interval = ctx->params.fb_size / 128;
-  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
+  uint64_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_poly_step = siqs_progress_poly_step(ctx, 1U);
-  uint64_t next_work_report = (uint64_t)*poly_count + report_poly_step;
+  uint64_t next_work_report = *poly_count + report_poly_step;
   uint32_t last_report_count = UINT32_MAX;
-  uint32_t last_report_polys = UINT32_MAX;
+  uint64_t last_report_polys = UINT64_MAX;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
     check_interval = SIQS_MATRIX_CHECK_MIN;
   if (check_interval > SIQS_MATRIX_CHECK_MAX)
@@ -5556,12 +5558,12 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
       /* M times the polynomial count is a timer-free work clock.  Report at
        * its approximate time cadence regardless of relation yield, so a slow
        * tail still shows that collection is making progress. */
-      if (verbose > 1 && (uint64_t)*poly_count >= next_work_report) {
+      if (verbose > 1 && *poly_count >= next_work_report) {
         siqs_print_polynomial_notice(ctx, *poly_count);
         siqs_print_relation_report(ctx, target, *poly_count);
         last_report_count = ctx->full_count;
         last_report_polys = *poly_count;
-        next_work_report = (uint64_t)*poly_count + report_poly_step;
+        next_work_report = *poly_count + report_poly_step;
       }
       if (*poly_count >= max_polynomials) {
         if (verbose > 0)
@@ -5598,20 +5600,20 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
  * Completion or source exhaustion also ends collection. There is no
  * matrix-readiness scan or periodic batch-solver request. */
 static void siqs_collect_bids(siqs_ctx_t *ctx, siqs_poly_t *poly,
-                               uint32_t *families, uint32_t *polynomials) {
-  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
+                               uint64_t *families, uint64_t *polynomials) {
+  uint64_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_step = siqs_progress_poly_step(ctx, 1U);
-  uint64_t next_report = (uint64_t)*polynomials + report_step;
+  uint64_t next_report = *polynomials + report_step;
   while (!ctx->factor_found && !ctx->bids_stop) {
     if (*polynomials >= max_polynomials || !siqs_new_family(ctx, poly)) break;
     (*families)++;
     for (;;) {
       siqs_sieve_polynomial(ctx, poly);
       (*polynomials)++;
-      if (ctx->verbose > 1 && (uint64_t)*polynomials >= next_report) {
+      if (ctx->verbose > 1 && *polynomials >= next_report) {
         siqs_print_polynomial_notice(ctx, *polynomials);
         siqs_print_relation_report(ctx, ctx->params.fb_size, *polynomials);
-        next_report = (uint64_t)*polynomials + report_step;
+        next_report = *polynomials + report_step;
       }
       if (ctx->factor_found || ctx->bids_stop || *polynomials >= max_polynomials)
         break;
@@ -5834,7 +5836,7 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
  * Thus a true return means progress, not necessarily a fully prime result. */
 static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_t poly;
-  uint32_t family_count = 0, poly_count = 0;
+  uint64_t family_count = 0, poly_count = 0;
   uint32_t target = ctx->params.target_relations;
   uint32_t target_limit = ctx->params.fb_size + 1 + SIQS_MAX_EXTRA_RELS;
   /* Small exact matrices need only a modest supply of new dependencies after
@@ -5895,7 +5897,10 @@ static int siqs_run(siqs_ctx_t *ctx) {
       printf("# siqs block sieve %u bytes (max %u)\n",
              ctx->block_length, (unsigned)SIQS_SIEVE_BLOCK_SIZE);
     if (ctx->params.bits > 400U)
-      printf("# siqs over 400 bits: default guard of %uxFB polynomials is not used.\n", SIQS_MAX_POLYNOMIALS_PER_FB);
+      printf("# siqs over 400 bits: default guard of %uxFB polynomials is not used; "
+             "counter-safety limit %llu polynomials.\n",
+             SIQS_MAX_POLYNOMIALS_PER_FB,
+             (unsigned long long)siqs_polynomial_limit(&ctx->params));
     fflush(stdout);
   }
 
@@ -5969,16 +5974,17 @@ static int siqs_run(siqs_ctx_t *ctx) {
     ctx->factor_found = 1;
   if (!ctx->factor_found && verbose > 0 &&
       poly_count >= siqs_polynomial_limit(&ctx->params)) {
-    printf("# siqs polynomial guard reached: %u/%u polynomials (%.1fxFB); stopping collection\n",
-           poly_count, siqs_polynomial_limit(&ctx->params),
+    printf("# siqs polynomial guard reached: %llu/%llu polynomials (%.1fxFB); stopping collection\n",
+           (unsigned long long)poly_count,
+           (unsigned long long)siqs_polynomial_limit(&ctx->params),
            (double)poly_count / ctx->params.fb_size);
     fflush(stdout);
   }
   siqs_solve_final_batch(ctx);
   if (verbose > 0)
-    printf("# siqs used %u families, %u polynomials, %llu candidates, "
+    printf("# siqs used %llu families, %llu polynomials, %llu candidates, "
            "%u full relations\n",
-           family_count, poly_count,
+           (unsigned long long)family_count, (unsigned long long)poly_count,
            (unsigned long long)ctx->total_candidates, ctx->full_count);
   if (verbose > 0)
     printf("# siqs accepted %llu smooth, %llu one-LP, %llu two-LP\n",

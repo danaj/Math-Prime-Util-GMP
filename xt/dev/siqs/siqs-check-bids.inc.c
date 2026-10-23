@@ -201,23 +201,29 @@ static void bids_workers(void) {
   uint32_t test;
   for (test = 0; test < 3; test++) {
     worker_fixture_t f;
-    uint32_t next = 1, families = 0, polynomials = 0;
+    uint32_t next = 1;
+    uint64_t families = UINT32_MAX, polynomials = UINT32_MAX;
     case_name = "worker-budget-drain-and-serial-fallback";
     worker_fault_reset(); worker_fixture_open(&f, test == 0 ? 2 : 4, 0);
+    /* Keep the real small geometry, but allow counts past the u32 boundary. */
+    f.ctx.params.bits = 401;
     f.ctx.use_bids = 1; f.ctx.bids_cap = 1;
     if (test == 2) { seam_thread_after = 0; seam_quiet = 1; }
     CHECK(psiqs_collect_relations(&f.ctx, &f.dispatch, 1,
                                    &next, &families, &polynomials));
-    if (detailed) printf("  bids workers %u: %u families, %u polynomials, %u relations, stop=%u\n",
-                         test, families, polynomials, f.ctx.full_count, (unsigned)f.ctx.bids_stop);
+    if (detailed) printf("  bids workers %u: %llu families, %llu polynomials, %u relations, stop=%u\n",
+                         test, (unsigned long long)families,
+                         (unsigned long long)polynomials, f.ctx.full_count,
+                         (unsigned)f.ctx.bids_stop);
     CHECK(f.ctx.bids != NULL && f.ctx.full_count >= f.ctx.bids_cap);
     CHECK(f.ctx.bids->processed == f.ctx.full_count && !f.ctx.bids->failed);
-    CHECK(f.ctx.bids_stop == SIQS_BIDS_BUDGET && families > 0 && polynomials > 0);
+    CHECK(f.ctx.bids_stop == SIQS_BIDS_BUDGET &&
+          families > UINT32_MAX && polynomials > UINT32_MAX);
     CHECK(f.ctx.matrix_ready_incidence == NULL && next == 1);
     if (test == 2) CHECK(seam_created == 0 && seam_warnings == 5);
     worker_resources_clear(); worker_fault_reset(); worker_fixture_close(&f);
   }
-  puts("PASS bids: two/four-worker backlog drainage and serial fallback without readiness scans");
+  puts("PASS bids: u64 polynomial/family rollover, two/four-worker drainage and serial fallback without readiness scans");
 }
 #endif
 

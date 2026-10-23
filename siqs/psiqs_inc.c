@@ -383,14 +383,14 @@ static psiqs_worker_t *psiqs_pool_take(psiqs_pool_t *pool) {
 static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
                                    uint32_t target,
                                    uint32_t *next_matrix_check,
-                                   uint32_t *family_count,
-                                   uint32_t *poly_count) {
+                                   uint64_t *family_count,
+                                   uint64_t *poly_count) {
   psiqs_pool_t *pool;
   uint32_t i, check_interval = ctx->params.fb_size / 128;
-  uint32_t max_polynomials = siqs_polynomial_limit(&ctx->params);
+  uint64_t max_polynomials = siqs_polynomial_limit(&ctx->params);
   uint64_t report_step, next_report;
-  uint32_t last_report_count = UINT32_MAX, last_report_polys = UINT32_MAX;
-  uint32_t remaining, active = 0;
+  uint32_t last_report_count = UINT32_MAX, active = 0;
+  uint64_t last_report_polys = UINT64_MAX, remaining;
   int verbose = ctx->verbose, complete = 0, exhausted = 0, ready = 0;
   if (check_interval < SIQS_MATRIX_CHECK_MIN)
     check_interval = SIQS_MATRIX_CHECK_MIN;
@@ -413,12 +413,12 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
   /* Use successfully created workers, not requested slots.  High core counts
    * otherwise make the shared collection-work clock excessively chatty. */
   report_step = siqs_progress_poly_step(ctx, pool->live);
-  next_report = (uint64_t)*poly_count + report_step;
+  next_report = *poly_count + report_step;
   remaining = max_polynomials - *poly_count;
   for (i = 0; i < pool->count && remaining != 0; i++) {
     if (pool->workers[i].started) {
       uint32_t limit = dispatch->b_limit < remaining
-                     ? dispatch->b_limit : remaining;
+                     ? dispatch->b_limit : (uint32_t)remaining;
       if (!psiqs_pool_assign(pool, ctx, dispatch, pool->workers + i, limit)) {
         exhausted = 1;
         break;
@@ -448,12 +448,12 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
         break;
       }
     }
-    if (verbose > 1 && (uint64_t)*poly_count >= next_report) {
+    if (verbose > 1 && *poly_count >= next_report) {
       siqs_print_polynomial_notice(ctx, *poly_count);
       siqs_print_relation_report(ctx, target, *poly_count);
       last_report_count = ctx->full_count;
       last_report_polys = *poly_count;
-      next_report = (uint64_t)*poly_count + report_step;
+      next_report = *poly_count + report_step;
     }
     if (ctx->factor_found || (ctx->use_bids ? ctx->bids_stop : ctx->full_count >= target)) {
       complete = 1;
@@ -461,7 +461,7 @@ static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
     }
     if (!exhausted && remaining != 0) {
       uint32_t limit = dispatch->b_limit < remaining
-                     ? dispatch->b_limit : remaining;
+                     ? dispatch->b_limit : (uint32_t)remaining;
       if (psiqs_pool_assign(pool, ctx, dispatch, worker, limit)) {
         remaining -= limit;
         active++;

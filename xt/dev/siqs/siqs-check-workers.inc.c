@@ -261,7 +261,8 @@ static void worker_shutdown(void) {
   worker_fixture_t f;
   worker_schedule_t *s = &worker_schedule;
   psiqs_pool_t *pool;
-  uint32_t i, families = 0, polynomials = 0;
+  uint32_t i;
+  uint64_t families = 0, polynomials = 0;
   case_name = "READY-running-canceled-and-idle-shutdown";
   worker_fault_reset(); worker_fixture_open(&f, 4, 0);
   memset(s, 0, sizeof(*s));
@@ -349,7 +350,8 @@ static void worker_early_shutdown(void) {
   worker_schedule_t *s = &worker_schedule;
   psiqs_pool_t *pool;
   mpz_t abandoned[2];
-  uint32_t i, max_polys, families = 0, polys, next = UINT32_MAX;
+  uint32_t i, next = UINT32_MAX;
+  uint64_t max_polys, families = 0, polys;
   uint32_t buffered = 0;
   case_name = "partial-family-stop-and-fresh-family-retry";
   worker_fault_reset(); worker_fixture_open(&f, 2, 0);
@@ -545,23 +547,31 @@ static void worker_creation_failures(void) {
 
 static void worker_budget_and_fallback(void) {
   uint32_t test;
-  for (test = 0; test < 2; test++) {
+  for (test = 0; test < 4; test++) {
     worker_fixture_t f;
-    uint32_t max_polys, families = 0, polys, next = UINT32_MAX;
+    uint32_t next = UINT32_MAX;
+    uint64_t max_polys, families = 0, polys;
+    uint64_t initial_families = test < 2 ? 0 : UINT32_MAX;
     case_name = "shortened-budget-and-serial-fallback";
     worker_fault_reset(); worker_fixture_open(&f, 4, 0);
+    /* The small real geometry is unchanged; only the aggregate budget is
+     * selected as for an upper-band run. Execute five genuine polynomials. */
+    if (test >= 2) f.ctx.params.bits = 401;
+    families = initial_families;
     max_polys = siqs_polynomial_limit(&f.ctx.params);
     polys = max_polys - 5U;
-    if (test == 0) f.dispatch.b_limit = 3; /* Reserve 3, then the last 2. */
+    if ((test & 1U) == 0) f.dispatch.b_limit = 3; /* Reserve 3, then the last 2. */
     else { seam_thread_after = 0; seam_quiet = 1; }
     CHECK(!psiqs_collect_relations(&f.ctx, &f.dispatch, UINT32_MAX,
                                    &next, &families, &polys));
-    CHECK(polys == max_polys && families == (test == 0 ? 2U : 1U));
+    CHECK(polys == max_polys &&
+          families == initial_families + ((test & 1U) == 0 ? 2U : 1U));
+    if (test >= 2) CHECK(polys > UINT32_MAX && families > UINT32_MAX);
     CHECK(!f.ctx.factor_found);
-    if (test == 1) CHECK(seam_created == 0 && seam_warnings == 5);
+    if ((test & 1U) != 0) CHECK(seam_created == 0 && seam_warnings == 5);
     worker_resources_clear(); worker_fault_reset(); worker_fixture_close(&f);
   }
-  puts("PASS workers: shortened last-family budget, executed-work accounting, total-create serial fallback");
+  puts("PASS workers: short final budgets, u64 totals/family rollover, exact accounting and total-create serial fallback");
 }
 
 /* A matrix may become ready on the last permitted polynomial.  If that solve
@@ -569,14 +579,16 @@ static void worker_budget_and_fallback(void) {
  * small workspaces with synthetic executed counts, never a million sieves. */
 static void worker_budget_entry_guards(void) {
   worker_fixture_t f;
-  uint32_t test, max_polys, original_bits;
+  uint32_t test, original_bits;
+  uint64_t max_polys;
   case_name = "spent-budget-collector-reentry";
   worker_fault_reset(); worker_fixture_open(&f, 4, 0);
   original_bits = f.ctx.params.bits;
   /* Only budget selection sees these synthetic sizes: exhausted collectors
    * must return before touching polynomial geometry or starting workers. */
   for (test = 0; test < 8; test++) {
-    uint32_t families = 0, polys, before, next = UINT32_MAX;
+    uint32_t next = UINT32_MAX;
+    uint64_t families = 0, polys, before;
     int collected;
     f.ctx.params.bits = test < 4 ? 400U : 401U;
     max_polys = siqs_polynomial_limit(&f.ctx.params);
@@ -600,7 +612,8 @@ static void worker_budget_entry_guards(void) {
    * supplies a reached target; factor discovery exercises the other exit. */
   (void)relation_full_power(&f.ctx, 1, 2);
   for (test = 0; test < 4; test++) {
-    uint32_t families = 0, polys = max_polys, next = UINT32_MAX;
+    uint32_t next = UINT32_MAX;
+    uint64_t families = 0, polys = max_polys;
     uint32_t target = (test & 1U) ? UINT32_MAX : f.ctx.full_count;
     int collected;
     f.ctx.factor_found = (test & 1U) != 0;

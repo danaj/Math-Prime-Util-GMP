@@ -141,11 +141,24 @@ Cold-path arithmetic checks cover allocation products/padding, checked
 capacity doubling, and cached 70% hash thresholds through 2^31 slots. Small
 real tables exercise growth and duplicate detection. Synthetic parameter
 limits check fractional FB/M conversion and P < 2^31 before narrowing.
-POSIX children verify 32 fatal conversion/allocation/growth/cutoff paths without
+POSIX children verify 38 fatal conversion/allocation/growth/cutoff paths without
 making huge allocations. These are boundary tests, not 512-bit factoring.
 
-Setup suite (opt-in)
--------------------
+Aggregate polynomial budgets are checked through 512 bits against the sieve
+span and uint64 statistics bound. Small real worker/BIDS fixtures seed counts
+at or above 2^32, exercise family rollover, shortened final assignments, backlog
+drainage and serial fallback, and retain 32-bit worker-local counts.
+
+Setup suite
+-----------
+
+Quick checks exhaust all 2,401 F_7 and 2,476,099 extended F_19 codewords.
+They verify original first-batch compatibility, unique prefixes, balanced
+pools, F_7's infinity coordinate, and the within/across-batch overlap bounds.
+All 18 added F_19 batches also supply a real fitted A family. Exhaustion and
+bounded-miss SAR handoffs retain their one-time/quiet diagnostic checks.
+
+Full upper-policy setup is opt-in:
 
   perl xt/dev/siqs/siqs-check.pl --suite setup --extended --verbose
 
@@ -166,8 +179,9 @@ Each case has a 120-second POSIX alarm (SIQS_CHECK_SETUP_TIMEOUT can override).
 Windows reports SKIP for that timeout mechanism but still runs the fixtures.
 Major fixed-array payload is checked against 128 MiB before FB allocation;
 that limit excludes GMP/iterator storage, allocator overhead and sanitizer RSS.
-The current peak major payload is 55.9 MiB. Without --extended this suite reports
-SKIP; --suite all --extended includes it. Successful setup does not establish
+The current peak major payload is 55.9 MiB. Without --extended only these large
+fixtures report SKIP; quick setup checks still run. --suite all --extended
+includes both. Successful setup does not establish
 practical upper-band factoring performance.
 
 Sieve suite

@@ -192,6 +192,122 @@ static void setup_real_case(uint32_t bits, uint32_t k, uint32_t residue,
 #endif
 }
 
+/* Exhaust the raw streams, not millions of actual polynomial families. Five
+ * finite evaluations uniquely identify an F_19 quartic; four identify a cubic.
+ * Compare against explicit powers, independently of production Horner fitting. */
+static void setup_check_cubic_stream(void) {
+#if USE_CUBIC_CHOOSER
+  unsigned test;
+  for (test = 0; test < 2; test++) {
+    siqs_ctx_t ctx;
+    siqs_poly_t poly;
+    siqs_factor_array_t result;
+    siqs_A_search_t *g;
+    siqs_A_cubic_t *c;
+    uint32_t samples[19][4][SIQS_MAX_A_PRIMES];
+    uint32_t frequency[SIQS_MAX_A_PRIMES][19] = {{0}};
+    uint32_t prefix[SIQS_MAX_A_PRIMES], state, initial_state, draw, q, batches, key_words;
+    unsigned char *seen;
+    int have_best = 0;
+    mpz_t n;
+    case_name = "cubic-first-batch-compatibility-and-quartic-extension";
+    mpz_init(n); setup_input(n, test == 0 ? 145 : 280, 1);
+    siqs_factor_array_init(&result, n);
+    siqs_ctx_init(&ctx, n, n, &result, NULL, 0); case_ctx = &ctx;
+    ctx.multiplier = 1; ctx.params.poly_d = 2;
+    mpz_set(ctx.kn, n);
+    CHECK(siqs_ctx_allocate(&ctx) && !ctx.factor_found);
+    siqs_poly_init(&ctx, &poly);
+    poly.A_search = g = siqs_choose_A_prepare(&ctx, &poly, 1);
+    /* These are raw codewords, not prime lookups: exercise F_7's infinity
+     * coordinate and the maximum supported number of F_19 coordinates. */
+    c = g->cubic; q = test == 0 ? 9U : SIQS_MAX_A_PRIMES;
+    CHECK(c != NULL && !g->random_mode && q >= 5);
+    CHECK(c->field == (test == 0 ? 7U : 19U));
+    CHECK(c->period == (test == 0 ? 2401U : 130321U));
+    CHECK(c->limit == (test == 0 ? 2401U : 2476099U));
+    CHECK(c->batch == 0 && c->batch_end == c->period);
+    batches = test == 0 ? 1U : 19U;
+    key_words = test == 0 ? 4U : 5U;
+    seen = (unsigned char *)check_allocate(c->limit, 1);
+    initial_state = state = c->state;
+    for (draw = 0; draw < c->limit; draw++) {
+      uint32_t coefficients[4], value, key = 0, batch = draw/c->period, x;
+      state = ((c->field+1U)*state+1U)%c->period;
+      value = state;
+      for (x = 0; x < 4; x++) {
+        coefficients[x] = value%c->field; value /= c->field;
+      }
+      CHECK(siqs_A_cubic_prefix(g, q, prefix));
+      CHECK(c->state == state && c->draws == draw+1U);
+      CHECK(c->batch == batch && c->batch_end == (batch+1U)*c->period);
+      for (x = 0; x < q-1U; x++) {
+        uint32_t low = c->first+c->field*x, slot;
+        uint32_t expected = x == c->field ? coefficients[3]
+          : (coefficients[0]+coefficients[1]*x+coefficients[2]*x*x
+             + coefficients[3]*x*x*x+batch*x*x*x*x)%c->field;
+        CHECK(prefix[x] >= low && prefix[x] < low+c->field);
+        slot = prefix[x]-low;
+        CHECK(slot == expected);
+        frequency[x][slot]++;
+        if (x < key_words) key = key*c->field+slot;
+      }
+      CHECK(key < c->limit && !seen[key]); seen[key] = 1;
+      if (draw%c->period < 4U)
+        memcpy(samples[batch][draw%c->period], prefix, (q-1U)*sizeof(*prefix));
+    }
+    CHECK(!siqs_A_cubic_prefix(g, q, prefix));
+    CHECK(!siqs_A_cubic_prefix(g, q, prefix) && c->draws == c->limit);
+    for (uint32_t x = 0; x < q-1U; x++)
+      for (uint32_t slot = 0; slot < c->field; slot++)
+        CHECK(frequency[x][slot] == c->limit/c->field);
+    for (uint32_t a = 0; a < batches*4U; a++)
+      for (uint32_t b = a+1U; b < batches*4U; b++) {
+        uint32_t shared = 0;
+        for (uint32_t x = 0; x < q-1U; x++)
+          shared += samples[a/4U][a%4U][x] == samples[b/4U][b%4U][x];
+        CHECK(shared <= (a/4U == b/4U ? 3U : 4U));
+      }
+    /* Exhaustion still hands control to the normal fitting/SAR machinery. */
+    (void)siqs_adaptive_A_candidate(&ctx, &poly, &have_best);
+    CHECK(g->random_mode && c->draws == c->limit);
+    /* Fit real A families at every added-batch boundary, retaining the
+     * actual policy's q and geometry. No huge factoring run is required. */
+    if (test != 0) {
+      siqs_A_search_clear(&poly);
+      poly.A_search = g = siqs_choose_A_prepare(&ctx, &poly, 1);
+      c = g->cubic;
+      for (uint32_t batch = 1; batch < 19U; batch++) {
+        mpz_t product;
+        c->draws = c->batch_end = batch*c->period;
+        c->batch = batch-1U; c->state = initial_state;
+        CHECK(siqs_new_family(&ctx, &poly));
+        CHECK(!g->random_mode && c->batch == batch);
+        mpz_init_set_ui(product, 1);
+        for (uint32_t x = 0; x < poly.q_count; x++) {
+          CHECK(poly.a_index[x] < ctx.params.fb_size);
+          for (uint32_t y = 0; y < x; y++) CHECK(poly.a_index[x] != poly.a_index[y]);
+          mpz_mul_ui(product, product, ctx.fb[poly.a_index[x]].p);
+        }
+        CHECK(mpz_cmp(product, poly.A) == 0);
+        CHECK(mpz_cmp(poly.A, g->hard_lower) >= 0 &&
+              mpz_cmp(poly.A, g->hard_upper) <= 0);
+        mpz_mul(product, poly.B, poly.B); mpz_sub(product, product, ctx.kn);
+        CHECK(mpz_divisible_p(product, poly.DA));
+        mpz_divexact(product, product, poly.DA);
+        CHECK(mpz_cmp(product, poly.C) == 0);
+        mpz_clear(product);
+      }
+    }
+    free(seen);
+    siqs_poly_clear(&ctx, &poly); siqs_ctx_clear(&ctx);
+    gmp_siqs_free(result.values, result.count); free(result.primality);
+    mpz_clear(n); case_ctx = NULL;
+  }
+  puts("PASS setup: complete F_7/F_19 streams, first-batch compatibility, uniqueness/balance/overlap, SAR handoff and 18 real extension families");
+#endif
+}
+
 static void setup_check_cubic_diagnostics(void) {
 #if USE_CUBIC_CHOOSER && !defined(_WIN32)
   siqs_ctx_t ctx;
@@ -220,13 +336,13 @@ static void setup_check_cubic_diagnostics(void) {
 #if HAVE_UINT128 && ULONG_MAX > UINT32_MAX
       siqs_A_native_guard(g);
 #endif
-      if (reason == 0) g->cubic->draws = g->cubic->period;
+      if (reason == 0) g->cubic->draws = g->cubic->limit;
       ctx.verbose = (int)verbosity;
       fflush(stdout); saved_stdout = dup(STDOUT_FILENO);
       CHECK(saved_stdout >= 0 && dup2(fileno(capture), STDOUT_FILENO) >= 0);
       CHECK(!siqs_adaptive_A_candidate(&ctx, &poly, &have_best));
       CHECK(g->random_mode && !have_best);
-      CHECK(g->cubic->draws == (reason == 0 ? g->cubic->period
+      CHECK(g->cubic->draws == (reason == 0 ? g->cubic->limit
                                           : SIQS_A_CUBIC_RETRIES));
       /* Repeated SAR searches must not repeat the transition message. */
       CHECK(!siqs_adaptive_A_candidate(&ctx, &poly, &have_best));
@@ -262,6 +378,7 @@ static void suite_setup(void) {
 #ifndef _WIN32
   void (*previous_handler)(int);
 #endif
+  setup_check_cubic_stream();
   setup_check_cubic_diagnostics();
   if (!extended) {
     puts("SKIP setup: real upper-policy FB/A fixtures require --extended");

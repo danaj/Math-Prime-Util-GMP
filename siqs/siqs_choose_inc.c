@@ -44,9 +44,10 @@
  *  SAC, works for q >= 5
  *
  *      Staged Adaptive Cubic shares SAR's final-prime fitting and acceptance
- *      logic. A polynomial of degree at most three modulo a prime selects
- *      one prime from each of q-1 disjoint pools. Generated prefixes are
- *      unique throughout the cycle; any two share at most three primes.
+ *      logic. A cubic modulo a prime selects one prime from each of q-1
+ *      disjoint pools. F_19 adds batches with a fixed quartic coefficient.
+ *      Prefixes are unique throughout the stream; any two share at most
+ *      three primes within a batch, or four across F_19 batches.
  *      Each pool prime occurs equally often over the full generated cycle.
  *      Final-prime fitting can add overlap; SAR fallback has no such bound.
  *      The motivation was to reduce redundant relations.
@@ -380,6 +381,7 @@ static int siqs_choose_A_deterministic(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 
 typedef struct {
   uint32_t first, field, period, state, draws;
+  uint32_t limit, batch, batch_end;
 } siqs_A_cubic_t;
 
 enum { SIQS_A_RANDOM_RETRIES = 128, SIQS_A_RANDOM_BLOCK = 32,
@@ -425,7 +427,7 @@ static void siqs_A_switch_to_sar(siqs_A_search_t *g, const char *reason) {
   g->random_mode = 1;
   if (g->ctx->verbose > 0) {
     printf("# siqs A chooser Cubic -> SAR: %s (%u/%u prefix proposals used)\n",
-           reason, g->cubic->draws, g->cubic->period);
+           reason, g->cubic->draws, g->cubic->limit);
     fflush(stdout);
   }
 }
@@ -572,17 +574,20 @@ static uint32_t siqs_A_last_prime64(siqs_A_search_t *g, const uint32_t *prefix) 
  * Cubic prefixes over disjoint prime pools
  *----------------------------------------------------------------------------
  * Each coordinate owns a disjoint pool of field_size primes. A degree-three
- * polynomial over F_7 or F_19 selects one slot per coordinate; the leading
- * coefficient supplies the extra coordinate when needed. Distinct codewords
- * share at most three prefix primes. Fitting the final prime can add overlap,
- * and the RANDOM fallback has no such bound.
+ * polynomial over F_7 or F_19 selects one slot per coordinate; F_7's leading
+ * coefficient supplies the extra coordinate when needed. Distinct cubics
+ * share at most three prefix primes. F_19 extends this with 19 batches:
+ * batch b adds b*x^4 to the original cubic at each finite coordinate. Within
+ * a batch the quartic terms cancel, preserving the three-prime bound; across
+ * batches the difference has degree four, giving at most four shared prefix
+ * primes. Fitting the final prime can add overlap; RANDOM has no such bound.
  *
  * Cubic is supported from q=5 through q=16; policy currently starts at q=8.
- * F_7 serves q<=9, F_19 the rest. The complete period is field_size^4, and
- * rejected proposals also consume states. On exhaustion, or an initial
- * bounded miss, use the already prepared RANDOM fallback. No batch is used.
- * TODO: a batch coordinate could extend the stream; overlap bounds between
- * different batches would need a separate analysis.
+ * F_7 serves q<=9 and retains its 7^4 period. F_19's first 19^4 proposals
+ * remain unchanged; its 19 batches provide 19^5 proposals with the same prime
+ * pools. At q<=16 all F_19 coordinates are finite. Rejected proposals also
+ * consume states. On exhaustion, or an initial bounded miss, use the already
+ * prepared RANDOM fallback.
  *
  * F_11 may deserve another look in selected ranges. Our field experiments
  * did not justify adding it to this policy. Pool-mean balancing could center
@@ -610,6 +615,8 @@ static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
   siqs_A_cubic_t *c = siqs_calloc(1,sizeof(*c));
   c->field = field;
   c->period = field*field*field*field;
+  c->limit = field == 19U ? c->period*field : c->period;
+  c->batch_end = c->period;
   c->state = ((uint64_t)(uint32_t)g->ctx->poly_rng.state+77U)%c->period;
   c->first = g->center > window/2U ? g->center-window/2U : 0;
   if (c->first > g->size-window) c->first = g->size-window;
@@ -621,19 +628,25 @@ static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
 /* For either odd prime p=field, state -> (p+1)*state+1 has a full period
  * modulo p^4. Its four base-p digits therefore visit every coefficient tuple
  * once; the seed changes only the starting point. State persists across
- * families, and even rejected proposals consume a draw. Report exhaustion
- * instead of wrapping and repeating the prefix stream.
+ * families, and even rejected proposals consume a draw. F_19 repeats this
+ * coefficient cycle with each fixed quartic coefficient 0..18. Every batch
+ * has the same cubic order, so batch zero is exactly the original stream.
+ * Report exhaustion instead of repeating a prefix stream.
  *
  * Coordinates x<p evaluate that cubic; x=p, when present, is its leading
- * coefficient (the projective point at infinity). Two distinct cubics agree
- * at at most three coordinates, including infinity. Disjoint coordinate
- * pools turn that into at most three shared prefix primes. This bound does
- * not cover the fitted final prime or the caller's RANDOM fallback. */
+ * coefficient (the projective point at infinity, used only by F_7). Distinct
+ * codewords agree in at most three coordinates within a batch and four
+ * across F_19 batches. Disjoint pools give the same bounds on shared prefix
+ * primes, not on full A sets or the caller's RANDOM fallback. */
 static int siqs_A_cubic_prefix(siqs_A_search_t *g, uint32_t q,
                                 uint32_t *prefix) {
   siqs_A_cubic_t *c = g->cubic;
   uint32_t value, coefficients[4];
-  if (c->draws == c->period) return 0;
+  if (c->draws == c->limit) return 0;
+  if (c->draws == c->batch_end) {
+    c->batch++;
+    c->batch_end += c->period;
+  }
   c->state = ((c->field+1U)*c->state+1U)%c->period;
   c->draws++;
   value = c->state;
@@ -643,8 +656,14 @@ static int siqs_A_cubic_prefix(siqs_A_search_t *g, uint32_t q,
   for (uint32_t x = 0; x < q-1U; x++) {
     value = 0;
     if (x == c->field) value = coefficients[3];
-    else for (unsigned i = 4; i > 0; i--)
-      value = (value*x+coefficients[i-1U])%c->field;
+    else {
+      for (unsigned i = 4; i > 0; i--)
+        value = (value*x+coefficients[i-1U])%c->field;
+      if (c->batch != 0) {
+        uint32_t x2 = x*x%c->field;
+        value = (value+c->batch*x2*x2)%c->field;
+      }
+    }
     prefix[x] = c->first+c->field*x+value;
   }
   return 1;
