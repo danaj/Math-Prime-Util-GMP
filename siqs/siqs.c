@@ -578,7 +578,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RAMP(280.0, 384.0, 331, 400),                /* K_L     */
     SIQS_POLICY_RAMP(280.0, 768.0, 331, 400),                /* K_R     */
     16, 384, 160, 96, 0, 0,
-    SIQS_POLICY_LINEAR(0.31466, 0.00020, 331),               /* FB      */
+    SIQS_POLICY_LINEAR(0.31322, 0.000202, 331),              /* FB      */
     SIQS_POLICY_RAMP(0.5046, 0.4063, 361, 400),              /* M       */
     SIQS_POLICY_RATIO(0.15231778066, -11, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0, 0 },         /* sieve-e */
@@ -588,7 +588,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RAMP(384.0, 416.0, 401, 430),                /* K_L     */
     SIQS_POLICY_RAMP(768.0, 1024.0, 401, 430),               /* K_R     */
     16, 384, 160, 96, 0, 0,
-    SIQS_POLICY_LINEAR(0.328, -0.00025, 401),                /* FB */
+    SIQS_POLICY_LINEAR(0.32670, -0.000248, 401),             /* FB */
     SIQS_POLICY_RAMP(0.4038, 0.3040, 401, 430),              /* M */
     SIQS_POLICY_RATIO(0.15231778066, -51, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0, 0 },         /* sieve-e */
@@ -598,7 +598,7 @@ static const siqs_policy_band_t siqs_policy_bands[] = {
     SIQS_POLICY_RAMP(416.0, 512.0, 431, 512),                /* K_L     */
     SIQS_POLICY_RAMP(1024.0, 1536.0, 431, 512),              /* K_R     */
     16, 384, 160, 96, 0, 0,
-    SIQS_POLICY_LINEAR(0.3205, -0.00025, 431),               /* FB */
+    SIQS_POLICY_LINEAR(0.31926, -0.000248, 431),             /* FB */
     SIQS_POLICY_RAMP(0.3032, 0.2384, 431, 512),              /* M */
     SIQS_POLICY_RATIO(0.15231778066, -81, -1, 50),           /* M ratio */
     SIQS_POLICY_LINEAR(0.18, 0.0003, 150), 0.0, 0 }          /* sieve-e */
@@ -5897,10 +5897,9 @@ static int siqs_run(siqs_ctx_t *ctx) {
       printf("# siqs block sieve %u bytes (max %u)\n",
              ctx->block_length, (unsigned)SIQS_SIEVE_BLOCK_SIZE);
     if (ctx->params.bits > 400U)
-      printf("# siqs over 400 bits: default guard of %uxFB polynomials is not used; "
-             "counter-safety limit %llu polynomials.\n",
+      printf("# siqs over 400 bits: polynomial guard %uxFB => %.1fMxFB (max allowed).\n",
              SIQS_MAX_POLYNOMIALS_PER_FB,
-             (unsigned long long)siqs_polynomial_limit(&ctx->params));
+             (double)siqs_polynomial_limit(&ctx->params)/ctx->params.fb_size/1000000.0);
     fflush(stdout);
   }
 

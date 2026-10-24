@@ -105,12 +105,14 @@ for my $band (@bands) {
   die "invalid K_L in $band->{name}\n" if grep { $_ < 1 } @k;
   $type = $band->{production_large_primes} == 2 ? '2LP'
         : $k[0] == 1 && $k[1] == 1 ? 'smooth' : '1LP';
+  @k = round_range_vals(@k);  # Don't show fractional P values
   $lp = coefficient_range('P', @k);
   if (!ref($band->{k_r}) && $band->{k_r} eq 'derived') {
     $residual = $type eq '2LP' ? 'LP*P' : 'LP';
   } else {
     my @r = map { curve_at($band->{k_r}, $_) } ($first, $last);
     die "invalid K_R in $band->{name}\n" if grep { $_ <= 0 } @r;
+    @r = round_range_vals(@r);  # Don't show fractional P values
     $residual = coefficient_range($type eq '2LP' ? 'P^2' : 'P', @r);
   }
   my @row = (sprintf('%3d-%-3d', $first, $last), $type, $band->{q_count},
@@ -271,6 +273,13 @@ sub sizes_at {
     $m = int((int($interval) + $align - 1) / $align) * $align;
   }
   return [$m, int($fb)];
+}
+
+sub round_range_vals {
+  my($first, $last) = @_;
+  $first = int($first + 0.5) if $first != int($first);
+  $last  = int($last  + 0.5) if $last  != int($last );
+  return ($first,$last);
 }
 
 sub coefficient_range {
