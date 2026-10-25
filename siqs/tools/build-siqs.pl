@@ -41,8 +41,8 @@ unless ($serial) {
 
 print "Building $output ", ($threaded ? 'with pthreads' : 'serial-only'), "\n";
 $| = 1;
-my @command = (@compiler, @flags, '-DSTANDALONE', '-UPSIQS');
-push @command, '-DPSIQS', '-pthread' if $threaded;
+my @command = (@compiler, @flags, '-DSTANDALONE');
+push @command, $threaded ? ('-DPSIQS', '-pthread') : ('-UPSIQS');
 push @command, @link_flags, '-o', $output, @ARGV, shellwords($ldlibs);
 print join(' ', map {shell_quote($_)} @command), "\n";
 system(@command);

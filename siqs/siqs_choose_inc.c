@@ -373,7 +373,7 @@ static int siqs_choose_A_deterministic(siqs_ctx_t *ctx, siqs_poly_t *poly) {
  * Otherwise the same selection and rounding rules use GMP. This proof is
  * independent of the input's bit size and is done once during preparation. */
 #ifndef USE_CUBIC_CHOOSER
-# define USE_CUBIC_CHOOSER 1
+# define USE_CUBIC_CHOOSER 0
 #endif
 #ifndef SIQS_A_CUBIC_MIN_Q
 # define SIQS_A_CUBIC_MIN_Q 8U
@@ -582,7 +582,7 @@ static uint32_t siqs_A_last_prime64(siqs_A_search_t *g, const uint32_t *prefix) 
  * batches the difference has degree four, giving at most four shared prefix
  * primes. Fitting the final prime can add overlap; RANDOM has no such bound.
  *
- * Cubic is supported from q=5 through q=16; policy currently starts at q=8.
+ * Cubic is supported from q=5 through q=16; the default policy uses SAR.
  * F_7 serves q<=9 and retains its 7^4 period. F_19's first 19^4 proposals
  * remain unchanged; its 19 batches provide 19^5 proposals with the same prime
  * pools. At q<=16 all F_19 coordinates are finite. Rejected proposals also
