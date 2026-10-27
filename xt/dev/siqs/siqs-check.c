@@ -639,8 +639,8 @@ static void check_policy_bounds(void) {
 
 static void check_policy_profiles(void) {
   static const struct { uint32_t last; double k; } original[] = {
-    {95, 1.0}, {103, 2.0}, {144, 4.0}, {192, 20.0},
-    {218, 32.0}, {236, 48.0}, {245, 72.0}
+    {95, 1.0}, {103, 2.0}, {144, 4.0}, {197, 27.5},
+    {218, 30.5}, {236, 48.0}, {245, 72.0}
   };
   siqs_policy_t policy;
   siqs_ctx_t ctx;

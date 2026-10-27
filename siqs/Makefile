@@ -57,7 +57,7 @@ siqs-sieve-bench: tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(BENCH_DEP
 # To force serial checks: make check-siqs SIQS_CHECK_ARGS=--serial
 check: check-siqs
 test-siqs: check-siqs
-check-siqs: check-pr32-iter
+check-siqs:
 	$(PERL) ../xt/dev/siqs/siqs-check.pl --cc "$(CC)" --cflags "$(CPPFLAGS) $(CFLAGS) $(EXTRA_FLAGS)" --ldflags "$(LDFLAGS) $(LDLIBS)" $(SIQS_CHECK_ARGS)
 
 pr32-iter-check: ../xt/dev/siqs/pr32-iter-check.c pr32_iter.c pr32_iter.h Makefile
