@@ -1,0 +1,57 @@
+{
+  "siqs-evolution.svg": {
+    "source": "graphs/evolution/siqs-blog-four-way-15-100.svg",
+    "sha256": "8c38ac22f4362a45d96266e4d3655e8ec040278fe0c0ffaa95c39b17a6730e06",
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
+  },
+  "siqs-evolution-memory.svg": {
+    "source": "graphs/evolution/siqs-blog-four-way-memory-15-100.svg",
+    "sha256": "2cac76d8b38069a3d83585c50b96f2070af8ce7a9c3e3ee480476edac81fcf2d",
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
+  },
+  "siqs-external-single-thread.svg": {
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
+    "source": "graphs/serial/external-single-thread-30-102.svg",
+    "sha256": "3d507728be212cb8883b28f2d68ad50e1bdfe23959c1da3033c7d0ce257f1679",
+    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
+    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+  },
+  "siqs-external-memory.svg": {
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
+    "source": "graphs/serial/external-memory-30-102.svg",
+    "sha256": "1520d19109ce77bdeea6f1baea12f4ebef5667e6cb66646c35558331c08a6c75",
+    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
+    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+  },
+  "siqs-external8.svg": {
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
+    "source": "graphs/external8/external-parallel.svg",
+    "sha256": "2fc5c5c08bd81d67f70b4e7d715d1e4e82909f43d2c29f2c96f67c69ce655e9b",
+    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
+    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+  },
+  "siqs-external8-memory.svg": {
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
+    "source": "graphs/external8/external-memory.svg",
+    "sha256": "5d692ade6cdf540cb1fc7de88ca5d33bee0ff61a9b57f95f8a42e7f4bc477d23",
+    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
+    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+  },
+  "siqs-c4d-48.svg": {
+    "source": "graphs/c4d-48/external-parallel.svg",
+    "sha256": "22fde0aa948772056ac1cfa941841a4a932e6a4ea3d64ae4e76d7d1da0107f9a",
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
+  },
+  "siqs-c4d-48-memory.svg": {
+    "source": "graphs/c4d-48/factor-memory-50-110.svg",
+    "sha256": "3b1e42513a30db1b9ab71e67a17f8e48474e627c0b3f37f19a3840df428b32cc",
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
+  },
+  "siqs-yafu-wall-time-50-110.svg": {
+    "source": "graphs/c4d-siqs-yafu/siqs-yafu-wall-time-50-110.svg",
+    "sha256": "7b2381f61f2a79476c36486c50cbbe97634cad9db717b8d48f2ebad5b08a1718",
+    "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
+  },
+  "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
+  "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+}

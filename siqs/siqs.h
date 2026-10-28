@@ -4,6 +4,14 @@
 #include <gmp.h>
 #include "../ptypes.h"
 
+/* The Perl build always excludes journalling.  Keep the public interface and
+ * harmless internal stubs, so callers need no build-mode conditionals.
+ * The standalone troubleshooting switch is near the top of siqs.c.
+ * Why bother?  Disabling skips compiling timer and file i/o code. */
+#if !defined(STANDALONE) && !defined(SIQS_NO_JOURNAL)
+# define SIQS_NO_JOURNAL
+#endif
+
 /* Lowest post-trial cofactor size accepted by the SIQS stage. */
 #define MPU_SIQS_MIN_BITS   1U
 /* Arithmetic and policy-coverage limit, not a performance guarantee.
@@ -17,12 +25,12 @@
 #endif
 
 /* Host lifetime for both entry points:
- *   - No prime-cache startup/shutdown is required. The independent pr32_iter
+ *   - No prime-cache startup/shutdown is required.  The independent pr32_iter
  *     uses immutable base tables and iterator-owned segment buffers.
  *   - Standalone calls have independent writable state and may run concurrently
  *     with reentrant siqs_dep.h host adapters and separate output storage.
  *     Inputs may be shared read-only, but must not be mutated/cleared during
- *     calls. Keep adapter configuration immutable or properly synchronized.
+ *     calls.  Keep adapter configuration immutable or properly synchronized.
  * See tools/README-siqs-embedding.txt for adapters, builds, and an example. */
 
 /* n must be positive.  Return an allocated multiplicative partition of n.
@@ -32,8 +40,8 @@
  * and MPU_SIQS_MAX_BITS, inclusive.
  *
  * trial_start is the first candidate not already checked for small factors;
- * use 0 for ordinary pretests. nfactors must be non-NULL and receives the
- * array length, including repeated factors. n is not modified. The caller
+ * use 0 for ordinary pretests.  nfactors must be non-NULL and receives the
+ * array length, including repeated factors.  n is not modified.  The caller
  * owns all returned mpz_t values and the array: release both with
  * gmp_siqs_free, without separately clearing/freeing its elements first.
  * There is no complete-factorization flag; callers must check the partition.
@@ -45,10 +53,27 @@ extern mpz_t *gmp_siqs(const mpz_t n, uint32_t *nfactors,
                       uint32_t trial_start, int verbose);
 extern void gmp_siqs_free(mpz_t *factors, uint32_t nfactors);
 
+/* Call-owned journal session.  One coordinator owns all I/O.
+ * A session belongs to one original input, but can record several smaller
+ * cofactor calls and recovery policies.  Close only after every call returns.
+ * Existing journals are read once, before any new frames are appended. */
+typedef struct siqs_journal_t siqs_journal_t;
+/* n may be NULL to obtain the input from an existing journal.  In that mode
+ * a missing file is an error; no new journal is created. */
+extern siqs_journal_t *gmp_siqs_journal_open(const char *path, mpz_srcptr n);
+extern void gmp_siqs_journal_input(const siqs_journal_t *journal, mpz_t n);
+extern mpz_t *gmp_siqs_journal_factor(siqs_journal_t *journal, const mpz_t n,
+    uint32_t *nfactors, uint32_t trial_start, int verbose, uint32_t nthreads);
+/* Record the front end's final partition after processing every cofactor.
+ * An interruption or a mere close does not imply that the job finished. */
+extern void gmp_siqs_journal_finish(siqs_journal_t *journal, mpz_t *values,
+    size_t count, int complete);
+extern void gmp_siqs_journal_close(siqs_journal_t *journal);
+
 #ifdef PSIQS
 /* Same partition and trial_start contract as gmp_siqs.  Release the result
  * with gmp_siqs_free.  nthreads must be in [1, PSIQS_MAX_THREADS]; one worker
- * uses the ordinary serial path. Requires a STANDALONE/PSIQS pthread build;
+ * uses the ordinary serial path.  Requires a STANDALONE/PSIQS pthread build;
  * native workers must not call unaudited Perl host adapters. Concurrent outer
  * callers each create their own pool; nthreads is not a process-wide cap. */
 extern mpz_t *gmp_psiqs(const mpz_t n, uint32_t *nfactors,

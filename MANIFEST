@@ -49,9 +49,16 @@ siqs/pr32_iter.c
 siqs/siqs.c
 siqs/siqs_choose_inc.c
 siqs/siqs_sieve_kernel_inc.c
+siqs/siqs_journal_inc.c
 siqs/psiqs_inc.c
 siqs/mpu-siqs.c
 siqs/Makefile
+siqs/README.md
+siqs/IMPLEMENTATION.md
+siqs/BENCHMARKS.md
+siqs/EVOLUTION.md
+siqs/JOURNAL.md
+siqs/graphs/README.md
 tinyqs.h
 tinyqs.c
 isaac.h
@@ -131,6 +138,7 @@ t/91-release-pod-syntax.t
 t/92-release-pod-coverage.t
 t/93-release-spelling.t
 siqs/tools/build-siqs.pl
+siqs/tools/journal-info.py
 siqs/tools/pthread-probe.c
 siqs/tools/README-siqs-embedding.txt
 siqs/tools/README-lanczos-embedding.md

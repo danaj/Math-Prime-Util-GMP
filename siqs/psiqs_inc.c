@@ -90,6 +90,8 @@ static int psiqs_assign_family(siqs_ctx_t *master, siqs_poly_t *dispatch,
   uint32_t i;
   if (!siqs_choose_A(master, dispatch))
     return 0;
+  if (master->journal != NULL)
+    siqs_journal_family(master, dispatch);
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
       ctx->fb_in_a[poly->a_index[i]] = 0;
@@ -210,6 +212,7 @@ static void psiqs_merge_worker(siqs_ctx_t *master, psiqs_worker_t *worker) {
   while (ctx->raw_count != 0)
     siqs_raw_relation_free(ctx, ctx->raw[--ctx->raw_count]);
   psiqs_raw_arena_reset(&ctx->raw_arena);
+  if (master->journal != NULL) sj_flush(master);
 }
 
 static void psiqs_worker_clear(psiqs_worker_t *worker) {

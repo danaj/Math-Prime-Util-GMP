@@ -131,7 +131,7 @@ sub MY::postamble {
 
 # The module uses Perl's compiler/flags and root-level objects. Standalone
 # programs and development targets have their own Makefile under siqs/.
-siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/psiqs_inc.c siqs/pr32_iter.h ptypes.h mont64.h squfof126.h misc_ui.h
+siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/siqs_journal_inc.c siqs/psiqs_inc.c siqs/pr32_iter.h ptypes.h mont64.h squfof126.h misc_ui.h
 	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/siqs.c
 
 lanczos$(OBJ_EXT): siqs/lanczos.c siqs/lanczos.h siqs/planczos_inc.c ptypes.h

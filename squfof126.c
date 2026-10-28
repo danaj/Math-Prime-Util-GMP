@@ -20,6 +20,17 @@
 #include <math.h>
 #include "squfof126.h"
 
+/* Keep this source independent of ptypes.h and its Perl build dependencies. */
+#ifndef INLINE
+# if defined(__GNUC__)
+#  define INLINE __inline__
+# elif defined(_MSC_VER)
+#  define INLINE __inline
+# else
+#  define INLINE
+# endif
+#endif
+
 #define TEST_FOR_2357(n, f) \
   { \
     if (mpz_divisible_ui_p(n, 2)) { mpz_set_ui(f, 2); return 1; } \
@@ -31,7 +42,7 @@
 
 /* Low 64 magnitude bits, independent of unsigned long and GMP limb width.
  * GMP_NUMB_BITS also accounts for any unused nail bits in a limb. */
-static inline uint64_t mpz_get64(const mpz_t n) {
+static INLINE uint64_t mpz_get64(const mpz_t n) {
   uint64_t v = (uint64_t)mpz_getlimbn(n, 0);
 #if GMP_NUMB_BITS < 64
   unsigned shift;
@@ -44,7 +55,7 @@ static inline uint64_t mpz_get64(const mpz_t n) {
 
 /* GMP's _ui arguments are unsigned long, which may have only 32 bits even
  * when uint64_t and GMP limbs have 64. Keep this conversion local. */
-static inline void mpz_set64(mpz_t n, uint64_t v) {
+static INLINE void mpz_set64(mpz_t n, uint64_t v) {
 #if ULONG_MAX >= UINT64_MAX
   mpz_set_ui(n, (unsigned long)v);
 #else
@@ -79,7 +90,7 @@ typedef struct
 #error SQUFOF_RACE_LANES must be 2 or 4 or 8
 #endif
 
-static inline unsigned squfof_ctz64(uint64_t n)
+static INLINE unsigned squfof_ctz64(uint64_t n)
 {
 #if defined(__GNUC__) || defined(__clang__)
   return (unsigned)__builtin_ctzll((unsigned long long)n);

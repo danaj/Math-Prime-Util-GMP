@@ -543,17 +543,18 @@ static uint32_t siqs_A_last_prime(siqs_A_search_t *g, const uint32_t *prefix,
 /* The caller proves that even the largest possible product fits uint64_t.
  * Cross-products use 128 bits, preserving the exact geometric comparison. */
 static uint32_t siqs_A_last_prime64(siqs_A_search_t *g, const uint32_t *prefix) {
-  uint32_t count = g->ctx->params.q_count-1U, lo = 0, hi = g->size;
+  uint32_t i, count = g->ctx->params.q_count-1U, lo = 0, hi = g->size;
   uint32_t best = SIQS_NO_INDEX;
   uint64_t base = 1, best_a = 0;
-  for (uint32_t i = 0; i < count; i++) base *= g->native_primes[prefix[i]];
+  unsigned side;
+  for (i = 0; i < count; i++) base *= g->native_primes[prefix[i]];
   uint64_t wanted = g->native_target/base + (g->native_target%base != 0);
   while (lo < hi) {
     uint32_t mid = lo + (hi-lo)/2;
     if (g->native_primes[mid] < wanted) lo = mid+1;
     else hi = mid;
   }
-  for (unsigned side = 0; side < 2; side++) {
+  for (side = 0; side < 2; side++) {
     int64_t at = side ? (int64_t)lo : (int64_t)lo-1;
     while (at >= 0 && at < g->size &&
            !siqs_A_available((uint32_t)at,prefix,count)) at += side ? 1 : -1;
@@ -596,7 +597,7 @@ static uint32_t siqs_A_last_prime64(siqs_A_search_t *g, const uint32_t *prefix) 
  *--------------------------------------------------------------------------*/
 static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
                                double root) {
-  uint32_t q = poly->q_count, field = q <= 9U ? 7U : 19U;
+  uint32_t j, k, q = poly->q_count, field = q <= 9U ? 7U : 19U;
   uint32_t window = (q-1U)*field;
   if (q < SIQS_A_CUBIC_MIN_Q || q < 5U || q-1U > field+1U || g->size < window)
     return;
@@ -605,9 +606,9 @@ static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
    * overlap bound. q6/q7 tests found no sieve-work gain. Use RANDOM instead. */
   if (q == 6U || q == 7U) {
     double minimum = 1.0, desired = mpz_get_d(g->target)/root;
-    for (uint32_t j = 0; j < q-1U; j++) {
+    for (j = 0; j < q-1U; j++) {
       double sum = 0.0;
-      for (uint32_t k = 0; k < field; k++) sum += siqs_A_prime(g,j*field+k);
+      for (k = 0; k < field; k++) sum += siqs_A_prime(g,j*field+k);
       minimum *= sum/field;
     }
     if (minimum > desired) return;
@@ -641,7 +642,8 @@ static void siqs_A_cubic_init(siqs_A_search_t *g, const siqs_poly_t *poly,
 static int siqs_A_cubic_prefix(siqs_A_search_t *g, uint32_t q,
                                 uint32_t *prefix) {
   siqs_A_cubic_t *c = g->cubic;
-  uint32_t value, coefficients[4];
+  uint32_t x, value, coefficients[4];
+  unsigned i;
   if (c->draws == c->limit) return 0;
   if (c->draws == c->batch_end) {
     c->batch++;
@@ -650,14 +652,14 @@ static int siqs_A_cubic_prefix(siqs_A_search_t *g, uint32_t q,
   c->state = ((c->field+1U)*c->state+1U)%c->period;
   c->draws++;
   value = c->state;
-  for (unsigned i = 0; i < 4; i++) {
+  for (i = 0; i < 4; i++) {
     coefficients[i] = value%c->field; value /= c->field;
   }
-  for (uint32_t x = 0; x < q-1U; x++) {
+  for (x = 0; x < q-1U; x++) {
     value = 0;
     if (x == c->field) value = coefficients[3];
     else {
-      for (unsigned i = 4; i > 0; i--)
+      for (i = 4; i > 0; i--)
         value = (value*x+coefficients[i-1U])%c->field;
       if (c->batch != 0) {
         uint32_t x2 = x*x%c->field;
@@ -753,6 +755,8 @@ static siqs_A_search_t *siqs_choose_A_prepare(const siqs_ctx_t *ctx,
 
 #if USE_CUBIC_CHOOSER
   if (cubic) siqs_A_cubic_init(g, poly, root);
+#else
+  (void)cubic;
 #endif
 
   return g;
@@ -763,7 +767,7 @@ static siqs_A_search_t *siqs_choose_A_prepare(const siqs_ctx_t *ctx,
 static int siqs_random_positions(siqs_rng_t *rng, uint32_t limit,
                                   uint32_t center, uint32_t radius,
                                   uint32_t count, uint32_t *positions) {
-  uint32_t lo, hi, span;
+  uint32_t i, j, k, lo, hi, span;
   uint64_t upper;
   if (!count) return 1;
   if (center >= limit) return 0;
@@ -774,9 +778,9 @@ static int siqs_random_positions(siqs_rng_t *rng, uint32_t limit,
   if (span < count) return 0;
 
   /* Floyd sampling: exactly count draws, with no duplicate-retry loop. */
-  for (uint32_t i = 0, j = span - count; i < count; i++, j++) {
+  for (i = 0, j = span - count; i < count; i++, j++) {
     uint32_t pick = lo + siqs_rand_range(rng, j + 1U);
-    for (uint32_t k = 0; k < i; k++)
+    for (k = 0; k < i; k++)
       if (positions[k] == pick) { pick = lo + j; break; }
     positions[i] = pick;
   }
@@ -933,11 +937,11 @@ static int siqs_adaptive_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
 /* Keep the usual factor-two path intact. Relax only after its initial
  * bounded search fails. Restore factor two for the next family. */
 static int siqs_choose_A_sar(siqs_ctx_t *ctx, siqs_poly_t *poly) {
-  uint32_t maximum_factor = siqs_A_maximum_factor(ctx, poly->q_count);
+  uint32_t factor, maximum_factor = siqs_A_maximum_factor(ctx, poly->q_count);
   if (siqs_adaptive_choose_A(ctx, poly)) return 1;
   siqs_A_search_t *g = poly->A_search;
   int found = 0;
-  for (uint32_t factor = 4; factor <= maximum_factor; factor *= 2) {
+  for (factor = 4; factor <= maximum_factor; factor *= 2) {
     mpz_cdiv_q_ui(g->hard_lower, g->target, factor);
     mpz_mul_ui(g->hard_upper, g->target, factor);
 #if HAVE_UINT128 && ULONG_MAX > UINT32_MAX
@@ -986,9 +990,10 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   if (poly->q_count == 4U)
     return siqs_choose_A_sar(ctx, poly);
 
-  /* q >= 5 use either Cubic or SAR */
+  /* Journalled runs use SAR, keeping Cubic's enumeration state out of resume.
+   * Otherwise q >= 5 can use either Cubic or SAR. */
 #if USE_CUBIC_CHOOSER
-  if (poly->q_count >= SIQS_A_CUBIC_MIN_Q)
+  if (ctx->journal == NULL && poly->q_count >= SIQS_A_CUBIC_MIN_Q)
     return siqs_choose_A_cubic(ctx, poly);
 #endif
   return siqs_choose_A_sar(ctx, poly);

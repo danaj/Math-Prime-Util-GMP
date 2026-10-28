@@ -7,12 +7,13 @@ CFLAGS ?= -O3 -march=native -falign-loops=32
 LDFLAGS ?=
 LDLIBS ?= -lgmp -lm
 PERL ?= perl
+PYTHON ?= python3
 EXTRA_FLAGS ?=
 SIQS_CHECK_ARGS ?=
 SIQS_TUNE_ARGS ?=
 
 SOURCES = mpu-siqs.c siqs.c lanczos.c pr32_iter.c ../squfof126.c
-HEADERS = siqs.h siqs_dep.h lanczos.h siqs_choose_inc.c siqs_sieve_kernel_inc.c \
+HEADERS = siqs.h siqs_dep.h lanczos.h siqs_choose_inc.c siqs_sieve_kernel_inc.c siqs_journal_inc.c \
 	psiqs_inc.c planczos_inc.c ../ptypes.h ../mont64.h pr32_iter.h \
 	../squfof126.h ../misc_ui.h
 BUILD = $(PERL) tools/build-siqs.pl --cc "$(CC)" \
@@ -22,7 +23,7 @@ BUILD_DEPS = tools/build-siqs.pl tools/pthread-probe.c
 BENCH_DEPS = $(SOURCES) $(HEADERS)
 
 .PHONY: all siqs serial siqs-serial tuned siqs-tuned siqs-tuned-8 \
-	check check-siqs test-siqs check-pr32-iter check-siqs-autotune clean
+	check check-siqs test-siqs check-pr32-iter check-siqs-autotune check-siqs-journal clean
 
 all: msiqs
 siqs: msiqs
@@ -64,7 +65,10 @@ pr32-iter-check: ../xt/dev/siqs/pr32-iter-check.c pr32_iter.c pr32_iter.h Makefi
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(EXTRA_FLAGS) -o $@ ../xt/dev/siqs/pr32-iter-check.c $(LDFLAGS)
 
 check-pr32-iter: pr32-iter-check
-	./pr32-iter-check
+	@trap 'rm -f pr32-iter-check' 0; ./pr32-iter-check
+
+check-siqs-journal:
+	$(PYTHON) ../xt/dev/siqs/journal/run-all.py
 
 siqs-autotune-check: ../xt/dev/siqs/siqs-autotune-check.c tools/siqs-sieve-bench.c tools/siqs-autotune.inc.c $(BENCH_DEPS) $(BUILD_DEPS) Makefile
 	@$(BUILD) --output $@ ../xt/dev/siqs/siqs-autotune-check.c lanczos.c pr32_iter.c ../squfof126.c

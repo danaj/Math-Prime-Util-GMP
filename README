@@ -15,8 +15,7 @@ SYNOPSIS
   use bigint;
   use Math::Prime::Util::GMP qw/is_prime/;
 
-  # Max size of a number is 250 assigned to a scalar as a number
-  # is_prime accepts a bigint as a string
+  # functions accept bigint as strings or bigint-type-objects.
 
   my $bignum = "27188762623694447842124996538064039444034480940561898523069471141322552613142248049662205275973369340310432664971214620312500867999795559094898390220747143052478910604268911012707898393728029267456459638286456542290811906119936040794792836567800517712998324001798156031927248728220625109007338679765933511619979774789836912923556217410691909195918721300495567162524824116421834972571058278049256235507898646245768556946276949788343519575161621940362646866507884693948582445313246609982609803440514973664475699712739781845803535392293307648102481184237357244142946254918813030632212409545324607906367812717102049454943";
 
@@ -49,44 +48,15 @@ is to run the xt/create-standalone.sh script, which will create a standalone/
 directory with Makefile and README.  You should make sure you have the large
 discrimiment set (https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/).
 
-Standalone SIQS lives in siqs/. No Perl module
-configuration or installation is needed to build it:
+Standalone SIQS lives in siqs/.  There are detailed instructions in
+siqs/README.md.  For convenience, once the top-level Makefile has been
+generated with "perl Makefile.PL", "make siqs" builds the same standalone
+program and copies it to ./msiqs.
 
-   make -C siqs
-   ./siqs/msiqs 22095311209999409685885162322219
-   ./siqs/msiqs -t 8 -vv 22095311209999409685885162322219
-
-If the top-level Makefile has been generated with "perl Makefile.PL",
-"make siqs" builds the same standalone program and copies it to ./msiqs.
-Only this convenience target is forwarded; other standalone targets stay
-in siqs/. The top-level clean target removes the root executable copy.
-
-The standalone Makefile uses ordinary CC, CPPFLAGS, CFLAGS, LDFLAGS, and
-LDLIBS settings, independently of Perl's compiler configuration. A small
-Perl build helper detects pthread support by compiling/linking a probe.
-The executable has no Perl runtime dependency. To build directly without
-Perl (serial mode):
-
-   cc -O3 -march=native -falign-loops=32 -DSTANDALONE -o msiqs siqs/mpu-siqs.c siqs/siqs.c siqs/lanczos.c siqs/pr32_iter.c squfof126.c -lgmp -lm
-
-The default flags include 32-byte loop alignment to avoid placement-sensitive
-sieve slowdowns seen on x86. Retain -falign-loops=32 when overriding CFLAGS
-with a compiler that supports it.
-
-The default worker count is one. With no integer arguments, msiqs reads
-whitespace-separated decimal integers from stdin. An unsplit composite is
-marked [incomplete] and makes the program exit unsuccessfully. The normal
-Perl module does not use or require pthreads.
-
-Embedding guides and optional performance tools live in siqs/tools/.
-
-Repository-only health checks are available with:
-
-   make -C siqs check-siqs
-
-These are separate from the Perl test suite and are not distributed.
-See xt/dev/siqs/README-siqs-check.txt for extended checks and sanitizers.
-
+While the standalone SIQS uses pthreads, when built inside Perl it does not,
+as Perl has its own threading.  It is thread-safe so multiple copies can be
+run in different Perl threads.  Usually it is used as part of the factor()
+routine, but can be directly accessed with qs_factor().
 
 DEPENDENCIES
 

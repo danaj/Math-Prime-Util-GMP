@@ -1,0 +1,343 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+<title id="title">MPU-SIQS and YAFU-SIQS — 1 and 48 threads</title>
+<desc id="desc">Median wall time against decimal digits for balanced semiprimes on AMD EPYC 9B45 (Turin, Zen5). Blue is MPU-SIQS; red is YAFU. Dotted curves indicate 1 thread; solid curves indicate 48 threads. No shaded spread bands. Serial curves end where measurements end. Approximate bit sizes appear along the top; thin guides mark 1 second, 1 minute and 1 hour.</desc>
+<metadata>{&quot;generated_utc&quot;: &quot;2026-10-25T02:40:06.128642+00:00&quot;, &quot;sources&quot;: {&quot;1&quot;: {&quot;path&quot;: &quot;/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020/data/c4d-1/summary.tsv&quot;, &quot;sha256&quot;: &quot;5670decaa4931134b0646c35cc0bfb4924026c1d91529c7007a4a96af68b8525&quot;, &quot;snapshot&quot;: &quot;data/1-thread-summary-5670decaa4931134.tsv&quot;}, &quot;48&quot;: {&quot;path&quot;: &quot;/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020/data/c4d-48/summary.tsv&quot;, &quot;sha256&quot;: &quot;dc0c64ce03854aa584932482ca02d9ed09fc78774a55bb11481abead54d18a4a&quot;, &quot;snapshot&quot;: &quot;data/48-thread-summary-dc0c64ce03854aa5.tsv&quot;}}, &quot;statistic&quot;: &quot;median wall seconds per decimal-digit size; no spread bands&quot;, &quot;completeness&quot;: &quot;zero failures; sample count equals maximum across the four series at that digit&quot;, &quot;bit_ticks&quot;: [200, 250, 300, 350], &quot;bit_axis_conversion&quot;: &quot;approximate: decimal digits = bits * log10(2)&quot;, &quot;time_guides&quot;: [{&quot;seconds&quot;: 1, &quot;start_digits&quot;: 55, &quot;label&quot;: &quot;1 second&quot;}, {&quot;seconds&quot;: 60, &quot;start_digits&quot;: 72, &quot;label&quot;: &quot;1 minute&quot;}, {&quot;seconds&quot;: 3600, &quot;start_digits&quot;: 90, &quot;label&quot;: &quot;1 hour&quot;}], &quot;style_reference&quot;: &quot;four-way-hilbert-20261013/plot-continue.py&quot;, &quot;versions&quot;: {&quot;siqs&quot;: {&quot;version&quot;: &quot;Oct 13&quot;, &quot;source_ref&quot;: &quot;08fc958a4bf8bd66b4316ee9962a74164d8eeaaf&quot;}, &quot;yafu&quot;: {&quot;version&quot;: &quot;3.1.9&quot;, &quot;source_ref&quot;: &quot;8110dfbd8c6f9486d93b1a02de6eb7b180e55a80&quot;}}, &quot;input_pairing&quot;: &quot;summary TSVs do not contain individual input identities&quot;, &quot;presentation_omissions&quot;: [{&quot;threads&quot;: 1, &quot;program&quot;: &quot;siqs&quot;, &quot;reason&quot;: &quot;unmatched serial endpoint&quot;, &quot;digits&quot;: 103, &quot;samples&quot;: 3, &quot;failures&quot;: 0, &quot;seconds&quot;: 4447.214388333}], &quot;excluded_incomplete_points&quot;: [], &quot;coverage&quot;: [{&quot;threads&quot;: 1, &quot;program&quot;: &quot;siqs&quot;, &quot;digits&quot;: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102], &quot;samples&quot;: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}, {&quot;threads&quot;: 1, &quot;program&quot;: &quot;yafu&quot;, &quot;digits&quot;: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102], &quot;samples&quot;: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}, {&quot;threads&quot;: 48, &quot;program&quot;: &quot;siqs&quot;, &quot;digits&quot;: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110], &quot;samples&quot;: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}, {&quot;threads&quot;: 48, &quot;program&quot;: &quot;yafu&quot;, &quot;digits&quot;: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110], &quot;samples&quot;: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]}]}</metadata>
+<rect width="1200" height="900" fill="#f5f2eb"/>
+<rect x="112" y="170" width="1048" height="544" fill="#fcfbf8"/>
+<style>text{font-family:"DejaVu Sans",Verdana,sans-serif;fill:#30302d}.title{font-weight:700}.subtle{fill:#625f59}</style>
+<text x="1160.00" y="18.00" font-size="10" text-anchor="end" class="subtle">Generated 2026-10-25 UTC</text>
+<text x="636.00" y="47.00" font-size="25" text-anchor="middle" class="title">MPU-SIQS and YAFU-SIQS — 1 and 48 threads</text>
+<text x="636.00" y="76.00" font-size="14" text-anchor="middle" class="subtle">AMD EPYC 9B45 (Turin, Zen5) · balanced semiprimes · 50–110 decimal digits</text>
+<line x1="150.00" y1="104.00" x2="204.00" y2="104.00" stroke="#1764b0" stroke-width="3" stroke-linecap="round" />
+<text x="216.00" y="109.00" font-size="14" text-anchor="start" >MPU-SIQS 48-thread</text>
+<line x1="650.00" y1="104.00" x2="704.00" y2="104.00" stroke="#cf3b36" stroke-width="3" stroke-linecap="round" />
+<text x="716.00" y="109.00" font-size="14" text-anchor="start" >YAFU 48-thread</text>
+<line x1="150.00" y1="132.00" x2="204.00" y2="132.00" stroke="#1764b0" stroke-width="3" stroke-linecap="round" stroke-dasharray="1.5 5" />
+<text x="216.00" y="137.00" font-size="14" text-anchor="start" >MPU-SIQS 1-thread</text>
+<line x1="650.00" y1="132.00" x2="704.00" y2="132.00" stroke="#cf3b36" stroke-width="3" stroke-linecap="round" stroke-dasharray="1.5 5" />
+<text x="716.00" y="137.00" font-size="14" text-anchor="start" >YAFU 1-thread</text>
+<line x1="290.26" y1="164.00" x2="290.26" y2="170.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<text x="290.26" y="156.00" font-size="12" text-anchor="middle" class="subtle">200 bits</text>
+<line x1="553.16" y1="164.00" x2="553.16" y2="170.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<text x="553.16" y="156.00" font-size="12" text-anchor="middle" class="subtle">250 bits</text>
+<line x1="816.06" y1="164.00" x2="816.06" y2="170.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<text x="816.06" y="156.00" font-size="12" text-anchor="middle" class="subtle">300 bits</text>
+<line x1="1078.96" y1="164.00" x2="1078.96" y2="170.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<text x="1078.96" y="156.00" font-size="12" text-anchor="middle" class="subtle">350 bits</text>
+<line x1="112.00" y1="170.00" x2="112.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="112.00" y="739.00" font-size="13" text-anchor="middle" >50</text>
+<line x1="199.33" y1="170.00" x2="199.33" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="199.33" y="739.00" font-size="13" text-anchor="middle" >55</text>
+<line x1="286.67" y1="170.00" x2="286.67" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="286.67" y="739.00" font-size="13" text-anchor="middle" >60</text>
+<line x1="374.00" y1="170.00" x2="374.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="374.00" y="739.00" font-size="13" text-anchor="middle" >65</text>
+<line x1="461.33" y1="170.00" x2="461.33" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="461.33" y="739.00" font-size="13" text-anchor="middle" >70</text>
+<line x1="548.67" y1="170.00" x2="548.67" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="548.67" y="739.00" font-size="13" text-anchor="middle" >75</text>
+<line x1="636.00" y1="170.00" x2="636.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="636.00" y="739.00" font-size="13" text-anchor="middle" >80</text>
+<line x1="723.33" y1="170.00" x2="723.33" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="723.33" y="739.00" font-size="13" text-anchor="middle" >85</text>
+<line x1="810.67" y1="170.00" x2="810.67" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="810.67" y="739.00" font-size="13" text-anchor="middle" >90</text>
+<line x1="898.00" y1="170.00" x2="898.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="898.00" y="739.00" font-size="13" text-anchor="middle" >95</text>
+<line x1="985.33" y1="170.00" x2="985.33" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="985.33" y="739.00" font-size="13" text-anchor="middle" >100</text>
+<line x1="1072.67" y1="170.00" x2="1072.67" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="1072.67" y="739.00" font-size="13" text-anchor="middle" >105</text>
+<line x1="1160.00" y1="170.00" x2="1160.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="1160.00" y="739.00" font-size="13" text-anchor="middle" >110</text>
+<line x1="112.00" y1="714.00" x2="1160.00" y2="714.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="718.00" font-size="12" text-anchor="end" >10 ms</text>
+<line x1="112.00" y1="686.71" x2="1160.00" y2="686.71" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="690.71" font-size="12" text-anchor="end" >20 ms</text>
+<line x1="112.00" y1="650.63" x2="1160.00" y2="650.63" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="654.63" font-size="12" text-anchor="end" >50 ms</text>
+<line x1="112.00" y1="623.33" x2="1160.00" y2="623.33" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="627.33" font-size="12" text-anchor="end" >100 ms</text>
+<line x1="112.00" y1="596.04" x2="1160.00" y2="596.04" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="600.04" font-size="12" text-anchor="end" >200 ms</text>
+<line x1="112.00" y1="559.96" x2="1160.00" y2="559.96" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="563.96" font-size="12" text-anchor="end" >500 ms</text>
+<line x1="112.00" y1="532.67" x2="1160.00" y2="532.67" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="536.67" font-size="12" text-anchor="end" >1 s</text>
+<line x1="112.00" y1="505.37" x2="1160.00" y2="505.37" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="509.37" font-size="12" text-anchor="end" >2 s</text>
+<line x1="112.00" y1="469.29" x2="1160.00" y2="469.29" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="473.29" font-size="12" text-anchor="end" >5 s</text>
+<line x1="112.00" y1="442.00" x2="1160.00" y2="442.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="446.00" font-size="12" text-anchor="end" >10 s</text>
+<line x1="112.00" y1="414.71" x2="1160.00" y2="414.71" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="418.71" font-size="12" text-anchor="end" >20 s</text>
+<line x1="112.00" y1="378.63" x2="1160.00" y2="378.63" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="382.63" font-size="12" text-anchor="end" >50 s</text>
+<line x1="112.00" y1="351.33" x2="1160.00" y2="351.33" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="355.33" font-size="12" text-anchor="end" >100 s</text>
+<line x1="112.00" y1="324.04" x2="1160.00" y2="324.04" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="328.04" font-size="12" text-anchor="end" >200 s</text>
+<line x1="112.00" y1="287.96" x2="1160.00" y2="287.96" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="291.96" font-size="12" text-anchor="end" >500 s</text>
+<line x1="112.00" y1="260.67" x2="1160.00" y2="260.67" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="264.67" font-size="12" text-anchor="end" >1,000 s</text>
+<line x1="112.00" y1="233.37" x2="1160.00" y2="233.37" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="237.37" font-size="12" text-anchor="end" >2,000 s</text>
+<line x1="112.00" y1="197.29" x2="1160.00" y2="197.29" stroke="#ece9e3" stroke-width="0.45" stroke-linecap="round" />
+<text x="100.00" y="201.29" font-size="12" text-anchor="end" >5,000 s</text>
+<line x1="112.00" y1="170.00" x2="1160.00" y2="170.00" stroke="#d8d5ce" stroke-width="0.72" stroke-linecap="round" />
+<text x="100.00" y="174.00" font-size="12" text-anchor="end" >10,000 s</text>
+<g id="guide-1-seconds">
+<line x1="199.33" y1="532.67" x2="1160.00" y2="532.67" stroke="#222222" stroke-width="0.75" stroke-linecap="round" opacity=".8"/>
+<text x="205.33" y="525.67" font-size="11.5" text-anchor="start" class="subtle">1 second</text>
+</g>
+<g id="guide-60-seconds">
+<line x1="496.27" y1="371.45" x2="1160.00" y2="371.45" stroke="#222222" stroke-width="0.75" stroke-linecap="round" opacity=".8"/>
+<text x="502.27" y="364.45" font-size="11.5" text-anchor="start" class="subtle">1 minute</text>
+</g>
+<g id="guide-3600-seconds">
+<line x1="810.67" y1="210.23" x2="1160.00" y2="210.23" stroke="#222222" stroke-width="0.75" stroke-linecap="round" opacity=".8"/>
+<text x="816.67" y="203.23" font-size="11.5" text-anchor="start" class="subtle">1 hour</text>
+</g>
+<line x1="112.00" y1="170.00" x2="112.00" y2="714.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<line x1="112.00" y1="714.00" x2="1160.00" y2="714.00" stroke="#9d9990" stroke-width="0.8" stroke-linecap="round" />
+<text x="636.00" y="768.00" font-size="15" text-anchor="middle" >Decimal digits</text>
+<text x="24.00" y="442.00" font-size="15" text-anchor="middle" transform="rotate(-90 24 442.0)">Median wall time (log scale)</text>
+<polyline points="112.00,644.54 129.47,637.59 146.93,630.35 164.40,618.35 181.87,609.76 199.33,602.92 216.80,595.30 234.27,587.55 251.73,580.18 269.20,575.25 286.67,561.87 304.13,554.87 321.60,548.33 339.07,534.97 356.53,527.28 374.00,518.23 391.47,512.46 408.93,501.38 426.40,491.78 443.87,483.62 461.33,477.80 478.80,466.94 496.27,456.00 513.73,445.71 531.20,440.41 548.67,430.38 566.13,421.02 583.60,414.84 601.07,405.82 618.53,400.10 636.00,390.45 653.47,381.90 670.93,371.14 688.40,363.10 705.87,357.15 723.33,347.80 740.80,338.13 758.27,326.60 775.73,318.30 793.20,312.57 810.67,306.90 828.13,300.09 845.60,288.18 863.07,283.95 880.53,268.48 898.00,265.04 915.47,256.41 932.93,245.03 950.40,241.84 967.87,232.19 985.33,225.06 1002.80,216.69 1020.27,211.88" fill="none" stroke="#1764b0" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1.5 5"/>
+<circle cx="112.00" cy="644.54" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 50 digits: median 0.0583643 s; 20 inputs</title></circle>
+<circle cx="129.47" cy="637.59" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 51 digits: median 0.0696305 s; 20 inputs</title></circle>
+<circle cx="146.93" cy="630.35" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 52 digits: median 0.0836859 s; 20 inputs</title></circle>
+<circle cx="164.40" cy="618.35" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 53 digits: median 0.113504 s; 20 inputs</title></circle>
+<circle cx="181.87" cy="609.76" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 54 digits: median 0.141162 s; 20 inputs</title></circle>
+<circle cx="199.33" cy="602.92" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 55 digits: median 0.167939 s; 20 inputs</title></circle>
+<circle cx="216.80" cy="595.30" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 56 digits: median 0.2038 s; 20 inputs</title></circle>
+<circle cx="234.27" cy="587.55" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 57 digits: median 0.248147 s; 20 inputs</title></circle>
+<circle cx="251.73" cy="580.18" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 58 digits: median 0.299233 s; 20 inputs</title></circle>
+<circle cx="269.20" cy="575.25" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 59 digits: median 0.339088 s; 20 inputs</title></circle>
+<circle cx="286.67" cy="561.87" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 60 digits: median 0.476375 s; 10 inputs</title></circle>
+<circle cx="304.13" cy="554.87" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 61 digits: median 0.569044 s; 10 inputs</title></circle>
+<circle cx="321.60" cy="548.33" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 62 digits: median 0.671887 s; 10 inputs</title></circle>
+<circle cx="339.07" cy="534.97" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 63 digits: median 0.943125 s; 10 inputs</title></circle>
+<circle cx="356.53" cy="527.28" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 64 digits: median 1.14652 s; 10 inputs</title></circle>
+<circle cx="374.00" cy="518.23" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 65 digits: median 1.44287 s; 10 inputs</title></circle>
+<circle cx="391.47" cy="512.46" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 66 digits: median 1.67039 s; 10 inputs</title></circle>
+<circle cx="408.93" cy="501.38" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 67 digits: median 2.21342 s; 10 inputs</title></circle>
+<circle cx="426.40" cy="491.78" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 68 digits: median 2.82488 s; 10 inputs</title></circle>
+<circle cx="443.87" cy="483.62" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 69 digits: median 3.47524 s; 10 inputs</title></circle>
+<circle cx="461.33" cy="477.80" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 70 digits: median 4.02813 s; 10 inputs</title></circle>
+<circle cx="478.80" cy="466.94" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 71 digits: median 5.30831 s; 5 inputs</title></circle>
+<circle cx="496.27" cy="456.00" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 72 digits: median 7.00853 s; 5 inputs</title></circle>
+<circle cx="513.73" cy="445.71" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 73 digits: median 9.10098 s; 5 inputs</title></circle>
+<circle cx="531.20" cy="440.41" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 74 digits: median 10.4121 s; 5 inputs</title></circle>
+<circle cx="548.67" cy="430.38" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 75 digits: median 13.4317 s; 5 inputs</title></circle>
+<circle cx="566.13" cy="421.02" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 76 digits: median 17.0375 s; 5 inputs</title></circle>
+<circle cx="583.60" cy="414.84" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 77 digits: median 19.9348 s; 5 inputs</title></circle>
+<circle cx="601.07" cy="405.82" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 78 digits: median 25.0617 s; 5 inputs</title></circle>
+<circle cx="618.53" cy="400.10" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 79 digits: median 28.985 s; 5 inputs</title></circle>
+<circle cx="636.00" cy="390.45" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 80 digits: median 37.0337 s; 5 inputs</title></circle>
+<circle cx="653.47" cy="381.90" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 81 digits: median 46.0097 s; 3 inputs</title></circle>
+<circle cx="670.93" cy="371.14" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 82 digits: median 60.4654 s; 3 inputs</title></circle>
+<circle cx="688.40" cy="363.10" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 83 digits: median 74.1688 s; 3 inputs</title></circle>
+<circle cx="705.87" cy="357.15" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 84 digits: median 86.2566 s; 3 inputs</title></circle>
+<circle cx="723.33" cy="347.80" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 85 digits: median 109.39 s; 3 inputs</title></circle>
+<circle cx="740.80" cy="338.13" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 86 digits: median 139.828 s; 3 inputs</title></circle>
+<circle cx="758.27" cy="326.60" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 87 digits: median 187.419 s; 3 inputs</title></circle>
+<circle cx="775.73" cy="318.30" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 88 digits: median 231.362 s; 3 inputs</title></circle>
+<circle cx="793.20" cy="312.57" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 89 digits: median 267.654 s; 3 inputs</title></circle>
+<circle cx="810.67" cy="306.90" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 90 digits: median 309.063 s; 3 inputs</title></circle>
+<circle cx="828.13" cy="300.09" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 91 digits: median 367.454 s; 3 inputs</title></circle>
+<circle cx="845.60" cy="288.18" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 92 digits: median 497.24 s; 3 inputs</title></circle>
+<circle cx="863.07" cy="283.95" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 93 digits: median 553.55 s; 3 inputs</title></circle>
+<circle cx="880.53" cy="268.48" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 94 digits: median 820.114 s; 3 inputs</title></circle>
+<circle cx="898.00" cy="265.04" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 95 digits: median 894.873 s; 3 inputs</title></circle>
+<circle cx="915.47" cy="256.41" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 96 digits: median 1114.14 s; 3 inputs</title></circle>
+<circle cx="932.93" cy="245.03" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 97 digits: median 1487.62 s; 3 inputs</title></circle>
+<circle cx="950.40" cy="241.84" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 98 digits: median 1612.85 s; 3 inputs</title></circle>
+<circle cx="967.87" cy="232.19" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 99 digits: median 2060.91 s; 3 inputs</title></circle>
+<circle cx="985.33" cy="225.06" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 100 digits: median 2470.41 s; 3 inputs</title></circle>
+<circle cx="1002.80" cy="216.69" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 101 digits: median 3055.3 s; 3 inputs</title></circle>
+<circle cx="1020.27" cy="211.88" r="4" fill="transparent"><title>MPU-SIQS, 1 threads, 102 digits: median 3451.96 s; 3 inputs</title></circle>
+<polyline points="112.00,591.10 129.47,601.44 146.93,596.53 164.40,580.29 181.87,575.39 199.33,568.80 216.80,557.79 234.27,562.15 251.73,541.58 269.20,544.71 286.67,540.65 304.13,525.30 321.60,509.35 339.07,508.88 356.53,488.69 374.00,485.91 391.47,484.63 408.93,472.12 426.40,470.59 443.87,460.88 461.33,450.05 478.80,441.49 496.27,430.94 513.73,428.92 531.20,411.59 548.67,417.40 566.13,391.10 583.60,388.91 601.07,380.47 618.53,376.05 636.00,369.90 653.47,366.04 670.93,347.64 688.40,341.86 705.87,350.37 723.33,336.88 740.80,328.67 758.27,306.95 775.73,312.20 793.20,307.76 810.67,297.79 828.13,294.67 845.60,278.46 863.07,279.42 880.53,246.26 898.00,248.29 915.47,241.83 932.93,231.53 950.40,214.10 967.87,221.30 985.33,202.48 1002.80,202.03 1020.27,189.40" fill="none" stroke="#cf3b36" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1.5 5"/>
+<circle cx="112.00" cy="591.10" r="4" fill="transparent"><title>YAFU, 1 threads, 50 digits: median 0.226708 s; 20 inputs</title></circle>
+<circle cx="129.47" cy="601.44" r="4" fill="transparent"><title>YAFU, 1 threads, 51 digits: median 0.174349 s; 20 inputs</title></circle>
+<circle cx="146.93" cy="596.53" r="4" fill="transparent"><title>YAFU, 1 threads, 52 digits: median 0.197548 s; 20 inputs</title></circle>
+<circle cx="164.40" cy="580.29" r="4" fill="transparent"><title>YAFU, 1 threads, 53 digits: median 0.298397 s; 20 inputs</title></circle>
+<circle cx="181.87" cy="575.39" r="4" fill="transparent"><title>YAFU, 1 threads, 54 digits: median 0.337881 s; 20 inputs</title></circle>
+<circle cx="199.33" cy="568.80" r="4" fill="transparent"><title>YAFU, 1 threads, 55 digits: median 0.399501 s; 20 inputs</title></circle>
+<circle cx="216.80" cy="557.79" r="4" fill="transparent"><title>YAFU, 1 threads, 56 digits: median 0.528318 s; 20 inputs</title></circle>
+<circle cx="234.27" cy="562.15" r="4" fill="transparent"><title>YAFU, 1 threads, 57 digits: median 0.472918 s; 20 inputs</title></circle>
+<circle cx="251.73" cy="541.58" r="4" fill="transparent"><title>YAFU, 1 threads, 58 digits: median 0.79733 s; 20 inputs</title></circle>
+<circle cx="269.20" cy="544.71" r="4" fill="transparent"><title>YAFU, 1 threads, 59 digits: median 0.736479 s; 20 inputs</title></circle>
+<circle cx="286.67" cy="540.65" r="4" fill="transparent"><title>YAFU, 1 threads, 60 digits: median 0.816525 s; 10 inputs</title></circle>
+<circle cx="304.13" cy="525.30" r="4" fill="transparent"><title>YAFU, 1 threads, 61 digits: median 1.20567 s; 10 inputs</title></circle>
+<circle cx="321.60" cy="509.35" r="4" fill="transparent"><title>YAFU, 1 threads, 62 digits: median 1.80786 s; 10 inputs</title></circle>
+<circle cx="339.07" cy="508.88" r="4" fill="transparent"><title>YAFU, 1 threads, 63 digits: median 1.82936 s; 10 inputs</title></circle>
+<circle cx="356.53" cy="488.69" r="4" fill="transparent"><title>YAFU, 1 threads, 64 digits: median 3.05539 s; 10 inputs</title></circle>
+<circle cx="374.00" cy="485.91" r="4" fill="transparent"><title>YAFU, 1 threads, 65 digits: median 3.27905 s; 10 inputs</title></circle>
+<circle cx="391.47" cy="484.63" r="4" fill="transparent"><title>YAFU, 1 threads, 66 digits: median 3.38681 s; 10 inputs</title></circle>
+<circle cx="408.93" cy="472.12" r="4" fill="transparent"><title>YAFU, 1 threads, 67 digits: median 4.65349 s; 10 inputs</title></circle>
+<circle cx="426.40" cy="470.59" r="4" fill="transparent"><title>YAFU, 1 threads, 68 digits: median 4.83763 s; 10 inputs</title></circle>
+<circle cx="443.87" cy="460.88" r="4" fill="transparent"><title>YAFU, 1 threads, 69 digits: median 6.19125 s; 10 inputs</title></circle>
+<circle cx="461.33" cy="450.05" r="4" fill="transparent"><title>YAFU, 1 threads, 70 digits: median 8.15208 s; 10 inputs</title></circle>
+<circle cx="478.80" cy="441.49" r="4" fill="transparent"><title>YAFU, 1 threads, 71 digits: median 10.1306 s; 5 inputs</title></circle>
+<circle cx="496.27" cy="430.94" r="4" fill="transparent"><title>YAFU, 1 threads, 72 digits: median 13.2439 s; 5 inputs</title></circle>
+<circle cx="513.73" cy="428.92" r="4" fill="transparent"><title>YAFU, 1 threads, 73 digits: median 13.9406 s; 5 inputs</title></circle>
+<circle cx="531.20" cy="411.59" r="4" fill="transparent"><title>YAFU, 1 threads, 74 digits: median 21.6488 s; 5 inputs</title></circle>
+<circle cx="548.67" cy="417.40" r="4" fill="transparent"><title>YAFU, 1 threads, 75 digits: median 18.6773 s; 5 inputs</title></circle>
+<circle cx="566.13" cy="391.10" r="4" fill="transparent"><title>YAFU, 1 threads, 76 digits: median 36.4239 s; 5 inputs</title></circle>
+<circle cx="583.60" cy="388.91" r="4" fill="transparent"><title>YAFU, 1 threads, 77 digits: median 38.5067 s; 5 inputs</title></circle>
+<circle cx="601.07" cy="380.47" r="4" fill="transparent"><title>YAFU, 1 threads, 78 digits: median 47.716 s; 5 inputs</title></circle>
+<circle cx="618.53" cy="376.05" r="4" fill="transparent"><title>YAFU, 1 threads, 79 digits: median 53.3842 s; 5 inputs</title></circle>
+<circle cx="636.00" cy="369.90" r="4" fill="transparent"><title>YAFU, 1 threads, 80 digits: median 62.4072 s; 5 inputs</title></circle>
+<circle cx="653.47" cy="366.04" r="4" fill="transparent"><title>YAFU, 1 threads, 81 digits: median 68.8385 s; 3 inputs</title></circle>
+<circle cx="670.93" cy="347.64" r="4" fill="transparent"><title>YAFU, 1 threads, 82 digits: median 109.82 s; 3 inputs</title></circle>
+<circle cx="688.40" cy="341.86" r="4" fill="transparent"><title>YAFU, 1 threads, 83 digits: median 127.208 s; 3 inputs</title></circle>
+<circle cx="705.87" cy="350.37" r="4" fill="transparent"><title>YAFU, 1 threads, 84 digits: median 102.474 s; 3 inputs</title></circle>
+<circle cx="723.33" cy="336.88" r="4" fill="transparent"><title>YAFU, 1 threads, 85 digits: median 144.331 s; 3 inputs</title></circle>
+<circle cx="740.80" cy="328.67" r="4" fill="transparent"><title>YAFU, 1 threads, 86 digits: median 177.828 s; 3 inputs</title></circle>
+<circle cx="758.27" cy="306.95" r="4" fill="transparent"><title>YAFU, 1 threads, 87 digits: median 308.667 s; 3 inputs</title></circle>
+<circle cx="775.73" cy="312.20" r="4" fill="transparent"><title>YAFU, 1 threads, 88 digits: median 270.183 s; 3 inputs</title></circle>
+<circle cx="793.20" cy="307.76" r="4" fill="transparent"><title>YAFU, 1 threads, 89 digits: median 302.403 s; 3 inputs</title></circle>
+<circle cx="810.67" cy="297.79" r="4" fill="transparent"><title>YAFU, 1 threads, 90 digits: median 389.566 s; 3 inputs</title></circle>
+<circle cx="828.13" cy="294.67" r="4" fill="transparent"><title>YAFU, 1 threads, 91 digits: median 421.638 s; 3 inputs</title></circle>
+<circle cx="845.60" cy="278.46" r="4" fill="transparent"><title>YAFU, 1 threads, 92 digits: median 636.357 s; 3 inputs</title></circle>
+<circle cx="863.07" cy="279.42" r="4" fill="transparent"><title>YAFU, 1 threads, 93 digits: median 621.147 s; 3 inputs</title></circle>
+<circle cx="880.53" cy="246.26" r="4" fill="transparent"><title>YAFU, 1 threads, 94 digits: median 1441.72 s; 3 inputs</title></circle>
+<circle cx="898.00" cy="248.29" r="4" fill="transparent"><title>YAFU, 1 threads, 95 digits: median 1369.45 s; 3 inputs</title></circle>
+<circle cx="915.47" cy="241.83" r="4" fill="transparent"><title>YAFU, 1 threads, 96 digits: median 1613.34 s; 3 inputs</title></circle>
+<circle cx="932.93" cy="231.53" r="4" fill="transparent"><title>YAFU, 1 threads, 97 digits: median 2095.83 s; 3 inputs</title></circle>
+<circle cx="950.40" cy="214.10" r="4" fill="transparent"><title>YAFU, 1 threads, 98 digits: median 3263.24 s; 3 inputs</title></circle>
+<circle cx="967.87" cy="221.30" r="4" fill="transparent"><title>YAFU, 1 threads, 99 digits: median 2717.93 s; 3 inputs</title></circle>
+<circle cx="985.33" cy="202.48" r="4" fill="transparent"><title>YAFU, 1 threads, 100 digits: median 4382.38 s; 3 inputs</title></circle>
+<circle cx="1002.80" cy="202.03" r="4" fill="transparent"><title>YAFU, 1 threads, 101 digits: median 4432.84 s; 3 inputs</title></circle>
+<circle cx="1020.27" cy="189.40" r="4" fill="transparent"><title>YAFU, 1 threads, 102 digits: median 6109.23 s; 3 inputs</title></circle>
+<polyline points="112.00,687.52 129.47,685.13 146.93,682.87 164.40,679.94 181.87,678.11 199.33,675.42 216.80,670.85 234.27,666.05 251.73,658.67 269.20,653.44 286.67,648.78 304.13,643.08 321.60,638.93 339.07,630.76 356.53,624.44 374.00,621.10 391.47,611.50 408.93,603.78 426.40,598.67 443.87,590.42 461.33,586.09 478.80,582.27 496.27,573.80 513.73,569.64 531.20,568.88 548.67,557.24 566.13,547.86 583.60,545.68 601.07,539.49 618.53,536.23 636.00,527.91 653.47,519.38 670.93,511.53 688.40,500.96 705.87,499.94 723.33,489.91 740.80,482.35 758.27,467.44 775.73,455.09 793.20,456.30 810.67,452.59 828.13,444.81 845.60,436.06 863.07,431.45 880.53,417.27 898.00,413.74 915.47,404.80 932.93,393.40 950.40,390.94 967.87,380.98 985.33,373.39 1002.80,365.44 1020.27,360.66 1037.73,350.94 1055.20,346.63 1072.67,330.58 1090.13,329.63 1107.60,321.67 1125.07,308.48 1142.53,308.32 1160.00,295.24" fill="none" stroke="#1764b0" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="112.00" cy="687.52" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 50 digits: median 0.0195887 s; 20 inputs</title></circle>
+<circle cx="129.47" cy="685.13" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 51 digits: median 0.0208172 s; 20 inputs</title></circle>
+<circle cx="146.93" cy="682.87" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 52 digits: median 0.0220441 s; 20 inputs</title></circle>
+<circle cx="164.40" cy="679.94" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 53 digits: median 0.023752 s; 20 inputs</title></circle>
+<circle cx="181.87" cy="678.11" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 54 digits: median 0.0248806 s; 20 inputs</title></circle>
+<circle cx="199.33" cy="675.42" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 55 digits: median 0.0266421 s; 20 inputs</title></circle>
+<circle cx="216.80" cy="670.85" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 56 digits: median 0.0299195 s; 20 inputs</title></circle>
+<circle cx="234.27" cy="666.05" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 57 digits: median 0.0337917 s; 20 inputs</title></circle>
+<circle cx="251.73" cy="658.67" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 58 digits: median 0.0407577 s; 20 inputs</title></circle>
+<circle cx="269.20" cy="653.44" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 59 digits: median 0.0465479 s; 20 inputs</title></circle>
+<circle cx="286.67" cy="648.78" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 60 digits: median 0.052403 s; 10 inputs</title></circle>
+<circle cx="304.13" cy="643.08" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 61 digits: median 0.0605589 s; 10 inputs</title></circle>
+<circle cx="321.60" cy="638.93" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 62 digits: median 0.0672942 s; 10 inputs</title></circle>
+<circle cx="339.07" cy="630.76" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 63 digits: median 0.0828204 s; 10 inputs</title></circle>
+<circle cx="356.53" cy="624.44" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 64 digits: median 0.0972164 s; 10 inputs</title></circle>
+<circle cx="374.00" cy="621.10" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 65 digits: median 0.105831 s; 10 inputs</title></circle>
+<circle cx="391.47" cy="611.50" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 66 digits: median 0.135048 s; 10 inputs</title></circle>
+<circle cx="408.93" cy="603.78" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 67 digits: median 0.164313 s; 10 inputs</title></circle>
+<circle cx="426.40" cy="598.67" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 68 digits: median 0.187059 s; 10 inputs</title></circle>
+<circle cx="443.87" cy="590.42" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 69 digits: median 0.230663 s; 10 inputs</title></circle>
+<circle cx="461.33" cy="586.09" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 70 digits: median 0.257503 s; 10 inputs</title></circle>
+<circle cx="478.80" cy="582.27" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 71 digits: median 0.283698 s; 5 inputs</title></circle>
+<circle cx="496.27" cy="573.80" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 72 digits: median 0.351792 s; 5 inputs</title></circle>
+<circle cx="513.73" cy="569.64" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 73 digits: median 0.390982 s; 5 inputs</title></circle>
+<circle cx="531.20" cy="568.88" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 74 digits: median 0.398677 s; 5 inputs</title></circle>
+<circle cx="548.67" cy="557.24" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 75 digits: median 0.535792 s; 5 inputs</title></circle>
+<circle cx="566.13" cy="547.86" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 76 digits: median 0.679825 s; 5 inputs</title></circle>
+<circle cx="583.60" cy="545.68" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 77 digits: median 0.718534 s; 5 inputs</title></circle>
+<circle cx="601.07" cy="539.49" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 78 digits: median 0.840873 s; 5 inputs</title></circle>
+<circle cx="618.53" cy="536.23" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 79 digits: median 0.913536 s; 5 inputs</title></circle>
+<circle cx="636.00" cy="527.91" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 80 digits: median 1.12848 s; 5 inputs</title></circle>
+<circle cx="653.47" cy="519.38" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 81 digits: median 1.40133 s; 3 inputs</title></circle>
+<circle cx="670.93" cy="511.53" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 82 digits: median 1.71062 s; 3 inputs</title></circle>
+<circle cx="688.40" cy="500.96" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 83 digits: median 2.23704 s; 3 inputs</title></circle>
+<circle cx="705.87" cy="499.94" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 84 digits: median 2.29573 s; 3 inputs</title></circle>
+<circle cx="723.33" cy="489.91" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 85 digits: median 2.96199 s; 3 inputs</title></circle>
+<circle cx="740.80" cy="482.35" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 86 digits: median 3.58909 s; 3 inputs</title></circle>
+<circle cx="758.27" cy="467.44" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 87 digits: median 5.24146 s; 3 inputs</title></circle>
+<circle cx="775.73" cy="455.09" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 88 digits: median 7.1709 s; 3 inputs</title></circle>
+<circle cx="793.20" cy="456.30" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 89 digits: median 6.95456 s; 3 inputs</title></circle>
+<circle cx="810.67" cy="452.59" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 90 digits: median 7.64234 s; 3 inputs</title></circle>
+<circle cx="828.13" cy="444.81" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 91 digits: median 9.31091 s; 3 inputs</title></circle>
+<circle cx="845.60" cy="436.06" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 92 digits: median 11.6283 s; 3 inputs</title></circle>
+<circle cx="863.07" cy="431.45" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 93 digits: median 13.0725 s; 3 inputs</title></circle>
+<circle cx="880.53" cy="417.27" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 94 digits: median 18.7398 s; 3 inputs</title></circle>
+<circle cx="898.00" cy="413.74" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 95 digits: median 20.498 s; 3 inputs</title></circle>
+<circle cx="915.47" cy="404.80" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 96 digits: median 25.7182 s; 3 inputs</title></circle>
+<circle cx="932.93" cy="393.40" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 97 digits: median 34.3606 s; 3 inputs</title></circle>
+<circle cx="950.40" cy="390.94" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 98 digits: median 36.5733 s; 3 inputs</title></circle>
+<circle cx="967.87" cy="380.98" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 99 digits: median 47.0956 s; 3 inputs</title></circle>
+<circle cx="985.33" cy="373.39" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 100 digits: median 57.1136 s; 3 inputs</title></circle>
+<circle cx="1002.80" cy="365.44" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 101 digits: median 69.8812 s; 3 inputs</title></circle>
+<circle cx="1020.27" cy="360.66" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 102 digits: median 78.9161 s; 3 inputs</title></circle>
+<circle cx="1037.73" cy="350.94" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 103 digits: median 101.007 s; 3 inputs</title></circle>
+<circle cx="1055.20" cy="346.63" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 104 digits: median 112.674 s; 3 inputs</title></circle>
+<circle cx="1072.67" cy="330.58" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 105 digits: median 169.375 s; 3 inputs</title></circle>
+<circle cx="1090.13" cy="329.63" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 106 digits: median 173.523 s; 3 inputs</title></circle>
+<circle cx="1107.60" cy="321.67" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 107 digits: median 212.408 s; 3 inputs</title></circle>
+<circle cx="1125.07" cy="308.48" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 108 digits: median 296.912 s; 3 inputs</title></circle>
+<circle cx="1142.53" cy="308.32" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 109 digits: median 298.116 s; 3 inputs</title></circle>
+<circle cx="1160.00" cy="295.24" r="4" fill="transparent"><title>MPU-SIQS, 48 threads, 110 digits: median 415.61 s; 3 inputs</title></circle>
+<polyline points="112.00,626.96 129.47,626.47 146.93,623.82 164.40,622.64 181.87,621.34 199.33,618.50 216.80,616.40 234.27,616.23 251.73,612.19 269.20,611.33 286.67,609.58 304.13,604.79 321.60,600.32 339.07,597.99 356.53,589.97 374.00,588.38 391.47,584.50 408.93,574.79 426.40,571.74 443.87,549.98 461.33,539.93 478.80,532.67 496.27,521.80 513.73,515.76 531.20,525.11 548.67,523.09 566.13,508.18 583.60,505.27 601.07,497.05 618.53,493.88 636.00,485.31 653.47,480.30 670.93,469.28 688.40,467.56 705.87,467.14 723.33,459.66 740.80,452.05 758.27,435.44 775.73,432.51 793.20,435.02 810.67,427.96 828.13,424.31 845.60,412.59 863.07,413.32 880.53,387.00 898.00,387.93 915.47,381.64 932.93,371.00 950.40,358.89 967.87,362.85 985.33,346.24 1002.80,344.67 1020.27,334.18 1037.73,317.49 1055.20,326.39 1072.67,313.40 1090.13,311.11 1107.60,294.38 1125.07,288.41 1142.53,292.47 1160.00,267.44" fill="none" stroke="#cf3b36" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="112.00" cy="626.96" r="4" fill="transparent"><title>YAFU, 48 threads, 50 digits: median 0.0912008 s; 20 inputs</title></circle>
+<circle cx="129.47" cy="626.47" r="4" fill="transparent"><title>YAFU, 48 threads, 51 digits: median 0.0923402 s; 20 inputs</title></circle>
+<circle cx="146.93" cy="623.82" r="4" fill="transparent"><title>YAFU, 48 threads, 52 digits: median 0.0987738 s; 20 inputs</title></circle>
+<circle cx="164.40" cy="622.64" r="4" fill="transparent"><title>YAFU, 48 threads, 53 digits: median 0.101781 s; 20 inputs</title></circle>
+<circle cx="181.87" cy="621.34" r="4" fill="transparent"><title>YAFU, 48 threads, 54 digits: median 0.105191 s; 20 inputs</title></circle>
+<circle cx="199.33" cy="618.50" r="4" fill="transparent"><title>YAFU, 48 threads, 55 digits: median 0.113053 s; 20 inputs</title></circle>
+<circle cx="216.80" cy="616.40" r="4" fill="transparent"><title>YAFU, 48 threads, 56 digits: median 0.119259 s; 20 inputs</title></circle>
+<circle cx="234.27" cy="616.23" r="4" fill="transparent"><title>YAFU, 48 threads, 57 digits: median 0.119769 s; 20 inputs</title></circle>
+<circle cx="251.73" cy="612.19" r="4" fill="transparent"><title>YAFU, 48 threads, 58 digits: median 0.132694 s; 20 inputs</title></circle>
+<circle cx="269.20" cy="611.33" r="4" fill="transparent"><title>YAFU, 48 threads, 59 digits: median 0.135638 s; 20 inputs</title></circle>
+<circle cx="286.67" cy="609.58" r="4" fill="transparent"><title>YAFU, 48 threads, 60 digits: median 0.141788 s; 10 inputs</title></circle>
+<circle cx="304.13" cy="604.79" r="4" fill="transparent"><title>YAFU, 48 threads, 61 digits: median 0.160159 s; 10 inputs</title></circle>
+<circle cx="321.60" cy="600.32" r="4" fill="transparent"><title>YAFU, 48 threads, 62 digits: median 0.179414 s; 10 inputs</title></circle>
+<circle cx="339.07" cy="597.99" r="4" fill="transparent"><title>YAFU, 48 threads, 63 digits: median 0.190359 s; 10 inputs</title></circle>
+<circle cx="356.53" cy="589.97" r="4" fill="transparent"><title>YAFU, 48 threads, 64 digits: median 0.233346 s; 10 inputs</title></circle>
+<circle cx="374.00" cy="588.38" r="4" fill="transparent"><title>YAFU, 48 threads, 65 digits: median 0.242975 s; 10 inputs</title></circle>
+<circle cx="391.47" cy="584.50" r="4" fill="transparent"><title>YAFU, 48 threads, 66 digits: median 0.268082 s; 10 inputs</title></circle>
+<circle cx="408.93" cy="574.79" r="4" fill="transparent"><title>YAFU, 48 threads, 67 digits: median 0.343046 s; 10 inputs</title></circle>
+<circle cx="426.40" cy="571.74" r="4" fill="transparent"><title>YAFU, 48 threads, 68 digits: median 0.370684 s; 10 inputs</title></circle>
+<circle cx="443.87" cy="549.98" r="4" fill="transparent"><title>YAFU, 48 threads, 69 digits: median 0.644156 s; 10 inputs</title></circle>
+<circle cx="461.33" cy="539.93" r="4" fill="transparent"><title>YAFU, 48 threads, 70 digits: median 0.831577 s; 10 inputs</title></circle>
+<circle cx="478.80" cy="532.67" r="4" fill="transparent"><title>YAFU, 48 threads, 71 digits: median 0.9999 s; 5 inputs</title></circle>
+<circle cx="496.27" cy="521.80" r="4" fill="transparent"><title>YAFU, 48 threads, 72 digits: median 1.31794 s; 5 inputs</title></circle>
+<circle cx="513.73" cy="515.76" r="4" fill="transparent"><title>YAFU, 48 threads, 73 digits: median 1.53611 s; 5 inputs</title></circle>
+<circle cx="531.20" cy="525.11" r="4" fill="transparent"><title>YAFU, 48 threads, 74 digits: median 1.21164 s; 5 inputs</title></circle>
+<circle cx="548.67" cy="523.09" r="4" fill="transparent"><title>YAFU, 48 threads, 75 digits: median 1.27547 s; 5 inputs</title></circle>
+<circle cx="566.13" cy="508.18" r="4" fill="transparent"><title>YAFU, 48 threads, 76 digits: median 1.86247 s; 5 inputs</title></circle>
+<circle cx="583.60" cy="505.27" r="4" fill="transparent"><title>YAFU, 48 threads, 77 digits: median 2.00507 s; 5 inputs</title></circle>
+<circle cx="601.07" cy="497.05" r="4" fill="transparent"><title>YAFU, 48 threads, 78 digits: median 2.47058 s; 5 inputs</title></circle>
+<circle cx="618.53" cy="493.88" r="4" fill="transparent"><title>YAFU, 48 threads, 79 digits: median 2.67811 s; 5 inputs</title></circle>
+<circle cx="636.00" cy="485.31" r="4" fill="transparent"><title>YAFU, 48 threads, 80 digits: median 3.32867 s; 5 inputs</title></circle>
+<circle cx="653.47" cy="480.30" r="4" fill="transparent"><title>YAFU, 48 threads, 81 digits: median 3.7807 s; 3 inputs</title></circle>
+<circle cx="670.93" cy="469.28" r="4" fill="transparent"><title>YAFU, 48 threads, 82 digits: median 5.00147 s; 3 inputs</title></circle>
+<circle cx="688.40" cy="467.56" r="4" fill="transparent"><title>YAFU, 48 threads, 83 digits: median 5.22531 s; 3 inputs</title></circle>
+<circle cx="705.87" cy="467.14" r="4" fill="transparent"><title>YAFU, 48 threads, 84 digits: median 5.2809 s; 3 inputs</title></circle>
+<circle cx="723.33" cy="459.66" r="4" fill="transparent"><title>YAFU, 48 threads, 85 digits: median 6.38666 s; 3 inputs</title></circle>
+<circle cx="740.80" cy="452.05" r="4" fill="transparent"><title>YAFU, 48 threads, 86 digits: median 7.74824 s; 3 inputs</title></circle>
+<circle cx="758.27" cy="435.44" r="4" fill="transparent"><title>YAFU, 48 threads, 87 digits: median 11.8119 s; 3 inputs</title></circle>
+<circle cx="775.73" cy="432.51" r="4" fill="transparent"><title>YAFU, 48 threads, 88 digits: median 12.7268 s; 3 inputs</title></circle>
+<circle cx="793.20" cy="435.02" r="4" fill="transparent"><title>YAFU, 48 threads, 89 digits: median 11.9395 s; 3 inputs</title></circle>
+<circle cx="810.67" cy="427.96" r="4" fill="transparent"><title>YAFU, 48 threads, 90 digits: median 14.2857 s; 3 inputs</title></circle>
+<circle cx="828.13" cy="424.31" r="4" fill="transparent"><title>YAFU, 48 threads, 91 digits: median 15.6722 s; 3 inputs</title></circle>
+<circle cx="845.60" cy="412.59" r="4" fill="transparent"><title>YAFU, 48 threads, 92 digits: median 21.1064 s; 3 inputs</title></circle>
+<circle cx="863.07" cy="413.32" r="4" fill="transparent"><title>YAFU, 48 threads, 93 digits: median 20.7154 s; 3 inputs</title></circle>
+<circle cx="880.53" cy="387.00" r="4" fill="transparent"><title>YAFU, 48 threads, 94 digits: median 40.4242 s; 3 inputs</title></circle>
+<circle cx="898.00" cy="387.93" r="4" fill="transparent"><title>YAFU, 48 threads, 95 digits: median 39.4784 s; 3 inputs</title></circle>
+<circle cx="915.47" cy="381.64" r="4" fill="transparent"><title>YAFU, 48 threads, 96 digits: median 46.3179 s; 3 inputs</title></circle>
+<circle cx="932.93" cy="371.00" r="4" fill="transparent"><title>YAFU, 48 threads, 97 digits: median 60.6858 s; 3 inputs</title></circle>
+<circle cx="950.40" cy="358.89" r="4" fill="transparent"><title>YAFU, 48 threads, 98 digits: median 82.5373 s; 3 inputs</title></circle>
+<circle cx="967.87" cy="362.85" r="4" fill="transparent"><title>YAFU, 48 threads, 99 digits: median 74.6423 s; 3 inputs</title></circle>
+<circle cx="985.33" cy="346.24" r="4" fill="transparent"><title>YAFU, 48 threads, 100 digits: median 113.8 s; 3 inputs</title></circle>
+<circle cx="1002.80" cy="344.67" r="4" fill="transparent"><title>YAFU, 48 threads, 101 digits: median 118.44 s; 3 inputs</title></circle>
+<circle cx="1020.27" cy="334.18" r="4" fill="transparent"><title>YAFU, 48 threads, 102 digits: median 154.596 s; 3 inputs</title></circle>
+<circle cx="1037.73" cy="317.49" r="4" fill="transparent"><title>YAFU, 48 threads, 103 digits: median 236.198 s; 3 inputs</title></circle>
+<circle cx="1055.20" cy="326.39" r="4" fill="transparent"><title>YAFU, 48 threads, 104 digits: median 188.428 s; 3 inputs</title></circle>
+<circle cx="1072.67" cy="313.40" r="4" fill="transparent"><title>YAFU, 48 threads, 105 digits: median 262.07 s; 3 inputs</title></circle>
+<circle cx="1090.13" cy="311.11" r="4" fill="transparent"><title>YAFU, 48 threads, 106 digits: median 277.768 s; 3 inputs</title></circle>
+<circle cx="1107.60" cy="294.38" r="4" fill="transparent"><title>YAFU, 48 threads, 107 digits: median 424.771 s; 3 inputs</title></circle>
+<circle cx="1125.07" cy="288.41" r="4" fill="transparent"><title>YAFU, 48 threads, 108 digits: median 494.367 s; 3 inputs</title></circle>
+<circle cx="1142.53" cy="292.47" r="4" fill="transparent"><title>YAFU, 48 threads, 109 digits: median 445.853 s; 3 inputs</title></circle>
+<circle cx="1160.00" cy="267.44" r="4" fill="transparent"><title>YAFU, 48 threads, 110 digits: median 841.86 s; 3 inputs</title></circle>
+<text x="1160.00" y="797.00" font-size="11.5" text-anchor="end" class="subtle">Each point is the median wall time for one decimal-digit size; no spread bands are shown.</text>
+<text x="1160.00" y="815.00" font-size="11.5" text-anchor="end" class="subtle">Balanced-semiprime inputs per digit: 20 at 50–59; 10 at 60–70; 5 at 71–80; 3 at 81–110.</text>
+<text x="1160.00" y="833.00" font-size="11.5" text-anchor="end" class="subtle">Serial coverage: MPU-SIQS 50–102; YAFU 50–102 digits. Curves stop at available data; no extrapolation.</text>
+<text x="1160.00" y="851.00" font-size="11.5" text-anchor="end" class="subtle">MPU-SIQS 08fc958a; YAFU 8110dfbd. Each program uses the same source revision at both thread counts.</text>
+</svg>
