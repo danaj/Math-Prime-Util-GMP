@@ -173,12 +173,6 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
     (SIQS_SIEVE_BLOCK_SIZE < 4096U || SIQS_SIEVE_BLOCK_SIZE > 1048576U)
 # error "SIQS_SIEVE_BLOCK_SIZE must be zero or between 4 KiB and 1 MiB"
 #endif
-/* Direct candidate tests are substantially cheaper than sparse candidate-map
- * walks on the measured M1 Pro.  Fixed-work sweeps found a broad plateau from
- * about 6 through the all-direct limit; timer-free full factors selected 8 as
- * the smallest simple value on that plateau. */
-#define SIQS_RESIEVE_CUTOFF_COEFFICIENT       8U
-#define SIQS_RESIEVE_CUTOFF_FLOOR          1024U
 #define SIQS_MATRIX_EXTRA_RELS(ctx) \
     ((ctx)->params.max_large_primes == 1 \
       ? SIQS_MATRIX_EXTRA_RELS_1LP_DEFAULT \
@@ -901,6 +895,7 @@ typedef struct {
   uint64_t parity[64], combination[64];
   uint32_t original[64];
 } siqs_bids_word_t;
+
 
 typedef struct {
   mpz_srcptr original_n;
@@ -4044,6 +4039,40 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
   ctx->candidate_count = out;
 }
 
+/* Select a direct-test prefix and rewalk the remaining root progressions.
+ * Sparse lists use direct tests throughout. For moderately larger lists,
+ * B/N (the fraction requiring Barrett reduction) cheaply identifies when
+ * all-direct still wins; otherwise use the shifted M/(count-4) threshold.
+ * These are measured cost heuristics: every cutoff recovers the same hits.
+ * No per-job model allocation or per-worker dispatch state is required. */
+static INLINE uint32_t siqs_resieve_cutoff(const uint32_t *prime,
+                                            uint32_t begin, uint32_t end,
+                                            uint32_t count,
+                                            uint32_t half_interval,
+                                            uint32_t barrett_end) {
+  uint32_t threshold, lo, hi;
+  if (count <= 4U || begin >= end) return end;
+  if (prime[end - 1U] <= 1024U) return end;
+  if (barrett_end < begin) barrett_end = begin;
+  if (barrett_end > end) barrett_end = end;
+  if (count <= 10U &&
+      UINT64_C(2) * count * (barrett_end - begin) <=
+      UINT64_C(7) * (end - begin))
+    return end;
+  threshold = half_interval / (count - 4U);
+  if (prime[end - 1U] <= threshold) return end;
+  if (count <= 10U &&
+      (barrett_end == begin || prime[barrett_end - 1U] <= threshold))
+    return end;
+  lo = begin; hi = end;
+  while (lo < hi) {
+    uint32_t middle = lo + (hi - lo) / 2U;
+    if (prime[middle] <= threshold) lo = middle + 1U;
+    else hi = middle;
+  }
+  return lo;
+}
+
 static void siqs_resieve_candidates(siqs_ctx_t *ctx,
                                     uint32_t factor_begin,
                                     uint32_t progression_end) {
@@ -4053,37 +4082,15 @@ static void siqs_resieve_candidates(siqs_ctx_t *ctx,
   const uint32_t *reciprocal = ctx->fb_reciprocal;
   const siqs_candidate_t *candidates = ctx->candidates;
   int32_t half_interval = (int32_t)ctx->params.half_interval;
-  uint32_t i, j, c, cutoff = factor_begin, cutoff_prime;
+  uint32_t i, j, c, cutoff;
   uint32_t barrett_end, one_subtract_end;
   uint32_t matches[32];
   if (ctx->candidate_count == 0) {
     return;
   }
-  {
-    uint64_t proposed =
-        (uint64_t)SIQS_RESIEVE_CUTOFF_COEFFICIENT *
-        ctx->sieve_length / ctx->candidate_count;
-    cutoff_prime = proposed > UINT32_MAX
-                 ? UINT32_MAX : (uint32_t)proposed;
-  }
-  if (cutoff_prime < SIQS_RESIEVE_CUTOFF_FLOOR)
-    cutoff_prime = SIQS_RESIEVE_CUTOFF_FLOOR;
-  /* The factor base is sorted.  Sparse candidate sets often put the cutoff
-   * beyond its largest prime, so avoid walking most of the base merely to
-   * discover that every entry belongs to the direct-test range. */
-  if (cutoff < progression_end &&
-      prime[progression_end - 1U] <= cutoff_prime) {
-    cutoff = progression_end;
-  } else {
-    uint32_t high = progression_end;
-    while (cutoff < high) {
-      uint32_t middle = cutoff + (high - cutoff) / 2U;
-      if (prime[middle] <= cutoff_prime)
-        cutoff = middle + 1U;
-      else
-        high = middle;
-    }
-  }
+  cutoff = siqs_resieve_cutoff(prime, factor_begin, progression_end,
+      ctx->candidate_count, ctx->params.half_interval,
+      ctx->resieve_one_subtract_index);
   one_subtract_end = cutoff < ctx->resieve_identity_index
                    ? cutoff : ctx->resieve_identity_index;
   barrett_end = one_subtract_end < ctx->resieve_one_subtract_index

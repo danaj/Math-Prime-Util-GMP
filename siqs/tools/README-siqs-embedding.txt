@@ -204,8 +204,9 @@ Build from the siqs/ directory, supplying your adapter in my-siqs-host.c:
 For parallel support, add -DPSIQS -pthread to that command. Both public entry
 points are then available; the example requests four workers. Valid counts
 are 1..PSIQS_MAX_THREADS. One worker and small/inline-solving policies use the
-serial path. Keep siqs_choose_inc.c and siqs_sieve_kernel_inc.c alongside
-siqs.c. Do not compile them, psiqs_inc.c or planczos_inc.c separately; they
+serial path. Keep siqs_choose_inc.c, siqs_sieve_kernel_inc.c,
+and siqs_journal_inc.c alongside siqs.c.
+Do not compile them, psiqs_inc.c or planczos_inc.c separately; they
 are implementation includes used by siqs.c/lanczos.c. Use -march=native only
 for a local-machine binary, not one intended for arbitrary other CPUs.
 The 32-byte loop alignment avoids placement-sensitive sieve slowdowns seen
