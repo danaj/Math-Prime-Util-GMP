@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-28T18:59:43.200374</dc:date>
+    <dc:date>2026-10-31T19:23:18.980664</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -264,7 +264,7 @@ z
    </g>
    <g id="FillBetweenPolyCollection_2">
     <defs>
-     <path id="m339829b6d6" d="M 79.40203 -312.409713
+     <path id="ma2a6fcc635" d="M 79.40203 -312.409713
 L 79.40203 -312.021693
 L 91.032496 -312.151828
 L 102.662961 -312.413479
@@ -337,7 +337,9 @@ L 870.273701 -503.762063
 L 881.904167 -507.978849
 L 893.534632 -511.005964
 L 905.165098 -513.392021
-L 905.165098 -516.223759
+L 916.795564 -512.453469
+L 916.795564 -521.33908
+L 916.795564 -521.33908
 L 905.165098 -516.223759
 L 893.534632 -516.381712
 L 881.904167 -508.874816
@@ -414,7 +416,7 @@ z
 "/>
     </defs>
     <g clip-path="url(#p37c4ada93b)">
-     <use xlink:href="#m339829b6d6" x="0" y="598.822378" style="fill: #d66b28; fill-opacity: 0.12"/>
+     <use xlink:href="#ma2a6fcc635" x="0" y="598.822378" style="fill: #d66b28; fill-opacity: 0.12"/>
     </g>
    </g>
    <g id="FillBetweenPolyCollection_3">
@@ -1015,7 +1017,7 @@ z
    </g>
    <g id="FillBetweenPolyCollection_7">
     <defs>
-     <path id="m8ba1c3a2cc" d="M 79.40203 -270.632301
+     <path id="mb05e90718d" d="M 79.40203 -270.632301
 L 79.40203 -266.480481
 L 91.032496 -268.838633
 L 102.662961 -270.804192
@@ -1088,7 +1090,9 @@ L 870.273701 -493.717706
 L 881.904167 -497.538202
 L 893.534632 -501.008088
 L 905.165098 -508.0518
-L 905.165098 -509.40199
+L 916.795564 -506.232408
+L 916.795564 -516.105206
+L 916.795564 -516.105206
 L 905.165098 -509.40199
 L 893.534632 -505.197673
 L 881.904167 -501.300584
@@ -1165,7 +1169,7 @@ z
 "/>
     </defs>
     <g clip-path="url(#p37c4ada93b)">
-     <use xlink:href="#m8ba1c3a2cc" x="0" y="598.822378" style="fill: #3268ac; fill-opacity: 0.12"/>
+     <use xlink:href="#mb05e90718d" x="0" y="598.822378" style="fill: #3268ac; fill-opacity: 0.12"/>
     </g>
    </g>
    <g id="matplotlib.axis_3">
@@ -1792,6 +1796,7 @@ L 870.273701 94.677654
 L 881.904167 90.235255
 L 893.534632 86.496214
 L 905.165098 83.320896
+L 916.795564 81.417357
 " clip-path="url(#p37c4ada93b)" style="fill: none; stroke: #d66b28; stroke-width: 1.4; stroke-linecap: square"/>
     <defs>
      <path id="mee2dc5111e" d="M 0 1.5
@@ -1822,7 +1827,7 @@ z
      <use xlink:href="#mee2dc5111e" x="777.229975" y="123.614514" style="fill: #d66b28"/>
      <use xlink:href="#mee2dc5111e" x="835.382304" y="105.107218" style="fill: #d66b28"/>
      <use xlink:href="#mee2dc5111e" x="893.534632" y="86.496214" style="fill: #d66b28"/>
-     <use xlink:href="#mee2dc5111e" x="905.165098" y="83.320896" style="fill: #d66b28"/>
+     <use xlink:href="#mee2dc5111e" x="916.795564" y="81.417357" style="fill: #d66b28"/>
     </g>
    </g>
    <g id="line2d_90">
@@ -2306,6 +2311,7 @@ L 870.273701 102.844879
 L 881.904167 97.845114
 L 893.534632 96.859912
 L 905.165098 90.383192
+L 916.795564 83.461904
 " clip-path="url(#p37c4ada93b)" style="fill: none; stroke: #3268ac; stroke-width: 1.4; stroke-linecap: square"/>
     <defs>
      <path id="m48e894bd51" d="M 0 1.5
@@ -2336,14 +2342,14 @@ z
      <use xlink:href="#m48e894bd51" x="777.229975" y="134.852708" style="fill: #3268ac"/>
      <use xlink:href="#m48e894bd51" x="835.382304" y="116.928982" style="fill: #3268ac"/>
      <use xlink:href="#m48e894bd51" x="893.534632" y="96.859912" style="fill: #3268ac"/>
-     <use xlink:href="#m48e894bd51" x="905.165098" y="90.383192" style="fill: #3268ac"/>
+     <use xlink:href="#m48e894bd51" x="916.795564" y="83.461904" style="fill: #3268ac"/>
     </g>
    </g>
    <g id="text_15">
     <text style="font-size: 10.7px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #595650" x="498.098797" y="34.40707" transform="rotate(-0 498.098797 34.40707)">Apple M1 Pro, ARM64 • one factoring thread</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #625f59" x="922.610797" y="36.708886" transform="rotate(-0 922.610797 36.708886)">Generated 2026-10-28 UTC</text>
+    <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #625f59" x="922.610797" y="36.708886" transform="rotate(-0 922.610797 36.708886)">Generated 2026-10-31 UTC</text>
    </g>
    <g id="text_17">
     <text style="font-weight: 700; font-size: 15.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="498.098797" y="18.977578" transform="rotate(-0 498.098797 18.977578)">One-thread SIQS factoring on ARM</text>
@@ -2562,7 +2568,7 @@ z
    </g>
    <g id="FillBetweenPolyCollection_8">
     <defs>
-     <path id="m2d862e679e" d="M 79.40203 -280.433853
+     <path id="m116c7ac6fc" d="M 79.40203 -280.433853
 L 79.40203 -267.051313
 L 91.032496 -258.88095
 L 102.662961 -251.73209
@@ -2635,7 +2641,9 @@ L 870.273701 -165.684018
 L 881.904167 -166.707198
 L 893.534632 -167.190005
 L 905.165098 -168.40475
-L 905.165098 -169.330403
+L 916.795564 -165.795851
+L 916.795564 -169.108922
+L 916.795564 -169.108922
 L 905.165098 -169.330403
 L 893.534632 -178.031147
 L 881.904167 -168.357048
@@ -2712,7 +2720,7 @@ z
 "/>
     </defs>
     <g clip-path="url(#p95da1cd141)">
-     <use xlink:href="#m2d862e679e" x="0" y="598.822378" style="fill: #d66b28; fill-opacity: 0.12"/>
+     <use xlink:href="#m116c7ac6fc" x="0" y="598.822378" style="fill: #d66b28; fill-opacity: 0.12"/>
     </g>
    </g>
    <g id="FillBetweenPolyCollection_9">
@@ -3313,7 +3321,7 @@ z
    </g>
    <g id="FillBetweenPolyCollection_13">
     <defs>
-     <path id="mea7b9d44ef" d="M 79.40203 -149.999319
+     <path id="mb7096a7750" d="M 79.40203 -149.999319
 L 79.40203 -137.260552
 L 91.032496 -136.083244
 L 102.662961 -134.673462
@@ -3386,7 +3394,9 @@ L 870.273701 -136.613294
 L 881.904167 -137.211726
 L 893.534632 -137.472243
 L 905.165098 -145.040011
-L 905.165098 -153.682907
+L 916.795564 -147.304321
+L 916.795564 -164.64446
+L 916.795564 -164.64446
 L 905.165098 -153.682907
 L 893.534632 -144.787626
 L 881.904167 -145.843342
@@ -3463,7 +3473,7 @@ z
 "/>
     </defs>
     <g clip-path="url(#p95da1cd141)">
-     <use xlink:href="#mea7b9d44ef" x="0" y="598.822378" style="fill: #3268ac; fill-opacity: 0.12"/>
+     <use xlink:href="#mb7096a7750" x="0" y="598.822378" style="fill: #3268ac; fill-opacity: 0.12"/>
     </g>
    </g>
    <g id="matplotlib.axis_5">
@@ -3865,6 +3875,7 @@ L 870.273701 433.090393
 L 881.904167 430.576794
 L 893.534632 429.654054
 L 905.165098 429.937209
+L 916.795564 430.314339
 " clip-path="url(#p95da1cd141)" style="fill: none; stroke: #d66b28; stroke-width: 1.5; stroke-linecap: square"/>
     <defs>
      <path id="m23c11a52ed" d="M 0 1.4
@@ -3895,7 +3906,7 @@ z
      <use xlink:href="#m23c11a52ed" x="777.229975" y="438.541039" style="fill: #d66b28"/>
      <use xlink:href="#m23c11a52ed" x="835.382304" y="433.956422" style="fill: #d66b28"/>
      <use xlink:href="#m23c11a52ed" x="893.534632" y="429.654054" style="fill: #d66b28"/>
-     <use xlink:href="#m23c11a52ed" x="905.165098" y="429.937209" style="fill: #d66b28"/>
+     <use xlink:href="#m23c11a52ed" x="916.795564" y="430.314339" style="fill: #d66b28"/>
     </g>
    </g>
    <g id="line2d_146">
@@ -4379,6 +4390,7 @@ L 870.273701 458.662936
 L 881.904167 454.734781
 L 893.534632 460.459188
 L 905.165098 448.067384
+L 916.795564 447.484309
 " clip-path="url(#p95da1cd141)" style="fill: none; stroke: #3268ac; stroke-width: 1.5; stroke-linecap: square"/>
     <defs>
      <path id="m5b91e9f062" d="M 0 1.4
@@ -4409,7 +4421,7 @@ z
      <use xlink:href="#m5b91e9f062" x="777.229975" y="471.240591" style="fill: #3268ac"/>
      <use xlink:href="#m5b91e9f062" x="835.382304" y="465.526467" style="fill: #3268ac"/>
      <use xlink:href="#m5b91e9f062" x="893.534632" y="460.459188" style="fill: #3268ac"/>
-     <use xlink:href="#m5b91e9f062" x="905.165098" y="448.067384" style="fill: #3268ac"/>
+     <use xlink:href="#m5b91e9f062" x="916.795564" y="447.484309" style="fill: #3268ac"/>
     </g>
    </g>
    <g id="line2d_151">

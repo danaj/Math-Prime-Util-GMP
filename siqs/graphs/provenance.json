@@ -12,30 +12,30 @@
   "siqs-external-single-thread.svg": {
     "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
     "source": "graphs/serial/external-single-thread-30-102.svg",
-    "sha256": "3d507728be212cb8883b28f2d68ad50e1bdfe23959c1da3033c7d0ce257f1679",
-    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
-    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+    "sha256": "61224e7d295c1d4ae631c8b4a3c7149ff6236f166c5cee9d9eff4eba4acfa650",
+    "data_provenance_sha256": "8af2758e9daff84128b9f92f80494f19714b40f61b6090f86c59baa2460411ee",
+    "build_manifest_sha256": "799c988464365c21c84617c878622f2aab71d0c97059df70e226610f7484fba9"
   },
   "siqs-external-memory.svg": {
     "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
     "source": "graphs/serial/external-memory-30-102.svg",
-    "sha256": "1520d19109ce77bdeea6f1baea12f4ebef5667e6cb66646c35558331c08a6c75",
-    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
-    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+    "sha256": "917d4ccbc89a8c2dcec6d3f4baa11b9f4ee2ee7f1a210539454dcdeb5571ee87",
+    "data_provenance_sha256": "8af2758e9daff84128b9f92f80494f19714b40f61b6090f86c59baa2460411ee",
+    "build_manifest_sha256": "799c988464365c21c84617c878622f2aab71d0c97059df70e226610f7484fba9"
   },
   "siqs-external8.svg": {
     "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
     "source": "graphs/external8/external-parallel.svg",
-    "sha256": "2fc5c5c08bd81d67f70b4e7d715d1e4e82909f43d2c29f2c96f67c69ce655e9b",
-    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
-    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+    "sha256": "537b059dbcfc4e230678d6b14411aa32b38a5060d6e7f70de17f9683968f8dd6",
+    "data_provenance_sha256": "8af2758e9daff84128b9f92f80494f19714b40f61b6090f86c59baa2460411ee",
+    "build_manifest_sha256": "799c988464365c21c84617c878622f2aab71d0c97059df70e226610f7484fba9"
   },
   "siqs-external8-memory.svg": {
     "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261027-upper",
     "source": "graphs/external8/external-memory.svg",
-    "sha256": "5d692ade6cdf540cb1fc7de88ca5d33bee0ff61a9b57f95f8a42e7f4bc477d23",
-    "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
-    "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+    "sha256": "ccc7e12ab8fb5ccd28aacd296ebe9e2a2d0e65dee2cdcb90be1a9b7eb1ea1ea9",
+    "data_provenance_sha256": "8af2758e9daff84128b9f92f80494f19714b40f61b6090f86c59baa2460411ee",
+    "build_manifest_sha256": "799c988464365c21c84617c878622f2aab71d0c97059df70e226610f7484fba9"
   },
   "siqs-c4d-48.svg": {
     "source": "graphs/c4d-48/external-parallel.svg",
@@ -52,6 +52,6 @@
     "sha256": "7b2381f61f2a79476c36486c50cbbe97634cad9db717b8d48f2ebad5b08a1718",
     "workspace": "/Users/dana/src/Math-Prime-Util-GMP/misc/siqs-readme-20261020"
   },
-  "data_provenance_sha256": "881516785ad1763039de3ad733d2fde3bbf4697c8aa75235ca7783736aff6fd7",
-  "build_manifest_sha256": "caad14274d92c6b1a7ca4eacdc077e6dbfd8ce2e305a9b83a7027a6c83b745e9"
+  "data_provenance_sha256": "8af2758e9daff84128b9f92f80494f19714b40f61b6090f86c59baa2460411ee",
+  "build_manifest_sha256": "799c988464365c21c84617c878622f2aab71d0c97059df70e226610f7484fba9"
 }
