@@ -2948,7 +2948,8 @@ Any remaining cofactor is either returned unchanged or split into
 two or more factors if the algorithm succeeds.
 Returned factors are not necessarily prime.
 
-The current implementation is SIQS written for this module.  It uses
+The current implementation is a frozen serial edition of msiqs, which began
+in this module.  It uses
 self-initializing polynomial families, one- and two-large-prime relation
 combination, dynamic relation sufficiency checks,
 dense elimination for small matrices,
@@ -2962,7 +2963,8 @@ one second at 63 digits,
 and one millisecond at 31 digits.
 The time for individual inputs can vary.
 All computations are single threaded, but the function is thread safe.
-The included SIQS can be built as a standalone fully parallel program.
+The separate L<msiqs|https://github.com/danaj/msiqs> project provides a
+standalone parallel program with journaling.
 
 The optional implementation selector is 0 for SIQS (the default), 1 for the
 older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the

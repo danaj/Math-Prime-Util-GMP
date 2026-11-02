@@ -9,7 +9,7 @@
 #include "pbrent63.h"
 #include "squfof126.h"
 #include "ecm.h"
-#include "siqs/siqs.h"
+#include "siqs.h"
 #include "lucas_seq.h"
 
 static unsigned long _gcd_ui(unsigned long a, unsigned long b) {
@@ -113,7 +113,7 @@ typedef struct {
 
 /* Pretests: BITS is a minimum; zero means unrestricted.  These are
  * cumulative, deliberately modest budgets before the first SIQS checkpoint.
- * B1=600 uses four curves from 180 bits, plus sixteen more from 200 bits. */
+ * B1=600 uses four curves from 180 bits, plus twelve more from 200 bits. */
 static const factor_step_t factor_pretests[] = {
   /* bits  method                      B1       B2/curves */
   {   0, FACTOR_METHOD_EARLY_PM1,       0,       0, NULL                    },

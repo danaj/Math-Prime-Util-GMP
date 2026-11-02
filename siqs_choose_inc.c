@@ -8,8 +8,7 @@
  *
  * The caller initializes q_count and target_A before the first selection.
  * target_A already includes the multiplier, interval and poly_d divisor.
- * Chooser preparation is deferred until first use, so worker polynomial
- * generators do not allocate selection state. Geometry and arithmetic mode
+ * Chooser preparation is deferred until first use. Geometry and arithmetic mode
  * remain fixed for that generator. The main file owns polynomial B/root
  * construction, collection, recovery, and the scorer/certifier policy.
  *
@@ -990,10 +989,9 @@ static int siqs_choose_A(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   if (poly->q_count == 4U)
     return siqs_choose_A_sar(ctx, poly);
 
-  /* Journalled runs use SAR, keeping Cubic's enumeration state out of resume.
-   * Otherwise q >= 5 can use either Cubic or SAR. */
+  /* q >= 5 can use either Cubic or SAR; this snapshot defaults to SAR. */
 #if USE_CUBIC_CHOOSER
-  if (ctx->journal == NULL && poly->q_count >= SIQS_A_CUBIC_MIN_Q)
+  if (poly->q_count >= SIQS_A_CUBIC_MIN_Q)
     return siqs_choose_A_cubic(ctx, poly);
 #endif
   return siqs_choose_A_sar(ctx, poly);

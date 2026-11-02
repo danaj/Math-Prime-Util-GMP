@@ -1,14 +1,14 @@
 #ifndef MPU_LANCZOS_H
 #define MPU_LANCZOS_H
 
-#include "../ptypes.h"
+#include "ptypes.h"
 
 /* The panel dense solver wins through this measured reduced-column
  * crossover.  Both solvers remain valid on either side of it. */
 #define LA_DENSE_CROSSOVER_COLS 1536UL
 
 typedef struct {
-  /* 32-bit indices cover SIQS through its 431-bit developer hard cap. */
+  /* 32-bit indices cover the configured factor-base and matrix limits. */
   uint32_t *data;
   uint32_t weight;
   uint32_t orig;
@@ -52,16 +52,5 @@ extern uint64_t *la_block_lanczos_wide(unsigned long nrows,
                                        uint64_t seed,
                                        uint64_t *mask, int verbose);
 
-#ifdef PSIQS
-/* Use a per-solve worker pool for large unpacked matrices; otherwise serial. */
-extern uint64_t *la_block_lanczos_threaded(unsigned long nrows,
-                                          unsigned long dense_rows,
-                                          unsigned long ncols,
-                                          la_col_t *cols,
-                                          uint64_t seed,
-                                          uint64_t *mask,
-                                          int retain_all_rows, int verbose,
-                                          uint32_t nthreads);
-#endif
 
 #endif

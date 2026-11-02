@@ -113,7 +113,7 @@ void mpz_product_ui(mpz_t n, unsigned long *v, unsigned long count) {
 int pbrent63(const mpz_t n, mpz_t f, UV rounds) {
   (void)n; (void)f; check_record(CHECK_NATIVE, rounds, 0); return 0;
 }
-int squfof126(const mpz_t n, mpz_t f, UV rounds) {
+int squfof126(const mpz_t n, mpz_t f, uint64_t rounds) {
   (void)n; (void)f; check_record(CHECK_SQUFOF, rounds, 0); return 0;
 }
 int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV b1, UV b2) {
@@ -216,7 +216,7 @@ static void check_fallback_recipe(unsigned bits) {
   if (bits >= 160) check_expected(&index, CHECK_ECM, 200, 4);
   if (bits >= 180) check_expected(&index, CHECK_ECM, 600, 4);
   if (bits >= 200) {
-    check_expected(&index, CHECK_ECM, 600, 16);
+    check_expected(&index, CHECK_ECM, 600, 12);
     check_expected(&index, CHECK_ECM, 2000, 10);
   }
   if (bits >= 208) {

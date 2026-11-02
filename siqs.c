@@ -2,7 +2,7 @@
 
   Self-initializing quadratic sieve
 
-  This is an independent implementation for Math::Prime::Util::GMP.  Its
+  This is an independent implementation for msiqs.  Its
   polynomial, sieve, relation graph, and matrix interfaces are private.
   A-family selection lives in siqs_choose_inc.c and sieve kernels in
   siqs_sieve_kernel_inc.c. Linear algebra is supplied by lanczos.c.
@@ -32,18 +32,6 @@
 
 ============================================================================*/
 
-/* Uncomment to omit standalone journal I/O and clocks on problem platforms.
- * Keep this before the feature-test macros and system headers. */
-/* #define SIQS_NO_JOURNAL */
-
-#if ((defined(STANDALONE) && !defined(SIQS_NO_JOURNAL)) || defined(SIQS_TIMING)) && \
-    !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
-# define _POSIX_C_SOURCE 200809L
-#endif
-#if defined(STANDALONE) && !defined(SIQS_NO_JOURNAL) && !defined(_FILE_OFFSET_BITS)
-# define _FILE_OFFSET_BITS 64
-#endif
-
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -53,13 +41,17 @@
 
 #include <gmp.h>
 
-#include "../ptypes.h"
-#include "../mont64.h"
+#include "ptypes.h"
+#include "mont64.h"
 #include "siqs.h"
-#include "siqs_dep.h"
 #include "lanczos.h"
 #include "pr32_iter.h"
-#include "../squfof126.h"
+#include "squfof126.h"
+
+static int siqs_is_prob_prime(const mpz_t n) {
+  /* BPSW on GMP >= 6.2.  15 Miller-Rabin rounds on older versions. */
+  return mpz_probab_prime_p(n, 15);
+}
 
 #ifndef UINT8_MAX
 # define UINT8_MAX 255U
@@ -77,25 +69,6 @@
 # define UINT64_C(value) ((uint64_t)(value))
 #endif
 
-/* Optional POSIX wall-clock instrumentation: build with -DSIQS_TIMING.
- * The size gate applies to reporting and coordinator phases, not splitters.
- * Totals are per factor call; workers accumulate privately and merge only
- * through their normal result handoff.  No shared counters or atomics. */
-#ifdef SIQS_TIMING
-# include <time.h>
-# ifndef SIQS_TIMING_MIN_BITS
-#  define SIQS_TIMING_MIN_BITS 270U
-# endif
-static uint64_t siqs_timing_now(void) {
-  struct timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
-    croak("SIQS timing: clock_gettime failed\n");
-  return (uint64_t)ts.tv_sec * UINT64_C(1000000) + (uint64_t)ts.tv_nsec / 1000U;
-}
-static uint64_t siqs_timing_elapsed(uint64_t start) {
-  return siqs_timing_now() - start;
-}
-#endif
 
 #ifndef M_LN2
 # define M_LN2 0.69314718055994530942
@@ -135,7 +108,7 @@ static uint64_t siqs_timing_elapsed(uint64_t start) {
 #endif
 #define SIQS_PROGRESS_WORK_INTERVAL \
   (SIQS_PROGRESS_WORK_PER_SEC * SIQS_PROGRESS_OUTPUT_EVERY_NSECS)
-#define SIQS_POLYNOMIAL_NOTICE_PER_FB 180U
+#define SIQS_POLYNOMIAL_NOTICE_PER_FB 260U
 #define SIQS_MATRIX_RETRY_BATCH_MAX 128U
 /* Low q=1/q=2 polynomials can produce far more relations than their tiny
  * matrices need.  Check the matrix while consuming their candidate list so
@@ -741,14 +714,6 @@ typedef struct {
   uint8_t *primality;
   uint32_t count;
   uint32_t alloc;
-  siqs_journal_t *journal;
-#ifdef SIQS_TIMING
-  uint64_t cofactor_time;   /* Splitter/validation microseconds, summed over workers. */
-  uint64_t cofactor_calls;  /* Split attempts, excluding early cofactor checks. */
-  uint64_t primality_time; /* Cofactor pretest microseconds, summed over workers. */
-  uint64_t primality_prime, primality_composite; /* Pretest answers. */
-  uint64_t matrix_time, solver_time, dependency_time; /* Coordinator wall time. */
-#endif
 } siqs_factor_array_t;
 
 #define SIQS_FACTOR_UNKNOWN   0U
@@ -903,10 +868,8 @@ typedef struct {
   mpz_t kn;
   unsigned long multiplier;
   siqs_parameters_t params;
-  /* FB records and lookup tables are read-only after workspace setup.  Workers
-   * borrow them from the collector, which outlives every joined worker. */
+  /* FB records and lookup tables are read-only after workspace setup. */
   siqs_fb_t *fb;
-  int shared_fb_tables;
   uint8_t *fb_in_a;
   uint32_t *prime;
   /* Roots stay ordered; equality represents a one-root factor-base prime. */
@@ -969,9 +932,6 @@ typedef struct {
   uint64_t split_fail;
   uint64_t split_rejected;
   int factor_found;
-  uint32_t nthreads;
-  /* Workers buffer raw relations; only the caller owns a graph and solver. */
-  int buffer_relations;
   /* Block-only scratch does not move the original hot context members. */
   uint32_t *block_root1, *block_root2, *block_step;
   uint32_t block_prime_count;
@@ -982,36 +942,18 @@ typedef struct {
   uint32_t bids_cap;
   int use_bids;
   siqs_bids_stop_t bids_stop;
-  siqs_journal_t *journal;
-  uint64_t *journal_poly_count;
-#ifndef SIQS_NO_JOURNAL
-  uint64_t journal_cycles[8];
-#endif
 } siqs_ctx_t;
 
-static void siqs_journal_relation(siqs_ctx_t *, const siqs_raw_relation_t *);
-static void siqs_journal_family(siqs_ctx_t *, const siqs_poly_t *);
-static void sj_flush(siqs_ctx_t *);
-static void sj_maybe_flush(siqs_ctx_t *);
-static void siqs_journal_full(siqs_ctx_t *, uint32_t);
 
 static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
-                           uint32_t trial_start, int verbose,
-                           uint32_t nthreads);
+                           uint32_t trial_start, int verbose);
 
 static int siqs_bids_enabled(const siqs_ctx_t *ctx) {
-  return ctx->params.fb_size <= SIQS_BIDS_MAX_FB && !ctx->buffer_relations;
+  return ctx->params.fb_size <= SIQS_BIDS_MAX_FB;
 }
 static void siqs_bids_add(siqs_ctx_t *ctx);
 static void siqs_bids_note_progress(siqs_ctx_t *ctx);
 static int siqs_solve(siqs_ctx_t *ctx);
-#ifdef PSIQS
-static int psiqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *dispatch,
-                                   uint32_t target,
-                                   uint32_t *next_matrix_check,
-                                   uint64_t *family_count,
-                                   uint64_t *poly_count);
-#endif
 
 static int siqs_use_one_lp_relation_path(const siqs_ctx_t *ctx) {
   return ctx->params.max_large_primes == 1;
@@ -1141,7 +1083,7 @@ static void siqs_raw_arena_clear(siqs_raw_arena_t *arena) {
 }
 
 /* Exact floor cube root, adapted from misc_ui.h's icbrt.  Fixed-width
- * arithmetic avoids both UV-width differences and a dependency on cbrt(). */
+ * arithmetic avoids both uint64_t-width differences and a dependency on cbrt(). */
 static uint64_t siqs_icbrt_u64(uint64_t n) {
   uint64_t b, root = 0;
   int shift = 63;
@@ -1303,14 +1245,8 @@ static uint32_t siqs_ctz32(uint32_t n) {
  *----------------------------------------------------------------------------*/
 
 static void siqs_factor_array_init(siqs_factor_array_t *fa, const mpz_t n) {
-  fa->journal = NULL;
   fa->alloc = 16;
   fa->count = 1;
-#ifdef SIQS_TIMING
-  fa->cofactor_time = fa->cofactor_calls = 0;
-  fa->primality_time = fa->primality_prime = fa->primality_composite = 0;
-  fa->matrix_time = fa->solver_time = fa->dependency_time = 0;
-#endif
   fa->values = (mpz_t *)siqs_malloc(
       siqs_array_size(fa->alloc, sizeof(mpz_t)));
   fa->primality = (uint8_t *)siqs_calloc(fa->alloc, sizeof(uint8_t));
@@ -1673,7 +1609,7 @@ static void siqs_select_parameters(siqs_parameters_t *p, const mpz_t n,
   p->target_relations = p->fb_size + 1 + p->relation_extra;
 
   /* LP and R depend on the actual factor base, not an N^exponent proxy.
-   * Finalize them before log weights or worker scratch are initialized. */
+   * Finalize them before log weights or polynomial scratch are initialized. */
   p->large_prime_bound = p->smooth_bound = 0;
 
   sieve_hit_residual_multiplier = 2.0;
@@ -2230,7 +2166,6 @@ static void siqs_materialize_smooth_relation(siqs_ctx_t *ctx,
   raw->nfactors = 0;
   siqs_raw_relation_free(ctx, raw);
   siqs_store_full(ctx, full);
-  siqs_journal_full(ctx, 1);
 }
 
 /* Both input vectors are strictly row-ordered.  Merge them directly, adding
@@ -2399,7 +2334,6 @@ static int siqs_materialize_one_lp_pair(siqs_ctx_t *ctx,
   full->factors = siqs_merge_relation_factors(
       anchor, relation, &full->nfactors);
   siqs_store_full(ctx, full);
-  siqs_journal_full(ctx, 2);
   return 1;
 }
 
@@ -2627,7 +2561,6 @@ static void siqs_materialize_cycle(siqs_ctx_t *ctx,
     full->factors[i].exponent = ctx->factor_counts[row];
   }
   siqs_store_full(ctx, full);
-  siqs_journal_full(ctx, edge_count);
   siqs_reset_touched_factors(ctx);
 }
 
@@ -2755,8 +2688,6 @@ static void siqs_accept_raw_relation(siqs_ctx_t *ctx,
 #ifdef SIQS_DEBUG
   siqs_verify_raw_relation(ctx, r);
 #endif
-  if (ctx->journal != NULL)
-    siqs_journal_relation(ctx, r);
   if (r->lp1 == 1 && r->lp2 == 1)
     ctx->accepted_smooth++;
   else if (r->lp1 == 1)
@@ -2769,7 +2700,6 @@ static void siqs_accept_raw_relation(siqs_ctx_t *ctx,
     uint32_t edge = siqs_store_raw(ctx, r);
     siqs_graph_add_relation(ctx, edge);
   }
-  if (ctx->journal != NULL) sj_maybe_flush(ctx);
 }
 
 /*----------------------------------------------------------------------------
@@ -2780,7 +2710,7 @@ static void siqs_accept_raw_relation(siqs_ctx_t *ctx,
  * siqs_choose_A(ctx,poly) selects a family or reports bounded failure.
  * siqs_choose_A_clear(poly) releases its private state.
  * target_A and q_count must be initialized before selection; preparation
- * is lazy so workers do not allocate a chooser. B/roots remain here. */
+ * is lazy. B/roots remain here. */
 #include "siqs_choose_inc.c"
 
 static void siqs_poly_init(siqs_ctx_t *ctx, siqs_poly_t *poly) {
@@ -3099,14 +3029,11 @@ static int siqs_new_family(siqs_ctx_t *ctx, siqs_poly_t *poly) {
   uint32_t i;
   /* Sparse high-bit jobs must not wait for hundreds of families before
    * committing their progress. Finish the previous family batch here. */
-  if (ctx->journal != NULL) sj_flush(ctx);
   for (i = 0; i < poly->q_count; i++)
     if (poly->a_index[i] < ctx->params.fb_size)
       ctx->fb_in_a[poly->a_index[i]] = 0;
   if (!siqs_choose_A(ctx, poly))
     return 0;
-  if (ctx->journal != NULL)
-    siqs_journal_family(ctx, poly);
   siqs_first_B_and_roots(ctx, poly);
   siqs_set_family_sieve_initial(ctx);
   if (poly->q_count == 1)
@@ -3388,7 +3315,7 @@ static void siqs_set_q1_sieve_scores(siqs_ctx_t *ctx,
   ctx->params.sieve_raw_scores = ctx->params.sieve_saturating = 1;
   ctx->params.sieve_score_bound = 0;
   if (ctx->params.q_count != 1 || poly->q_count != 1 ||
-      ctx->shared_fb_tables || ctx->params.half_interval == 0 ||
+      ctx->params.half_interval == 0 ||
       mpz_sgn(poly->DA) <= 0 || mpz_sgn(poly->B) < 0 ||
       mpz_cmp(poly->B, poly->DA) >= 0 ||
       mpz_sgn(ctx->kn) <= 0 || mpz_perfect_square_p(ctx->kn) ||
@@ -4044,7 +3971,7 @@ static void siqs_filter_candidates(siqs_ctx_t *ctx,
  * B/N (the fraction requiring Barrett reduction) cheaply identifies when
  * all-direct still wins; otherwise use the shifted M/(count-4) threshold.
  * These are measured cost heuristics: every cutoff recovers the same hits.
- * No per-job model allocation or per-worker dispatch state is required. */
+ * No per-job model allocation or persistent dispatch state is required. */
 static INLINE uint32_t siqs_resieve_cutoff(const uint32_t *prime,
                                             uint32_t begin, uint32_t end,
                                             uint32_t count,
@@ -4315,7 +4242,7 @@ static int siqs_split_to_u64(const mpz_t n, uint32_t trial_start,
   *a = *b = 0;
   if (mpz_cmp_ui(n, 1) <= 0)
     return 0;
-  factors = siqs_factor(n, &count, trial_start, 0, 1U);
+  factors = siqs_factor(n, &count, trial_start, 0);
   success = count >= 2;
   for (i = 0; success && i < count; i++) {
     if (!siqs_mpz_to_u64(factors[i], &value)) {
@@ -4342,9 +4269,6 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   uint32_t nbits;
   int prime, valid, can_siqs, success = 0;
   uint64_t *method_counter = NULL;
-#ifdef SIQS_TIMING
-  uint64_t timing_start;
-#endif
   *lp1 = *lp2 = 1;
   if (mpz_cmp_ui(rest, 1) == 0)
     return 1;
@@ -4365,17 +4289,7 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
     *lp2 = n;
     return 1;
   }
-#ifdef SIQS_TIMING
-  timing_start = siqs_timing_now();
-#endif
   prime = siqs_bpsw_u64(n);
-#ifdef SIQS_TIMING
-  ctx->result->primality_time += siqs_timing_elapsed(timing_start);
-  if (prime)
-    ctx->result->primality_prime++;
-  else
-    ctx->result->primality_composite++;
-#endif
   if (prime) {
     if (n <= ctx->largest_fb_prime)
       return 0;
@@ -4388,9 +4302,6 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
     return 0;
   ctx->split_attempts++;
   nbits = (uint32_t)mpz_sizeinbase(rest, 2);
-#ifdef SIQS_TIMING
-  timing_start = siqs_timing_now();
-#endif
 
   if (!success) {
     if (mpz_perfect_square_p(rest)) {
@@ -4410,7 +4321,7 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
   /* SQUFOF wins below 56 bits; otherwise go directly to SIQS. */
   if (!success && (!can_siqs || nbits < 56U)) {
     mpz_t factor;
-    UV rounds = nbits <= 40 ? 20000
+    uint64_t rounds = nbits <= 40 ? 20000
               : nbits <= 44 ? 50000
               : nbits <= 48 ? 100000
               : nbits <= 52 ? 200000 : 500000;
@@ -4444,10 +4355,6 @@ static int siqs_resolve_cofactor(siqs_ctx_t *ctx, const mpz_t rest,
    * remaining factors can itself be composite. */
   if (valid && ctx->params.smooth_bound / pmax2 >= ctx->largest_fb_prime)
     valid = siqs_bpsw_u64(a) && siqs_bpsw_u64(b);
-#ifdef SIQS_TIMING
-  ctx->result->cofactor_time += siqs_timing_elapsed(timing_start);
-  ctx->result->cofactor_calls++;
-#endif
   if (!valid) {
     if (success)
       ctx->split_rejected++;
@@ -4630,10 +4537,7 @@ static void siqs_evaluate_candidate(siqs_ctx_t *ctx, const siqs_poly_t *poly,
     siqs_raw_relation_t *relation;
     mpz_mod(y, y, ctx->n);
     relation = siqs_raw_relation_new(ctx, y, factors, count, lp1, lp2);
-    if (ctx->buffer_relations)
-      siqs_store_raw(ctx, relation);
-    else
-      siqs_accept_raw_relation(ctx, relation);
+    siqs_accept_raw_relation(ctx, relation);
   }
 }
 
@@ -4889,9 +4793,6 @@ static int siqs_test_dependencies_classified(siqs_ctx_t *ctx,
                                   siqs_dependency_result_t *classification) {
   uint32_t dependency, ndeps = 0;
   mpz_t lhs, rhs, power, delta, divisor;
-#ifdef SIQS_TIMING
-  uint64_t timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
-#endif
   if (ctx->verbose > 1 && !ctx->use_bids) {
     for (dependency = 0; dependency < 64; dependency++)
       if (mask & (UINT64_C(1) << dependency))
@@ -5001,10 +4902,6 @@ next_dependency:
   mpz_clear(power);
   mpz_clear(delta);
   mpz_clear(divisor);
-#ifdef SIQS_TIMING
-  if (timing_start != 0)
-    ctx->result->dependency_time += siqs_timing_elapsed(timing_start);
-#endif
   return ctx->factor_found;
 }
 
@@ -5069,8 +4966,7 @@ static int siqs_test_dependencies(siqs_ctx_t *ctx, const la_col_t *columns,
  * The relation budget is FB+1+SIQS_BIDS_EXTRA_RELS. Pending candidates from
  * the current polynomial can still contribute relations after a budget
  * stop, unless the factor partition is already complete. BIDS itself runs
- * only in the coordinator, but collection may use parallel workers whose
- * pending relation buffers are drained after a stop request.
+ * within the serial relation collection.
  *
  * FB under 64 can fit in a single word width, making it extremely fast and
  * compact for 64-bit inputs.  For larger sizes we pack prefixes which can
@@ -5322,17 +5218,10 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   uint64_t *nullrows = NULL;
   la_col_t *columns;
   int dense_selected, dense_result = 0, dense_tested = 0;
-#ifdef SIQS_TIMING
-  uint64_t timing_start;
-#endif
   if (ctx->full_count < SIQS_MATRIX_EXTRA_RELS(ctx))
     return 0;
   /* Seal pending collection before matrix construction/solving. The final
    * relation batch's timestamp must not include the linear algebra time. */
-  if (ctx->journal != NULL) sj_flush(ctx);
-#ifdef SIQS_TIMING
-  timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
-#endif
   /* The retained incidence array amortizes repeated readiness checks while
    * collecting relations, but is dead once a solve begins.  Release it
    * before constructing the matrix; a rare return to collection rebuilds it
@@ -5343,10 +5232,6 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   columns = siqs_build_matrix(ctx, &nrows, &ncols);
   original_cols = ncols;
   la_reduce_matrix(&nrows, &ncols, columns, ctx->verbose);
-#ifdef SIQS_TIMING
-  if (timing_start != 0)
-    ctx->result->matrix_time += siqs_timing_elapsed(timing_start);
-#endif
   if (ncols == 0) {
     for (i = 0; i < original_cols; i++)
       free(columns[i].data);
@@ -5355,14 +5240,7 @@ static int siqs_solve(siqs_ctx_t *ctx) {
   }
   dense_selected = siqs_use_dense_solver(ncols);
   if (dense_selected) {
-#ifdef SIQS_TIMING
-    timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
-#endif
     nullrows = la_dense_nullspace(nrows, ncols, columns, &mask);
-#ifdef SIQS_TIMING
-    if (timing_start != 0)
-      ctx->result->solver_time += siqs_timing_elapsed(timing_start);
-#endif
     dense_result = nullrows != NULL;
   }
 
@@ -5390,17 +5268,6 @@ static int siqs_solve(siqs_ctx_t *ctx) {
         printf("Lanczos did not refine factors; retrying with all rows.\n");
         fflush(stdout);
       }
-#ifdef SIQS_TIMING
-      timing_start = ctx->params.bits >= SIQS_TIMING_MIN_BITS ? siqs_timing_now() : 0;
-#endif
-#ifdef PSIQS
-      if (ctx->nthreads > 1U) {
-        nullrows = la_block_lanczos_threaded(nrows, 0, ncols, columns,
-                                             seed, &mask,
-                                             block_attempt != 0, ctx->verbose,
-                                             ctx->nthreads);
-      } else
-#endif
       if (block_attempt == 0) {
         nullrows = la_block_lanczos(nrows, 0, ncols, columns,
                                     seed, &mask, ctx->verbose);
@@ -5408,10 +5275,6 @@ static int siqs_solve(siqs_ctx_t *ctx) {
         nullrows = la_block_lanczos_wide(nrows, 0, ncols, columns,
                                          seed, &mask, ctx->verbose);
       }
-#ifdef SIQS_TIMING
-      if (timing_start != 0)
-        ctx->result->solver_time += siqs_timing_elapsed(timing_start);
-#endif
       if (nullrows != NULL) {
         siqs_test_dependencies(ctx, columns, ncols, nullrows, mask);
         free(nullrows);
@@ -5468,12 +5331,8 @@ static void siqs_format_progress_count(char *text, uint64_t count) {
     sprintf(text, "%llu", (unsigned long long)count);
 }
 
-static uint64_t siqs_progress_poly_step(const siqs_ctx_t *ctx,
-                                        uint32_t live_workers) {
-  uint32_t scale = live_workers / 2U;
-  if (scale < 1U)
-    scale = 1U;
-  return (SIQS_PROGRESS_WORK_INTERVAL * scale
+static uint64_t siqs_progress_poly_step(const siqs_ctx_t *ctx) {
+  return (SIQS_PROGRESS_WORK_INTERVAL
           + ctx->params.half_interval - 1U) / ctx->params.half_interval;
 }
 
@@ -5520,8 +5379,8 @@ static uint64_t siqs_polynomial_limit(const siqs_parameters_t *p) {
  * limit * (2M) <= UINT64_MAX bounds all candidate visits. Accepted/split
  * statistics count subsets of those visits, so their increments need no
  * hot checks. M >= 256 also leaves ample u64 headroom for reporting steps
- * and stopped, zero-polynomial families on solve/collect retries. The master
- * owns the u64 totals/budgets; worker counts and Gray indices stay u32.
+ * and stopped, zero-polynomial families on solve/collect retries. The context
+ * owns the u64 totals/budgets; Gray indices stay u32.
  * Relation-count scheduling additions still fit u32 under the vector bounds. */
 static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                   uint32_t target,
@@ -5532,7 +5391,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
   int family_ok, have_next;
   uint32_t check_interval = ctx->params.fb_size / 128;
   uint64_t max_polynomials = siqs_polynomial_limit(&ctx->params);
-  uint64_t report_poly_step = siqs_progress_poly_step(ctx, 1U);
+  uint64_t report_poly_step = siqs_progress_poly_step(ctx);
   uint64_t next_work_report = *poly_count + report_poly_step;
   uint32_t last_report_count = UINT32_MAX;
   uint64_t last_report_polys = UINT64_MAX;
@@ -5645,7 +5504,7 @@ static int siqs_collect_relations(siqs_ctx_t *ctx, siqs_poly_t *poly,
 static void siqs_collect_bids(siqs_ctx_t *ctx, siqs_poly_t *poly,
                                uint64_t *families, uint64_t *polynomials) {
   uint64_t max_polynomials = siqs_polynomial_limit(&ctx->params);
-  uint64_t report_step = siqs_progress_poly_step(ctx, 1U);
+  uint64_t report_step = siqs_progress_poly_step(ctx);
   uint64_t next_report = *polynomials + report_step;
   while (!ctx->factor_found && !ctx->bids_stop) {
     if (*polynomials >= max_polynomials || !siqs_new_family(ctx, poly)) break;
@@ -5675,8 +5534,6 @@ static void siqs_ctx_init(siqs_ctx_t *ctx, const mpz_t original,
   memset(ctx, 0, sizeof(*ctx));
   ctx->original_n = original;
   ctx->result = result;
-  ctx->journal = result->journal;
-  ctx->nthreads = 1;
   ctx->verbose = verbose;
   mpz_init_set(ctx->n, n);
   mpz_init(ctx->kn);
@@ -5750,9 +5607,9 @@ static void siqs_set_large_prime_bounds(siqs_ctx_t *ctx) {
     p->sieve_hit_bound = p->sieve_hit_residual_multiplier * (double)p->smooth_bound;
 }
 
-/* Allocate polynomial/evaluation scratch, also used by private workers. */
+/* Allocate polynomial and evaluation scratch. */
 static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
-  if (!ctx->shared_fb_tables) {
+  {
     uint32_t i;
     ctx->prime = (uint32_t *)siqs_malloc(
         siqs_array_size(ctx->params.fb_size, sizeof(uint32_t)));
@@ -5795,7 +5652,7 @@ static void siqs_workspace_allocate(siqs_ctx_t *ctx) {
       ctx->resieve_identity_index++;
   }
   /* Only the collector materializes cycles and evaluates dependencies. */
-  if (!ctx->buffer_relations) {
+  {
     uint32_t rows = ctx->params.fb_size + 1;
     ctx->factor_counts = (uint32_t *)siqs_calloc(rows, sizeof(uint32_t));
     ctx->factor_touched = (uint32_t *)siqs_malloc(
@@ -5827,7 +5684,7 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
   free(ctx->raw);
   free(ctx->full);
   siqs_bids_free(ctx->bids);
-  if (!ctx->shared_fb_tables) {
+  {
     free(ctx->fb);
     free(ctx->prime);
     free(ctx->sieve_logp);
@@ -5878,7 +5735,6 @@ static void siqs_ctx_clear(siqs_ctx_t *ctx) {
  * remain in ctx->result. BIDS records partial progress separately while
  * continuing collection, then restores factor_found before returning.
  * Thus a true return means progress, not necessarily a fully prime result. */
-#include "siqs_journal_inc.c"
 
 static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_t poly;
@@ -5893,7 +5749,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
   uint32_t next_matrix_check = ctx->params.fb_size
                              - ctx->params.fb_size / 4;
   int verbose = ctx->verbose;
-  int threaded;
   if (retry_batch < 8)
     retry_batch = 8;
   if (retry_batch > SIQS_MATRIX_RETRY_BATCH_MAX)
@@ -5902,8 +5757,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
     next_matrix_check = 256;
   ctx->inline_matrix_solves = ctx->params.q_count == 1 ||
       ctx->params.bits <= SIQS_INLINE_MATRIX_Q2_MAX_BITS;
-  threaded = ctx->nthreads > 1 && !ctx->inline_matrix_solves &&
-             ctx->params.bits > PSIQS_SERIAL_MAX_BITS;
   ctx->matrix_next_target = target;
   ctx->matrix_last_count = 0;
   ctx->matrix_retry_batch = retry_batch;
@@ -5918,13 +5771,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
   siqs_poly_init(ctx, &poly);
 
   if (verbose > 0) {
-    if (ctx->nthreads > 1) {
-      if (threaded)
-        printf("# psiqs %u workers, asynchronous family collection\n",
-               (unsigned)ctx->nthreads);
-      else
-        printf("# psiqs serial collection\n");
-    }
     gmp_printf("# siqs trying %Zd (%u bits)\n", ctx->n, ctx->params.bits);
     printf("# siqs policy %s [%u-%u], %u-LP\n",
            ctx->params.policy_name, ctx->params.policy_first_bits,
@@ -5949,25 +5795,8 @@ static int siqs_run(siqs_ctx_t *ctx) {
     fflush(stdout);
   }
 
-  if (sj_attach(ctx, &poly, &family_count, &poly_count))
-    goto journal_cleanup;
-  sj_begin_attempt(ctx);
-  /* A replay can already contain an entire inline matrix batch. Unlike live
-   * candidate evaluation, replay has not run that inline solve yet. */
-  if (ctx->journal != NULL && !ctx->use_bids && ctx->inline_matrix_solves &&
-      ctx->full_count >= ctx->matrix_next_target && !ctx->factor_found) {
-    ctx->matrix_last_count = ctx->full_count;
-    if (!siqs_solve(ctx))
-      ctx->matrix_next_target = ctx->full_count + retry_batch;
-  }
 
   if (ctx->use_bids) {
-#ifdef PSIQS
-    if (threaded)
-      (void)psiqs_collect_relations(ctx, &poly, ctx->params.fb_size,
-                                   &next_matrix_check, &family_count, &poly_count);
-    else
-#endif
       siqs_collect_bids(ctx, &poly, &family_count, &poly_count);
     /* Exhaustion, the relation budget, or an uncertified BIDS state ends
      * this attempt. Retain useful factors; do not re-solve this matrix. */
@@ -5977,12 +5806,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
   } else {
     while (!ctx->factor_found && target <= target_limit) {
       int collected;
-#ifdef PSIQS
-      if (threaded)
-        collected = psiqs_collect_relations(
-            ctx, &poly, target, &next_matrix_check, &family_count, &poly_count);
-      else
-#endif
         collected = siqs_collect_relations(
             ctx, &poly, target, &next_matrix_check, &family_count, &poly_count);
       if (!collected)
@@ -6062,8 +5885,6 @@ static int siqs_run(siqs_ctx_t *ctx) {
       printf(" %llu failed,", (unsigned long long)ctx->split_fail);
     printf(" %llu rejected\n", (unsigned long long)ctx->split_rejected);
   }
-  sj_end_attempt(ctx);
-journal_cleanup:
   siqs_poly_clear(ctx, &poly);
   return ctx->factor_found;
 }
@@ -6074,13 +5895,11 @@ journal_cleanup:
 static int siqs_try_policy(const mpz_t original, const mpz_t n,
                            siqs_factor_array_t *result,
                            const siqs_policy_band_t *profile,
-                           mpz_t divisor, mpz_t root, int verbose,
-                           uint32_t nthreads) {
+                           mpz_t divisor, mpz_t root, int verbose) {
   siqs_ctx_t ctx;
   int factor_found = 0;
 
   siqs_ctx_init(&ctx, original, n, result, profile, verbose);
-  ctx.nthreads = nthreads;
   /* If the selected square-free multiplier completes a square, extract its
    * factor directly. A zero polynomial value lies outside the nonzero-norm
    * assumptions used to certify byte scores. */
@@ -6101,31 +5920,22 @@ static int siqs_try_policy(const mpz_t original, const mpz_t n,
  * Public entry point
  *----------------------------------------------------------------------------*/
 
-static mpz_t *siqs_factor_with_journal(const mpz_t n, uint32_t *nfactors,
-                           uint32_t trial_start, int verbose,
-                           uint32_t nthreads, siqs_journal_t *journal) {
+static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
+                           uint32_t trial_start, int verbose) {
   siqs_factor_array_t result;
   const siqs_policy_band_t *profile;
   mpz_t work, divisor, root;
   size_t input_bits;
   uint32_t bits, trial_limit, next = 0U;
   int factor_found;
-#ifdef SIQS_TIMING
-  uint64_t timing_start = 0;
-#endif
 
   if (verbose < 0)
     verbose = 0;
   if (nfactors == NULL)
     croak("SIQS: missing factor count output");
-  if (journal != NULL) {
-    mpz_t *cached = sj_cached_call(journal, n, nfactors);
-    if (cached != NULL) return cached;
-  }
   siqs_factor_array_init(&result, n);
-  result.journal = journal;
   if (mpz_cmp_ui(n, 1) <= 0) {
-    sj_finish_call(journal, n, result.values, result.count);
+
     return siqs_factor_array_release(&result, nfactors);
   }
   mpz_init_set(work, n);
@@ -6175,77 +5985,27 @@ static mpz_t *siqs_factor_with_journal(const mpz_t n, uint32_t *nfactors,
       }
   }
 
-#ifdef SIQS_TIMING
-  if (bits >= SIQS_TIMING_MIN_BITS)
-    timing_start = siqs_timing_now();
-#endif
   factor_found = siqs_try_policy(
-      n, work, &result, NULL, divisor, root, verbose, nthreads);
+      n, work, &result, NULL, divisor, root, verbose);
   while (!factor_found && (profile = siqs_next_policy(bits, &next)) != NULL)
     factor_found = siqs_try_policy(
-        n, work, &result, profile, divisor, root, verbose, nthreads);
+        n, work, &result, profile, divisor, root, verbose);
   siqs_verify_partition(n, &result);
 
-#ifdef SIQS_TIMING
-  if (timing_start != 0) {
-    double total = (double)siqs_timing_elapsed(timing_start) / 1000000.0;
-    double cofactor = (double)result.cofactor_time / 1000000.0;
-    printf("# siqs timing  total %.6f s\n", total);
-    printf("# siqs timing  cofactor primality sum %.6f s (%llu prime, %llu composite)\n",
-           (double)result.primality_time / 1000000.0,
-           (unsigned long long)result.primality_prime,
-           (unsigned long long)result.primality_composite);
-    printf("# siqs timing  cofactor splitter sum %.6f s (%llu calls)\n",
-           cofactor, (unsigned long long)result.cofactor_calls);
-    printf("# siqs timing  matrix %.6f s, solver %.6f s, dependencies %.6f s\n",
-           (double)result.matrix_time / 1000000.0,
-           (double)result.solver_time / 1000000.0,
-           (double)result.dependency_time / 1000000.0);
-    if (nthreads == 1U)
-      printf("# siqs timing  cofactor splitter %.2f%% of total wall time\n",
-             total > 0.0 ? 100.0 * cofactor / total : 0.0);
-    else
-      printf("# siqs timing  cofactor splitter %.2f%% of requested %u-thread capacity\n",
-             total > 0.0 ? 100.0 * cofactor / (total * nthreads) : 0.0,
-             nthreads);
-  }
-#endif
 
 finish:
-  sj_finish_call(journal, n, result.values, result.count);
   mpz_clear(work);
   mpz_clear(divisor);
   mpz_clear(root);
   return siqs_factor_array_release(&result, nfactors);
 }
 
-/* Serial entry; the parallel entry uses the same engine and factor storage. */
-static mpz_t *siqs_factor(const mpz_t n, uint32_t *nfactors,
-    uint32_t trial_start, int verbose, uint32_t nthreads) {
-  return siqs_factor_with_journal(n, nfactors, trial_start, verbose, nthreads, NULL);
-}
 
-mpz_t *gmp_siqs_journal_factor(siqs_journal_t *journal, const mpz_t n,
-    uint32_t *nfactors, uint32_t trial_start, int verbose, uint32_t nthreads) {
-#ifdef SIQS_NO_JOURNAL
-  if (journal != NULL) croak("SIQS journal support disabled in this build");
-#else
-  if (journal != NULL && (mpz_sgn(n) <= 0 || !mpz_divisible_p(journal->original, n)))
-    croak("SIQS journal: requested cofactor does not divide original input");
-#endif
-  if (nthreads == 0 || nthreads > PSIQS_MAX_THREADS)
-    croak("SIQS journal: invalid worker count");
-#ifndef PSIQS
-  if (nthreads != 1) croak("SIQS journal: parallel support not compiled");
-#endif
-  return siqs_factor_with_journal(n, nfactors, trial_start, verbose, nthreads, journal);
-}
+
+
+
 
 mpz_t *gmp_siqs(const mpz_t n, uint32_t *nfactors, uint32_t trial_start,
                 int verbose) {
-  return siqs_factor(n, nfactors, trial_start, verbose, 1);
+  return siqs_factor(n, nfactors, trial_start, verbose);
 }
-
-#ifdef PSIQS
-# include "psiqs_inc.c"
-#endif

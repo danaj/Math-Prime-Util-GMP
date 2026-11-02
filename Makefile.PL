@@ -129,25 +129,12 @@ sub WriteMakefile1 {   # Cribbed from eumm-upgrade by Alexandr Ciornii
 sub MY::postamble {
   return <<'MAKE_FRAG';
 
-# The module uses Perl's compiler/flags and root-level objects. Standalone
-# programs and development targets have their own Makefile under siqs/.
-siqs$(OBJ_EXT): siqs/siqs.c siqs/siqs.h siqs/siqs_dep.h siqs/lanczos.h siqs/siqs_choose_inc.c siqs/siqs_sieve_kernel_inc.c siqs/siqs_journal_inc.c siqs/psiqs_inc.c siqs/pr32_iter.h ptypes.h mont64.h squfof126.h misc_ui.h
-	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/siqs.c
-
-lanczos$(OBJ_EXT): siqs/lanczos.c siqs/lanczos.h siqs/planczos_inc.c ptypes.h
-	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/lanczos.c
-
-pr32_iter$(OBJ_EXT): siqs/pr32_iter.c siqs/pr32_iter.h
-	$(CCCMD) $(CCCDLFLAGS) "-I$(PERL_INC)" $(PASTHRU_DEFINE) $(DEFINE) siqs/pr32_iter.c
-
-XS$(OBJ_EXT) factor$(OBJ_EXT) bls75$(OBJ_EXT): siqs/siqs.h
-simpqs2$(OBJ_EXT): siqs/lanczos.h
-
-# Convenience only: standalone flags and all other targets belong to siqs/.
-.PHONY: siqs
-siqs:
-	$(MAKE) -C siqs siqs
-	$(CP) siqs/msiqs msiqs
+# Frozen serial SIQS sources use the module's ordinary compiler and flags.
+siqs$(OBJ_EXT): siqs.c siqs.h lanczos.h siqs_choose_inc.c siqs_sieve_kernel_inc.c pr32_iter.h ptypes.h mont64.h squfof126.h
+lanczos$(OBJ_EXT): lanczos.c lanczos.h ptypes.h
+pr32_iter$(OBJ_EXT): pr32_iter.c pr32_iter.h
+XS$(OBJ_EXT) factor$(OBJ_EXT) bls75$(OBJ_EXT): siqs.h
+simpqs2$(OBJ_EXT): lanczos.h
 
 MAKE_FRAG
 }

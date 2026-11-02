@@ -5,8 +5,8 @@ getting primes in a range, factoring, and more.
 
 These use GMP directly, so should be quite fast for bignums.  This module is
 mainly intended to be used within Math::Prime::Util, but most functions can
-be easily used in independent C programs.  Some, like factoring and primality
-proving, have explicit ways of compiling as standalone programs.
+be easily used in independent C programs. ECPP primality proving also has
+a standalone front end.
 
 
 SYNOPSIS
@@ -48,15 +48,10 @@ is to run the xt/create-standalone.sh script, which will create a standalone/
 directory with Makefile and README.  You should make sure you have the large
 discrimiment set (https://github.com/danaj/Math-Prime-Util-GMP/tree/master/xt/).
 
-Standalone SIQS lives in siqs/.  There are detailed instructions in
-siqs/README.md.  For convenience, once the top-level Makefile has been
-generated with "perl Makefile.PL", "make siqs" builds the same standalone
-program and copies it to ./msiqs.
-
-While the standalone SIQS uses pthreads, when built inside Perl it does not,
-as Perl has its own threading.  It is thread-safe so multiple copies can be
-run in different Perl threads.  Usually it is used as part of the factor()
-routine, but can be directly accessed with qs_factor().
+The module uses a frozen serial SIQS implementation. See README-SIQS.md for
+its background and performance. The independent msiqs project provides the
+standalone program, parallel collection, journaling, and further development:
+https://github.com/danaj/msiqs
 
 DEPENDENCIES
 

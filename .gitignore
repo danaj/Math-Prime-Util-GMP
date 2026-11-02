@@ -1,17 +1,10 @@
 Math-Prime-Util-*.tar.gz
 ecpp-dj-*.tar.gz
 Makefile
-!siqs/Makefile
 Makefile.old
 MYMETA.*
 GMP.bs
 XS.c
-msiqs
-lanczos-bench
-siqs-la-bench
-siqs-sieve-bench
-siqs-autotune-check
-pr32-iter-check
 *.o
 *.obj
 *.dSYM
@@ -19,4 +12,3 @@ blib*
 pm_to_blib
 standalone
 s2
-tools/factor-benchmark

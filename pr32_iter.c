@@ -463,4 +463,3 @@ failed:
   free(primes);
   return NULL;
 }
-
