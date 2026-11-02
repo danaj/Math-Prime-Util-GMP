@@ -27,10 +27,7 @@ WriteMakefile1(
     OBJECT       => 'XS.o '             .
                     'factor.o '         .
                     'gmp_main.o '       .
-                    'tinyqs.o '         .
-                    'simpqs.o '         .
                     'lanczos.o '        .
-                    'simpqs2.o '        .
                     'siqs.o '           .
                     'primality.o '      .
                     'bls75.o '          .
@@ -55,7 +52,6 @@ WriteMakefile1(
                     'perfect_powers.o ' .
                     'powerfree.o',
     LIBS         => ['-lgmp -lm'],
-    clean        => { FILES => 'msiqs' },
 
     TEST_REQUIRES=> {
                       'Math::BigInt'     => '1.88',  # try && bug fixes
@@ -129,12 +125,8 @@ sub WriteMakefile1 {   # Cribbed from eumm-upgrade by Alexandr Ciornii
 sub MY::postamble {
   return <<'MAKE_FRAG';
 
-# Frozen serial SIQS sources use the module's ordinary compiler and flags.
-siqs$(OBJ_EXT): siqs.c siqs.h lanczos.h siqs_choose_inc.c siqs_sieve_kernel_inc.c pr32_iter.h ptypes.h mont64.h squfof126.h
-lanczos$(OBJ_EXT): lanczos.c lanczos.h ptypes.h
-pr32_iter$(OBJ_EXT): pr32_iter.c pr32_iter.h
-XS$(OBJ_EXT) factor$(OBJ_EXT) bls75$(OBJ_EXT): siqs.h
-simpqs2$(OBJ_EXT): lanczos.h
+# These C files are included by siqs.c rather than compiled separately.
+siqs$(OBJ_EXT): siqs_choose_inc.c siqs_sieve_kernel_inc.c
 
 MAKE_FRAG
 }

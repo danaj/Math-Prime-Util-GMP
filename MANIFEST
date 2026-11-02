@@ -36,10 +36,6 @@ ecpp.h
 ecpp.c
 aks.h
 aks.c
-simpqs.h
-simpqs.c
-simpqs2.h
-simpqs2.c
 mont64.h
 siqs.c
 siqs.h
@@ -49,8 +45,6 @@ lanczos.c
 lanczos.h
 pr32_iter.c
 pr32_iter.h
-tinyqs.h
-tinyqs.c
 isaac.h
 isaac.c
 lucas_seq.h

@@ -12,7 +12,7 @@ typedef struct {
 
 #define PRIME_ITERATOR(i)  prime_iterator i = {2, 0, 0, 0}
 
-/* Shared-cache lifetime belongs to the host, not to each iterator/SIQS call.
+/* Shared-cache lifetime belongs to the host, not to each iterator call.
  * Call startup once before any use (and before launching caller threads).
  * Do not repeat startup while live; it is not reference-counted. Shutdown
  * only after all users finish, iterators are destroyed, and threads joined.

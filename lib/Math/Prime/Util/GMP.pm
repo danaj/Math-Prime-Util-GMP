@@ -264,7 +264,7 @@ Version 0.55
   @factors = squfof_factor($n);   # no more than o1 rounds
   @factors = pminus1_factor($n);  # o1 = smoothness limit, o2 = stage 2 limit
   @factors = ecm_factor($n);      # o1 = B1, o2 = # of curves
-  @factors = qs_factor($n);       # o1 selects SIQS/SIMPQS/SIMPQS2/TinyQS
+  @factors = qs_factor($n);       # (none)
 
 =head1 DESCRIPTION
 
@@ -2933,10 +2933,9 @@ factoring reasonably sized inputs.
 =head2 qs_factor
 
   my @factors = qs_factor($n);
-  my @factors = qs_factor($n, $implementation);
 
-Given a positive number input, tries to discover factors using QS (the
-quadratic sieve).
+Given a positive number input, tries to discover factors using SIQS
+(the self-initializing quadratic sieve).
 Unlike the other C<..._factor> routines, SIQS can split the remaining
 cofactor into more than two factors in a single call.
 
@@ -2948,13 +2947,12 @@ Any remaining cofactor is either returned unchanged or split into
 two or more factors if the algorithm succeeds.
 Returned factors are not necessarily prime.
 
-The current implementation is a frozen serial edition of msiqs, which began
-in this module.  It uses
-self-initializing polynomial families, one- and two-large-prime relation
-combination, dynamic relation sufficiency checks,
-dense elimination for small matrices,
-and block Lanczos for larger matrices/fallback.
-It handles inputs from 1 to 512 bits (over 150 digits).
+The current implementation is a frozen serial edition of msiqs, which
+began in this module.  It uses self-initializing polynomial families,
+one- and two-large-prime relation combination, dynamic relation
+sufficiency checks, dense elimination for small matrices, and block
+Lanczos for larger matrices/fallback.  It handles inputs from 1 to 512
+bits (over 150 digits).
 
 As a rough performance guide, on a 2021 MacBook Pro with an M1 Pro,
 SIQS takes about one hour to factor a 100-digit balanced semiprime,
@@ -2966,14 +2964,7 @@ All computations are single threaded, but the function is thread safe.
 The separate L<msiqs|https://github.com/danaj/msiqs> project provides a
 standalone parallel program with journaling.
 
-The optional implementation selector is 0 for SIQS (the default), 1 for the
-older SIMPQS, 2 for SIMPQS2, or 3 for TinyQS.  This selector calls the
-requested QS directly and is useful for benchmarking or compatibility
-comparisons; it does not run the generic factoring routine's preliminary
-methods.  TinyQS is tuned for inputs no larger than 128 bits.
-SIQS is the recommended method and is typically faster than the others.
-
-With SIQS, verbose setting 3 gives output describing the parameters chosen
+Verbose setting 3 gives output describing the parameters chosen
 before the factoring starts, then when all relations have been collected,
 additional lines of output describing the work done.
 
@@ -3214,13 +3205,6 @@ preprint, Jan 2003.  L<http://cr.yp.to/papers/aks.pdf>
 
 Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
-Jason Papadopoulos wrote the original C<tinyqs> and block Lanczos code.
-TinyQS has since been expanded and tuned for 50- to 128-bit inputs.
-William Hart wrote SIMPQS, which is the basis for SIMPQS2.  Hugo van der
-Sanden added combined partial relations, integrated block Lanczos, and made
-substantial memory and performance improvements for SIMPQS2.
-The independent SIQS uses its own dense and block Lanczos implementations.
-
 
 =head1 ACKNOWLEDGEMENTS
 
@@ -3234,9 +3218,12 @@ algorithms and not worry about any of the details of how modular exponentiation
 and the like happen, and still get decent performance for my purposes.
 
 Ben Buhrow and Jason Papadopoulos deserve special mention for their open
-source factoring tools, which are both readable and fast.  In particular I am
-leveraging their work on SQUFOF in the current implementation.
-They are a huge resource to the community.
+source factoring tools, which are both readable and fast.  They are a huge
+resource to the community.
+
+The new SIQS and block Lanczos code is all new but was influenced by the
+work of Jason Papadopoulos, Ben Buhrow, Tilman Neumann, Hugo van der Sanden,
+William Hart, and others.
 
 Jonathan Leto and Bob Kuo, who wrote and distributed the L<Math::Primality>
 module on CPAN.  Their implementation of BPSW provided the motivation I needed
@@ -3246,19 +3233,11 @@ module quite a bit for testing against.
 Paul Zimmermann's papers and GMP-ECM code were of great value for my projective
 ECM implementation, as well as the many papers by Brent and Montgomery.
 
-Hugo van der Sanden’s work on SIMPQS2, performance results, and encouragement
-provided the impetus for the new SIQS implementation.
-
 
 =head1 COPYRIGHT
 
 Copyright 2011-2026 by Dana Jacobsen E<lt>dana@acm.orgE<gt>
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
-
-SIMPQS Copyright 2006, William Hart.  SIMPQS is distributed under GPL v2+.
-
-Block Lanczos Copyright 2006, Jason Papadopoulos.  The block Lanczos code is
-distributed under GPL v2+.
 
 =cut

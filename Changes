@@ -2,11 +2,6 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.55 2026-?
 
-    [API CHANGES]
-
-    - qs_factor accepts an optional implementation selector: SIQS (default),
-      SIMPQS, SIMPQS2, or TinyQS.
-
     [PERFORMANCE]
 
     - The generic factor routine and qs_factor now use a new independent SIQS
@@ -17,6 +12,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
     - SIQS extends the practical quadratic-sieve limit from roughly 90 decimal
       digits to over 430 bits (130 digits).
+
+    - TinyQS and SIMPQS are removed, as the new SIQS is much faster, uses less
+      memory, and factors more reliably.  SIMPQS2 was used in development but
+      not released.
 
     [OTHER]
 

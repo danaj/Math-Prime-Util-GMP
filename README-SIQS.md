@@ -17,9 +17,8 @@ my @partition = qs_factor($n);
 ```
 
 `qs_factor` returns a multiplicative partition whose elements are not
-necessarily prime. `factor` continues factoring composites and reports an
-explicit error if it exhausts its methods. Existing selectors for SIMPQS,
-SIMPQS2 and TinyQS remain available; SIQS is recommended for ordinary use.
+necessarily prime.  `factor` continues factoring composites and reports an
+explicit error if it exhausts its methods.
 
 ## Performance
 

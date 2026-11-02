@@ -34,7 +34,7 @@ add_stopwords(qw/bigint bigints bignum bignums primorial
                  -inf
                  von van der
                  PSP-2
-                 TinyQS
+                 msiqs journaling
                  pp/);
 
 all_pod_files_spelling_ok();

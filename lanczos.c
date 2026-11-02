@@ -2,11 +2,9 @@
  * GF(2) linear-algebra solvers for msiqs.
  *
  * The block-Lanczos algorithm is due to Peter Montgomery.
- * During development, this file briefly contained Jason Papadopoulos's
- * solver, adapted for FLINT by William Hart and imported with SIMPQS2.
- * Neither SIMPQS2 nor that solver appeared in an MPU-GMP release.
- * This replacement follows Montgomery's published algorithm, with
- * implementation choices also influenced by Papadopoulos's work in msieve.
+ * This is a frozen serial edition of the msiqs implementation, which
+ * follows Montgomery's published algorithm.  Implementation choices were
+ * also influenced by Jason Papadopoulos's work in msieve.
  *
  * Initial random blocks use standard fixed-increment SplitMix64, with
  * a caller-owned seed and a local state carried across solver retries.
