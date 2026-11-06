@@ -268,6 +268,31 @@ static void check_scalar(ecm_ctx *ctx, reference_point P, unsigned long p, UV k,
   mpz_clears(x, z, NULL);
 }
 
+static void check_reduction_policy(void)
+{
+  const struct { unsigned bits; int late; } cases[] = {
+    {64,1}, {128,1}, {255,1}, {256,1}, {257,0}, {512,0}
+  };
+  ecm_ctx context;
+  mpz_t n;
+  unsigned i;
+  mpz_init(n);
+  for (i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+    /* Both the smallest and largest positive values at this bit width. */
+    mpz_set_ui(n,1);
+    mpz_mul_2exp(n,n,cases[i].bits-1);
+    ec_ctx_init(&context,n,0);
+    CHECK(context.late_reduce == cases[i].late);
+    ec_ctx_clear(&context);
+    mpz_mul_2exp(n,n,1);
+    mpz_sub_ui(n,n,1);
+    ec_ctx_init(&context,n,0);
+    CHECK(context.late_reduce == cases[i].late);
+    ec_ctx_clear(&context);
+  }
+  mpz_clear(n);
+}
+
 static void check_projective(ecm_ctx *ctx)
 {
   const double ratios[] = {1.61803398875, 1.72360679775, 1.618347119656,
@@ -619,6 +644,11 @@ int main(void)
   ec_ctx_init(ctx, modulus, 0);
   prime_iterator_global_startup();
   check_random();
+  check_reduction_policy();
+  /* Exercise both arithmetic paths against the independent affine oracle. */
+  ctx->late_reduce = 0;
+  check_projective(ctx);
+  ctx->late_reduce = 1;
   check_projective(ctx);
   check_batch_normalization(ctx);
   check_stage2(ctx);

@@ -278,6 +278,7 @@ typedef struct {
   mpz_t *stage2_x;
   UV stage2_alloc;
   uint64_t rng_state;
+  int late_reduce;  /* Fixed arithmetic choice for this modulus. */
 } ecm_ctx;
 
 static void ec_ctx_init(ecm_ctx *ctx, const mpz_t n, uint64_t seed)
@@ -289,6 +290,8 @@ static void ec_ctx_init(ecm_ctx *ctx, const mpz_t n, uint64_t seed)
   ctx->stage2_x = NULL;
   ctx->stage2_alloc = 0;
   ctx->rng_state = seed;
+  /* Limit wider intermediate products to small moduli. */
+  ctx->late_reduce = mpz_sizeinbase(n, 2) <= 256;
 }
 
 static void ec_ctx_clear(ecm_ctx *ctx)
@@ -323,14 +326,19 @@ static void ec_add(ecm_ctx *ctx, mpz_t x2, mpz_t z2,
   mpz_mulmod(x2, w, w, ecn, z2); /* x2 = (u+v)^2 % n */
 
   mpz_sub(w, u, v);
-  mpz_mulmod(z2, w, w, ecn, v);  /* z2 = (u-v)^2 % n */
-
-  mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
+  if (ctx->late_reduce) {
+    /* Reduce once, after both the square and the multiply. */
+    mpz_mul(v, w, w);
+    mpz_mulmod(z2, xinit, v, ecn, v);
+  } else {
+    mpz_mulmod(z2, w, w, ecn, v);  /* z2 = (u-v)^2 % n */
+    mpz_mulmod(z2, xinit, z2, ecn, v); /* z2 *= X1. */
+  }
   /* Per Montgomery 1987, we set Z1 to 1, so no need for x2 *= Z1 */
-  /* 5 mulmods, 6 adds */
+  /* 5 multiplications, 4 or 5 reductions, 6 adds. */
 }
 
-/* This version assumes no normalization, so uses an extra mulmod. */
+/* An unnormalized difference requires one extra multiplication. */
 /* (xout:zout) = (x1:z1) + (x2:z2).  The output point may alias either
  * addend or the difference (xin:zin); its x and z must be distinct. */
 static void ec_add3(ecm_ctx *ctx, mpz_t xout, mpz_t zout,
@@ -351,13 +359,19 @@ static void ec_add3(ecm_ctx *ctx, mpz_t xout, mpz_t zout,
   mpz_add(w, u, v);              /* w = u+v */
   mpz_sub(v, u, v);              /* v = u-v */
 
-  mpz_mulmod(w, w, w, ecn, u);   /* w = (u+v)^2 % n */
-  mpz_mulmod(v, v, v, ecn, u);   /* v = (u-v)^2 % n */
+  if (ctx->late_reduce) {
+    /* The following products with zin and xin perform the reductions. */
+    mpz_mul(w, w, w);
+    mpz_mul(v, v, v);
+  } else {
+    mpz_mulmod(w, w, w, ecn, u);   /* w = (u+v)^2 % n */
+    mpz_mulmod(v, v, v, ecn, u);   /* v = (u-v)^2 % n */
+  }
 
   mpz_set(u, xin);
   mpz_mulmod(xout, w, zin, ecn, w);
   mpz_mulmod(zout, v, u,   ecn, w);
-  /* 6 mulmods, 6 adds */
+  /* 6 multiplications, 4 or 6 reductions, 6 adds. */
 }
 
 /* (x2:z2) = 2(x1:z1), permitting an in-place point double. */
@@ -373,11 +387,15 @@ static void ec_double(ecm_ctx *ctx, mpz_t x2, mpz_t z2, mpz_t x1, mpz_t z1)
 
   mpz_mulmod(x2, u, v, ecn, w);  /* x2 = uv % n */
 
-  mpz_sub(w, u, v);              /* w = u-v = 4(x1 * z1) */
-  mpz_mulmod(u, b, w, ecn, z2);
-  mpz_add(u, u, v);              /* u = (v+b*w) mod n */
+  mpz_sub(w, u, v);              /* w = 4*x1*z1 modulo n */
+  if (ctx->late_reduce) {
+    mpz_mul(u, b, w);
+  } else {
+    mpz_mulmod(u, b, w, ecn, z2);
+  }
+  mpz_add(u, u, v);              /* u is congruent to v+b*w modulo n */
   mpz_mulmod(z2, w, u, ecn, v);  /* z2 = (w*u) mod n */
-  /* 5 mulmods, 4 adds */
+  /* 5 multiplications, 4 or 5 reductions, 4 adds. */
 }
 
 /* See http://alexandria.tue.nl/extra2/200311829.pdf for lots of discussion
