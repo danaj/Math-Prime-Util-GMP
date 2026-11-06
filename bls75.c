@@ -7,7 +7,6 @@ static const int ev = 0;
 #include "primality.h"
 #include "lucas_seq.h"
 #include "prime_iterator.h"
-#include "pbrent63.h"
 #include "squfof126.h"
 #include "factor.h"
 #include "siqs.h"
@@ -131,11 +130,11 @@ static int tfe(mpz_t f, const mpz_t n, int effort)
   }
 
   if (effort == 0) {
-    if (!success && log2n <= 63) success = pbrent63(n, f, 1000000);
+    if (!success && log2n <= 64) success = _GMP_tinyecm64_factor(n, f, 1);
     if (!success) success = (int)power_factor(n, f);
     if (success) return success;
   }
-  /* TODO: Use SIQS effectively here, e.g. stage 3 for 50-90 bit */
+  /* TODO: Use SIQS effectively here, e.g. stage 3 for < 90 bit */
 
   switch (effort) {
     case 0: success = _GMP_pminus1_factor(n, f, 400, 400);

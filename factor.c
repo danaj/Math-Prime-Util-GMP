@@ -6,7 +6,7 @@
 #include "primality.h"
 #include "prime_iterator.h"
 #include "utility.h"
-#include "pbrent63.h"
+#include "tinyecm64.h"
 #include "squfof126.h"
 #include "ecm.h"
 #include "siqs.h"
@@ -82,11 +82,6 @@ void _destroy_factor(void) {
  * on the smaller of the composites first, this rarely goes above 10 even
  * with thousands of non-trivial factors. */
 #define MAX_FACTORS 128
-
-/* Balanced-semiprime sweeps put the native-method/SIQS crossover between
- * 55 and 56 bits.  Keep this dispatch choice separate from SIQS's wider
- * supported range, which remains useful to direct callers and as fallback. */
-#define FACTOR_SIQS_DIRECT_MIN_BITS 56U
 
 static int _mpz_cmp_asc(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
@@ -420,25 +415,9 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         {gmp_printf("Factoring %Zd...\n",n); fflush(stdout);}
 
       /* First handle inputs small enough for the native-word methods. */
-
-      /* On x86-64 with fast ASM Montgomery this usually finishes the job;
-       * elsewhere pbrent63 is a no-op. */
-      if (nbits <= 63) {
-        if (!success) success = pbrent63(n, f, 400000);
-        if (success&&o) {gmp_printf("UV Rho-Brent found factor %Zd\n", f);o=0;}
-      }
-
-      /* This small p-1 test is allowed to cost modest time on balanced
-       * inputs in exchange for quickly removing favorable small factors. */
-      if (!success && nbits >= 53 && nbits <= 59) {
-        success = _GMP_pminus1_factor(n, f, 1000, 10000);
-        if (success&&o) {gmp_printf("p-1 (1k) found factor %Zd\n",f);o=0;}
-      }
-
-      if (!success && nbits < FACTOR_SIQS_DIRECT_MIN_BITS) {
-        UV rounds = nbits < 53 ? 400000 : 1000000;
-        success = squfof126(n, f, rounds);
-        if (success&&o) {gmp_printf("SQUFOF126 found factor %Zd\n", f);o=0;}
+      if (nbits <= 64) {
+        success = _GMP_tinyecm64_factor(n, f, 0);
+        if (success&&o) {gmp_printf("TINYECM64 found factor %Zd\n", f);o=0;}
       }
 
       /* The general-purpose recipe keeps a short, cumulative p-1/ECM ladder
@@ -2101,6 +2080,40 @@ int _GMP_holf_factor(const mpz_t n, mpz_t f, UV rounds)
   mpz_set(f, n);
   mpz_clear(npre); mpz_clear(s); mpz_clear(m);
   return 0;
+}
+
+static INLINE uint64_t mpz_get64(const mpz_t n) {
+  uint64_t v = (uint64_t)mpz_getlimbn(n, 0);
+#if GMP_NUMB_BITS < 64
+  unsigned shift;
+  mp_size_t i;
+  for (i = 1, shift = GMP_NUMB_BITS; shift < 64; i++, shift += GMP_NUMB_BITS)
+    v |= (uint64_t)mpz_getlimbn(n, i) << shift;
+#endif
+  return v;
+}
+static INLINE void mpz_set64(mpz_t n, uint64_t v) {
+#if ULONG_MAX >= UINT64_MAX
+  mpz_set_ui(n, (unsigned long)v);
+#else
+  if (v <= ULONG_MAX) {
+    mpz_set_ui(n, (unsigned long)v);
+  } else {
+    mpz_set_ui(n, (unsigned long)(v >> 32));
+    mpz_mul_2exp(n, n, 32);
+    mpz_add_ui(n, n, (unsigned long)(uint32_t)v);
+  }
+#endif
+}
+int _GMP_tinyecm64_factor(const mpz_t n, mpz_t f, int try_small)
+{
+  uint64_t F64 = 0;
+  if (mpz_cmp_ui(n, 4) >= 0 && mpz_sizeinbase(n, 2) <= 64) {
+    F64 = tinyecm64(mpz_get64(n), try_small);
+    if (F64 > 0)
+      mpz_set64(f, F64);
+  }
+  return (F64 > 0);
 }
 
 

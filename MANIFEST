@@ -21,8 +21,6 @@ primality.h
 primality.c
 prime_iterator.h
 prime_iterator.c
-pbrent63.h
-pbrent63.c
 squfof126.h
 squfof126.c
 factor.h
@@ -41,6 +39,8 @@ siqs.c
 siqs.h
 siqs_choose_inc.c
 siqs_sieve_kernel_inc.c
+tinyecm64.c
+tinyecm64.h
 lanczos.c
 lanczos.h
 pr32_iter.c

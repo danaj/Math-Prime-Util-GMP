@@ -29,6 +29,7 @@ WriteMakefile1(
                     'gmp_main.o '       .
                     'lanczos.o '        .
                     'siqs.o '           .
+                    'tinyecm64.o '      .
                     'primality.o '      .
                     'bls75.o '          .
                     'ecpp.o '           .
@@ -42,7 +43,6 @@ WriteMakefile1(
                     'prime_iterator.o ' .
                     'pr32_iter.o '      .
                     'poly.o '           .
-                    'pbrent63.o '       .
                     'squfof126.o '      .
                     'ecm.o '            .
                     'lucas_seq.o '      .

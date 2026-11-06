@@ -40,6 +40,10 @@ extern int  _GMP_pplus1_factor(const mpz_t n, mpz_t f, UV P0, UV B1, UV B2);
 extern int  _GMP_holf_factor(const mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_squfof_factor(const mpz_t n, mpz_t f, UV rounds);
 extern int  _GMP_cheb_factor(const mpz_t n, mpz_t f, UV B, UV initx);
+/* Find a proper divisor of n when 4 <= n < 2^64.
+ * Return 1 and set f on success; otherwise return 0 and leave f unchanged.
+ * f may alias n. Nonzero try_small adds a short small-factor prefix. */
+extern int  _GMP_tinyecm64_factor(const mpz_t n, mpz_t f, int try_small);
 
 /* Return the maximal perfect-power exponent, or 0 for n <= 1 or no power.
  * f is meaningful only on success; f may alias n. */

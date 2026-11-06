@@ -1,6 +1,6 @@
 # SIQS in Math::Prime::Util::GMP
 
-This snapshot comes from msiqs revision `f38bb492c792`.
+This snapshot comes from msiqs revision `755054b302e9`.
 
 The module contains a frozen serial edition of [msiqs](https://github.com/danaj/msiqs),
 a portable Self-Initializing Quadratic Sieve implementation using GMP.
@@ -50,7 +50,7 @@ ported updates. It has no parallel workers, journal code, 3LP, or timing
 instrumentation. No standalone SIQS program is built from this package.
 The public Perl factoring interfaces and their behavior are unchanged.
 
-See msiqs's [embedded package](https://github.com/danaj/msiqs/tree/f38bb492c792e45cab32ed45fd17441c4072fb31/embedded)
+See msiqs's [embedded package](https://github.com/danaj/msiqs/tree/755054b302e9edc55465f60dfacff7a8b14ffbe9/embedded)
 for the source snapshot, native TinySIQS128, and embedding instructions.
 TinySIQS128 is independent of GMP and is not used by this GMP module.
 The embedded source license is included as [LICENSE-SIQS](LICENSE-SIQS);

@@ -1,11 +1,12 @@
 /* Fixed-width modular arithmetic for an odd modulus n > 1.
  *
  * Adapted from the tecm64 helpers in Math::Prime::Util's factor.c.
- * Uses the shared types/inlining in ptypes.h; no Perl/GMP dependency when
- * compiled with STANDALONE. With unsigned 128-bit arithmetic, values are in
- * Montgomery form (R = 2^64); otherwise the same interface uses ordinary
- * residues and portable double-and-add multiplication. Set
- * MONT64_HAVE_UINT128=0 to exercise that fallback on any compiler.
+ * Uses the shared types/inlining in ptypes.h.
+ * No GMP dependency.
+ * With unsigned 128-bit arithmetic, values are in Montgomery form (R = 2^64),
+ * otherwise the same interface uses ordinary residues and portable
+ * double-and-add multiplication.  Set MONT64_HAVE_UINT128=0 to exercise that
+ * fallback on any compiler.
  *
  * Add/subtract and Montgomery multiply operands must be reduced modulo n.
  * Enter/exit convert representations; ctx->one is the represented value 1.
@@ -30,9 +31,8 @@ typedef struct {
 } mont64_t;
 
 static INLINE MAYBE_UNUSED uint64_t mont64_add(uint64_t a, uint64_t b, uint64_t n) {
-  uint64_t r = a + b;
-  if (r < a || r >= n) r -= n;
-  return r;
+  uint64_t gap = n - b;
+  return a >= gap ? a - gap : a + b;
 }
 static INLINE MAYBE_UNUSED uint64_t mont64_sub(uint64_t a, uint64_t b, uint64_t n) {
   return a >= b ? a - b : n - (b - a);

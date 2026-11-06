@@ -7,7 +7,7 @@
 #include <math.h>
 
 enum { CHECK_ECM, CHECK_PM1, CHECK_PBRENT, CHECK_HOLF, CHECK_CHEB,
-       CHECK_SIQS, CHECK_NATIVE, CHECK_SQUFOF };
+       CHECK_SIQS, CHECK_TINYECM64 };
 typedef struct { int kind; UV a, b; } check_event_t;
 static check_event_t check_events[256];
 static size_t check_nevents;
@@ -110,11 +110,8 @@ void mpz_product_ui(mpz_t n, unsigned long *v, unsigned long count) {
   mpz_set_ui(n, 1);
   for (i = 0; i < count; i++) mpz_mul_ui(n, n, v[i]);
 }
-int pbrent63(const mpz_t n, mpz_t f, UV rounds) {
-  (void)n; (void)f; check_record(CHECK_NATIVE, rounds, 0); return 0;
-}
-int squfof126(const mpz_t n, mpz_t f, uint64_t rounds) {
-  (void)n; (void)f; check_record(CHECK_SQUFOF, rounds, 0); return 0;
+int _GMP_tinyecm64_factor(const mpz_t n, mpz_t f, int try_small) {
+  (void)n; (void)f; check_record(CHECK_TINYECM64, (UV)try_small, 0); return 0;
 }
 int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV b1, UV b2) {
   (void)n; (void)f; check_record(CHECK_PM1, b1, b2); return 0;
@@ -208,9 +205,7 @@ static void check_expected(size_t *index, int kind, UV a, UV b) {
 static void check_fallback_recipe(unsigned bits) {
   size_t index = 0;
   UV base, early, m;
-  if (bits <= 63) check_expected(&index, CHECK_NATIVE, 400000, 0);
-  if (bits >= 53 && bits <= 59) check_expected(&index, CHECK_PM1, 1000, 10000);
-  if (bits < 56) check_expected(&index, CHECK_SQUFOF, bits < 53 ? 400000 : 1000000, 0);
+  if (bits <= 64) check_expected(&index, CHECK_TINYECM64, 0, 0);
   early = bits < 96 ? 0 : bits < 112 ? 1000 : bits < 144 ? 2000 : 20000;
   if (early) check_expected(&index, CHECK_PM1, early, 10*early);
   if (bits >= 160) check_expected(&index, CHECK_ECM, 200, 4);
