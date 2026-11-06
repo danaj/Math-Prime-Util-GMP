@@ -290,12 +290,17 @@ static void check_projective(ecm_ctx *ctx)
   for (k = 0; k <= 4096; k++) {
     check_scalar(ctx, P, p, k, k%17+1);
     if (k > 2 && (k & 1)) {
+      UV best_cost = UV_MAX, best_r = 0;
       for (i = 0; i < sizeof(ratios)/sizeof(ratios[0]); i++) {
         UV r = (UV)((double)k/ratios[i]+0.5);
+        UV cost = lucas_cost(k,r);
         /* Coprime starts must work; some noncoprime starts also finish
          * at one after absorbing the shared factor in a PRAC step. */
-        CHECK(gcd_uv(k,r) != 1 || lucas_cost(k,r) != UV_MAX);
+        CHECK(gcd_uv(k,r) != 1 || cost != UV_MAX);
+        if (cost < best_cost) { best_cost = cost; best_r = r; }
       }
+      if (k <= 1023)
+        CHECK(ec_prac_small_r[k>>1] == (best_r != 0 ? best_r : k/2+1));
     }
   }
   /* All five original choices for 7^4 are invalid. */
@@ -400,7 +405,55 @@ static void check_stage2(ecm_ctx *ctx)
   CHECK(ec_stage2(ctx, 7, 19, x, z, f) == 0);
   CHECK(mpz_cmp_ui(f, 35) == 0);
   CHECK(allocation_calls == i);
+  /* Delayed product checks must precede a later normalization failure.
+   * Retain that failure if pending products are unit, otherwise prefer the
+   * earlier factor (or lost curve), even if normalization finds a factor. */
+  {
+    const struct {
+      unsigned long n, b, x, z, B1, B2, factor;
+      int status;
+    } cases[] = {
+      {111564701,848,27572,47,5,886,101,2},
+      {1504763069,349,53532,1,7,762,1009,2},
+      {11227,822,22408,1,8,731,11227,0}
+    };
+    for (i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+      mpz_set_ui(ctx->n,cases[i].n); mpz_set_ui(ctx->b,cases[i].b);
+      mpz_set_ui(x,cases[i].x); mpz_set_ui(z,cases[i].z);
+      CHECK(ec_stage2(ctx,cases[i].B1,cases[i].B2,x,z,f) == cases[i].status);
+      CHECK(mpz_cmp_ui(f,cases[i].factor) == 0);
+    }
+  }
   mpz_clears(x,z,f,NULL);
+}
+
+static void check_stage2_gcd(void)
+{
+  mpz_t n, f, snapshots[3];
+  unsigned i;
+  mpz_inits(n,f,NULL);
+  for (i = 0; i < 3; i++) mpz_init(snapshots[i]);
+  mpz_set_ui(n,35);
+  mpz_set_ui(snapshots[0],2); mpz_set_ui(snapshots[1],10); mpz_set_ui(snapshots[2],0);
+  CHECK(ec_stage2_gcd_flush(f,n,snapshots,3));
+  CHECK(mpz_cmp_ui(f,5) == 0);     /* Later checkpoint absorbs all of n. */
+  mpz_set_ui(n,385); mpz_set_ui(snapshots[2],70);
+  CHECK(ec_stage2_gcd_flush(f,n,snapshots,3));
+  CHECK(mpz_cmp_ui(f,5) == 0);     /* Later GCD is a larger proper divisor. */
+  mpz_set_ui(n,25); mpz_set_ui(snapshots[2],0);
+  CHECK(ec_stage2_gcd_flush(f,n,snapshots,3));
+  CHECK(mpz_cmp_ui(f,5) == 0);     /* Repeated prime. */
+  mpz_set_ui(n,35); mpz_set_ui(snapshots[1],0);
+  CHECK(ec_stage2_gcd_flush(f,n,snapshots,3));
+  CHECK(mpz_cmp(f,n) == 0);        /* Preserve an original lost curve. */
+  mpz_set_ui(snapshots[1],4); mpz_set_ui(snapshots[2],8);
+  CHECK(!ec_stage2_gcd_flush(f,n,snapshots,3));
+  CHECK(mpz_cmp_ui(f,1) == 0);
+  mpz_set_ui(snapshots[0],0);
+  CHECK(ec_stage2_gcd_flush(f,n,snapshots,1));
+  CHECK(mpz_cmp(f,n) == 0);
+  for (i = 0; i < 3; i++) mpz_clear(snapshots[i]);
+  mpz_clears(n,f,NULL);
 }
 
 static void check_stage2_workspace(ecm_ctx *ctx)
@@ -424,7 +477,7 @@ static void check_stage2_workspace(ecm_ctx *ctx)
     if (d < 2) d = 2;
     else if (d%2) d++;
     half = d/2;
-    needed = half+2+2*(half/2 < ECM_STAGE2_BATCH_POINTS ? half/2 : ECM_STAGE2_BATCH_POINTS);
+    needed = half+2+2*(half/2 < ECM_STAGE2_BATCH_POINTS ? half/2 : ECM_STAGE2_BATCH_POINTS)+ECM_STAGE2_GCD_WINDOWS+1;
     old_alloc = ctx->stage2_alloc;
     mpz_set_ui(x, (unsigned long)P.x); mpz_set_ui(z, 1);
     CHECK(ec_stage2(ctx, 1, bounds[j], x, z, f) == 0);
@@ -545,9 +598,9 @@ static void probe_stage2_allocation(ecm_ctx *ctx, UV bound, int expected, UV cou
 
 static void check_allocation_limit(ecm_ctx *ctx)
 {
-  UV d = 2*((UV)(SIZE_MAX / sizeof(mpz_t)) - 2 - 2*ECM_STAGE2_BATCH_POINTS);
+  UV d = 2*((UV)(SIZE_MAX / sizeof(mpz_t)) - 2 - 2*ECM_STAGE2_BATCH_POINTS - ECM_STAGE2_GCD_WINDOWS - 1);
   /* Last feasible even width, then the next even width. */
-  probe_stage2_allocation(ctx, 2*d*d, 2, d/2+2+2*ECM_STAGE2_BATCH_POINTS);
+  probe_stage2_allocation(ctx, 2*d*d, 2, d/2+2+2*ECM_STAGE2_BATCH_POINTS+ECM_STAGE2_GCD_WINDOWS+1);
   d += 2;
   probe_stage2_allocation(ctx, 2*d*d, 1, 0);
   /* D=2^31 still exceeds the modeled allocation ceiling with packing. */
@@ -569,6 +622,7 @@ int main(void)
   check_projective(ctx);
   check_batch_normalization(ctx);
   check_stage2(ctx);
+  check_stage2_gcd();
   check_stage2_workspace(ctx);
 #if defined(ECM_CHECK_ALLOC32) && UV_MAX > UINT32_MAX
   check_allocation_limit(ctx);

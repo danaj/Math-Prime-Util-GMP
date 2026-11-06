@@ -404,7 +404,7 @@ static void ec_mult_binary(ecm_ctx *ctx, UV k, mpz_t x, mpz_t z)
   while (bit <= k/2) bit *= 2;
   mpz_set(x1, x); mpz_set(z1, z);
   ec_double(ctx, x2, z2, x, z);
-  for (bit >>= 1; bit != 0; bit >>= 1) {
+  for (bit >>= 1; bit > 1; bit >>= 1) {
     if (k & bit) {
       ec_add3(ctx, x1, z1, x1, z1, x2, z2, x, z);
       ec_double(ctx, x2, z2, x2, z2);
@@ -413,7 +413,11 @@ static void ec_mult_binary(ecm_ctx *ctx, UV k, mpz_t x, mpz_t z)
       ec_double(ctx, x1, z1, x1, z1);
     }
   }
-  mpz_set(x, x1); mpz_set(z, z1);
+  /* Only the returned point is needed for the final bit. */
+  if (k & 1)
+    ec_add3(ctx, x, z, x1, z1, x2, z2, x, z);
+  else
+    ec_double(ctx, x, z, x1, z1);
 }
 
 /* PRAC
@@ -473,6 +477,43 @@ static UV lucas_cost(UV n, UV r)
 #define SWAP(a, b) \
   t = x##a; x##a = x##b; x##b = t;  t = z##a; z##a = z##b; z##b = t;
 
+/* Selected r for odd k=3..1023, indexed by k/2; entry zero is unused.
+ * Reproduces the five-candidate, 6/5 cost model below, including its ties. */
+static const uint16_t ec_prac_small_r[512] = {
+  0,2,3,4,5,6,8,8,11,12,13,14,16,16,18,19,
+  20,22,21,23,25,27,28,29,30,32,33,34,35,36,38,40,
+  38,39,40,44,45,46,48,49,50,51,53,50,55,53,59,59,
+  60,61,62,65,61,62,63,70,70,71,68,74,75,76,77,78,
+  80,81,82,83,79,81,82,90,84,85,86,93,95,96,97,98,
+  102,101,104,97,107,106,107,108,103,111,105,113,117,116,110,118,
+  119,121,122,123,124,125,127,128,129,130,124,133,137,135,128,138,
+  139,132,142,134,144,149,146,148,149,154,151,153,154,155,147,158,
+  159,160,161,163,154,169,166,167,173,174,171,172,163,164,176,167,
+  179,169,170,187,184,185,186,187,177,178,191,192,193,199,196,197,
+  186,200,201,202,191,205,206,207,208,209,216,212,218,214,221,217,
+  205,219,226,208,223,224,212,227,214,229,231,232,233,234,235,237,
+  244,239,246,247,197,244,230,253,248,249,256,236,253,254,240,256,
+  258,259,260,268,269,264,265,266,274,269,270,271,256,274,258,283,
+  284,285,280,264,265,266,292,269,287,271,290,298,292,276,277,296,
+  297,298,307,301,302,303,286,287,307,308,310,311,312,313,295,316,
+  317,318,300,301,322,323,332,326,327,328,329,339,332,333,334,344,
+  337,338,339,340,321,343,344,345,347,348,349,359,330,353,332,364,
+  357,358,337,360,362,363,364,343,366,368,378,348,371,382,351,375,
+  376,378,379,357,381,382,311,394,363,397,365,390,367,368,394,395,
+  396,397,374,400,401,402,413,328,406,417,408,385,411,387,413,415,
+  416,417,418,394,421,422,423,425,436,427,428,403,431,406,433,434,
+  409,410,438,413,441,452,443,455,456,419,459,460,461,452,453,454,
+  455,457,458,431,432,473,474,475,437,438,468,469,470,472,473,445,
+  446,476,478,479,451,481,453,484,497,498,499,489,490,491,504,494,
+  465,466,467,499,500,501,502,516,505,506,507,509,522,511,481,482,
+  515,516,530,487,520,521,522,523,493,526,527,528,530,531,545,501,
+  502,536,537,505,506,541,542,556,544,546,547,548,549,551,552,519,
+  554,569,557,524,573,526,562,563,564,566,580,568,569,570,572,587,
+  574,575,541,542,579,545,546,583,584,585,586,552,589,554,591,593,
+  594,595,611,561,599,600,601,602,604,568,606,607,609,610,611,575,
+  628,577,616,617,619,635,583,584,585,625,626,589,629,645,646,632,
+};
+
 /* PRAC for odd scalars in its safe arithmetic range, binary otherwise.
  * x and z have the same destructive/nonaliasing contract as the binary ladder. */
 static void ec_mult(ecm_ctx *ctx, UV k, mpz_t x, mpz_t z)
@@ -492,14 +533,18 @@ static void ec_mult(ecm_ctx *ctx, UV k, mpz_t x, mpz_t z)
      ec_mult_binary(ctx, k, x, z);
      return;
    }
-   for (i = 0; i < sizeof(val)/sizeof(val[0]); i++) {
-     r = (UV)((double)k / val[i] + 0.5);
-     cost = lucas_cost(k, r);
-     if (cost < best_cost) { best_cost = cost; best_r = r; }
+   if (k <= 1023) {
+     r = ec_prac_small_r[k>>1];
+   } else {
+     for (i = 0; i < sizeof(val)/sizeof(val[0]); i++) {
+       r = (UV)((double)k / val[i] + 0.5);
+       cost = lucas_cost(k, r);
+       if (cost < best_cost) { best_cost = cost; best_r = r; }
+     }
+     /* All five can be invalid (e.g. k=7^4).  For odd k this reserve r
+      * always satisfies gcd(k,r)=1, since 2*r-k=1. */
+     r = best_r != 0 ? best_r : k/2 + 1;
    }
-   /* All five can be invalid (e.g. k=7^4).  For odd k this reserve r
-    * always satisfies gcd(k,r)=1, since 2*r-k=1. */
-   r = best_r != 0 ? best_r : k/2 + 1;
    /* A=(x:z) B=(x1:z1) C=(x2:z2) T=T1=(x3:z3) T2=(x4:z4) */
    xA=x; zA=z; xB=ctx->x1; zB=ctx->z1; xC=ctx->x2; zC=ctx->z2;
    xT=ctx->x3; zT=ctx->z3; xT2=ctx->x4; zT2=ctx->z4;
@@ -583,7 +628,7 @@ static int ec_normalize(ecm_ctx *ctx, mpz_t x, mpz_t z, mpz_t f)
   return 1;
 }
 
-enum { ECM_STAGE2_BATCH_POINTS = 16 };
+enum { ECM_STAGE2_BATCH_POINTS = 16, ECM_STAGE2_GCD_WINDOWS = 8 };
 
 /* Normalize count>0 independent points with one inversion.  Arrays are disjoint
  * from one another, f and ctx->u/v/w/n.  A zero divisor in the product can hide
@@ -619,6 +664,23 @@ static int ec_normalize_batch(ecm_ctx *ctx, mpz_t *x, mpz_t *z,
   return 1;
 }
 
+/* Retain cumulative products at the skipped GCD checkpoints.  If the last
+ * product is nonunit, recover the first nonunit checkpoint, preserving both
+ * the original factor and lost-curve behavior (including a GCD equal to n). */
+static int ec_stage2_gcd_flush(mpz_t f, const mpz_t n,
+                             mpz_t *checks, UV count)
+{
+  UV i;
+  mpz_gcd(f, checks[count-1], n);
+  if (mpz_cmp_ui(f, 1) == 0) return 0;
+  for (i = 0; i+1 < count; i++) {
+    mpz_gcd(f, checks[i], n);
+    if (mpz_cmp_ui(f, 1) != 0) return 1;
+  }
+  mpz_gcd(f, checks[count-1], n);
+  return 1;
+}
+
 static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
 {
   mpz_ptr u = ctx->u, w = ctx->w;
@@ -627,6 +689,9 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   UV D, i, j, m, half, count, batch;
   mpz_t *nqx, *batch_z, *prefix;
   mpz_t g, one;
+  UV gcd_pending = 0;
+  mpz_t *gcd_checks;
+  mpz_ptr normalization_factor;
   PRIME_ITERATOR(iter);
 
   if (B2 <= B1 || B2 < 2) return 0;
@@ -635,8 +700,9 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   else if (D%2) D++;
   half = D/2;
   batch = half/2 < ECM_STAGE2_BATCH_POINTS ? half/2 : ECM_STAGE2_BATCH_POINTS;
-  /* 2Q..DQ, the 2DQ stride, then bounded inversion scratch. */
-  count = half+2+2*batch;
+  /* 2Q..DQ, the 2DQ stride, bounded inversion scratch, then cumulative
+   * GCD checkpoints and a saved normalization factor.  Reused across curves. */
+  count = half+2+2*batch+ECM_STAGE2_GCD_WINDOWS+1;
   /* Check before allocation macros can narrow count to size_t (or MEM_SIZE).
    * In particular, UV can be 64 bits while allocation sizes are 32 bits. */
   if (count > SIZE_MAX / sizeof(mpz_t))
@@ -658,6 +724,8 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
   nqx = ctx->stage2_x;
   batch_z = nqx + half+2;
   prefix = batch_z + batch;
+  gcd_checks = prefix + batch;
+  normalization_factor = gcd_checks[ECM_STAGE2_GCD_WINDOWS];
   mpz_init_set_ui(g, 1);
   mpz_init_set_ui(one, 1);
 
@@ -707,7 +775,16 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
       mpz_set(x2, x1);
       mpz_set(z2, z1);
       ec_add(ctx, x1, z1, nqx[half+1], one, x);
-      if (!ec_normalize(ctx, x1, z1, f)) goto cleanup;
+      if (!ec_normalize(ctx, x1, z1, f)) {
+        /* A pending product checkpoint precedes this normalization failure.
+         * Prefer its result if nonunit; otherwise retain the failure factor. */
+        if (gcd_pending != 0) {
+          mpz_set(normalization_factor, f);
+          if (!ec_stage2_gcd_flush(f, ecn, gcd_checks, gcd_pending))
+            mpz_set(f, normalization_factor);
+        }
+        goto cleanup;
+      }
       mpz_set(x, x2);  mpz_set(z, z2);
     }
     if (m+D > B1 && m >= D) {
@@ -724,10 +801,15 @@ static int ec_stage2(ecm_ctx *ctx, UV B1, UV B2, mpz_t x, mpz_t z, mpz_t f)
           mpz_mulmod(g, g, w, ecn, u);
         }
       }
-      mpz_gcd(f, g, ecn);
-      if (mpz_cmp_ui(f, 1) != 0) goto cleanup;
+      mpz_set(gcd_checks[gcd_pending++], g);
+      if (gcd_pending == ECM_STAGE2_GCD_WINDOWS) {
+        if (ec_stage2_gcd_flush(f, ecn, gcd_checks, gcd_pending)) goto cleanup;
+        gcd_pending = 0;
+      }
     }
   }
+
+  if (gcd_pending != 0) ec_stage2_gcd_flush(f, ecn, gcd_checks, gcd_pending);
 
 cleanup:
   prime_iterator_destroy(&iter);
