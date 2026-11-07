@@ -13,7 +13,7 @@ static check_event_t check_events[256];
 static size_t check_nevents;
 static unsigned check_siqs_calls, check_releases, check_assertions, check_fail_after;
 static mpz_t check_input, check_parts[8];
-static unsigned check_nparts;
+static unsigned check_nparts, check_primality_calls;
 static int check_split, check_verbose;
 static jmp_buf check_failure_jump;
 static int check_expecting_failure;
@@ -103,8 +103,10 @@ static void check_record(int kind, UV a, UV b) {
 
 int get_verbose_level(void) { return check_verbose; }
 uint64_t irand_u64(void) { return UINT64_C(0x123456789abcdef0); }
-int _GMP_is_prob_prime(const mpz_t n) { return mpz_probab_prime_p(n, 20) != 0; }
-unsigned long power_factor(const mpz_t n, mpz_t f) { (void)n; (void)f; return 0; }
+int _GMP_is_prob_prime(const mpz_t n) {
+  check_primality_calls++;
+  return mpz_probab_prime_p(n, 20) != 0;
+}
 void mpz_set_uv(mpz_t n, UV v) { mpz_import(n, 1, 1, sizeof(v), 0, 0, &v); }
 void mpz_product_ui(mpz_t n, unsigned long *v, unsigned long count) {
   unsigned long i;
@@ -318,162 +320,278 @@ static void check_schedule(void) {
   }
 }
 
-static void check_helper(void) {
-  mpz_t n, f, product, stack[MAX_FACTORS];
-  mpz_t *factors = NULL;
-  int *exponents = NULL, nfactors = 0, nstack = 0;
-  unsigned i;
-  factor_siqs_result_t result;
-  mpz_inits(n, f, product, NULL);
-  check_reset();
-  check_semiprime(100);
-  mpz_set(n, check_input);
-  mpz_set_ui(f, 17);
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_NO_SPLIT && nstack == 0 && nfactors == 0);
-  CHECK(mpz_cmp(n, check_input) == 0 && mpz_cmp_ui(f, 17) == 0);
-  check_split = 1;
-  check_nparts = 0;
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_NO_SPLIT && mpz_cmp(n, check_input) == 0);
-  check_nparts = 2;
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_FACTOR && nstack == 0 && nfactors == 0);
-  CHECK(mpz_cmp(n, check_input) == 0 && mpz_cmp(f, check_parts[0]) == 0);
-  mpz_set(check_parts[1], check_parts[0]);
-  mpz_mul(check_input, check_parts[0], check_parts[1]);
-  mpz_set(n, check_input);
-  check_verbose = 3;
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 3);
-  check_verbose = 0;
-  CHECK(result == FACTOR_SIQS_FACTOR && nstack == 0 && nfactors == 0);
-  CHECK(mpz_cmp(n, check_input) == 0 && mpz_cmp(f, check_parts[0]) == 0);
-
-  /* Repeated primes and one remaining composite: account for multiplicity. */
-  check_nparts = 4;
-  mpz_set_ui(check_parts[0], 1000003);
-  mpz_set(check_parts[1], check_parts[0]);
-  mpz_set_ui(check_parts[2], 1000033);
-  mpz_set_ui(check_parts[3], 1000037);
-  mpz_mul(check_parts[3], check_parts[3], check_parts[2]);
-  mpz_set_ui(check_input, 1);
-  for (i = 0; i < check_nparts; i++) mpz_mul(check_input, check_input, check_parts[i]);
-  mpz_set(n, check_input);
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_WORK_UPDATED && nfactors == 2 && nstack == 0);
-  CHECK(exponents[0] == 2 && exponents[1] == 1);
-  CHECK(mpz_cmp(n, check_parts[3]) == 0);
-  clear_factors(nfactors, &factors, &exponents);
-  factors = NULL; exponents = NULL; nfactors = 0;
-
-  /* Composite-only partitions preserve unpushed products under stack pressure. */
-  check_nparts = 3;
-  for (i = 0; i < check_nparts; i++) {
-    mpz_set_ui(check_parts[i], 1000003 + 30*i);
-    mpz_mul_ui(check_parts[i], check_parts[i], 1000037);
+static void check_partition_value(factor_partition_t *part, const mpz_t expected)
+{
+  mpz_t product, power, g;
+  size_t i, j;
+  mpz_inits(product, power, g, NULL);
+  mpz_set_ui(product, 1);
+  for (i = 0; i < part->count; i++) {
+    CHECK(part->pieces[i].exponent > 0 && mpz_cmp_ui(part->pieces[i].value, 1) > 0);
+    mpz_pow_ui(power, part->pieces[i].value, part->pieces[i].exponent);
+    mpz_mul(product, product, power);
+    for (j = 0; j < i; j++) {
+      mpz_gcd(g, part->pieces[i].value, part->pieces[j].value);
+      CHECK(mpz_cmp_ui(g, 1) == 0);
+    }
   }
-  mpz_set_ui(check_input, 1);
-  for (i = 0; i < check_nparts; i++) mpz_mul(check_input, check_input, check_parts[i]);
-  mpz_set(n, check_input);
-  nstack = MAX_FACTORS-2;
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_WORK_UPDATED && nstack == MAX_FACTORS-1 && nfactors == 0);
-  mpz_mul(product, n, stack[MAX_FACTORS-2]);
-  CHECK(mpz_cmp(product, check_input) == 0);
-  mpz_clear(stack[MAX_FACTORS-2]);
-  mpz_set(n, check_input);
-  result = factor_try_siqs(n, f, stack, &nstack, &nfactors, &factors, &exponents, 0);
-  CHECK(result == FACTOR_SIQS_NO_SPLIT && mpz_cmp(n, check_input) == 0);
-  CHECK(check_releases == check_siqs_calls);
-  mpz_clears(n, f, product, NULL);
+  CHECK(mpz_cmp(product, expected) == 0);
+  mpz_clears(product, power, g, NULL);
 }
 
-static void check_real_loop(void) {
+static void check_partition(void)
+{
+  factor_partition_t part;
+  mpz_t n, d, root, product, power;
+  size_t index, i;
+  unsigned seed = 7, repeat, j;
+  int result;
+  mpz_inits(n, d, root, product, power, NULL);
+
+  factor_partition_init(&part);
+  mpz_set_ui(n, 12);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_COMPOSITE));
+  mpz_set_ui(d, 6);
+  CHECK(factor_partition_split(&part, 0, d));
+  check_partition_value(&part, n);
+  CHECK(part.count == 2);
+  CHECK(factor_partition_prepare(&part, root, &index, 0) && index == part.count);
+  factor_partition_clear(&part);
+
+  /* Overlapping composite pieces must become a coprime basis. */
+  factor_partition_init(&part);
+  mpz_set_ui(n, 12); mpz_set_ui(d, 18);
+  CHECK(factor_partition_append(&part, n, 2, FACTOR_UNKNOWN));
+  CHECK(factor_partition_append(&part, d, 3, FACTOR_UNKNOWN));
+  mpz_pow_ui(product, n, 2); mpz_pow_ui(power, d, 3); mpz_mul(product, product, power);
+  CHECK(factor_partition_refine(&part));
+  check_partition_value(&part, product);
+  CHECK(part.count == 2);
+  CHECK(factor_partition_prepare(&part, root, &index, 0) && index == part.count);
+  factor_partition_clear(&part);
+
+  /* A proven lower factor bound can settle prime pieces without PRP.
+   * Equality is not enough: 7^2 must still be recognized as a power. */
+  factor_partition_init(&part);
+  mpz_set_ui(n, 11);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  mpz_set_ui(n, 47);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  mpz_set_ui(n, 169);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  mpz_set_ui(product, 11UL*47UL*169UL);
+  check_primality_calls = 0;
+  CHECK(factor_partition_prepare(&part, root, &index, 7UL*7UL));
+  CHECK(index == part.count && check_primality_calls == 0);
+  CHECK(mpz_cmp_ui(part.pieces[2].value, 13) == 0 && part.pieces[2].exponent == 2);
+  check_partition_value(&part, product);
+  factor_partition_clear(&part);
+
+  factor_partition_init(&part);
+  mpz_set_ui(n, 49);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  CHECK(factor_partition_prepare(&part, root, &index, 49));
+  CHECK(part.count == 1 && mpz_cmp_ui(part.pieces[0].value, 7) == 0);
+  CHECK(part.pieces[0].exponent == 2 && part.pieces[0].state == FACTOR_PRIME);
+  check_partition_value(&part, n);
+  factor_partition_clear(&part);
+
+  /* Multiplicity avoids a power-sized work array or repeated root work. */
+  factor_partition_init(&part);
+  mpz_set_ui(n, 2); mpz_pow_ui(n, n, 100000);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  CHECK(factor_partition_prepare(&part, root, &index, 0));
+  CHECK(index == part.count && part.count == 1);
+  CHECK(mpz_cmp_ui(part.pieces[0].value, 2) == 0 && part.pieces[0].exponent == 100000);
+  check_partition_value(&part, n);
+  factor_partition_clear(&part);
+
+  /* Removing all copies through gcd refinement must also be bounded. */
+  factor_partition_init(&part);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_COMPOSITE));
+  mpz_set_ui(d, 2);
+  CHECK(factor_partition_split(&part, 0, d));
+  CHECK(part.count == 1 && part.pieces[0].exponent == 100000);
+  check_partition_value(&part, n);
+  factor_partition_clear(&part);
+
+  factor_partition_init(&part);
+  mpz_set_ui(n, 6);
+  CHECK(factor_partition_append(&part, n, INT_MAX, FACTOR_COMPOSITE));
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_UNKNOWN));
+  CHECK(!factor_partition_refine(&part));
+  CHECK(strcmp(part.error, "factor() exponent overflow") == 0);
+  factor_partition_clear(&part);
+
+  /* Each overlap path must check weighted exponents before multiplying. */
+  for (j = 0; j < 3; j++) {
+    factor_partition_init(&part);
+    mpz_set_ui(n, j == 0 ? 6 : j == 1 ? 2 : 8);
+    CHECK(factor_partition_append(&part, n, j == 1 ? 1 : INT_MAX, FACTOR_COMPOSITE));
+    mpz_set_ui(n, j == 0 ? 10 : j == 1 ? 8 : 2);
+    CHECK(factor_partition_append(&part, n, j == 1 ? INT_MAX : 1, FACTOR_COMPOSITE));
+    CHECK(!factor_partition_refine(&part));
+    CHECK(strcmp(part.error, "factor() exponent overflow") == 0);
+    factor_partition_clear(&part);
+  }
+  factor_partition_init(&part);
+  mpz_set_ui(n, 4);
+  CHECK(factor_partition_append(&part, n, INT_MAX, FACTOR_UNKNOWN));
+  CHECK(!factor_partition_prepare(&part, root, &index, 0));
+  CHECK(strcmp(part.error, "factor() exponent overflow") == 0);
+  factor_partition_clear(&part);
+
+  factor_partition_init(&part);
+  mpz_set_ui(n, 6);
+  CHECK(factor_partition_append(&part, n, 1, FACTOR_COMPOSITE));
+  for (j = 0; j < 4; j++) {
+    mpz_set_ui(d, j == 3 ? 4 : j == 2 ? 6 : j);
+    CHECK(!factor_partition_split(&part, 0, d));
+    CHECK(mpz_cmp_ui(part.pieces[0].value, 6) == 0 && part.count == 1);
+  }
+  factor_partition_clear(&part);
+
+  /* Every intermediate refinement preserves the independent product. */
+  for (repeat = 0; repeat < 200; repeat++) {
+    factor_partition_init(&part);
+    mpz_set_ui(product, 1);
+    for (j = 0; j < 6; j++) {
+      unsigned value, exponent;
+      seed = seed*1664525U + 1013904223U; value = 2 + seed%499;
+      seed = seed*1664525U + 1013904223U; exponent = 1 + seed%7;
+      mpz_set_ui(n, value);
+      CHECK(factor_partition_append(&part, n, (int)exponent, FACTOR_UNKNOWN));
+      mpz_pow_ui(power, n, exponent); mpz_mul(product, product, power);
+    }
+    CHECK(factor_partition_refine(&part));
+    check_partition_value(&part, product);
+    while (1) {
+      unsigned long divisor;
+      CHECK(factor_partition_prepare(&part, root, &index, 0));
+      check_partition_value(&part, product);
+      if (index == part.count) break;
+      for (divisor = 2; !mpz_divisible_ui_p(part.pieces[index].value, divisor); divisor++) ;
+      mpz_set_ui(d, divisor);
+      CHECK(factor_partition_split(&part, index, d));
+      check_partition_value(&part, product);
+    }
+    for (i = 0; i < part.count; i++) CHECK(part.pieces[i].state == FACTOR_PRIME);
+    factor_partition_clear(&part);
+  }
+
+  /* Low-level SIQS misses and invalid partitions must release their arrays. */
+  check_reset(); check_semiprime(100);
+  factor_partition_init(&part);
+  CHECK(factor_partition_append(&part, check_input, 1, FACTOR_COMPOSITE));
+  CHECK(factor_partition_siqs(&part, 0, check_input, 0) == 0);
+  check_partition_value(&part, check_input);
+  check_split = 1; check_nparts = 0;
+  CHECK(factor_partition_siqs(&part, 0, check_input, 0) == 0);
+  check_nparts = 2; mpz_add_ui(check_parts[0], check_parts[0], 1);
+  result = factor_partition_siqs(&part, 0, check_input, 0);
+  CHECK(result == -1 && strcmp(part.error, "SIQS: invalid result partition") == 0);
+  check_partition_value(&part, check_input);
+  CHECK(check_releases == check_siqs_calls);
+  factor_partition_clear(&part);
+  mpz_clears(n, d, root, product, power, NULL);
+}
+
+static void check_output(const mpz_t n, int count, mpz_t *factors, int *exponents)
+{
+  mpz_t product, power;
+  int i;
+  mpz_inits(product, power, NULL);
+  mpz_set_ui(product, 1);
+  for (i = 0; i < count; i++) {
+    CHECK(_GMP_is_prob_prime(factors[i]) && exponents[i] > 0);
+    if (i) CHECK(mpz_cmp(factors[i-1], factors[i]) < 0);
+    mpz_pow_ui(power, factors[i], exponents[i]);
+    mpz_mul(product, product, power);
+  }
+  CHECK(mpz_cmp(product, n) == 0);
+  mpz_clears(product, power, NULL);
+}
+
+static void check_real_loop(void)
+{
   mpz_t *factors;
   mpz_t product;
   int *exponents, nfactors, i;
-  check_reset();
-  check_semiprime(100);
-  check_split = 1;
+  check_reset(); check_semiprime(100); check_split = 1;
   nfactors = factor(check_input, &factors, &exponents);
   CHECK(nfactors == 2 && check_siqs_calls == 1);
+  check_output(check_input, nfactors, factors, exponents);
   clear_factors(nfactors, &factors, &exponents);
 
-  /* A composite returned in a pair is queued normally, then gets a fresh
-   * SIQS attempt.  The second reply consists of the two equal prime factors. */
-  check_reset();
-  check_semiprime(100);
+  /* SIQS returns p^2 and q. Its composite power needs no second SIQS. */
+  check_reset(); check_semiprime(100);
   mpz_set(check_parts[3], check_parts[0]);
   mpz_mul(check_parts[0], check_parts[0], check_parts[0]);
   mpz_mul(check_input, check_parts[0], check_parts[1]);
-  check_nparts = 2;
   check_split = 1;
-  /* Return composite + prime at the root, then prime + prime. */
   nfactors = factor(check_input, &factors, &exponents);
-  CHECK(nfactors == 2 && check_siqs_calls == 2);
-  mpz_init_set_ui(product, 1);
-  for (i = 0; i < nfactors; i++) {
-    CHECK(_GMP_is_prob_prime(factors[i]));
-    while (exponents[i]-- > 0) mpz_mul(product, product, factors[i]);
-  }
-  CHECK(mpz_cmp(product, check_input) == 0);
-  mpz_clear(product);
+  CHECK(nfactors == 2 && check_siqs_calls == 1);
+  check_output(check_input, nfactors, factors, exponents);
   clear_factors(nfactors, &factors, &exponents);
-  CHECK(check_releases == check_siqs_calls);
 
-  /* A three-composite partition takes the WORK_UPDATED path; all queued
-   * and retained cofactors get a fresh attempt and conserve the full input. */
-  check_reset();
-  check_split = 1;
-  check_nparts = 3;
-  mpz_init(product);
+  /* pq, qr, pr, s: one SIQS partition resolves all four distinct primes. */
+  check_reset(); check_split = 1; check_nparts = 4;
+  for (i = 3; i < 7; i++) {
+    mpz_set_ui(check_parts[i], 1000000 + 100*i);
+    mpz_nextprime(check_parts[i], check_parts[i]);
+  }
+  mpz_mul(check_parts[0], check_parts[4], check_parts[5]);
+  mpz_mul(check_parts[1], check_parts[5], check_parts[6]);
+  mpz_mul(check_parts[2], check_parts[4], check_parts[6]);
   mpz_set_ui(check_input, 1);
-  for (i = 0; i < 3; i++) {
-    mpz_set_ui(check_parts[3+i], 1000000 + 100*i);
-    mpz_nextprime(check_parts[3+i], check_parts[3+i]);
-    mpz_nextprime(product, check_parts[3+i]);
-    mpz_mul(check_parts[i], check_parts[3+i], product);
-    mpz_mul(check_input, check_input, check_parts[i]);
-  }
+  for (i = 0; i < 4; i++) mpz_mul(check_input, check_input, check_parts[i]);
   nfactors = factor(check_input, &factors, &exponents);
-  CHECK(nfactors == 6 && check_siqs_calls == 4);
-  mpz_set_ui(product, 1);
-  for (i = 0; i < nfactors; i++) {
-    CHECK(_GMP_is_prob_prime(factors[i]) && exponents[i] == 1);
-    mpz_mul(product, product, factors[i]);
+  CHECK(nfactors == 4 && check_siqs_calls == 1);
+  check_output(check_input, nfactors, factors, exponents);
+  clear_factors(nfactors, &factors, &exponents);
+
+  /* Exceed the previous fixed stack limit with real small prime factors. */
+  check_reset(); mpz_init_set_ui(product, 1); mpz_set_ui(check_parts[0], 1);
+  for (i = 0; i < 200; i++) {
+    mpz_nextprime(check_parts[0], check_parts[0]);
+    mpz_mul(product, product, check_parts[0]);
   }
-  CHECK(mpz_cmp(product, check_input) == 0);
-  CHECK(check_releases == check_siqs_calls);
+  nfactors = factor(product, &factors, &exponents);
+  CHECK(nfactors == 200 && check_siqs_calls == 0);
+  check_output(product, nfactors, factors, exponents);
   clear_factors(nfactors, &factors, &exponents);
   mpz_clear(product);
 }
 
-static void check_failure_cleanup(void) {
+static void check_failure_cleanup(void)
+{
   mpz_t original;
+  int i;
   check_reset();
-  check_semiprime(100);
-  mpz_mul(check_parts[2], check_parts[0], check_parts[1]);
-  mpz_mul(check_parts[1], check_parts[1], check_parts[1]);
-  mpz_set_ui(check_parts[0], 1000003);
-  mpz_mul(check_input, check_parts[0], check_parts[1]);
-  mpz_mul(check_input, check_input, check_parts[2]);
+  for (i = 3; i < 8; i++) {
+    mpz_set_ui(check_parts[i], 1000000 + 100*i);
+    mpz_nextprime(check_parts[i], check_parts[i]);
+  }
+  mpz_set(check_parts[0], check_parts[7]);
+  mpz_mul(check_parts[1], check_parts[3], check_parts[4]);
+  mpz_mul(check_parts[2], check_parts[5], check_parts[6]);
+  mpz_set_ui(check_input, 1);
+  for (i = 0; i < 3; i++) mpz_mul(check_input, check_input, check_parts[i]);
   mpz_init_set(original, check_input);
-  check_split = 1;
-  check_nparts = 3;
-  check_fail_after = 1;
-  /* Accept one prime and queue a composite, then exhaust the retained
-   * composite.  The croak must release partial results and pending work. */
+  check_split = 1; check_nparts = 3; check_fail_after = 1;
   check_terminal_failure();
   CHECK(check_siqs_calls == 2 && check_releases == 2);
   CHECK(mpz_cmp(check_input, original) == 0);
   mpz_clear(original);
 }
 
+
 int main(void) {
   unsigned i;
   mp_set_memory_functions(check_gmp_malloc, check_gmp_realloc, check_gmp_free);
   mpz_init(check_input);
   for (i = 0; i < 8; i++) mpz_init(check_parts[i]);
+  prime_iterator_global_startup();
   _init_factor();
   check_ecm_bounds(check_ecm_b2_32, UINT32_MAX, UINT64_C(4294770687));
   check_ecm_bounds(ecm_resolve_b2_64, UINT64_MAX,
@@ -485,13 +603,14 @@ int main(void) {
 #endif
   check_schedule();
   check_verbose = 0;
-  check_helper();
+  check_partition();
   check_failure_cleanup();
   check_real_loop();
   _destroy_factor();
+  prime_iterator_global_shutdown();
   for (i = 0; i < 8; i++) mpz_clear(check_parts[i]);
   mpz_clear(check_input);
   CHECK(check_allocations == 0);
-  printf("PASS factor ladder/helper: %u checks; boundaries through 600 bits, 32/64-bit ECM bounds, failure cleanup\n", check_assertions);
+  printf("PASS factor partition/ladder: %u checks; boundaries through 600 bits, 32/64-bit ECM bounds, failure cleanup\n", check_assertions);
   return 0;
 }

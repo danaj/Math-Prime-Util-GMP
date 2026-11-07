@@ -81,7 +81,6 @@ void _destroy_factor(void) {
  * This is used when we split n into two or more composites.  Since we work
  * on the smaller of the composites first, this rarely goes above 10 even
  * with thousands of non-trivial factors. */
-#define MAX_FACTORS 128
 
 static int _mpz_cmp_asc(const void *av, const void *bv)
   { return mpz_cmp(*(const mpz_t*)av, *(const mpz_t*)bv); }
@@ -199,386 +198,420 @@ static const char *factor_step_name(const factor_step_t *step, UV arg1, UV arg2,
   return buffer;
 }
 
-static int add_factor(int nfactors, mpz_t f, int e, mpz_t** pfactors, int** pexponents)
+enum { FACTOR_UNKNOWN, FACTOR_COMPOSITE, FACTOR_PRIME };
+
+typedef struct {
+  mpz_t value;
+  int exponent;
+  unsigned char state;
+} factor_piece_t;
+
+/* A coprime multiplicative partition: product(value^exponent) is the input.
+ * COMPOSITE means primality and power checks have already been done for
+ * this value. Changing a value invalidates both cached classifications.
+ * Entries may move on growth/removal; callers retain indices, not pointers. */
+typedef struct {
+  factor_piece_t *pieces;
+  size_t count, alloc;
+  mpz_t scratch;
+  const char *error;
+} factor_partition_t;
+
+static void factor_partition_init(factor_partition_t *part)
 {
-  int i, j, cmp = 0;
-  MPUassert(e >= 1, "Adding factor with 0 exponent");
-  if (nfactors == 0) {                      /* First factor */
-    mpz_t *factors;
-    int* exponents;
-    New(0, factors, 10, mpz_t);
-    New(0, exponents, 10, int);
-    mpz_init_set(factors[0], f);
-    exponents[0] = e;
-    *pfactors = factors;
-    *pexponents = exponents;
-    return 1;
-  } else if (mpz_cmp((*pfactors)[nfactors-1],f) < 0) {  /* New biggest factor */
-    if (!(nfactors % 10)) {
-      Renew(*pfactors, nfactors+10, mpz_t);
-      Renew(*pexponents, nfactors+10, int);
-    }
-    mpz_init_set((*pfactors)[nfactors], f);
-    (*pexponents)[nfactors] = e;
-    return nfactors+1;
-  }
-  /* Insert in sorted order.  Find out where we will put it. */
-  for (i = 0; i < nfactors; i++)
-    if ((cmp = mpz_cmp((*pfactors)[i], f)) >= 0)
-      break;
-  if (cmp == 0) {                           /* Duplicate factor */
-    (*pexponents)[i] += e;
-    return nfactors;
-  }
-  /* factor[i] > f.  Move everything from i to nfactors up. */
-  if (!(nfactors % 10)) {
-    Renew(*pfactors, nfactors+10, mpz_t);
-    Renew(*pexponents, nfactors+10, int);
-  }
-  mpz_init((*pfactors)[nfactors]);
-  for (j = nfactors; j > i; j--) {
-    mpz_set( (*pfactors)[j], (*pfactors)[j-1] );
-    (*pexponents)[j] = (*pexponents)[j-1];
-  }
-  mpz_set((*pfactors)[i], f);
-  (*pexponents)[i] = e;
-  return nfactors+1;
+  part->pieces = NULL;
+  part->count = part->alloc = 0;
+  part->error = NULL;
+  mpz_init(part->scratch);
 }
 
-typedef enum {
-  FACTOR_SIQS_NO_SPLIT,
-  FACTOR_SIQS_FACTOR,
-  FACTOR_SIQS_WORK_UPDATED
-} factor_siqs_result_t;
-
-/* A pair behaves like any ordinary splitter: return a divisor in f without
- * changing n or the factor/work lists.  Larger partitions are consumed here;
- * the caller must restart on WORK_UPDATED, not enter its single-factor path. */
-static factor_siqs_result_t factor_try_siqs(
-    mpz_t n, mpz_t f, mpz_t *tofac_stack, int *ntofac,
-    int *nfactors, mpz_t **factors, int **exponents, int verbose)
+static void factor_partition_clear(factor_partition_t *part)
 {
-  mpz_t *farray;
-  uint32_t i, j, k, copies, ncomp, qs_nfactors;
-  int progress = 0;
-
-  /* SIQS clamps negative verbosity; preserve the module's quiet low levels. */
-  farray = gmp_siqs(n, &qs_nfactors, 64007, verbose - 2);
-  if (qs_nfactors < 2) {
-    gmp_siqs_free(farray, qs_nfactors);
-    return FACTOR_SIQS_NO_SPLIT;
-  }
-  if (qs_nfactors == 2) {
-    mpz_set(f, farray[0]);
-    gmp_siqs_free(farray, qs_nfactors);
-    return FACTOR_SIQS_FACTOR;
-  }
-
-  qsort(farray, qs_nfactors, sizeof(mpz_t), _mpz_cmp_asc);
-
-  /* Add prime groups and compact distinct composite groups into work items. */
-  for (i = 0, ncomp = 0; i < qs_nfactors; i = j) {
-    for (j = i+1; j < qs_nfactors && mpz_cmp(farray[i], farray[j]) == 0; j++)
-      ;
-    copies = j - i;
-    if (_GMP_is_prob_prime(farray[i])) {
-      *nfactors = add_factor(*nfactors, farray[i], (int)copies, factors, exponents);
-      for (k = 0; k < copies; k++)
-        mpz_divexact(n, n, farray[i]);
-      progress = 1;
-      if (verbose) {
-        gmp_printf("SIQS found prime factor %Zd", farray[i]);
-        if (copies > 1) gmp_printf("^%u", (unsigned int)copies);
-        gmp_printf("\n");
-      }
-    } else {
-      if (copies == 1)
-        mpz_set(farray[ncomp], farray[i]);
-      else {
-        mpz_pow_ui(f, farray[i], copies);
-        mpz_set(farray[ncomp], f);
-      }
-      ncomp++;
-    }
-  }
-
-  /* Keep the smallest composite in n.  If the stack fills, unpushed work
-   * remains represented by its product in n, as in the existing factor loop. */
-  if (ncomp > 1)
-    qsort(farray, ncomp, sizeof(mpz_t), _mpz_cmp_asc);
-  for (i = ncomp; i > 1 && *ntofac < MAX_FACTORS-1; ) {
-    i--;
-    if (verbose) gmp_printf("SIQS found composite factor %Zd\n", farray[i]);
-    mpz_init_set(tofac_stack[(*ntofac)++], farray[i]);
-    mpz_divexact(n, n, farray[i]);
-    progress = 1;
-  }
-  gmp_siqs_free(farray, qs_nfactors);
-  return progress ? FACTOR_SIQS_WORK_UPDATED : FACTOR_SIQS_NO_SPLIT;
+  while (part->count) mpz_clear(part->pieces[--part->count].value);
+  Safefree(part->pieces);
+  mpz_clear(part->scratch);
 }
 
-#define ADD_FACTOR_UI(f, t) \
-  do { \
-    mpz_set_uv(f, t); \
-    nfactors = add_factor(nfactors, f, 1, &factors, &exponents); \
-  } while (0)
+static int factor_partition_append(factor_partition_t *part, const mpz_t value,
+                                   int exponent, unsigned char state)
+{
+  if (part->count == part->alloc) {
+    size_t maximum = SIZE_MAX / sizeof(factor_piece_t), capacity;
+    if (maximum > INT_MAX) maximum = INT_MAX;
+    if (part->count == maximum) {
+      part->error = "Too many factors";
+      return 0;
+    }
+    capacity = part->alloc == 0 ? 4
+             : part->alloc > maximum/2 ? maximum : 2*part->alloc;
+    if (capacity > maximum) capacity = maximum;
+    if (part->alloc == 0) New(0, part->pieces, capacity, factor_piece_t);
+    else                 Renew(part->pieces, capacity, factor_piece_t);
+    part->alloc = capacity;
+  }
+  mpz_init_set(part->pieces[part->count].value, value);
+  part->pieces[part->count].exponent = exponent;
+  part->pieces[part->count++].state = state;
+  return 1;
+}
 
-#define ADD_FACTOR(f) \
-  do { nfactors = add_factor(nfactors, f, 1, &factors, &exponents); } while (0)
+static void factor_partition_remove(factor_partition_t *part, size_t index)
+{
+  size_t last = --part->count;
+  if (index != last) {
+    mpz_swap(part->pieces[index].value, part->pieces[last].value);
+    part->pieces[index].exponent = part->pieces[last].exponent;
+    part->pieces[index].state = part->pieces[last].state;
+  }
+  mpz_clear(part->pieces[last].value);
+}
 
-#define ADD_FACTORS(f, e) \
-  do { nfactors = add_factor(nfactors, f, e, &factors, &exponents); } while (0)
+/* Merge equal pieces and split overlaps until all values are coprime.
+ * A whole-piece divisor is removed to its full valuation at once: this
+ * handles large powers without one entry or one gcd pass per copy. */
+static int factor_partition_refine(factor_partition_t *part)
+{
+  size_t i, j;
+  int a, b, ag, bg;
+  mp_bitcnt_t copies;
+again:
+  for (i = 0; i < part->count; i++) {
+    for (j = i+1; j < part->count; j++) {
+      a = part->pieces[i].exponent;
+      b = part->pieces[j].exponent;
+      if (mpz_cmp(part->pieces[i].value, part->pieces[j].value) == 0) {
+        if (a > INT_MAX-b) goto overflow;
+        part->pieces[i].exponent = a+b;
+        if (part->pieces[i].state == FACTOR_UNKNOWN)
+          part->pieces[i].state = part->pieces[j].state;
+        factor_partition_remove(part, j);
+        goto again;
+      }
+      if (part->pieces[i].state == FACTOR_PRIME &&
+          part->pieces[j].state == FACTOR_PRIME) continue;
+      mpz_gcd(part->scratch, part->pieces[i].value, part->pieces[j].value);
+      if (mpz_cmp_ui(part->scratch, 1) == 0) continue;
+      ag = mpz_cmp(part->scratch, part->pieces[i].value) == 0;
+      bg = mpz_cmp(part->scratch, part->pieces[j].value) == 0;
+      if (ag) {
+        copies = mpz_remove(part->pieces[j].value, part->pieces[j].value,
+                            part->pieces[i].value);
+        if (copies > (mp_bitcnt_t)((INT_MAX-a)/b)) goto overflow;
+        part->pieces[i].exponent = a + b*(int)copies;
+        part->pieces[j].state = FACTOR_UNKNOWN;
+        if (mpz_cmp_ui(part->pieces[j].value, 1) == 0)
+          factor_partition_remove(part, j);
+      } else if (bg) {
+        copies = mpz_remove(part->pieces[i].value, part->pieces[i].value,
+                            part->pieces[j].value);
+        if (copies > (mp_bitcnt_t)((INT_MAX-b)/a)) goto overflow;
+        part->pieces[j].exponent = b + a*(int)copies;
+        part->pieces[i].state = FACTOR_UNKNOWN;
+        if (mpz_cmp_ui(part->pieces[i].value, 1) == 0)
+          factor_partition_remove(part, i);
+      } else {
+        if (a > INT_MAX-b) goto overflow;
+        mpz_divexact(part->pieces[i].value, part->pieces[i].value, part->scratch);
+        mpz_divexact(part->pieces[j].value, part->pieces[j].value, part->scratch);
+        part->pieces[i].state = part->pieces[j].state = FACTOR_UNKNOWN;
+        if (!factor_partition_append(part, part->scratch, a+b, FACTOR_UNKNOWN))
+          return 0;
+      }
+      goto again;
+    }
+  }
+  return 1;
+overflow:
+  part->error = "factor() exponent overflow";
+  return 0;
+}
 
-#define TRIAL_DIVIDE_SMALL(n, pn_lo, pn_hi) \
-  { unsigned long sp, p; \
+/* Classify each new value once and choose the smallest unresolved piece.
+ * Power roots stay in the partition with a multiplied exponent. Any exact
+ * prime-exponent root suffices; the next pass handles powers in that root.
+ * This does not need power_factor's maximal-exponent search or recursion.
+ * prime_cutoff is the square of a known lower bound on prime factors of
+ * unresolved pieces (zero if none). Smaller pieces are therefore prime. */
+static int factor_partition_prepare(factor_partition_t *part, mpz_t root,
+                                    size_t *selected, unsigned long prime_cutoff)
+{
+  size_t i, bits;
+  unsigned long degree, limit;
+  *selected = part->count;
+  for (i = 0; i < part->count; i++) {
+    while (part->pieces[i].state == FACTOR_UNKNOWN) {
+      if (prime_cutoff != 0 && mpz_cmp_ui(part->pieces[i].value, prime_cutoff) < 0) {
+        part->pieces[i].state = FACTOR_PRIME;
+      } else if (mpz_perfect_power_p(part->pieces[i].value)) {
+        PRIME_ITERATOR(iter);
+        bits = mpz_sizeinbase(part->pieces[i].value, 2);
+        limit = (unsigned long)(INT_MAX / part->pieces[i].exponent);
+        if (bits-1 < limit) limit = (unsigned long)(bits-1);
+        for (degree = 2; degree <= limit; degree = prime_iterator_next(&iter))
+          if (mpz_root(root, part->pieces[i].value, degree)) break;
+        prime_iterator_destroy(&iter);
+        if (degree > limit) {
+          part->error = "factor() exponent overflow";
+          return 0;
+        }
+        part->pieces[i].exponent *= (int)degree;
+        mpz_set(part->pieces[i].value, root);
+        /* A root divides the old value, so coprimality with other entries
+         * is preserved. Its primality and remaining power are still unknown. */
+      } else {
+        part->pieces[i].state = _GMP_is_prob_prime(part->pieces[i].value)
+                             ? FACTOR_PRIME : FACTOR_COMPOSITE;
+      }
+    }
+    if (part->pieces[i].state == FACTOR_COMPOSITE &&
+        (*selected == part->count ||
+         mpz_cmp(part->pieces[i].value, part->pieces[*selected].value) < 0))
+      *selected = i;
+  }
+  return 1;
+}
+
+/* d is external scratch, not an entry that may move during append. */
+static int factor_partition_split(factor_partition_t *part, size_t index,
+                                  const mpz_t d)
+{
+  int exponent = part->pieces[index].exponent;
+  if (mpz_cmp_ui(d, 1) <= 0 || mpz_cmp(d, part->pieces[index].value) >= 0 ||
+      !mpz_divisible_p(part->pieces[index].value, d)) {
+    part->error = "Incorrect factoring";
+    return 0;
+  }
+  mpz_divexact(part->scratch, part->pieces[index].value, d);
+  mpz_set(part->pieces[index].value, d);
+  part->pieces[index].state = FACTOR_UNKNOWN;
+  return factor_partition_append(part, part->scratch, exponent, FACTOR_UNKNOWN)
+      && factor_partition_refine(part);
+}
+
+/* Consume a verified SIQS partition through the same refinement path.
+ * Return 1 on progress, 0 on a miss, -1 on invalid data or size overflow. */
+static int factor_partition_siqs(factor_partition_t *part, size_t index,
+                                 const mpz_t n, int verbose)
+{
+  mpz_t *values;
+  uint32_t i, count;
+  int exponent = part->pieces[index].exponent, ok = 1;
+  values = gmp_siqs(n, &count, 64007, verbose - 2);
+  if (count < 2) {
+    gmp_siqs_free(values, count);
+    return 0;
+  }
+  mpz_set_ui(part->scratch, 1);
+  for (i = 0; i < count; i++) {
+    if (mpz_cmp_ui(values[i], 1) <= 0) { ok = 0; break; }
+    mpz_mul(part->scratch, part->scratch, values[i]);
+  }
+  if (!ok || mpz_cmp(part->scratch, n) != 0) {
+    part->error = "SIQS: invalid result partition";
+    gmp_siqs_free(values, count);
+    return -1;
+  }
+  mpz_set(part->pieces[index].value, values[0]);
+  part->pieces[index].state = FACTOR_UNKNOWN;
+  for (i = 1; ok && i < count; i++)
+    ok = factor_partition_append(part, values[i], exponent, FACTOR_UNKNOWN);
+  gmp_siqs_free(values, count);
+  if (!ok || !factor_partition_refine(part)) return -1;
+  if (verbose) gmp_printf("SIQS found partition with %u factors\n", (unsigned)count);
+  return 1;
+}
+
+/* Initial trial division proves these pieces prime and mutually coprime.
+ * Keep the residual in slot zero, including a temporary unit until trial
+ * division finishes, so the represented product is preserved throughout. */
+static int factor_partition_trial(factor_partition_t *part, const mpz_t n,
+                                  const mpz_t p, mp_bitcnt_t copies)
+{
+  if (copies > INT_MAX) {
+    part->error = "factor() exponent overflow";
+    return 0;
+  }
+  mpz_set(part->pieces[0].value, n);
+  return factor_partition_append(part, p, (int)copies, FACTOR_PRIME);
+}
+
+static int factor_piece_cmp(const void *a, const void *b)
+{
+  return mpz_cmp(((const factor_piece_t *)a)->value,
+                 ((const factor_piece_t *)b)->value);
+}
+
+#define FACTOR_TRIAL_SMALL(n, pn_lo, pn_hi) \
+  do { unsigned long sp, p; mp_bitcnt_t copies; \
     for (sp = pn_lo, p = primes_small[sp]; \
          sp <= pn_hi && mpz_cmp_ui(n,p*p) >= 0; \
          p = primes_small[++sp]) { \
       if (mpz_divisible_ui_p(n, p)) { \
         mpz_set_ui(f, p); \
-        ADD_FACTORS(f, mpz_remove(n,n,f)); \
+        copies = mpz_remove(n, n, f); \
+        if (!factor_partition_trial(&part, n, f, copies)) goto FAIL; \
       } \
     } \
-  }
-
-#define FACTOR_CROAK(s) \
-  do { \
-    mpz_clear(f); mpz_clear(n); \
-    while (ntofac > 0) \
-      mpz_clear(tofac_stack[--ntofac]); \
-    clear_factors(nfactors, &factors, &exponents); \
-    croak(s); \
   } while (0)
 
 int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
 {
-  mpz_t tofac_stack[MAX_FACTORS];
-  int ntofac = 0;
-  mpz_t* factors = 0;
-  int* exponents = 0;
-  int nfactors = 0;
-  mpz_t f, n;
-  UV tf, tlim;
+  factor_partition_t part;
+  mpz_t n, f;
+  mpz_t *factors = NULL;
+  int *exponents = NULL, nfactors;
+  size_t index, i;
+  mp_bitcnt_t copies;
+  const char *error;
 
+  *pfactors = NULL;
+  *pexponents = NULL;
   mpz_init_set(n, input_n);
-  mpz_abs(n,n);
-  mpz_init(f);
+  mpz_abs(n, n);
   if (mpz_cmp_ui(n, 4) < 0) {
-    if (mpz_cmp_ui(n, 1) != 0)    /* 1 should return no results */
-      ADD_FACTOR(n);
-    goto DONE;
+    nfactors = mpz_cmp_ui(n, 1) != 0;
+    if (nfactors) {
+      New(0, factors, 1, mpz_t);
+      New(0, exponents, 1, int);
+      mpz_init_set(factors[0], n);
+      exponents[0] = 1;
+    }
+    mpz_clear(n);
+    *pfactors = factors;
+    *pexponents = exponents;
+    return nfactors;
   }
+  mpz_init(f);
+  factor_partition_init(&part);
+  if (!factor_partition_append(&part, n, 1, FACTOR_UNKNOWN)) goto FAIL;
 
-  /* Trial factor to small limit */
   if (mpz_even_p(n)) {
-    mpz_set_ui(f,2);
-    ADD_FACTORS(f, mpz_remove(n,n,f));
+    mpz_set_ui(f, 2);
+    copies = mpz_remove(n, n, f);
+    if (!factor_partition_trial(&part, n, f, copies)) goto FAIL;
   }
-  /* Using gcd to detect any factors in the range, then remove them if found */
-  if (mpz_gcd(f,n,_gcd_1k), mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,   2,  168);
-  if (mpz_gcd(f,n,_gcd_4k), mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 169,  550);
-  if (mpz_gcd(f,n,_gcd_16k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n, 551, 1862);
-  if (mpz_gcd(f,n,_gcd_32k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,1863, 3432);
-  if (mpz_gcd(f,n,_gcd_64k),mpz_cmp_ui(f,1)>0) TRIAL_DIVIDE_SMALL(n,3433, 6413);
+  if (mpz_gcd(f,n,_gcd_1k),mpz_cmp_ui(f,1)>0) FACTOR_TRIAL_SMALL(n,   2,  168);
+  if (mpz_gcd(f,n,_gcd_4k),mpz_cmp_ui(f,1)>0) FACTOR_TRIAL_SMALL(n, 169,  550);
+  if (mpz_gcd(f,n,_gcd_16k),mpz_cmp_ui(f,1)>0)FACTOR_TRIAL_SMALL(n, 551, 1862);
+  if (mpz_gcd(f,n,_gcd_32k),mpz_cmp_ui(f,1)>0)FACTOR_TRIAL_SMALL(n,1863, 3432);
+  if (mpz_gcd(f,n,_gcd_64k),mpz_cmp_ui(f,1)>0)FACTOR_TRIAL_SMALL(n,3433, 6413);
+  if (mpz_cmp_ui(n, 1) == 0)
+    factor_partition_remove(&part, 0);
+  else if (mpz_cmp_ui(n, 64007UL*64007UL) < 0)
+    part.pieces[0].state = FACTOR_PRIME;
 
-  tlim = 64007;
-  if (mpz_cmp_ui(n,tlim*tlim) < 0) {
-    if (mpz_cmp_ui(n,1) > 0)
-      ADD_FACTOR(n);
-    goto DONE;
-  }
+  while (1) {
+    int success = 0, progress = 0, siqs_attempted = 0;
+    int o = get_verbose_level();
+    UV B1 = 0, nbits;
+    size_t stage, step_index;
+    if (!factor_partition_prepare(&part, f, &index, 64007UL*64007UL)) goto FAIL;
+    if (index == part.count) break;
+    mpz_set(n, part.pieces[index].value);
+    nbits = mpz_sizeinbase(n, 2);
+    if (o > 1) { gmp_printf("Factoring %Zd...\n", n); fflush(stdout); }
 
-  /* Power factor */
-  tf = power_factor(n, f);
-  if (tf) {
-    mpz_t* pow_factors;
-    int* pow_exponents;
-    int pow_nfactors, i, j;
-
-    pow_nfactors = factor(f, &pow_factors, &pow_exponents);
-    for (i = 0; i < pow_nfactors; i++)
-      pow_exponents[i] *= tf;
-    for (i = 0; i < pow_nfactors; i++)
-      for (j = 0; j < pow_exponents[i]; j++)
-        ADD_FACTOR(pow_factors[i]);
-    clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
-    goto DONE;
-  }
-
-  do { /* loop over each remaining factor */
-    while ( mpz_cmp_ui(n, tlim*tlim) >= 0 && !_GMP_is_prob_prime(n) ) {
-      int success = 0;
-      int o = get_verbose_level();
-      UV B1 = 0, nbits = mpz_sizeinbase(n, 2);
-      size_t stage, step_index;
-      int siqs_attempted = 0, qs_work_updated = 0;
-
-      if (o > 1)
-        {gmp_printf("Factoring %Zd...\n",n); fflush(stdout);}
-
-      /* First handle inputs small enough for the native-word methods. */
-      if (nbits <= 64) {
-        success = _GMP_tinyecm64_factor(n, f, 0);
-        if (success&&o) {gmp_printf("TINYECM64 found factor %Zd\n", f);o=0;}
-      }
-
-      /* The general-purpose recipe keeps a short, cumulative p-1/ECM ladder
-       * for inexpensive small-factor discoveries, while favoring SIQS on the
-       * hard balanced inputs that dominate large-input use. */
-
-      if (!success && nbits >= 129) {
-        /* Make sure a cofactor produced by an earlier split is not a power. */
-        success = (int)power_factor(n, f);
-        if (success&&o) {gmp_printf("perfect power found factor %Zd\n", f);o=0;}
-      }
-
-      /* Execute the minimum-bit pretests, then the maximum-bit main ladder.
-       * n is unchanged throughout this walk unless SIQS consumes a partition;
-       * that outcome restarts the cofactor loop with fresh bits/attempt state. */
-      for (stage = 0; stage < 2 && !success && !qs_work_updated; stage++) {
-        const factor_step_t *steps = stage == 0 ? factor_pretests : factor_ladder;
-        size_t nsteps = stage == 0
-            ? sizeof(factor_pretests) / sizeof(factor_pretests[0])
-            : sizeof(factor_ladder) / sizeof(factor_ladder[0]);
-
-        for (step_index = 0;
-             step_index < nsteps && !success && !qs_work_updated; step_index++) {
-          const factor_step_t *step = &steps[step_index];
-          UV arg1 = step->arg1, arg2 = step->arg2;
-          char method_buffer[64];
-          const char *method_name = NULL;
-
-          if (stage == 0 && nbits < step->bits)
-            continue;
-          if (stage != 0 && step->bits != 0 && nbits > step->bits)
-            continue;
-
-          /* Resolve bounds and skip ineligible calls before announcing work. */
-          if (step->method == FACTOR_METHOD_EARLY_PM1) {
-            arg1 = factor_early_pm1_bound(nbits);
-            if (arg1 == 0)
-              continue;
-            arg2 = (nbits <= 224 ? 5 : 10) * arg1;
-          } else if (step->method == FACTOR_METHOD_ECM_SCALED ||
-                     step->method == FACTOR_METHOD_LARGE_ECM) {
-            if (B1 == 0)
-              B1 = factor_ecm_base_bound(nbits);
-            arg1 *= B1;
-          } else if (step->method == FACTOR_METHOD_SIQS &&
-                     (siqs_attempted || nbits < MPU_SIQS_MIN_BITS ||
-                      nbits > MPU_SIQS_MAX_BITS)) {
-            continue;
-          }
-
-          if (o)
-            method_name = factor_step_name(step, arg1, arg2,
-                                           method_buffer, sizeof(method_buffer));
-          if (o > 1)
-            {gmp_printf("  Factor trying %s\n", method_name); fflush(stdout);}
-
-          switch (step->method) {
-            case FACTOR_METHOD_EARLY_PM1:
-            case FACTOR_METHOD_PM1:
-              success = _GMP_pminus1_factor(n, f, arg1, arg2);
-              break;
-            case FACTOR_METHOD_ECM:
-              /* Restrict the shorter stage 2 to the tested pretest range. */
-              success = _GMP_ecm_factor_projective(n, f, arg1,
-                  stage == 0 && nbits <= 224 ? 40*arg1 : 0,
-                  arg2, irand_u64(), get_verbose_level());
-              break;
-            case FACTOR_METHOD_LARGE_ECM:
-              if (o) gmp_printf("starting large ECM on %Zd\n", n);
-              /* FALLTHROUGH */
-            case FACTOR_METHOD_ECM_SCALED:
-              success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
-              break;
-            case FACTOR_METHOD_PBRENT:
-              success = _GMP_pbrent_factor(n, f, arg1, arg2);
-              break;
-            case FACTOR_METHOD_HOLF:
-              success = _GMP_holf_factor(n, f, arg1);
-              break;
-            case FACTOR_METHOD_CHEB:
-              success = _GMP_cheb_factor(n, f, arg1, arg2);
-              break;
-            case FACTOR_METHOD_SIQS:
-              siqs_attempted = 1;  /* A miss must not retry this same cofactor. */
-              {
-                factor_siqs_result_t result = factor_try_siqs(
-                    n, f, tofac_stack, &ntofac, &nfactors, &factors, &exponents, o);
-                success = result == FACTOR_SIQS_FACTOR;
-                qs_work_updated = result == FACTOR_SIQS_WORK_UPDATED;
-              }
-              break;
-            default:
-              FACTOR_CROAK("Unknown factoring method");
-          }
-
-          if (success && o)
-            {gmp_printf("%s found %Zd\n", method_name, f); o = 0;}
+    if (nbits <= 64) {
+      success = _GMP_tinyecm64_factor(n, f, 0);
+      if (success && o) gmp_printf("TINYECM64 found factor %Zd\n", f);
+    }
+    for (stage = 0; stage < 2 && !success && !progress; stage++) {
+      const factor_step_t *steps = stage == 0 ? factor_pretests : factor_ladder;
+      size_t nsteps = stage == 0 ? sizeof(factor_pretests)/sizeof(factor_pretests[0])
+                               : sizeof(factor_ladder)/sizeof(factor_ladder[0]);
+      for (step_index = 0; step_index < nsteps && !success && !progress; step_index++) {
+        const factor_step_t *step = &steps[step_index];
+        UV arg1 = step->arg1, arg2 = step->arg2;
+        char method_buffer[64];
+        const char *method_name = NULL;
+        if (stage == 0 && nbits < step->bits) continue;
+        if (stage != 0 && step->bits != 0 && nbits > step->bits) continue;
+        if (step->method == FACTOR_METHOD_EARLY_PM1) {
+          arg1 = factor_early_pm1_bound(nbits);
+          if (arg1 == 0) continue;
+          arg2 = (nbits <= 224 ? 5 : 10) * arg1;
+        } else if (step->method == FACTOR_METHOD_ECM_SCALED ||
+                   step->method == FACTOR_METHOD_LARGE_ECM) {
+          if (B1 == 0) B1 = factor_ecm_base_bound(nbits);
+          arg1 *= B1;
+        } else if (step->method == FACTOR_METHOD_SIQS &&
+                   (siqs_attempted || nbits < MPU_SIQS_MIN_BITS || nbits > MPU_SIQS_MAX_BITS)) {
+          continue;
         }
-      }
-      if (qs_work_updated)
-        continue;
-
-      if (success) {
-        if (!mpz_divisible_p(n, f) || !mpz_cmp_ui(f, 1) || !mpz_cmp(f, n)) {
-          gmp_printf("n = %Zd  f = %Zd\n", n, f);
-          FACTOR_CROAK("Incorrect factoring");
+        if (o) method_name = factor_step_name(step, arg1, arg2, method_buffer, sizeof(method_buffer));
+        if (o > 1) { gmp_printf("  Factor trying %s\n", method_name); fflush(stdout); }
+        switch (step->method) {
+          case FACTOR_METHOD_EARLY_PM1:
+          case FACTOR_METHOD_PM1:
+            success = _GMP_pminus1_factor(n, f, arg1, arg2);
+            break;
+          case FACTOR_METHOD_ECM:
+            success = _GMP_ecm_factor_projective(n, f, arg1,
+                stage == 0 && nbits <= 224 ? 40*arg1 : 0,
+                arg2, irand_u64(), get_verbose_level());
+            break;
+          case FACTOR_METHOD_LARGE_ECM:
+            if (o) gmp_printf("starting large ECM on %Zd\n", n);
+            /* FALLTHROUGH */
+          case FACTOR_METHOD_ECM_SCALED:
+            success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
+            break;
+          case FACTOR_METHOD_PBRENT:
+            success = _GMP_pbrent_factor(n, f, arg1, arg2);
+            break;
+          case FACTOR_METHOD_HOLF:
+            success = _GMP_holf_factor(n, f, arg1);
+            break;
+          case FACTOR_METHOD_CHEB:
+            success = _GMP_cheb_factor(n, f, arg1, arg2);
+            break;
+          case FACTOR_METHOD_SIQS:
+            siqs_attempted = 1;
+            progress = factor_partition_siqs(&part, index, n, o);
+            if (progress < 0) goto FAIL;
+            break;
+          default:
+            part.error = "Unknown factoring method";
+            goto FAIL;
         }
-      }
-
-      if (!success) {
-        gmp_printf("Failed to factor: %Zd\n", n);
-        FACTOR_CROAK("factor() unable to factor");
-      } else {
-        int ndiv = mpz_remove(n, n, f);
-        if (_GMP_is_prob_prime(f)) { /* prime factor */
-          while (ndiv-- > 0)
-            ADD_FACTOR(f);
-        } else if (ndiv > 1) {       /* Repeated non-trivial composite factor */
-          mpz_t* pow_factors;
-          int* pow_exponents;
-          int pow_nfactors, i, j;
-          pow_nfactors = factor(f, &pow_factors, &pow_exponents);
-          for (i = 0; i < pow_nfactors; i++)
-            pow_exponents[i] *= ndiv;
-          for (i = 0; i < pow_nfactors; i++)
-            for (j = 0; j < pow_exponents[i]; j++)
-              ADD_FACTOR(pow_factors[i]);
-          clear_factors(pow_nfactors, &pow_factors, &pow_exponents);
-        } else {                     /* One non-trivial composite factor */
-          if (ntofac >= MAX_FACTORS-1)
-            FACTOR_CROAK("Too many factors");
-          /* If f < n and both are composites, put n on stack and work on f */
-          if (mpz_cmp(f, n) < 0 && !_GMP_is_prob_prime(n)) {
-            mpz_init_set(tofac_stack[ntofac++], n);
-            mpz_set(n, f);
-          } else {
-            mpz_init_set(tofac_stack[ntofac++], f);
-          }
-        }
+        if (success && o) gmp_printf("%s found %Zd\n", method_name, f);
       }
     }
-    /* n is now prime or 1 */
-    if (mpz_cmp_ui(n, 1) > 0) {
-      ADD_FACTOR(n);
-      mpz_set_ui(n, 1);
+    if (success) {
+      if (!factor_partition_split(&part, index, f)) goto FAIL;
+    } else if (!progress) {
+      gmp_printf("Failed to factor: %Zd\n", n);
+      part.error = "factor() unable to factor";
+      goto FAIL;
     }
-    if (ntofac-- > 0) {
-      mpz_set(n, tofac_stack[ntofac]);
-      mpz_clear(tofac_stack[ntofac]);
-    }
-  } while (mpz_cmp_ui(n, 1) > 0);
+  }
 
-DONE:
+  nfactors = (int)part.count;
+  qsort(part.pieces, part.count, sizeof(factor_piece_t), factor_piece_cmp);
+  New(0, factors, part.count, mpz_t);
+  New(0, exponents, part.count, int);
+  /* Transfer limb storage instead of copying each finished prime. */
+  for (i = 0; i < part.count; i++) {
+    mpz_init(factors[i]);
+    mpz_swap(factors[i], part.pieces[i].value);
+    exponents[i] = part.pieces[i].exponent;
+  }
+  factor_partition_clear(&part);
   mpz_clear(f);
   mpz_clear(n);
   *pfactors = factors;
   *pexponents = exponents;
   return nfactors;
+
+FAIL:
+  error = part.error;
+  factor_partition_clear(&part);
+  mpz_clear(f);
+  mpz_clear(n);
+  croak("%s", error ? error : "factor() unable to factor");
+  return 0;
 }
+
 
 void clear_factors(int nfactors, mpz_t* pfactors[], int* pexponents[])
 {

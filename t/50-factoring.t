@@ -31,6 +31,7 @@ my @omegao = (qw/1 0 1 2  3   2   3       5/);
 my @omegab = (qw/1 0 1 4  3   5   7       7/);
 
 plan tests => 0 + 57
+                + 4    # partition powers and multiplicities
                 + 7    # negative factor inputs
                 + 24
                 + 3
@@ -159,6 +160,16 @@ is_deeply( [ factor('43455102778396761657787') ], ['175595514959','247472737493'
 is_deeply( [ factor('267212883610666843931009408162450623523') ],
            ['3133007124855728119','85289586956484094517'],
            "factor 128-bit semiprime" );
+
+# Multiplicities stay with partition entries until their bases are prime.
+is_deeply( [ factor('6279400855801977583360430617795469067060951548015497708249') ],
+           [65537,65537,65537,65537,65537,65537,65539,65539,65539,65539,65539,65539], "factor a power of a composite root" );
+is_deeply( [ factor('22313338637258253381302788785777826554795113') ],
+           [65537,65537,65537,65539,65539,65543,65543,65543,65543], "factor unequal overlapping multiplicities" );
+is_deeply( [ factor('1209202542731547517190207') ],
+           [65537,65537,65539,65539,65543], "factor repeated composite cofactor" );
+is( scalar factor(Math::Prime::Util::GMP::powint(65537, 1009)),
+    1009, "factor a large prime power without recursive expansion" );
 
 # Check perfect squares that make it past early testing
 is_deeply( [ factor('1524157875323973084894790521049') ], ['1234567890123493','1234567890123493'], "factor(1234567890123493^2)" );
