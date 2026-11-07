@@ -54,11 +54,41 @@ static int check_printf(const char *format, ...);
 CHECK_HOOKS
 print {$output} $source, "\n#include <stdint.h>\n";
 print {$output} $pm1_small;
+print {$output} "\nstatic unsigned check_pm1_stage2_terms;\n";
 for my $mode ('list', 'iterator') {
   my $pm1 = $pm1_source;
   $pm1 =~ s/\b_GMP_pminus1_factor\b/check_pm1_$mode/g;
   $pm1 =~ s/B2 < 10000000/0/ if $mode eq 'iterator';
+  $pm1 =~ s/UV lastq, qdiff;/UV lastq, qdiff; check_pm1_stage2_terms++;/;
   print {$output} "\n", $pm1, "\n";
+}
+# Model GMP's narrower unsigned-long arguments on a UV64 host.
+print {$output} <<'CHECK_UI32';
+#if BITS_PER_WORD == 64
+static void check_mul_ui32(mpz_ptr r, mpz_srcptr a, unsigned long k) {
+  mpz_mul_ui(r, a, (uint32_t)k);
+}
+static void check_powm_ui32(mpz_ptr r, mpz_srcptr a, unsigned long k, mpz_srcptr n) {
+  mpz_powm_ui(r, a, (uint32_t)k, n);
+}
+CHECK_UI32
+my $pm1_ui32 = $pm1_source;
+$pm1_ui32 =~ s/\b_GMP_pminus1_factor\b/check_pm1_ui32/g;
+$pm1_ui32 =~ s/\bULONG_MAX\b/UINT32_MAX/g;
+$pm1_ui32 =~ s/sizeof\(unsigned long\)/sizeof(uint32_t)/g;
+$pm1_ui32 =~ s/\bmpz_mul_ui\b/check_mul_ui32/g;
+$pm1_ui32 =~ s/\bmpz_powm_ui\b/check_powm_ui32/g;
+print {$output} "\n", $pm1_ui32, "\n#endif\n";
+# Extract the actual XS default expression, rather than duplicating its policy.
+open my $xs_input, '<', File::Spec->catfile($root, 'XS.xs') or die "$!\n";
+my $xs_source = do { local $/; <$xs_input> };
+close $xs_input;
+my ($pm1_b2) = $xs_source =~ /case 3:\s*if \(arg2 == 0\)\s*arg2 = ([^;]+);\s*success = _GMP_pminus1_factor/;
+defined $pm1_b2 or die "Cannot locate the p-1 default B2 expression\n";
+for my $bits (32, 64) {
+  my $expression = $pm1_b2;
+  $expression =~ s/\bUV_MAX\b/UINT${bits}_MAX/g;
+  print {$output} "static uint${bits}_t check_pm1_b2_$bits(uint${bits}_t arg1) { return $expression; }\n";
 }
 # Exercise the actual resolver with both UV widths, even on a 64-bit host.
 for my $bits (32, 64) {

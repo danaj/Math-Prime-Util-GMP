@@ -617,6 +617,37 @@ static void check_pm1_boundaries(void)
     CHECK(methods[method](n, f, 2000, 2011));
     CHECK(mpz_cmp_ui(f, 84463) == 0);
   }
+  /* A whole-input GCD must terminate the non-backtracking second stage. */
+  mpz_set_ui(n, 72109); mpz_mul_ui(n, n, 84127);
+  for (method = 0; method < 2; method++) {
+    check_pm1_stage2_terms = 0;
+    CHECK(!methods[method](n, f, 2000, 1000000));
+    CHECK(mpz_cmp(f, n) == 0);
+    CHECK(check_pm1_stage2_terms == 34);
+  }
+  /* 4547-1 = 2*2273; prime 2273 is stage-2 term 35. The second GCD
+   * must be at term 162, retaining the early first check at term 34. */
+  mpz_set_ui(n, 4547); mpz_mul_ui(n, n, 1000000007);
+  for (method = 0; method < 2; method++) {
+    check_pm1_stage2_terms = 0;
+    CHECK(methods[method](n, f, 2000, 20000));
+    CHECK(mpz_cmp_ui(f, 4547) == 0);
+    CHECK(check_pm1_stage2_terms == 162);
+  }
+#if BITS_PER_WORD == 64
+  /* 2^32 is an actual stage-1 prime power, not just an oversized bound. */
+  mpz_set_ui(n, 10403);
+  CHECK(check_pm1_ui32(n, f, UINT64_C(4294967296), UINT64_C(4294967296)));
+  CHECK(mpz_cmp_ui(f, 101) == 0);
+#endif
+  CHECK(check_pm1_b2_32(2000) == 20000);
+  CHECK(check_pm1_b2_32(UINT32_MAX/10) == UINT32_MAX/10*10);
+  CHECK(check_pm1_b2_32(UINT32_MAX/10+1) == UINT32_MAX);
+  CHECK(check_pm1_b2_32(UINT32_MAX) == UINT32_MAX);
+  CHECK(check_pm1_b2_64(2000) == 20000);
+  CHECK(check_pm1_b2_64(UINT64_MAX/10) == UINT64_MAX/10*10);
+  CHECK(check_pm1_b2_64(UINT64_MAX/10+1) == UINT64_MAX);
+  CHECK(check_pm1_b2_64(UINT64_MAX) == UINT64_MAX);
   mpz_clears(exponent, a, t, n, pz, qz, f, NULL);
 }
 

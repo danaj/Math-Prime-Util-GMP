@@ -2767,7 +2767,8 @@ C<p-1> method.
 An optional first stage
 smoothness factor (B1) may be given as the second parameter.  This will be
 the smoothness limit B1 for the first stage, and will use C<10*B1> for
-the second stage limit B2.  If a third parameter is given, it will be used
+the second stage limit B2, capped at the largest unsigned integer supported
+by Perl.  If a third parameter is given, it will be used
 as the second stage limit B2.
 Factoring will stop when the input is a prime, one factor has been found, or
 the algorithm fails to find a factor with the given smoothness.

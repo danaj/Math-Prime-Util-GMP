@@ -1727,7 +1727,7 @@ int _GMP_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds)
  */
 int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
 {
-  mpz_t a, savea, t;
+  mpz_t a, savea, t, uvtmp;
   UV q, saveq, j, sqrtB1;
   int _verbose = get_verbose_level();
   PRIME_ITERATOR(iter);
@@ -1738,6 +1738,8 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
   mpz_init(a);
   mpz_init(savea);
   mpz_init(t);
+  /* GMP's _ui arguments can be narrower than Perl's UV. */
+  if (sizeof(UV) > sizeof(unsigned long)) mpz_init(uvtmp);
 
   if (_verbose>2) gmp_printf("# p-1 trying %Zd (B1=%"UVuf" B2=%"UVuf")\n", n, B1, B2);
 
@@ -1770,7 +1772,13 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
       while (k <= kmin)
         k *= q;
     }
-    mpz_mul_ui(t, t, k);        /* Accumulate powers for a */
+    /* Accumulate powers for a, preserving the full UV value. */
+    if (k <= ULONG_MAX) {
+      mpz_mul_ui(t, t, k);
+    } else {
+      mpz_set_uv(uvtmp, k);
+      mpz_mul(t, t, uvtmp);
+    }
     if ( (j++ % 32) == 0) {
       mpz_powm(a, a, t, n);     /* a=a^(k1*k2*k3*...) mod n */
       if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
@@ -1801,7 +1809,12 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
         while (k <= kmin)
           k *= q;
       }
-      mpz_powm_ui(a, a, k, n );
+      if (k <= ULONG_MAX) {
+        mpz_powm_ui(a, a, k, n);
+      } else {
+        mpz_set_uv(uvtmp, k);
+        mpz_powm(a, a, uvtmp, n);
+      }
       mpz_sub_ui(t, a, 1);
       mpz_gcd(f, t, n);
       if (mpz_cmp(f, n) == 0)
@@ -1815,7 +1828,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
 
   /* STAGE 2
    * This is the standard continuation which replaces the powmods in stage 1
-   * with two mulmods, with a GCD every 64 primes (no backtracking).
+   * with two mulmods, with a GCD every 128 primes (no backtracking).
    * This is quite a bit faster than stage 1.
    * See Montgomery 1987, p250-253 for possible optimizations.
    * We quickly precalculate a few of the prime gaps, and lazily cache others
@@ -1845,7 +1858,12 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
       is_precomp[j] = 1;
     }
 
-    mpz_powm_ui(a, a, q, n );
+    if (q <= ULONG_MAX) {
+      mpz_powm_ui(a, a, q, n);
+    } else {
+      mpz_set_uv(uvtmp, q);
+      mpz_powm(a, a, uvtmp, n);
+    }
     if (B2 < 10000000) {
       /* grab all the primes at once.  Hack around non-perfect iterator. */
       primes = sieve_to_n(B2+300, 0);
@@ -1853,7 +1871,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
       /* q is the first prime above B1; primes[sp] is its successor. */
     }
 
-    j = 31;
+    j = 95;  /* First GCD after 34 primes, then every 128. */
     while (q <= B2) {
       UV lastq, qdiff;
 
@@ -1863,9 +1881,10 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
       mpz_mul(b, b, t);
       if ((j % 2) == 0)           /* put off mods a little */
         mpz_tdiv_r(b, b, n);
-      if ( (j++ % 64) == 0) {     /* GCD every so often */
+      if ( (j++ % 128) == 0) {    /* GCD every so often */
         mpz_gcd(f, b, n);
-        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+        /* With no backtracking, a whole-input GCD cannot recover. */
+        if (mpz_cmp_ui(f, 1) != 0)
           break;
       }
 
@@ -1907,6 +1926,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_clear(a);
     mpz_clear(savea);
     mpz_clear(t);
+    if (sizeof(UV) > sizeof(unsigned long)) mpz_clear(uvtmp);
     if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) ) {
       if (_verbose>2) gmp_printf("# p-1: %Zd\n", f);
       return 1;

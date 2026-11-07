@@ -2488,7 +2488,7 @@ trial_factor(IN char* strn, ...)
                 break;
         case 1: success = _GMP_prho_factor(n, f, 3, arg1);        break;
         case 2: success = _GMP_pbrent_factor(n, f, 3, arg1);      break;
-        case 3: if (arg2 == 0)  arg2 = arg1*10;
+        case 3: if (arg2 == 0)  arg2 = arg1 > UV_MAX/10 ? UV_MAX : arg1*10;
                 success = _GMP_pminus1_factor(n, f, arg1,arg2);   break;
         case 4: if (arg2 == 0)  arg2 = arg1*10;
                 success = _GMP_pplus1_factor(n, f, 0,arg1,arg2);  break;
