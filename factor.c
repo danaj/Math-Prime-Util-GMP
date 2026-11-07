@@ -108,14 +108,16 @@ typedef struct {
 
 /* Pretests: BITS is a minimum; zero means unrestricted.  These are
  * cumulative, deliberately modest budgets before the first SIQS checkpoint.
- * B1=600 uses four curves from 180 bits, plus twelve more from 200 bits. */
+ * B1=600 uses four curves from 160 bits, plus twelve more from 176 bits.
+ * Shorter stage-2 budgets are used through 224 bits; larger inputs retain
+ * their previous bounds, curve counts and execution order. */
 static const factor_step_t factor_pretests[] = {
   /* bits  method                      B1       B2/curves */
   {   0, FACTOR_METHOD_EARLY_PM1,       0,       0, NULL                    },
-  { 160, FACTOR_METHOD_ECM,           200,       4, "ecm (200)"        },
-  { 180, FACTOR_METHOD_ECM,           600,       4, "ecm (600)"        },
-  { 200, FACTOR_METHOD_ECM,           600,      12, "ecm (600)"        },
-  { 200, FACTOR_METHOD_ECM,          2000,      10, "ecm (2000)"       },
+  { 128, FACTOR_METHOD_ECM,           200,       4, "ecm (200)"        },
+  { 160, FACTOR_METHOD_ECM,           600,       4, "ecm (600)"        },
+  { 176, FACTOR_METHOD_ECM,           600,      12, "ecm (600)"        },
+  { 192, FACTOR_METHOD_ECM,          2000,      10, "ecm (2000)"       },
   { 208, FACTOR_METHOD_PM1,        200000, 3000000, "p-1 (200k)"            },
   { 208, FACTOR_METHOD_ECM,         20000,       2, "ecm (20k,2)"     },
   { 240, FACTOR_METHOD_ECM,         30000,      20, "ecm (30k,20)"    },
@@ -164,9 +166,9 @@ static const factor_step_t factor_ladder[] = {
 static UV factor_early_pm1_bound(UV nbits)
 {
   /* Scale or skip this fixed work where SIQS itself is very fast. */
-  return nbits <  96 ?     0
+  return nbits <  88 ?     0
        : nbits < 112 ?  1000
-       : nbits < 144 ?  2000
+       : nbits < 176 ?  2000
                      : 20000;
 }
 
@@ -456,7 +458,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
             arg1 = factor_early_pm1_bound(nbits);
             if (arg1 == 0)
               continue;
-            arg2 = 10*arg1;
+            arg2 = (nbits <= 224 ? 5 : 10) * arg1;
           } else if (step->method == FACTOR_METHOD_ECM_SCALED ||
                      step->method == FACTOR_METHOD_LARGE_ECM) {
             if (B1 == 0)
@@ -480,7 +482,10 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
               success = _GMP_pminus1_factor(n, f, arg1, arg2);
               break;
             case FACTOR_METHOD_ECM:
-              success = _GMP_ECM_FACTOR(n, f, arg1, arg2);
+              /* Restrict the shorter stage 2 to the tested pretest range. */
+              success = _GMP_ecm_factor_projective(n, f, arg1,
+                  stage == 0 && nbits <= 224 ? 40*arg1 : 0,
+                  arg2, irand_u64(), get_verbose_level());
               break;
             case FACTOR_METHOD_LARGE_ECM:
               if (o) gmp_printf("starting large ECM on %Zd\n", n);

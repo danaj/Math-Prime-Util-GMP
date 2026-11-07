@@ -8,7 +8,7 @@
 
 enum { CHECK_ECM, CHECK_PM1, CHECK_PBRENT, CHECK_HOLF, CHECK_CHEB,
        CHECK_SIQS, CHECK_TINYECM64 };
-typedef struct { int kind; UV a, b; } check_event_t;
+typedef struct { int kind; UV a, b, b2; } check_event_t;
 static check_event_t check_events[256];
 static size_t check_nevents;
 static unsigned check_siqs_calls, check_releases, check_assertions, check_fail_after;
@@ -97,6 +97,7 @@ static void check_record(int kind, UV a, UV b) {
   CHECK(check_nevents < sizeof(check_events) / sizeof(check_events[0]));
   check_events[check_nevents].kind = kind;
   check_events[check_nevents].a = a;
+  check_events[check_nevents].b2 = 0;
   check_events[check_nevents++].b = b;
 }
 
@@ -118,9 +119,10 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV b1, UV b2) {
 }
 int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV b1, UV b2, UV curves,
                               uint64_t seed, int verbose) {
-  (void)n; (void)f; CHECK(b2 == 0);
+  (void)n; (void)f;
   CHECK(seed == UINT64_C(0x123456789abcdef0) && verbose == check_verbose);
-  check_record(CHECK_ECM, b1, curves); return 0;
+  check_record(CHECK_ECM, b1, curves);
+  check_events[check_nevents-1].b2 = b2; return 0;
 }
 int _GMP_pbrent_factor(const mpz_t n, mpz_t f, UV a, UV rounds) {
   (void)n; (void)f; check_record(CHECK_PBRENT, a, rounds); return 0;
@@ -202,38 +204,40 @@ static void check_expected(size_t *index, int kind, UV a, UV b) {
   CHECK(check_events[*index].b == b);
   (*index)++;
 }
+static void check_expected_ecm(size_t *index, UV b1, UV curves, UV b2) {
+  check_expected(index, CHECK_ECM, b1, curves);
+  CHECK(check_events[*index-1].b2 == b2);
+}
 static void check_fallback_recipe(unsigned bits) {
   size_t index = 0;
-  UV base, early, m;
+  UV base, early, m, pretest_b2_ratio = bits <= 224 ? 40 : 0;
   if (bits <= 64) check_expected(&index, CHECK_TINYECM64, 0, 0);
-  early = bits < 96 ? 0 : bits < 112 ? 1000 : bits < 144 ? 2000 : 20000;
-  if (early) check_expected(&index, CHECK_PM1, early, 10*early);
-  if (bits >= 160) check_expected(&index, CHECK_ECM, 200, 4);
-  if (bits >= 180) check_expected(&index, CHECK_ECM, 600, 4);
-  if (bits >= 200) {
-    check_expected(&index, CHECK_ECM, 600, 12);
-    check_expected(&index, CHECK_ECM, 2000, 10);
-  }
+  early = bits < 88 ? 0 : bits < 112 ? 1000 : bits < 176 ? 2000 : 20000;
+  if (early) check_expected(&index, CHECK_PM1, early, (bits <= 224 ? 5 : 10)*early);
+  if (bits >= 128) check_expected_ecm(&index, 200, 4, 200*pretest_b2_ratio);
+  if (bits >= 160) check_expected_ecm(&index, 600, 4, 600*pretest_b2_ratio);
+  if (bits >= 176) check_expected_ecm(&index, 600, 12, 600*pretest_b2_ratio);
+  if (bits >= 192) check_expected_ecm(&index, 2000, 10, 2000*pretest_b2_ratio);
   if (bits >= 208) {
     check_expected(&index, CHECK_PM1, 200000, 3000000);
-    check_expected(&index, CHECK_ECM, 20000, 2);
+    check_expected_ecm(&index, 20000, 2, 20000*pretest_b2_ratio);
   }
-  if (bits >= 240) check_expected(&index, CHECK_ECM, 30000, 20);
-  if (bits >= 256) check_expected(&index, CHECK_ECM, 40000, 40);
-  if (bits >= 270) check_expected(&index, CHECK_ECM, 80000, 40);
-  if (bits >= 288) check_expected(&index, CHECK_ECM, 160000, 80);
+  if (bits >= 240) check_expected_ecm(&index, 30000, 20, 0);
+  if (bits >= 256) check_expected_ecm(&index, 40000, 40, 0);
+  if (bits >= 270) check_expected_ecm(&index, 80000, 40, 0);
+  if (bits >= 288) check_expected_ecm(&index, 160000, 80, 0);
   base = bits < 65 ? 5000 : bits < 160 ? 20000 : bits < 192 ? 30000
        : bits < 224 ? 40000 : bits < 256 ? 80000 : bits < 512 ? 160000 : 320000;
   CHECK(factor_ecm_base_bound(bits) == base);
-  check_expected(&index, CHECK_ECM, 2*base, 20);
+  check_expected_ecm(&index, 2*base, 20, 0);
   check_expected(&index, CHECK_PBRENT, 1, 1048576);
-  check_expected(&index, CHECK_ECM, 4*base, 20);
-  check_expected(&index, CHECK_ECM, 8*base, 20);
+  check_expected_ecm(&index, 4*base, 20, 0);
+  check_expected_ecm(&index, 8*base, 20, 0);
   check_expected(&index, CHECK_HOLF, 1048576, 0);
   check_expected(&index, CHECK_CHEB, 50000, 0);
   check_expected(&index, CHECK_PM1, 5000000, 100000000);
-  check_expected(&index, CHECK_ECM, 32*base, 40);
-  for (m = 8; m <= 128; m *= 2) check_expected(&index, CHECK_ECM, m*base, 100);
+  check_expected_ecm(&index, 32*base, 40, 0);
+  for (m = 8; m <= 128; m *= 2) check_expected_ecm(&index, m*base, 100, 0);
   while (index < check_nevents && check_events[index].kind == CHECK_SIQS) index++;
   CHECK(index == check_nevents);
 }
@@ -291,8 +295,8 @@ static void check_names(void) {
 }
 
 static void check_schedule(void) {
-  static const unsigned sizes[] = {36,52,53,55,56,59,63,64,65,95,96,111,112,
-    143,144,159,160,179,180,181,191,192,199,200,201,207,208,223,224,239,240,255,256,269,270,
+  static const unsigned sizes[] = {36,52,53,55,56,59,63,64,65,87,88,89,95,96,111,112,127,128,129,
+    143,144,159,160,161,175,176,177,179,180,181,191,192,193,199,200,201,207,208,209,223,224,225,239,240,255,256,269,270,
     287,288,319,320,321,359,360,361,399,400,401,511,512,513,600};
   size_t i, j;
   for (i = 0; i < sizeof(sizes)/sizeof(sizes[0]); i++) {
