@@ -32,6 +32,7 @@ my @omegab = (qw/1 0 1 4  3   5   7       7/);
 
 plan tests => 0 + 57
                 + 4    # partition powers and multiplicities
+                + 6    # p-1 stage-2 interval boundaries
                 + 7    # negative factor inputs
                 + 24
                 + 3
@@ -335,6 +336,19 @@ is_deeply( [Math::Prime::Util::GMP::pbrent_factor('2114957314229414940')], [2,2,
 
 # Test stage 2 of pminus1
 is_deeply( [ sort {$a<=>$b} Math::Prime::Util::GMP::pminus1_factor('23113042053749572861737011', 100, 100000) ], ['694059980329', '33301217054459'], "p-1 factors 23113042053749572861737011 in stage 2");
+
+# 72109-1 = 36*2003; 84463-1 = 42*2011.  Neither splits in stage 1.
+for my $case (
+  ['72109000504763', 2002, ['72109000504763'], 'no prime in the interval'],
+  ['72109000504763', 2003, [72109,1000000007], 'first stage-2 prime at B2'],
+  ['72109000504763', 10000, [72109,1000000007], 'first stage-2 prime in a wider interval'],
+  ['84463000591241', 2010, ['84463000591241'], 'stop before the first prime beyond B2'],
+  ['84463000591241', 2011, [84463,1000000007], 'include a later prime equal to B2'],
+  ['72109000504763', 10000000, [72109,1000000007], 'iterator stage-2 path'],
+) {
+  is_deeply( [Math::Prime::Util::GMP::pminus1_factor($case->[0], 2000, $case->[1])],
+             $case->[2], "p-1: $case->[3]" );
+}
 
 # A SQUFOF side case, trying to cover code
 if ($extra) {

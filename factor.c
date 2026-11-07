@@ -107,6 +107,8 @@ typedef struct {
 
 /* Pretests: BITS is a minimum; zero means unrestricted.  These are
  * cumulative, deliberately modest budgets before the first SIQS checkpoint.
+ * Early p-1 continues while it splits, stopping for this factor() call
+ * after its first miss. Other steps apply to each unresolved cofactor.
  * B1=600 uses four curves from 160 bits, plus twelve more from 176 bits.
  * Shorter stage-2 budgets are used through 224 bits; larger inputs retain
  * their previous bounds, curve counts and execution order. */
@@ -459,7 +461,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
   factor_partition_t part;
   mpz_t n, f;
   mpz_t *factors = NULL;
-  int *exponents = NULL, nfactors;
+  int *exponents = NULL, nfactors, early_pm1_done = 0;
   size_t index, i;
   mp_bitcnt_t copies;
   const char *error;
@@ -527,6 +529,7 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
         if (stage == 0 && nbits < step->bits) continue;
         if (stage != 0 && step->bits != 0 && nbits > step->bits) continue;
         if (step->method == FACTOR_METHOD_EARLY_PM1) {
+          if (early_pm1_done) continue;
           arg1 = factor_early_pm1_bound(nbits);
           if (arg1 == 0) continue;
           arg2 = (nbits <= 224 ? 5 : 10) * arg1;
@@ -544,6 +547,8 @@ int factor(const mpz_t input_n, mpz_t* pfactors[], int* pexponents[])
           case FACTOR_METHOD_EARLY_PM1:
           case FACTOR_METHOD_PM1:
             success = _GMP_pminus1_factor(n, f, arg1, arg2);
+            if (step->method == FACTOR_METHOD_EARLY_PM1 && !success)
+              early_pm1_done = 1;
             break;
           case FACTOR_METHOD_ECM:
             success = _GMP_ecm_factor_projective(n, f, arg1,
@@ -1817,7 +1822,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
    * up to a gap of 222.  That's enough for a B2 value of 189 million.  We
    * still work above that, we just won't cache the value for big gaps.
    */
-  if (B2 > B1) {
+  if (B2 > B1 && q <= B2) {
     mpz_t b, bm, bmdiff;
     mpz_t precomp_bm[111];
     int   is_precomp[111] = {0};
@@ -1828,7 +1833,7 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
     mpz_init_set(bm, a);
     mpz_init_set_ui(b, 1);
 
-    /* Set the first 20 differences */
+    /* Set the first 22 differences */
     mpz_powm_ui(bmdiff, bm, 2, n);
     mpz_init_set(precomp_bm[0], bmdiff);
     is_precomp[0] = 1;
@@ -1845,15 +1850,28 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
       /* grab all the primes at once.  Hack around non-perfect iterator. */
       primes = sieve_to_n(B2+300, 0);
       for (sp = B1>>4; primes[sp] <= q; sp++)  ;
-      /* q is primes <= B1, primes[sp] is the next prime */
+      /* q is the first prime above B1; primes[sp] is its successor. */
     }
 
     j = 31;
     while (q <= B2) {
       UV lastq, qdiff;
 
+      /* Include the first prime above B1 and any prime equal to B2. */
+      if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
+      else             mpz_sub_ui(t, n, 1);
+      mpz_mul(b, b, t);
+      if ((j % 2) == 0)           /* put off mods a little */
+        mpz_tdiv_r(b, b, n);
+      if ( (j++ % 64) == 0) {     /* GCD every so often */
+        mpz_gcd(f, b, n);
+        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
+          break;
+      }
+
       lastq = q;
       q = primes ? primes[sp++] : prime_iterator_next(&iter);
+      if (q > B2) break;
       qdiff = (q - lastq) / 2 - 1;
 
       if (qdiff < 111 && is_precomp[qdiff]) {
@@ -1868,16 +1886,6 @@ int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV B1, UV B2)
         mpz_mul(t, a, bmdiff);
       }
       mpz_tdiv_r(a, t, n);
-      if (mpz_sgn(a))  mpz_sub_ui(t, a, 1);
-      else             mpz_sub_ui(t, n, 1);
-      mpz_mul(b, b, t);
-      if ((j % 2) == 0)           /* put off mods a little */
-        mpz_tdiv_r(b, b, n);
-      if ( (j++ % 64) == 0) {     /* GCD every so often */
-        mpz_gcd(f, b, n);
-        if ( (mpz_cmp_ui(f, 1) != 0) && (mpz_cmp(f, n) != 0) )
-          break;
-      }
     }
     mpz_gcd(f, b, n);
     mpz_clear(b);

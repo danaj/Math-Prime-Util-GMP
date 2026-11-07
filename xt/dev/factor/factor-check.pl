@@ -9,9 +9,9 @@ use FindBin qw($Bin);
 use Getopt::Long qw(GetOptions);
 use Text::ParseWords qw(shellwords);
 
-# Compile the factor-loop prefix, unchanged, with scripted splitters.  This
-# exercises high-bit scheduling without doing expensive factorizations or
-# adding test seams to production code.  Everything generated is disposable.
+# Compile the factor-loop prefix unchanged with scripted splitters, plus
+# the actual p-1 code for boundary checks.  This exercises scheduling without
+# expensive factorizations or production test seams. Generated files are disposable.
 my $cc = $ENV{CC} // $Config{cc};
 my ($cflags, $ldflags, $sanitize) = ('-O2 -g', '-lgmp -lm', 0);
 GetOptions('cc=s' => \$cc, 'cflags=s' => \$cflags, 'ldflags=s' => \$ldflags,
@@ -23,6 +23,10 @@ my $source_path = File::Spec->catfile($root, 'factor.c');
 open my $input, '<', $source_path or die "$source_path: $!\n";
 my $source = do { local $/; <$input> };
 close $input;
+my ($pm1_small) = $source =~ /(^#define TEST_FOR_2357\b.*?)(?=^int )/ms;
+my ($pm1_source) = $source =~ /(^int _GMP_pminus1_factor\b.*?^\})/ms;
+defined $pm1_small && defined $pm1_source
+  or die "Cannot locate the p-1 implementation\n";
 $source =~ s/\nstatic void _omega\b.*\z/\n/s
   or die "Cannot locate the end of the factor-loop prefix\n";
 my $ecm_path = File::Spec->catfile($root, 'ecm.c');
@@ -49,6 +53,13 @@ static int check_printf(const char *format, ...);
 #define gmp_printf check_printf
 CHECK_HOOKS
 print {$output} $source, "\n#include <stdint.h>\n";
+print {$output} $pm1_small;
+for my $mode ('list', 'iterator') {
+  my $pm1 = $pm1_source;
+  $pm1 =~ s/\b_GMP_pminus1_factor\b/check_pm1_$mode/g;
+  $pm1 =~ s/B2 < 10000000/0/ if $mode eq 'iterator';
+  print {$output} "\n", $pm1, "\n";
+}
 # Exercise the actual resolver with both UV widths, even on a 64-bit host.
 for my $bits (32, 64) {
   my $typed_bounds = $bounds;

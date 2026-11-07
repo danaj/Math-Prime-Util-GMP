@@ -1,5 +1,5 @@
 /* Included after the unchanged factor.c prefix by factor-check.pl.
- * All factoring methods are scripted: no high-bit input is actually split.
+ * Factor-loop methods are scripted; separate p-1 checks use the real code.
  * GMP primality, factor bookkeeping and the prime iterator remain real. */
 #include <stdio.h>
 #include <string.h>
@@ -14,7 +14,7 @@ static size_t check_nevents;
 static unsigned check_siqs_calls, check_releases, check_assertions, check_fail_after;
 static mpz_t check_input, check_parts[8];
 static unsigned check_nparts, check_primality_calls;
-static int check_split, check_verbose;
+static int check_split, check_verbose, check_pm1_split;
 static jmp_buf check_failure_jump;
 static int check_expecting_failure;
 static char check_failure_message[128];
@@ -117,7 +117,18 @@ int _GMP_tinyecm64_factor(const mpz_t n, mpz_t f, int try_small) {
   (void)n; (void)f; check_record(CHECK_TINYECM64, (UV)try_small, 0); return 0;
 }
 int _GMP_pminus1_factor(const mpz_t n, mpz_t f, UV b1, UV b2) {
-  (void)n; (void)f; check_record(CHECK_PM1, b1, b2); return 0;
+  (void)n;
+  check_record(CHECK_PM1, b1, b2);
+  if (check_pm1_split) {
+    unsigned i;
+    check_pm1_split--;
+    for (i = 3; i < 8; i++)
+      if (mpz_cmp(check_parts[i], n) < 0 && mpz_divisible_p(n, check_parts[i])) break;
+    CHECK(i < 8);
+    mpz_set(f, check_parts[i]);
+    return 1;
+  }
+  return 0;
 }
 int _GMP_ecm_factor_projective(const mpz_t n, mpz_t f, UV b1, UV b2, UV curves,
                               uint64_t seed, int verbose) {
@@ -177,6 +188,7 @@ static void check_reset(void) {
   check_siqs_calls = check_releases = 0;
   check_fail_after = 0;
   check_split = 0;
+  check_pm1_split = 0;
   check_nparts = 2;
 }
 static void check_semiprime(unsigned bits) {
@@ -563,6 +575,95 @@ static void check_real_loop(void)
   mpz_clear(product);
 }
 
+static void check_pm1_boundaries(void)
+{
+  int (*methods[2])(const mpz_t, mpz_t, UV, UV) =
+    { check_pm1_list, check_pm1_iterator };
+  mpz_t exponent, a, t, n, pz, qz, f;
+  unsigned long bound, q, p, k;
+  unsigned method;
+  mpz_inits(exponent, a, t, n, pz, qz, f, NULL);
+
+  /* Independent lcm/powm arithmetic supplies a factor requiring precisely
+   * the first prime after B1. Exercise prime and nonprime bounds. */
+  for (bound = 7; bound <= 100; bound++) {
+    mpz_set_ui(exponent, 1);
+    for (k = 2; k <= bound; k++) mpz_lcm_ui(exponent, exponent, k);
+    mpz_set_ui(qz, bound); mpz_nextprime(qz, qz); q = mpz_get_ui(qz);
+    for (k = 2; k <= 8*bound; k += 2) {
+      p = k*q+1;
+      mpz_set_ui(pz, p);
+      if (!mpz_probab_prime_p(pz, 20)) continue;
+      mpz_mul_ui(n, pz, 1000000007);
+      mpz_set_ui(a, 2); mpz_powm(a, a, exponent, n);
+      mpz_sub_ui(t, a, 1); mpz_gcd(f, t, n);
+      if (mpz_cmp_ui(f, 1) != 0) continue;
+      mpz_powm_ui(t, a, q, n); mpz_sub_ui(t, t, 1); mpz_gcd(f, t, n);
+      if (mpz_cmp_ui(f, p) == 0) break;
+    }
+    CHECK(k <= 8*bound);
+    for (method = 0; method < 2; method++) {
+      CHECK(!methods[method](n, f, bound, q-1));
+      CHECK(mpz_cmp(f, n) == 0);
+      CHECK(methods[method](n, f, bound, q));
+      CHECK(mpz_cmp_ui(f, p) == 0);
+    }
+  }
+  /* A later prime is included at B2, but never when it lies beyond B2. */
+  mpz_set_ui(n, 84463); mpz_mul_ui(n, n, 1000000007);
+  for (method = 0; method < 2; method++) {
+    CHECK(!methods[method](n, f, 2000, 2010));
+    CHECK(mpz_cmp(f, n) == 0);
+    CHECK(methods[method](n, f, 2000, 2011));
+    CHECK(mpz_cmp_ui(f, 84463) == 0);
+  }
+  mpz_clears(exponent, a, t, n, pz, qz, f, NULL);
+}
+
+static void check_early_pm1_until_miss(void)
+{
+  mpz_t *factors;
+  int *exponents, count;
+  unsigned hit, i, early, large;
+
+  for (hit = 0; hit <= 4; hit++) {
+    check_reset(); check_split = 1; check_pm1_split = hit;
+    for (i = 0; i < 8; i++) mpz_set_ui(check_parts[i], 1);
+    mpz_set_ui(check_parts[3], 1);
+    mpz_mul_2exp(check_parts[3], check_parts[3], 63);
+    mpz_nextprime(check_parts[3], check_parts[3]);
+    for (i = 4; i < 8; i++) mpz_nextprime(check_parts[i], check_parts[i-1]);
+    mpz_set(check_parts[0], check_parts[3]);
+    for (i = 4; i < 8; i++) mpz_mul(check_parts[1], check_parts[1], check_parts[i]);
+    mpz_mul(check_input, check_parts[0], check_parts[1]);
+    count = factor(check_input, &factors, &exponents);
+    CHECK(count == 5 && check_siqs_calls == 4-hit);
+    check_output(check_input, count, factors, exponents);
+    early = large = 0;
+    for (i = 0; i < check_nevents; i++) {
+      if (check_events[i].kind != CHECK_PM1) continue;
+      if (check_events[i].a == 20000 || check_events[i].a == 2000) early++;
+      else {
+        CHECK(check_events[i].a == 200000 && check_events[i].b == 3000000);
+        large++;
+      }
+    }
+    CHECK(early == (hit < 4 ? hit+1 : 4));
+    CHECK(large == (hit < 2 ? 2-hit : 0));
+    clear_factors(count, &factors, &exponents);
+  }
+
+  /* A prime and a prime power finish classification before early p-1. */
+  for (i = 1; i <= 3; i += 2) {
+    check_reset();
+    mpz_pow_ui(check_input, check_parts[3], i);
+    count = factor(check_input, &factors, &exponents);
+    CHECK(count == 1 && exponents[0] == (int)i && check_nevents == 0);
+    check_output(check_input, count, factors, exponents);
+    clear_factors(count, &factors, &exponents);
+  }
+}
+
 static void check_failure_cleanup(void)
 {
   mpz_t original;
@@ -603,7 +704,9 @@ int main(void) {
 #endif
   check_schedule();
   check_verbose = 0;
+  check_pm1_boundaries();
   check_partition();
+  check_early_pm1_until_miss();
   check_failure_cleanup();
   check_real_loop();
   _destroy_factor();
@@ -611,6 +714,8 @@ int main(void) {
   for (i = 0; i < 8; i++) mpz_clear(check_parts[i]);
   mpz_clear(check_input);
   CHECK(check_allocations == 0);
-  printf("PASS factor partition/ladder: %u checks; boundaries through 600 bits, 32/64-bit ECM bounds, failure cleanup\n", check_assertions);
+  printf("PASS factor partition/ladder: %u checks; p-1 boundaries, "
+         "scheduling through 600 bits, 32/64-bit ECM bounds, failure cleanup\n",
+         check_assertions);
   return 0;
 }
