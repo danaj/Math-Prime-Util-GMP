@@ -942,7 +942,7 @@ void harmreal(IN char* strn, IN UV prec = 40)
         case 6:  res = eireal(f, prec); break;
         case 7:  res = riemannrreal(f, prec); break;
         case 8:
-        default: res = lambertwreal(f, prec); break;
+        default: res = lambertwreal(f, strn, prec); break;
       }
       mpf_clear(f);
       if (res == 0)

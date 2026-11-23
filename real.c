@@ -1138,16 +1138,24 @@ static double _lambertw_approx(double x) {
 
 /* Iteration (5) from https://arxiv.org/pdf/2008.06122. */
 static void _mpf_lambertw_approx(mpf_t w, mpf_t x) {
+  double dx = mpf_get_d(x);
   double dapprox;
   mpf_t T1, T2;
   const int apbits = 117;   /* 35 digits */
   int i, loops;
 
+  /* A subnormal or zero double is a poor seed.  Keep all of x's
+   * precision and let the main iteration compute the correction. */
+  if (fabs(dx) < DBL_MIN) {
+    mpf_set(w, x);
+    return;
+  }
+
   mpf_init2(T1, apbits);
   mpf_init2(T2, apbits);
 
   loops = 2;
-  dapprox = _lambertw_approx(mpf_get_d(x));
+  dapprox = _lambertw_approx(dx);
   if (dapprox < 800.0) {
     mpf_set_d(T1, dapprox);
   } else {
@@ -1170,9 +1178,9 @@ static void _mpf_lambertw_approx(mpf_t w, mpf_t x) {
   mpf_clear(T2); mpf_clear(T1);
 }
 
-static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
+static void _lambertw(mpf_t r, mpf_t x, const char* str, unsigned long prec)
 {
-  int i;
+  int i, near_branch;
   unsigned long bits = 96 + DIGS2BITS(prec);
   mpf_t w, t, tol, w1, zn, qn, en;
 
@@ -1181,8 +1189,38 @@ static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
   if (mpf_sgn(x) == 0)
     { mpf_set(r, x); return; }
 
-  /* Use Fritsch rather than Halley. */
+  near_branch = mpf_cmp_d(x, -.36) < 0;
+  if (near_branch) {
+    /* The square root at -1/e can cost half the input digits.  Reparse
+     * the original decimal if the initial mpf_t has too few guard bits. */
+    bits += (unsigned long) DIGS2BITS(prec);
+    if (mpf_get_prec(x) < bits) {
+      mpf_set_prec(x, bits);
+      mpf_set_str(x, str, 10);  /* Already validated by the caller. */
+    }
+  }
+
   mpf_init2(w,   bits);
+  if (near_branch) {
+    /* For u = 1+W(x), -1-log(-x) = -log(1-u)-u = u^2/2 + O(u^3). */
+    mpf_neg(w, x);
+    mpf_log(w, w);
+    mpf_add_ui(w, w, 1);
+    if (mpf_sgn(w) >= 0) {
+      /* x is below -1/e, but within the accepted rounding margin. */
+      mpf_set_si(r, -1);
+      mpf_clear(w);
+      return;
+    }
+    mpf_neg(w, w);
+    mpf_mul_2exp(w, w, 1);
+    mpf_sqrt(w, w);
+    mpf_sub_ui(w, w, 1);
+  } else {
+    _mpf_lambertw_approx(w, x);
+  }
+
+  /* Use Fritsch rather than Halley. */
   mpf_init2(t,   bits);
   mpf_init2(tol, bits);
   mpf_init2(w1,  bits);
@@ -1190,15 +1228,12 @@ static void _lambertw(mpf_t r, mpf_t x, unsigned long prec)
   mpf_init2(qn,  bits);
   mpf_init2(en,  bits);
 
-  /* Get a 30 or so digit initial value. */
-  _mpf_lambertw_approx(w, x);
-
   /* Divide prec by 2 since t should have 4x number of zeros each round */
   mpf_set_ui(tol, 10);
-  mpf_pow_ui(tol, tol, (mpf_cmp_d(x, -.36) < 0) ? prec : prec/2);
+  mpf_pow_ui(tol, tol, near_branch ? prec : prec/2);
   mpf_ui_div(tol,1,tol);
 
-  for (i = 0; i < 500 && mpz_sgn(w) != 0; i++) {
+  for (i = 0; i < 500 && mpf_sgn(w) != 0; i++) {
     mpf_add_ui(w1, w, 1);
 
     mpf_div(t, x, w);
@@ -1257,8 +1292,8 @@ char* riemannrreal(mpf_t r, unsigned long prec)
   _riemann_r(r, r, prec);
   return _str_real(r, prec);
 }
-char* lambertwreal(mpf_t x, unsigned long prec) {
-  _lambertw(x, x, prec);
+char* lambertwreal(mpf_t x, const char* str, unsigned long prec) {
+  _lambertw(x, x, str, prec);
   return _str_real(x, prec);
 }
 char* lireal(mpf_t r, unsigned long prec)
