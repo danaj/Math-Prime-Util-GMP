@@ -78,7 +78,7 @@ our @EXPORT_OK = qw(
                      factorialmod binomialmod
                      consecutive_integer_lcm
                      partitions partitionsq bernfrac bernreal harmfrac harmreal stirling
-                     bernvec powersum faulhaber_sum
+                     bernvec powersum primepowersum faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal
@@ -1932,6 +1932,21 @@ C<powersum> and the other functions can be safely done on multiple
 threads if and only if within that range.
 
 C<powersum> and C<faulhaber_sum> are aliases for the same function.
+
+=head2 primepowersum
+
+  say primepowersum(1e8, 2);  # 18433608754948081174274
+
+Given non-negative integers C<n> and C<p>, returns the sum of the
+C<p>-th powers of the primes less than or equal to C<n>.
+
+The special cases C<p=0> and C<p=1> are equal to the prime count of C<n>
+and the prime sum of C<n> respectively.
+
+The exponent must fit in a C<unsigned long>.  For positive exponents,
+C<n> must fit in 64 bits and the calculation uses about twice its square
+root in GMP integer table entries.  For C<p> greater than 3, the
+Bernoulli cache has the same thread-safety restrictions as for L</powersum>.
 
 =head2 sigma
 

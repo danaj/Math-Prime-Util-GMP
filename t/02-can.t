@@ -72,7 +72,7 @@ my @functions = qw(
                      factorialmod binomialmod
                      consecutive_integer_lcm
                      partitions partitionsq bernfrac bernreal harmfrac harmreal stirling
-                     bernvec powersum faulhaber_sum
+                     bernvec powersum primepowersum faulhaber_sum
                      zeta li ei riemannr lambertw
                      addreal subreal mulreal divreal
                      logreal expreal powreal rootreal agmreal

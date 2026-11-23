@@ -1789,19 +1789,20 @@ falling_factorial(IN char* strx, IN char* strn)
 void powersum(IN char* stra, IN char* strb)
   ALIAS:
     faulhaber_sum = 1
-    jordan_totient = 2
+    primepowersum = 2
+    jordan_totient = 3
   PREINIT:
     mpz_t a, b;
   PPCODE:
     validate_and_set(a, IFLAG_NONNEG);
     validate_and_set(b, IFLAG_NONNEG);
-    if (ix == 0 || ix == 1) {
-      if (!mpz_fits_ulong_p(b)) croak("%s: power too large", SUBNAME);
-      faulhaber_sum(a, a, mpz_get_ui(b));
-    } else {
-      if (!mpz_fits_ulong_p(a)) croak("%s: power too large", SUBNAME);
-      jordan_totient(a, b, mpz_get_ui(a));
+    if ((ix < 3 && !mpz_fits_ulong_p(b)) || (ix == 3 && !mpz_fits_ulong_p(a))) {
+      mpz_clear(b); mpz_clear(a);
+      croak("%s: power too large", SUBNAME);
     }
+    if (ix == 0 || ix == 1) faulhaber_sum(a, a, mpz_get_ui(b));
+    else if (ix == 2)       primepowersum(a, a, mpz_get_ui(b));
+    else                    jordan_totient(a, b, mpz_get_ui(a));
     XPUSH_MPZ(a);
     mpz_clear(b); mpz_clear(a);
 

@@ -1103,6 +1103,83 @@ void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p) /*Sum_1^n(k^p)*/
   mpz_clear(t);
 }
 
+void primepowersum(mpz_t sum, const mpz_t zn, unsigned long p)
+{
+  uint64_t n, r, m, i, q, entries;
+  mpz_t t, weight, *small, *large;
+  PRIME_ITERATOR(iter);
+
+  if (mpz_cmp_ui(zn,2) < 0) {
+    mpz_set_ui(sum, 0);
+    return;
+  }
+  if (p == 0) {
+    /* prime_count requires its output and input to be distinct. */
+    mpz_init(t);
+    prime_count(t, zn);
+    mpz_swap(sum, t);
+    mpz_clear(t);
+    return;
+  }
+  if (mpz_sizeinbase(zn,2) > 64)
+    croak("primepowersum: n must fit in 64 bits for a positive power");
+  mpz_export(&n, NULL, -1, sizeof(n), 0, 0, zn);
+  mpz_init(t);
+  mpz_sqrt(t, zn);
+  r = mpz_get_ui(t);
+  m = n/(r+1);
+
+  /* The distinct quotients floor(n/i) are 1..m and n/1..n/r. */
+  entries = m+r+1;
+  if (entries > (((size_t)-1) >> 1) / sizeof(mpz_t)) {
+    mpz_clear(t);
+    croak("primepowersum: quotient tables are too large");
+  }
+  New(0, small, (size_t) entries, mpz_t);
+  large = small+m;  /* large[1] follows small[m]. */
+  mpz_init(weight);
+  mpz_init_set_ui(small[0], 0);
+  for (i = 1; i <= m; i++) {
+    mpz_init(small[i]);
+    mpz_ui_pow_ui(weight, (unsigned long) i, p);
+    mpz_add(small[i], small[i-1], weight);
+  }
+  for (i = 1; i <= r; i++) {
+    uint64_t v = n/i;
+    mpz_init(large[i]);
+    if (v <= ULONG_MAX) mpz_set_ui(t, (unsigned long) v);
+    else                mpz_import(t, 1, -1, sizeof(v), 0, 0, &v);
+    faulhaber_sum(large[i], t, p);
+  }
+
+  for (q = 2; q <= r; q = prime_iterator_next(&iter)) {
+    uint64_t q2 = q*q, last = n/q2;
+    mpz_srcptr before = small[q-1];
+    if (last > r) last = r;
+    mpz_ui_pow_ui(weight, (unsigned long) q, p);
+    /* Visit quotients in decreasing order: the source must still be unsieved
+     * for q.  Subtract q^p times the eligible cofactors from q through v/q. */
+    for (i = 1; i <= last; i++) {
+      uint64_t iq = i*q;
+      mpz_sub(t, iq <= r ? large[iq] : small[n/iq], before);
+      mpz_submul(large[i], t, weight);
+    }
+    for (i = m; i >= q2; i--) {
+      mpz_sub(t, small[i/q], before);
+      mpz_submul(small[i], t, weight);
+    }
+  }
+  prime_iterator_destroy(&iter);
+
+  mpz_sub_ui(sum, large[1], 1);  /* 1 survives the sieve but is not prime. */
+  for (i = 0; i < entries; i++)
+    mpz_clear(small[i]);
+  Safefree(small);
+  mpz_clear(weight);
+  mpz_clear(t);
+}
+
+
 void hclassno(mpz_t res, const mpz_t n)
 {
   uint32_t nmod4 = mpz_fdiv_ui(n,4);

@@ -31,6 +31,7 @@ extern void rising_factorial(mpz_t r, mpz_t x, mpz_t n);
 extern void falling_factorial(mpz_t r, mpz_t x, mpz_t n);
 
 extern void faulhaber_sum(mpz_t sum, const mpz_t zn, unsigned long p);
+extern void primepowersum(mpz_t sum, const mpz_t zn, unsigned long p);
 
 extern void hclassno(mpz_t res, const mpz_t n);
 extern void rtau(mpz_t res, const mpz_t n);

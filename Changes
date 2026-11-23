@@ -2,6 +2,10 @@ Revision history for Perl module Math::Prime::Util::GMP
 
 0.55 2026-?
 
+    [ADDED]
+
+    - primepowersum(n,k)       sum of p^k for primes <= n
+
     [PERFORMANCE]
 
     - The generic factor routine and qs_factor now use a new independent SIQS
