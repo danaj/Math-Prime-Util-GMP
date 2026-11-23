@@ -74,13 +74,20 @@ typedef __int8 int8_t;
       fputc('\n', stderr); \
     exit(3); \
   } while(0)
+  /* Cap allocation sizes at the maximum representable pointer difference. */
+#if defined(_MSC_VER) && !defined(PTRDIFF_MAX)
+  /* On MSVC, size_t and ptrdiff_t have the same width. */
+  #define MPU_ALLOC_MAX ((size_t)-1 >> 1)
+#else
+  #define MPU_ALLOC_MAX ((size_t)PTRDIFF_MAX)
+#endif
   /* Empty allocations may return NULL; renewing to zero frees the allocation.
    * The typed macros pass sizeof(type), so size is always nonzero. */
   static MAYBE_UNUSED void *mpu_malloc(size_t count, size_t size)
   {
     void *mem;
-    if (count > (size_t)-1 / size)
-      croak("Allocation size overflow");
+    if (count > MPU_ALLOC_MAX / size)
+      croak("Allocation size too large");
     mem = malloc(count * size);
     if (mem == NULL && count != 0)
       croak("Out of memory");
@@ -89,8 +96,8 @@ typedef __int8 int8_t;
   static MAYBE_UNUSED void *mpu_calloc(size_t count, size_t size)
   {
     void *mem;
-    if (count > (size_t)-1 / size)
-      croak("Allocation size overflow");
+    if (count > MPU_ALLOC_MAX / size)
+      croak("Allocation size too large");
     mem = calloc(count, size);
     if (mem == NULL && count != 0)
       croak("Out of memory");
@@ -98,8 +105,8 @@ typedef __int8 int8_t;
   }
   static MAYBE_UNUSED void *mpu_realloc(void *mem, size_t count, size_t size)
   {
-    if (count > (size_t)-1 / size)
-      croak("Allocation size overflow");
+    if (count > MPU_ALLOC_MAX / size)
+      croak("Allocation size too large");
     if (count == 0) {
       free(mem);
       return NULL;

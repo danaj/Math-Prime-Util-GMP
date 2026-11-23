@@ -139,12 +139,12 @@ UV next_prime_ui(UV n)
 
 #define P_GT_LO(f,p,lo)  ( ((f)>=(lo)) ? (f) : (lo)+(((p)-((lo)%(p)))%(p)) )
 
-/* Return a char array with lo-hi+1 elements. mu[k-lo] = µ(k) for k = lo .. hi.
- * It is the callers responsibility to call Safefree on the result. */
+/* Return a char array with hi-lo+1 elements. mu[k-lo] = µ(k) for k = lo .. hi.
+ * The caller must call Safefree on the result. */
 signed char* range_moebius(UV lo, UV hi)
 {
   signed char* mu;
-  UV p, i, sqrtn = isqrt(hi), count = hi-lo+1;
+  UV p, i, sqrtn, count;
 
   /* Kuznetsov indicates that the Deléglise & Rivat (1996) method can be
    * modified to work on logs, which allows us to operate with no
@@ -153,7 +153,9 @@ signed char* range_moebius(UV lo, UV hi)
   UV nextlog, nextlogi;
 
   if (hi < lo) croak("range_mobius error hi %"UVuf" < lo %"UVuf"\n", hi, lo);
-
+  if (hi-lo == UV_MAX) croak("range_mobius range too large");
+  count = hi-lo+1;
+  sqrtn = isqrt(hi);
   Newz(0, mu, count, signed char);
   if (sqrtn*sqrtn != hi && sqrtn < (UVCONST(1)<<(BITS_PER_WORD/2))-1) sqrtn++;
 
